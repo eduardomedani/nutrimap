@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PréNutri · Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter+Tight:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F4F1EA;
+    --bg-card: #FDFBF7;
+    --bg-warm: #EDE7D8;
+    --ink: #1A1F1B;
+    --ink-soft: #4A524C;
+    --ink-mute: #8A8F89;
+    --moss: #3D4D3F;
+    --moss-deep: #2A3A2C;
+    --moss-light: #5C6E5E;
+    --olive: #5C6B47;
+    --sage: #87A082;
+    --gold: #B8924A;
+    --gold-soft: #D4B373;
+    --cream: #F8F1DD;
+    --line: #DDD6C5;
+    --line-strong: #C3BBA8;
+    --rose: #A8534A;
+    --shadow: 0 4px 20px rgba(60,80,60,0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    background-image:
+      radial-gradient(circle at 15% 10%, rgba(135,160,130,0.08), transparent 45%),
+      radial-gradient(circle at 85% 85%, rgba(184,146,74,0.06), transparent 45%);
+    background-attachment: fixed;
+    color: var(--ink);
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  .container { max-width: 920px; margin: 0 auto; padding: 24px 20px 60px; }
+
+  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand-mark {
+    width: 42px; height: 42px;
+    background: linear-gradient(135deg, var(--moss), var(--olive));
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--cream);
+    font-family: 'Fraunces', serif;
+    font-size: 20px; font-weight: 600; font-style: italic;
+  }
+  .brand-text {
+    font-family: 'Fraunces', serif;
+    font-size: 28px; color: var(--ink); letter-spacing: -0.02em;
+  }
+  .brand-text em { color: var(--moss); font-style: italic; }
+  .brand-subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--moss);
+    text-transform: uppercase; letter-spacing: 0.1em;
+    margin-top: 2px; font-weight: 600;
+  }
+
+  .status-pill {
+    background: var(--bg-card);
+    padding: 8px 16px;
+    border-radius: 100px;
+    font-size: 13px;
+    color: var(--ink-soft);
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line);
+  }
+  .status-pill::before {
+    content: ''; width: 8px; height: 8px;
+    background: var(--sage); border-radius: 50%;
+  }
+  .status-pill.error::before { background: var(--rose); }
+  .status-pill.warn::before { background: var(--gold); }
+
+  .card {
+    background: var(--bg-card);
+    border-radius: 20px;
+    padding: 28px;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+  }
+  .card-title {
+    font-family: 'Fraunces', serif;
+    font-size: 22px;
+    color: var(--ink);
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+  .card-title em { color: var(--moss); font-style: italic; }
+  .card-description {
+    font-size: 14px;
+    color: var(--ink-soft);
+    margin-bottom: 20px;
+  }
+
+  .form-row {
+    display: flex; gap: 12px; align-items: end;
+    margin-bottom: 16px;
+  }
+  .input-group { flex: 1; }
+  .input-label {
+    display: block;
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+  .input {
+    width: 100%;
+    padding: 13px 16px;
+    background: var(--bg);
+    border: 1.5px solid var(--line);
+    border-radius: 12px;
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 15px;
+    color: var(--ink);
+    transition: all 0.2s;
+  }
+  .input:focus {
+    outline: none; border-color: var(--moss);
+    background: var(--bg-card);
+    box-shadow: 0 0 0 4px rgba(61,77,63,0.08);
+  }
+
+  .btn {
+    padding: 13px 24px;
+    border: none;
+    border-radius: 100px;
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--moss);
+    color: var(--cream);
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--moss-deep); transform: translateY(-1px); }
+  .btn:disabled { background: var(--line-strong); cursor: not-allowed; transform: none; }
+  .btn-secondary { background: var(--bg-warm); color: var(--ink); }
+  .btn-secondary:hover { background: var(--line); }
+  .btn-sm { padding: 8px 14px; font-size: 12px; }
+  .btn-icon { padding: 8px 12px; font-size: 14px; }
+
+  .result-card {
+    background: linear-gradient(135deg, var(--cream), rgba(184,146,74,0.15));
+    border: 1px solid var(--gold-soft);
+    border-radius: 14px;
+    padding: 20px;
+    margin-top: 16px;
+    display: none;
+  }
+  .result-card.active { display: block; animation: slideDown 0.3s; }
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .result-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--moss);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+  .result-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 32px;
+    color: var(--moss-deep);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+  .result-link {
+    display: flex; gap: 8px; align-items: center;
+    background: var(--bg-card);
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--ink);
+    word-break: break-all;
+    margin-bottom: 10px;
+  }
+  .result-link-text { flex: 1; }
+  .copy-btn {
+    background: var(--moss);
+    color: var(--cream);
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .copy-btn.copied { background: var(--sage); }
+
+  .table-wrap {
+    overflow-x: auto;
+    margin-top: 8px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  th, td {
+    padding: 12px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+  }
+  th {
+    background: var(--bg-warm);
+    font-weight: 600;
+    color: var(--moss-deep);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  tr:hover td { background: var(--bg); }
+  .codigo-pill {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    color: var(--moss);
+    background: var(--cream);
+    padding: 4px 10px;
+    border-radius: 8px;
+    display: inline-block;
+  }
+  .status-tag {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .status-aguardando { background: rgba(184,146,74,0.15); color: var(--gold); }
+  .status-completo { background: rgba(135,160,130,0.2); color: var(--moss-deep); }
+
+  .config-section {
+    background: var(--bg-warm);
+    border-radius: 14px;
+    padding: 18px 22px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border-left: 4px solid var(--gold);
+  }
+  .config-icon {
+    font-size: 24px;
+  }
+  .config-text {
+    flex: 1;
+    font-size: 13.5px;
+    color: var(--ink-soft);
+    line-height: 1.4;
+  }
+  .config-text strong { color: var(--moss-deep); }
+  .config-input {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--bg-card);
+    border: 1.5px solid var(--line);
+    border-radius: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--ink);
+  }
+  .config-input:focus {
+    outline: none; border-color: var(--moss);
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--ink-mute);
+  }
+  .empty-state-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    opacity: 0.4;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--moss-deep);
+    color: var(--cream);
+    padding: 14px 20px;
+    border-radius: 12px;
+    font-size: 13px;
+    box-shadow: 0 8px 30px rgba(60,80,60,0.25);
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 100;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  @media (max-width: 640px) {
+    .form-row { flex-direction: column; align-items: stretch; }
+    .card { padding: 20px; border-radius: 16px; }
+    th, td { padding: 8px 10px; font-size: 12.5px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <div class="header">
+    <div class="brand">
+      <div class="brand-mark">P</div>
+      <div>
+        <div class="brand-text">Pré<em>Nutri</em></div>
+        <div class="brand-subtitle">Admin · Gerador de códigos</div>
+      </div>
+    </div>
+    <div class="status-pill" id="apiStatus">Verificando conexão...</div>
+  </div>
+
+  <!-- Configuração inicial -->
+  <div class="config-section">
+    <div class="config-icon">⚙️</div>
+    <div class="config-text">
+      <strong>1) URL do Apps Script (backend):</strong><br>
+      Cole abaixo a URL do Web App publicado (algo como <code>https://script.google.com/macros/s/.../exec</code>)
+    </div>
+  </div>
+  <div style="margin-bottom: 16px;">
+    <input type="text" id="apiUrl" class="config-input" placeholder="https://script.google.com/macros/s/.../exec" />
+    <div style="display: flex; gap: 10px; margin-top: 10px;">
+      <button class="btn btn-sm" onclick="salvarApiUrl()">Salvar URL</button>
+      <button class="btn btn-sm btn-secondary" onclick="testarConexao()">Testar conexão</button>
+    </div>
+  </div>
+
+  <div class="config-section">
+    <div class="config-icon">🔗</div>
+    <div class="config-text">
+      <strong>2) URL do questionário (frontend):</strong><br>
+      Caminho do arquivo do questionário (ex: <code>http://localhost/04_PreNutri_Questionario_FINAL.html</code> ou <code>https://seusite.com.br/</code>)
+    </div>
+  </div>
+  <div style="margin-bottom: 24px;">
+    <input type="text" id="questionarioUrlInput" class="config-input" placeholder="https://seusite.com/questionario.html" />
+    <div style="display: flex; gap: 10px; margin-top: 10px;">
+      <button class="btn btn-sm" onclick="salvarQuestionarioUrl()">Salvar URL</button>
+    </div>
+  </div>
+
+  <!-- Gerar novo código -->
+  <div class="card">
+    <div class="card-title">Gerar <em>novo código</em> de paciente</div>
+    <div class="card-description">Cada paciente recebe um link único para preencher o questionário. O código fica salvo automaticamente na planilha.</div>
+
+    <div class="form-row">
+      <div class="input-group">
+        <label class="input-label">Nome do paciente (opcional)</label>
+        <input type="text" id="novoPacienteNome" class="input" placeholder="Ex: Maria Silva" />
+      </div>
+      <button class="btn" id="btnGerar" onclick="gerarCodigo()">Gerar código →</button>
+    </div>
+
+    <div class="result-card" id="resultCard">
+      <div class="result-title">✓ Código gerado com sucesso</div>
+      <div class="result-code" id="resultCode">—</div>
+      <div class="result-link">
+        <div class="result-link-text" id="resultLink">—</div>
+        <button class="copy-btn" onclick="copiarLink()">Copiar</button>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-sm" onclick="enviarWhatsapp()">📱 Abrir WhatsApp</button>
+        <button class="btn btn-sm btn-secondary" onclick="abrirLink()">👁 Pré-visualizar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lista de pacientes -->
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+      <div class="card-title">Pacientes <em>cadastrados</em></div>
+      <button class="btn btn-sm btn-secondary" onclick="carregarPacientes()">🔄 Atualizar</button>
+    </div>
+    <div class="card-description">Lista de todos os códigos gerados e seu status atual.</div>
+
+    <div class="table-wrap">
+      <table id="tabelaPacientes">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Nome</th>
+            <th>Status</th>
+            <th>Criado em</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="pacientesBody">
+          <tr><td colspan="5" class="empty-state">
+            <div class="empty-state-icon">📋</div>
+            Configure a URL do Apps Script para ver os pacientes
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast">Copiado!</div>
+
+<script>
+  // ═══════════════════════════════════════════════════════════
+  // CONFIGURAÇÃO
+  // ═══════════════════════════════════════════════════════════
+  const URL_STORAGE_KEY = 'prenutri_admin_api_url';
+  const QUESTIONARIO_URL_KEY = 'prenutri_admin_questionario_url';
+
+  let apiUrl = localStorage.getItem(URL_STORAGE_KEY) || '';
+  let questionarioUrl = localStorage.getItem(QUESTIONARIO_URL_KEY) || detectarUrlQuestionario();
+
+  function detectarUrlQuestionario() {
+    // Tenta substituir variações comuns: "Admin" → "Questionario_FINAL"
+    let url = window.location.href.split('?')[0]; // remove query params
+    if (url.includes('Admin')) {
+      return url.replace(/Admin/, 'Questionario_FINAL');
+    }
+    // Fallback: mesma pasta + arquivo do questionário
+    const pathParts = url.split('/');
+    pathParts.pop();
+    return pathParts.join('/') + '/04_PreNutri_Questionario_FINAL.html';
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // FUNÇÕES UI
+  // ═══════════════════════════════════════════════════════════
+
+  function mostrarToast(msg, tempo = 2000) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), tempo);
+  }
+
+  function atualizarStatus(estado, mensagem) {
+    const status = document.getElementById('apiStatus');
+    status.className = 'status-pill ' + estado;
+    status.textContent = mensagem;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // SALVAR / CARREGAR URL DA API
+  // ═══════════════════════════════════════════════════════════
+
+  function salvarApiUrl() {
+    const url = document.getElementById('apiUrl').value.trim();
+    if (!url) {
+      mostrarToast('Cole a URL primeiro');
+      return;
+    }
+    apiUrl = url;
+    localStorage.setItem(URL_STORAGE_KEY, url);
+    mostrarToast('URL salva!');
+    testarConexao();
+  }
+
+  function salvarQuestionarioUrl() {
+    const url = document.getElementById('questionarioUrlInput').value.trim();
+    if (!url) {
+      mostrarToast('Cole a URL primeiro');
+      return;
+    }
+    questionarioUrl = url;
+    localStorage.setItem(QUESTIONARIO_URL_KEY, url);
+    mostrarToast('URL do questionário salva!');
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // TESTAR CONEXÃO COM APPS SCRIPT
+  // ═══════════════════════════════════════════════════════════
+
+  async function testarConexao() {
+    if (!apiUrl) {
+      atualizarStatus('error', 'URL não configurada');
+      return;
+    }
+
+    atualizarStatus('warn', 'Testando...');
+
+    try {
+      const resp = await fetch(apiUrl + '?action=listar_pacientes');
+      const data = await resp.json();
+      if (data.ok) {
+        atualizarStatus('', 'Conectado');
+        carregarPacientes();
+      } else {
+        atualizarStatus('error', 'Erro na API');
+      }
+    } catch (erro) {
+      atualizarStatus('error', 'Falha de conexão');
+      console.error(erro);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // GERAR NOVO CÓDIGO
+  // ═══════════════════════════════════════════════════════════
+
+  async function gerarCodigo() {
+    if (!apiUrl) {
+      mostrarToast('Configure a URL da API primeiro');
+      return;
+    }
+
+    const btn = document.getElementById('btnGerar');
+    const nome = document.getElementById('novoPacienteNome').value.trim();
+
+    btn.disabled = true;
+    btn.textContent = 'Gerando...';
+
+    try {
+      const resp = await fetch(apiUrl, {
+        method: 'POST',
+        // Importante: não definir Content-Type para evitar CORS preflight no Apps Script
+        body: JSON.stringify({ action: 'gerar_codigo', nome: nome })
+      });
+      const data = await resp.json();
+
+      if (data.ok) {
+        const codigo = data.codigo;
+        const linkCompleto = questionarioUrl + '?p=' + codigo;
+
+        document.getElementById('resultCode').textContent = codigo;
+        document.getElementById('resultLink').textContent = linkCompleto;
+        document.getElementById('resultCard').classList.add('active');
+        document.getElementById('novoPacienteNome').value = '';
+
+        mostrarToast('Código gerado!');
+        carregarPacientes();
+      } else {
+        mostrarToast('Erro: ' + (data.erro || 'desconhecido'));
+      }
+    } catch (erro) {
+      mostrarToast('Falha de conexão');
+      console.error(erro);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Gerar código →';
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // CARREGAR PACIENTES
+  // ═══════════════════════════════════════════════════════════
+
+  async function carregarPacientes() {
+    if (!apiUrl) return;
+
+    try {
+      const resp = await fetch(apiUrl + '?action=listar_pacientes');
+      const data = await resp.json();
+      const tbody = document.getElementById('pacientesBody');
+
+      if (data.ok && data.pacientes.length > 0) {
+        const ordenados = data.pacientes.sort((a, b) => new Date(b.criado_em) - new Date(a.criado_em));
+
+        tbody.innerHTML = ordenados.map(p => `
+          <tr>
+            <td><span class="codigo-pill">${p.codigo}</span></td>
+            <td>${p.nome || '<span style="color:var(--ink-mute);">—</span>'}</td>
+            <td><span class="status-tag status-${p.status || 'aguardando'}">${p.status || 'aguardando'}</span></td>
+            <td style="font-family: 'JetBrains Mono', monospace; font-size: 12px;">${formatarData(p.criado_em)}</td>
+            <td>
+              <button class="btn btn-icon" onclick="copiarCodigo('${p.codigo}')" title="Copiar link">📋</button>
+              <button class="btn btn-icon btn-secondary" onclick="abrirCodigo('${p.codigo}')" title="Pré-visualizar">👁</button>
+            </td>
+          </tr>
+        `).join('');
+      } else {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-state">
+          <div class="empty-state-icon">📭</div>
+          Nenhum paciente cadastrado ainda. Gere o primeiro código acima!
+        </td></tr>`;
+      }
+    } catch (erro) {
+      console.error(erro);
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // AÇÕES
+  // ═══════════════════════════════════════════════════════════
+
+  function copiarLink() {
+    const link = document.getElementById('resultLink').textContent;
+    navigator.clipboard.writeText(link);
+    mostrarToast('Link copiado!');
+  }
+
+  function copiarCodigo(codigo) {
+    const link = questionarioUrl + '?p=' + codigo;
+    navigator.clipboard.writeText(link);
+    mostrarToast('Link copiado: ' + codigo);
+  }
+
+  function abrirLink() {
+    const link = document.getElementById('resultLink').textContent;
+    window.open(link, '_blank');
+  }
+
+  function abrirCodigo(codigo) {
+    window.open(questionarioUrl + '?p=' + codigo, '_blank');
+  }
+
+  function enviarWhatsapp() {
+    const link = document.getElementById('resultLink').textContent;
+    const msg = encodeURIComponent(
+      `Oi! Aqui está seu questionário pré-consulta nutricional:\n\n${link}\n\nLeva entre 15 e 25 minutos. As respostas são salvas automaticamente — pode pausar e voltar quando quiser. 🌿`
+    );
+    window.open(`https://wa.me/?text=${msg}`, '_blank');
+  }
+
+  function formatarData(data) {
+    if (!data) return '—';
+    const d = new Date(data);
+    if (isNaN(d.getTime())) return data;
+    return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // INIT
+  // ═══════════════════════════════════════════════════════════
+
+  document.addEventListener('DOMContentLoaded', () => {
+    // Preencher campo do questionário
+    if (questionarioUrl) {
+      document.getElementById('questionarioUrlInput').value = questionarioUrl;
+    }
+
+    if (apiUrl) {
+      document.getElementById('apiUrl').value = apiUrl;
+      testarConexao();
+    } else {
+      atualizarStatus('error', 'URL não configurada');
+    }
+  });
+</script>
+
+</body>
+</html>

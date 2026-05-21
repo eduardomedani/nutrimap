@@ -1,0 +1,2775 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>PréNutri · Questionário Pré-Consulta</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter+Tight:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F4F1EA; --bg-card: #FDFBF7; --bg-warm: #EDE7D8;
+    --ink: #1A1F1B; --ink-soft: #4A524C; --ink-mute: #8A8F89;
+    --moss: #3D4D3F; --moss-deep: #2A3A2C; --moss-light: #5C6E5E;
+    --olive: #5C6B47; --sage: #87A082;
+    --gold: #B8924A; --gold-soft: #D4B373;
+    --cream: #F8F1DD; --line: #DDD6C5; --line-strong: #C3BBA8;
+    --rose: #A8534A;
+    --shadow: 0 4px 20px rgba(60,80,60,0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    background-image: radial-gradient(circle at 15% 10%, rgba(135,160,130,0.08), transparent 45%), radial-gradient(circle at 85% 85%, rgba(184,146,74,0.06), transparent 45%);
+    background-attachment: fixed;
+    color: var(--ink);
+    font-family: 'Inter Tight', sans-serif;
+    font-size: 15px; line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  .container { max-width: 680px; margin: 0 auto; padding: 20px 16px 40px; }
+
+  .header { background: var(--bg-card); border-bottom: 1px solid var(--line); padding: 14px 16px; position: sticky; top: 0; z-index: 10; backdrop-filter: blur(8px); }
+  .header-inner { max-width: 680px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-mark { width: 32px; height: 32px; background: linear-gradient(135deg, var(--moss), var(--olive)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--cream); font-family: 'Fraunces', serif; font-size: 16px; font-weight: 600; font-style: italic; }
+  .brand-name { font-family: 'Fraunces', serif; font-size: 20px; color: var(--ink); letter-spacing: -0.01em; }
+  .brand-name em { color: var(--moss); font-style: italic; }
+  .autosave-status { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-mute); display: flex; align-items: center; gap: 6px; }
+  .autosave-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--sage); }
+  .autosave-status.saving::before { background: var(--gold); animation: pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity: 0.3; } }
+
+  .progress-bar-container { margin-bottom: 24px; }
+  .progress-info { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px; }
+  .progress-current { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--moss-deep); text-transform: uppercase; letter-spacing: 0.06em; }
+  .progress-pct { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--gold); }
+  .progress-track { height: 6px; background: rgba(195,187,168,0.4); border-radius: 100px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(to right, var(--moss), var(--gold)); border-radius: 100px; transition: width 0.5s ease; }
+
+  .welcome { text-align: center; padding: 40px 20px; }
+  .welcome-icon { width: 64px; height: 64px; background: linear-gradient(135deg, var(--moss), var(--olive)); border-radius: 50%; margin: 0 auto 24px; display: flex; align-items: center; justify-content: center; color: var(--cream); font-family: 'Fraunces', serif; font-size: 32px; font-style: italic; }
+  .welcome h1 { font-family: 'Fraunces', serif; font-size: 32px; font-weight: 500; line-height: 1.15; letter-spacing: -0.02em; color: var(--ink); margin-bottom: 12px; }
+  .welcome h1 em { color: var(--moss); font-style: italic; }
+  .welcome-subtitle { font-size: 16px; color: var(--ink-soft); max-width: 480px; margin: 0 auto 32px; line-height: 1.55; }
+  .welcome-info { background: var(--bg-card); border-radius: 16px; padding: 24px; margin-bottom: 24px; box-shadow: var(--shadow); text-align: left; }
+  .welcome-info-title { font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--moss); margin-bottom: 14px; font-weight: 600; }
+  .welcome-info-list { list-style: none; display: flex; flex-direction: column; gap: 12px; text-align: left; }
+  .welcome-info-list li { display: flex; align-items: flex-start; gap: 12px; font-size: 14px; color: var(--ink-soft); line-height: 1.5; }
+  .welcome-info-list li::before { content: '✓'; flex-shrink: 0; width: 22px; height: 22px; background: var(--moss); color: var(--cream); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; margin-top: 1px; }
+
+  .module-card { background: var(--bg-card); border-radius: 24px; padding: 32px 28px; box-shadow: var(--shadow); margin-bottom: 20px; }
+  .module-header { margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .module-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--moss); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 6px; font-weight: 600; }
+  .module-title { font-family: 'Fraunces', serif; font-size: 26px; color: var(--ink); font-weight: 500; line-height: 1.2; letter-spacing: -0.01em; }
+  .module-title em { color: var(--moss); font-style: italic; }
+  .module-description { font-size: 14px; color: var(--ink-soft); margin-top: 10px; line-height: 1.5; }
+
+  .question { margin-bottom: 24px; }
+  .question:last-child { margin-bottom: 0; }
+  .question-label { display: block; font-size: 15px; color: var(--ink); margin-bottom: 10px; font-weight: 500; line-height: 1.4; }
+  .question-label .required { color: var(--rose); margin-left: 2px; }
+  .question-helper { font-size: 12.5px; color: var(--ink-mute); margin-bottom: 10px; margin-top: -4px; font-style: italic; }
+
+  .input, .select, .textarea { width: 100%; padding: 14px 16px; background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; font-family: 'Inter Tight', sans-serif; font-size: 15px; color: var(--ink); transition: all 0.2s; -webkit-appearance: none; appearance: none; }
+  .textarea { min-height: 100px; resize: vertical; line-height: 1.55; }
+  .input:focus, .select:focus, .textarea:focus { outline: none; border-color: var(--moss); background: var(--bg-card); box-shadow: 0 0 0 4px rgba(61,77,63,0.08); }
+  .input::placeholder, .textarea::placeholder { color: var(--ink-mute); }
+  .select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%234A524C' d='M6 8L0 0h12z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 16px center; padding-right: 40px; }
+  .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 480px) { .input-row { grid-template-columns: 1fr; } }
+
+  .radio-group, .checkbox-group { display: flex; flex-direction: column; gap: 8px; }
+  .radio-option, .checkbox-option { position: relative; }
+  .radio-option input[type="radio"], .checkbox-option input[type="checkbox"] { position: absolute; opacity: 0; pointer-events: none; }
+  .radio-option label, .checkbox-option label { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; cursor: pointer; transition: all 0.2s; font-size: 14.5px; color: var(--ink); }
+  .radio-option label::before { content: ''; flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line-strong); background: white; transition: all 0.2s; }
+  .checkbox-option label::before { content: ''; flex-shrink: 0; width: 20px; height: 20px; border-radius: 6px; border: 2px solid var(--line-strong); background: white; transition: all 0.2s; display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--cream); font-weight: bold; }
+  .radio-option label:hover, .checkbox-option label:hover { border-color: var(--moss-light); background: var(--bg-card); }
+  .radio-option input[type="radio"]:checked + label { border-color: var(--moss); background: linear-gradient(135deg, var(--cream), rgba(212,179,115,0.15)); }
+  .radio-option input[type="radio"]:checked + label::before { border-color: var(--moss); background: radial-gradient(circle, var(--moss) 35%, white 38%, white 100%); }
+  .checkbox-option input[type="checkbox"]:checked + label { border-color: var(--moss); background: linear-gradient(135deg, var(--cream), rgba(212,179,115,0.15)); }
+  .checkbox-option input[type="checkbox"]:checked + label::before { border-color: var(--moss); background: var(--moss); content: '✓'; }
+
+  .nav-buttons { display: flex; gap: 12px; margin-top: 28px; }
+  .btn { padding: 14px 24px; border: none; border-radius: 100px; font-family: 'Inter Tight', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; transition: all 0.2s; flex: 1; -webkit-tap-highlight-color: transparent; }
+  .btn-secondary { background: var(--bg-warm); color: var(--ink); }
+  .btn-secondary:hover { background: var(--line); }
+  .btn-primary { background: var(--moss); color: var(--cream); }
+  .btn-primary:hover { background: var(--moss-deep); transform: translateY(-1px); }
+  .btn-large { padding: 16px 32px; font-size: 16px; }
+  .btn-finish { background: linear-gradient(135deg, var(--moss), var(--olive)); color: var(--cream); }
+  .btn-finish:hover { background: linear-gradient(135deg, var(--moss-deep), var(--moss)); transform: translateY(-1px); }
+
+  .info-box { background: linear-gradient(135deg, var(--cream), rgba(245,237,222,0.5)); border-left: 3px solid var(--moss); padding: 14px 18px; border-radius: 12px; font-size: 13px; color: var(--ink-soft); line-height: 1.5; margin-bottom: 20px; }
+  .info-box strong { color: var(--moss-deep); font-weight: 600; }
+
+  .conditional { display: none; margin-top: 16px; padding-left: 14px; border-left: 2px solid var(--gold-soft); animation: slideDown 0.3s; }
+  .conditional.active { display: block; }
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
+  .section-divider { display: flex; align-items: center; gap: 12px; margin: 28px 0 20px; color: var(--moss); font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; font-weight: 600; }
+  .section-divider::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+  /* SLIDER */
+  .slider-wrap { background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; padding: 18px 16px; }
+  .slider-track { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; background: linear-gradient(to right, var(--moss) 0%, var(--gold) 100%); border-radius: 100px; outline: none; margin: 12px 0; }
+  .slider-track::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 22px; height: 22px; border-radius: 50%; background: var(--moss-deep); border: 3px solid var(--bg-card); box-shadow: 0 2px 8px rgba(60,80,60,0.25); cursor: pointer; }
+  .slider-track::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: var(--moss-deep); border: 3px solid var(--bg-card); box-shadow: 0 2px 8px rgba(60,80,60,0.25); cursor: pointer; }
+  .slider-value { text-align: center; font-family: 'Fraunces', serif; font-size: 28px; color: var(--moss-deep); font-weight: 500; margin-top: 4px; }
+  .slider-anchors { display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-mute); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 4px; }
+
+  .time-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end; }
+  .time-block { background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .time-block-label { font-size: 12px; color: var(--ink-soft); margin-bottom: 6px; font-weight: 500; }
+
+  .calc-result { background: linear-gradient(135deg, var(--cream), rgba(184,146,74,0.15)); border: 1px solid var(--gold-soft); border-radius: 12px; padding: 14px 18px; margin-top: 10px; font-size: 13px; color: var(--ink); display: flex; align-items: center; gap: 10px; }
+  .calc-result strong { color: var(--moss-deep); font-weight: 600; }
+
+  /* UPLOAD */
+  .upload-area { border: 2px dashed var(--line-strong); border-radius: 16px; padding: 32px 20px; text-align: center; background: var(--bg); transition: all 0.2s; cursor: pointer; }
+  .upload-area:hover { border-color: var(--moss); background: var(--bg-card); }
+  .upload-area.dragover { border-color: var(--gold); background: linear-gradient(135deg, var(--cream), rgba(212,179,115,0.15)); }
+  .upload-icon { width: 56px; height: 56px; background: linear-gradient(135deg, var(--moss), var(--olive)); border-radius: 16px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; color: var(--cream); font-size: 28px; }
+  .upload-title { font-family: 'Fraunces', serif; font-size: 18px; color: var(--ink); margin-bottom: 6px; font-weight: 500; }
+  .upload-subtitle { font-size: 13px; color: var(--ink-soft); margin-bottom: 14px; }
+  .upload-input { display: none; }
+  .upload-btn { display: inline-block; padding: 10px 24px; background: var(--moss); color: var(--cream); border-radius: 100px; font-size: 14px; font-weight: 500; margin-top: 14px; cursor: pointer; transition: all 0.2s; }
+  .upload-btn:hover { background: var(--moss-deep); transform: translateY(-1px); }
+  .file-list { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .file-item { background: var(--bg-card); border: 1.5px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; transition: all 0.2s; }
+  .file-item.success { border-color: var(--sage); }
+  .file-icon { width: 38px; height: 38px; background: var(--bg-warm); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; color: var(--moss); flex-shrink: 0; }
+  .file-item.success .file-icon { background: var(--sage); color: var(--cream); }
+  .file-info { flex: 1; min-width: 0; }
+  .file-name { font-size: 14px; color: var(--ink); font-weight: 500; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-size { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-mute); }
+  .file-remove { background: transparent; border: none; color: var(--ink-mute); cursor: pointer; font-size: 18px; padding: 6px 10px; border-radius: 8px; transition: all 0.2s; }
+  .file-remove:hover { background: rgba(168,83,74,0.1); color: var(--rose); }
+  .file-progress { width: 100%; height: 3px; background: var(--line); border-radius: 100px; margin-top: 6px; overflow: hidden; }
+  .file-progress-fill { height: 100%; background: var(--gold); width: 0%; transition: width 0.3s; border-radius: 100px; }
+
+  /* MEAL CARD */
+  .meal-card { background: var(--bg); border: 1.5px solid var(--line); border-radius: 16px; padding: 20px; margin-bottom: 14px; transition: all 0.2s; }
+  .meal-card.filled { border-color: var(--sage); background: linear-gradient(135deg, var(--bg-card), rgba(135,160,130,0.05)); }
+  .meal-card.skipped { border-color: var(--line-strong); background: var(--bg-warm); opacity: 0.7; }
+  .meal-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .meal-icon-name { display: flex; align-items: center; gap: 12px; }
+  .meal-icon { width: 38px; height: 38px; background: var(--bg-warm); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .meal-card.filled .meal-icon { background: var(--sage); color: var(--cream); }
+  .meal-name-text { font-family: 'Fraunces', serif; font-size: 18px; color: var(--ink); font-weight: 500; }
+  .meal-time-input { background: var(--bg-card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--ink); width: 90px; }
+  .meal-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
+  .meal-toggle-btn { flex: 1; padding: 10px 14px; background: var(--bg-card); border: 1.5px solid var(--line); border-radius: 10px; font-family: 'Inter Tight', sans-serif; font-size: 13px; color: var(--ink-soft); cursor: pointer; transition: all 0.2s; }
+  .meal-toggle-btn.active { background: var(--moss); color: var(--cream); border-color: var(--moss); }
+  .meal-textarea { width: 100%; min-height: 80px; padding: 12px 14px; background: var(--bg-card); border: 1.5px solid var(--line); border-radius: 10px; font-family: 'Inter Tight', sans-serif; font-size: 14px; color: var(--ink); resize: vertical; line-height: 1.5; }
+  .meal-textarea:focus { outline: none; border-color: var(--moss); background: var(--bg-card); box-shadow: 0 0 0 4px rgba(61,77,63,0.08); }
+  .meal-content { display: none; }
+  .meal-content.active { display: block; animation: slideDown 0.3s; }
+  .meal-suggestion { font-size: 12px; color: var(--ink-mute); margin-top: 8px; font-style: italic; padding: 8px 12px; background: rgba(184,146,74,0.08); border-radius: 8px; }
+  .meal-suggestion strong { color: var(--gold); font-weight: 600; }
+
+  /* FREQ */
+  .freq-question { background: var(--bg); border: 1.5px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+  .freq-question-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .freq-question-emoji { font-size: 24px; flex-shrink: 0; }
+  .freq-question-name { font-size: 15px; color: var(--ink); font-weight: 500; flex: 1; }
+  .freq-options { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  @media (max-width: 480px) { .freq-options { grid-template-columns: repeat(3, 1fr); } }
+  .freq-opt { position: relative; }
+  .freq-opt input[type="radio"] { position: absolute; opacity: 0; pointer-events: none; }
+  .freq-opt label { display: block; padding: 8px 6px; background: var(--bg-card); border: 1.5px solid var(--line); border-radius: 8px; cursor: pointer; transition: all 0.15s; font-size: 11.5px; color: var(--ink-soft); text-align: center; line-height: 1.3; font-weight: 500; }
+  .freq-opt label:hover { border-color: var(--moss-light); }
+  .freq-opt input[type="radio"]:checked + label { background: var(--moss); color: var(--cream); border-color: var(--moss); }
+  .freq-opt.risk input[type="radio"]:checked + label { background: var(--rose); border-color: var(--rose); }
+
+  /* ===== NOVO: ACTIVITY CARD (Módulo 10) ===== */
+  .activity-card { background: var(--bg); border: 1.5px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+  .activity-name-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .activity-emoji { font-size: 22px; }
+  .activity-name { font-weight: 500; color: var(--ink); font-size: 15px; }
+  .activity-fields { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  @media (max-width: 480px) { .activity-fields { grid-template-columns: 1fr; } }
+  .activity-field { display: flex; flex-direction: column; }
+  .activity-field-label { font-size: 11px; color: var(--ink-mute); margin-bottom: 4px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.05em; }
+  .activity-field select, .activity-field input { padding: 8px 10px; font-size: 13px; background: var(--bg-card); border: 1px solid var(--line); border-radius: 8px; }
+
+  /* ===== NOVO: SUPPLEMENT CARD (Módulo 11) ===== */
+  .supplement-row { background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 8px; display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: center; }
+  @media (max-width: 600px) { .supplement-row { grid-template-columns: 1fr; } }
+  .supplement-input { padding: 8px 12px; font-size: 13px; background: var(--bg-card); border: 1px solid var(--line); border-radius: 8px; font-family: 'Inter Tight', sans-serif; color: var(--ink); }
+  .supplement-input:focus { outline: none; border-color: var(--moss); }
+  .supplement-remove { background: transparent; border: none; color: var(--rose); cursor: pointer; font-size: 18px; padding: 4px 10px; border-radius: 6px; }
+  .supplement-remove:hover { background: rgba(168,83,74,0.1); }
+  .add-supplement-btn { background: var(--bg-warm); border: 1.5px dashed var(--line-strong); color: var(--moss); padding: 12px; border-radius: 12px; width: 100%; cursor: pointer; font-size: 13px; font-family: 'Inter Tight', sans-serif; font-weight: 500; transition: all 0.2s; margin-top: 8px; }
+  .add-supplement-btn:hover { background: var(--cream); border-color: var(--moss); }
+
+  /* ===== FINAL SCREEN ===== */
+  .final-screen { text-align: center; padding: 40px 20px; }
+  .final-icon-wrap { position: relative; width: 120px; height: 120px; margin: 0 auto 24px; }
+  .final-icon-bg { width: 100%; height: 100%; background: linear-gradient(135deg, var(--moss), var(--olive)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--cream); font-size: 48px; animation: bounceIn 0.6s; }
+  @keyframes bounceIn { 0% { transform: scale(0); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+  .final-icon-ring { position: absolute; top: -8px; left: -8px; right: -8px; bottom: -8px; border: 2px solid var(--gold); border-radius: 50%; opacity: 0.4; animation: pulse-ring 2s infinite; }
+  @keyframes pulse-ring { 0% { transform: scale(1); opacity: 0.4; } 100% { transform: scale(1.2); opacity: 0; } }
+
+  .final-title { font-family: 'Fraunces', serif; font-size: 36px; font-weight: 500; line-height: 1.15; letter-spacing: -0.02em; color: var(--ink); margin-bottom: 12px; }
+  .final-title em { color: var(--moss); font-style: italic; }
+  .final-subtitle { font-size: 17px; color: var(--ink-soft); max-width: 480px; margin: 0 auto 32px; line-height: 1.55; }
+
+  .summary-card { background: var(--bg-card); border-radius: 20px; padding: 24px; margin-bottom: 20px; box-shadow: var(--shadow); text-align: left; }
+  .summary-title { font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--moss); margin-bottom: 16px; font-weight: 600; }
+  .summary-list { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+  .summary-item { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .summary-item:last-child { border-bottom: none; }
+  .summary-icon { width: 32px; height: 32px; background: var(--bg-warm); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .summary-text { flex: 1; }
+  .summary-name { font-weight: 500; color: var(--ink); font-size: 14px; }
+  .summary-value { font-size: 12px; color: var(--ink-mute); font-family: 'JetBrains Mono', monospace; }
+
+  .next-steps { background: linear-gradient(135deg, var(--cream), rgba(245,237,222,0.5)); border-radius: 20px; padding: 24px; margin-bottom: 24px; text-align: left; }
+  .next-steps-title { font-family: 'Fraunces', serif; font-size: 20px; color: var(--ink); margin-bottom: 14px; font-weight: 500; }
+  .next-steps-title em { color: var(--moss); font-style: italic; }
+  .next-steps-list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+  .next-steps-list li { display: flex; align-items: flex-start; gap: 12px; font-size: 14px; color: var(--ink); line-height: 1.5; }
+  .next-steps-list li::before { content: ''; flex-shrink: 0; width: 8px; height: 8px; background: var(--moss); border-radius: 50%; margin-top: 8px; }
+
+  .submit-btn { background: linear-gradient(135deg, var(--moss), var(--olive)); color: var(--cream); padding: 18px 40px; font-size: 16px; font-weight: 600; border: none; border-radius: 100px; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 20px rgba(61,77,63,0.25); }
+  .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(61,77,63,0.35); }
+  .submit-btn:disabled { background: var(--line-strong); cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* THANK YOU SCREEN */
+  .thanks-screen { text-align: center; padding: 60px 20px; }
+  .thanks-icon { width: 100px; height: 100px; background: linear-gradient(135deg, var(--sage), var(--olive)); border-radius: 50%; margin: 0 auto 28px; display: flex; align-items: center; justify-content: center; color: var(--cream); font-size: 48px; }
+  .thanks-title { font-family: 'Fraunces', serif; font-size: 36px; font-weight: 500; line-height: 1.15; letter-spacing: -0.02em; color: var(--ink); margin-bottom: 12px; }
+  .thanks-title em { color: var(--moss); font-style: italic; }
+  .thanks-subtitle { font-size: 17px; color: var(--ink-soft); max-width: 480px; margin: 0 auto 28px; line-height: 1.55; }
+  .thanks-card { background: var(--bg-card); border-radius: 20px; padding: 28px; max-width: 460px; margin: 0 auto; box-shadow: var(--shadow); text-align: left; }
+  .thanks-card-title { font-family: 'Fraunces', serif; font-size: 18px; color: var(--moss); margin-bottom: 14px; font-weight: 500; }
+
+
+  /* ===== ACTIVITY GRID (Módulo 10 — Novo) ===== */
+  .activity-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .activity-btn {
+    position: relative;
+  }
+  .activity-btn input[type="checkbox"] {
+    position: absolute; opacity: 0; pointer-events: none;
+  }
+  .activity-btn label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1.5px solid var(--line);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 13px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .activity-btn label:hover {
+    border-color: var(--moss-light);
+    background: var(--bg-card);
+  }
+  .activity-btn input[type="checkbox"]:checked + label {
+    border-color: var(--moss);
+    background: linear-gradient(135deg, var(--cream), rgba(212,179,115,0.2));
+    color: var(--moss-deep);
+    font-weight: 600;
+  }
+  .activity-btn .activity-emoji-small {
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  /* Card de detalhes (frequência + intensidade) que aparece quando marca */
+  .activity-detail-card {
+    background: var(--bg-card);
+    border: 1.5px solid var(--moss);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 10px;
+    animation: slideDown 0.3s;
+  }
+  .activity-detail-header {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .activity-detail-title {
+    font-family: 'Fraunces', serif;
+    font-size: 16px;
+    color: var(--moss-deep);
+    font-weight: 500;
+  }
+  .activity-sublabel {
+    font-size: 12px;
+    color: var(--ink-soft);
+    font-weight: 500;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .freq-buttons-row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+  @media (max-width: 480px) {
+    .freq-buttons-row { grid-template-columns: repeat(4, 1fr); }
+  }
+  .freq-btn {
+    position: relative;
+  }
+  .freq-btn input[type="radio"] {
+    position: absolute; opacity: 0; pointer-events: none;
+  }
+  .freq-btn label {
+    display: block;
+    padding: 8px 4px;
+    background: var(--bg);
+    border: 1.5px solid var(--line);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 12px;
+    text-align: center;
+    transition: all 0.15s;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .freq-btn input[type="radio"]:checked + label {
+    background: var(--moss);
+    color: var(--cream);
+    border-color: var(--moss);
+  }
+  .intensity-buttons-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .int-btn {
+    position: relative;
+  }
+  .int-btn input[type="radio"] {
+    position: absolute; opacity: 0; pointer-events: none;
+  }
+  .int-btn label {
+    display: block;
+    padding: 10px 8px;
+    background: var(--bg);
+    border: 1.5px solid var(--line);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 12.5px;
+    text-align: center;
+    transition: all 0.15s;
+    color: var(--ink);
+    font-weight: 500;
+    line-height: 1.3;
+  }
+  .int-btn .int-desc {
+    display: block;
+    font-size: 10px;
+    color: var(--ink-mute);
+    margin-top: 2px;
+    font-weight: 400;
+  }
+  .int-btn input[type="radio"]:checked + label {
+    background: var(--gold);
+    color: var(--cream);
+    border-color: var(--gold);
+  }
+  .int-btn input[type="radio"]:checked + label .int-desc {
+    color: var(--cream);
+    opacity: 0.85;
+  }
+  .other-activity-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  @media (max-width: 480px) {
+    .module-card { padding: 24px 20px; border-radius: 20px; }
+    .module-title { font-size: 22px; }
+    .welcome h1, .final-title, .thanks-title { font-size: 26px; }
+    .upload-area { padding: 24px 16px; }
+  }
+  .screen { display: none; }
+  .screen.active { display: block; animation: fadeIn 0.3s; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark">P</div>
+      <div class="brand-name">Pré<em>Nutri</em></div>
+    </div>
+    <div class="autosave-status" id="autosaveStatus">Salvo</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- WELCOME -->
+  <div id="screen-welcome" class="screen active">
+    <div class="welcome">
+      <div class="welcome-icon">P</div>
+      <h1>Olá! Você está prestes a iniciar seu <em>pré-atendimento nutricional</em></h1>
+      <p class="welcome-subtitle">Este questionário foi preparado pelo seu nutricionista para conhecer você melhor antes da consulta.</p>
+      <div class="welcome-info">
+        <div class="welcome-info-title">📋 Como funciona</div>
+        <ul class="welcome-info-list">
+          <li>São <strong>13 módulos</strong> com perguntas sobre seus hábitos, saúde e objetivos</li>
+          <li>Leva entre <strong>15 e 25 minutos</strong> para responder</li>
+          <li>Suas respostas são <strong>salvas automaticamente</strong></li>
+          <li>Tudo é <strong>confidencial</strong></li>
+        </ul>
+      </div>
+      <button class="btn btn-primary btn-large" onclick="startQuestionnaire()" style="max-width: 280px; margin: 0 auto; display: block;">Começar →</button>
+    </div>
+  </div>
+
+  <!-- QUESTIONÁRIO -->
+  <div id="screen-questionnaire" class="screen">
+
+    <div class="progress-bar-container">
+      <div class="progress-info">
+        <span class="progress-current" id="progressCurrent">Módulo 1 de 13</span>
+        <span class="progress-pct" id="progressPct">8%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill" style="width: 8%;"></div>
+      </div>
+    </div>
+
+    <!-- ===== M1 ===== -->
+    <div class="module-card" data-module="1">
+      <div class="module-header">
+        <div class="module-eyebrow">Módulo 1</div>
+        <h2 class="module-title">Vamos <em>nos conhecer</em></h2>
+        <p class="module-description">Informações básicas para identificar você.</p>
+      </div>
+      <div class="question"><label class="question-label" for="q1_1">Nome completo<span class="required">*</span></label><input type="text" id="q1_1" class="input" placeholder="Digite seu nome completo" required></div>
+      <div class="question"><label class="question-label" for="q1_2">E-mail<span class="required">*</span></label><input type="email" id="q1_2" class="input" placeholder="seu@email.com" required></div>
+      <div class="question"><label class="question-label" for="q1_3">Telefone (WhatsApp)<span class="required">*</span></label><input type="tel" id="q1_3" class="input" placeholder="(00) 00000-0000" required oninput="maskPhone(this)"></div>
+      <div class="question"><label class="question-label" for="q1_4">Data de nascimento<span class="required">*</span></label><input type="date" id="q1_4" class="input" required max="2025-12-31" min="1920-01-01"></div>
+      <div class="question">
+        <label class="question-label">Sexo biológico<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" name="q1_5" id="q1_5_m" value="Masculino" required><label for="q1_5_m">Masculino</label></div>
+          <div class="radio-option"><input type="radio" name="q1_5" id="q1_5_f" value="Feminino"><label for="q1_5_f">Feminino</label></div>
+        </div>
+      </div>
+      <div class="question"><label class="question-label" for="q1_6">Cidade / Estado<span class="required">*</span></label><input type="text" id="q1_6" class="input" placeholder="Ex: Vitória, ES" required></div>
+      <div class="question"><label class="question-label" for="q1_8">Profissão<span class="required">*</span></label><input type="text" id="q1_8" class="input" placeholder="Ex: Engenheira" required></div>
+      <div class="nav-buttons">
+        <button class="btn btn-secondary" onclick="goToWelcome()">← Voltar</button>
+        <button class="btn btn-primary" onclick="nextModule()">Continuar →</button>
+      </div>
+    </div>
+
+    <!-- ===== M2 ===== -->
+    <div class="module-card" data-module="2" style="display: none;">
+      <div class="module-header">
+        <div class="module-eyebrow">Módulo 2</div>
+        <h2 class="module-title">Seu <em>objetivo</em> e motivação</h2>
+      </div>
+      <div class="question">
+        <label class="question-label">Qual é o seu OBJETIVO PRINCIPAL?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q2_1_opt1" name="q2_1" value="Perder peso (gordura)" required><label for="q2_1_opt1">Perder peso (gordura)</label></div>
+          <div class="radio-option"><input type="radio" id="q2_1_opt2" name="q2_1" value="Ganhar massa (músculos)"><label for="q2_1_opt2">Ganhar massa (músculos)</label></div>
+          <div class="radio-option"><input type="radio" id="q2_1_opt3" name="q2_1" value="Melhorar hábitos alimentares"><label for="q2_1_opt3">Melhorar hábitos alimentares</label></div>
+          <div class="radio-option"><input type="radio" id="q2_1_opt4" name="q2_1" value="Melhorar saúde"><label for="q2_1_opt4">Melhorar saúde</label></div>
+          <div class="radio-option"><input type="radio" id="q2_1_opt5" name="q2_1" value="Melhor forma física em geral"><label for="q2_1_opt5">Melhor forma física em geral</label></div>
+          <div class="radio-option"><input type="radio" id="q2_1_opt6" name="q2_1" value="Performance esportiva"><label for="q2_1_opt6">Performance esportiva</label></div>
+          <div class="radio-option"><input type="radio" id="q2_1_opt7" name="q2_1" value="Diminuir cansaço / aumentar disposição"><label for="q2_1_opt7">Diminuir cansaço / aumentar disposição</label></div>
+          <div class="radio-option"><input type="radio" id="q2_1_opt8" name="q2_1" value="Diminuir uso de medicamentos"><label for="q2_1_opt8">Diminuir uso de medicamentos</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label" for="q2_2">Qual é o seu OBJETIVO SECUNDÁRIO?</label>
+        <select id="q2_2" class="select">
+          <option value="">Selecione (opcional)...</option>
+          <option value="Perder peso (gordura)">Perder peso (gordura)</option>
+          <option value="Ganhar massa (músculos)">Ganhar massa (músculos)</option>
+          <option value="Melhorar hábitos alimentares">Melhorar hábitos alimentares</option>
+          <option value="Melhorar saúde">Melhorar saúde</option>
+          <option value="Melhor forma física em geral">Melhor forma física em geral</option>
+          <option value="Performance esportiva">Performance esportiva</option>
+          <option value="Diminuir cansaço / aumentar disposição">Diminuir cansaço / aumentar disposição</option>
+          <option value="Diminuir uso de medicamentos">Diminuir uso de medicamentos</option>
+        </select>
+      </div>
+
+      <div class="question"><label class="question-label" for="q2_3">Por que esses objetivos são importantes para você?<span class="required">*</span></label><textarea id="q2_3" class="textarea" placeholder="Conte com suas palavras o que te motiva..." required></textarea></div>
+
+      <div class="question">
+        <label class="question-label" for="q2_4">O que aconteceu para você sentir essa necessidade agora?<span class="required">*</span></label>
+        <textarea id="q2_4" class="textarea" placeholder="Pode ser um evento, uma decisão, um sentimento..." required></textarea>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Já fez acompanhamento com nutricionista antes?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q2_5_opt1" name="q2_5" value="Sim" required onchange="toggleConditional('q2_6_cond', true)"><label for="q2_5_opt1">Sim</label></div>
+          <div class="radio-option"><input type="radio" id="q2_5_opt2" name="q2_5" value="Não" onchange="toggleConditional('q2_6_cond', false)"><label for="q2_5_opt2">Não</label></div>
+        </div>
+        <div id="q2_6_cond" class="conditional">
+          <label class="question-label" for="q2_6">Como foi a experiência?</label>
+          <textarea id="q2_6" class="textarea" placeholder="O que funcionou e o que não funcionou..."></textarea>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">O quanto você está alinhado com seus objetivos hoje?<span class="required">*</span></label>
+        <p class="question-helper">Escala de 0 (nem um pouco) a 10 (totalmente alinhado)</p>
+        <div class="slider-wrap">
+          <input type="range" id="q2_7" class="slider-track" min="0" max="10" value="5" step="1" required oninput="document.getElementById('q2_7_val').textContent = this.value">
+          <div class="slider-value"><span id="q2_7_val">5</span> / 10</div>
+          <div class="slider-anchors"><span>Nem um pouco</span><span>Totalmente</span></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Qual é a sua MAIOR DIFICULDADE hoje?<span class="required">*</span></label>
+        <p class="question-helper">Pode marcar mais de uma opção</p>
+        <div class="checkbox-group">
+          <div class="checkbox-option"><input type="checkbox" id="q2_8_opt1" name="q2_8" value="Desconto as emoções na comida"><label for="q2_8_opt1">Desconto as emoções na comida</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q2_8_opt2" name="q2_8" value="Não sei o que comer"><label for="q2_8_opt2">Não sei o que comer</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q2_8_opt3" name="q2_8" value="Dificuldade em planejar refeições"><label for="q2_8_opt3">Dificuldade em planejar refeições</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q2_8_opt4" name="q2_8" value="Muito ansioso(a)"><label for="q2_8_opt4">Muito ansioso(a)</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q2_8_opt5" name="q2_8" value="Dificuldade de controlar"><label for="q2_8_opt5">Dificuldade de controlar</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q2_8_opt6" name="q2_8" value="Inseguro com as quantidades"><label for="q2_8_opt6">Inseguro com as quantidades</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q2_8_opt7" name="q2_8" value="Bebo muito álcool"><label for="q2_8_opt7">Bebo muito álcool</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q2_8_opt8" name="q2_8" value="Acesso fácil a comidas pouco saudáveis"><label for="q2_8_opt8">Acesso fácil a comidas pouco saudáveis</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q2_8_opt9" name="q2_8" value="Não sinto fome"><label for="q2_8_opt9">Não sinto fome</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q2_8_opt10" name="q2_8" value="Não tenho tempo para cozinhar"><label for="q2_8_opt10">Não tenho tempo para cozinhar</label></div>
+        </div>
+      </div>
+      <div class="nav-buttons">
+        <button class="btn btn-secondary" onclick="previousModule()">← Voltar</button>
+        <button class="btn btn-primary" onclick="nextModule()">Continuar →</button>
+      </div>
+    </div>
+
+    <!-- ===== M3 ===== -->
+    <div class="module-card" data-module="3" style="display: none;">
+      <div class="module-header">
+        <div class="module-eyebrow">Módulo 3</div>
+        <h2 class="module-title">Seu <em>histórico</em> clínico</h2>
+      </div>
+      <div class="question">
+        <label class="question-label">Possui alguma patologia diagnosticada?<span class="required">*</span></label>
+        <p class="question-helper">Pode marcar mais de uma opção. Se não tiver nenhuma, marque "Nenhuma".</p>
+        <div class="checkbox-group">
+          <div class="checkbox-option"><input type="checkbox" id="q3_1_opt1" name="q3_1" value="Diabetes tipo 1"><label for="q3_1_opt1">Diabetes tipo 1</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_1_opt2" name="q3_1" value="Diabetes tipo 2"><label for="q3_1_opt2">Diabetes tipo 2</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_1_opt3" name="q3_1" value="Pré-diabetes"><label for="q3_1_opt3">Pré-diabetes</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_1_opt4" name="q3_1" value="Hipertensão"><label for="q3_1_opt4">Hipertensão</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_1_opt5" name="q3_1" value="Dislipidemia (colesterol alto)"><label for="q3_1_opt5">Dislipidemia (colesterol alto)</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_1_opt6" name="q3_1" value="Hipotireoidismo"><label for="q3_1_opt6">Hipotireoidismo</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_1_opt7" name="q3_1" value="Hipertireoidismo"><label for="q3_1_opt7">Hipertireoidismo</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_1_opt8" name="q3_1" value="SOP (síndrome dos ovários policísticos)"><label for="q3_1_opt8">SOP (síndrome dos ovários policísticos)</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_1_opt9" name="q3_1" value="Gastrite"><label for="q3_1_opt9">Gastrite</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_1_opt10" name="q3_1" value="Refluxo"><label for="q3_1_opt10">Refluxo</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_1_opt11" name="q3_1" value="Intestino irritável (SII)"><label for="q3_1_opt11">Intestino irritável (SII)</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_1_opt12" name="q3_1" value="Endometriose"><label for="q3_1_opt12">Endometriose</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_1_opt13" name="q3_1" value="Lipedema"><label for="q3_1_opt13">Lipedema</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_1_opt14" name="q3_1" value="Depressão"><label for="q3_1_opt14">Depressão</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_1_opt15" name="q3_1" value="Ansiedade"><label for="q3_1_opt15">Ansiedade</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_1_opt16" name="q3_1" value="Anemia"><label for="q3_1_opt16">Anemia</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_1_opt17" name="q3_1" value="Esteatose hepática"><label for="q3_1_opt17">Esteatose hepática</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_1_opt18" name="q3_1" value="Nenhuma"><label for="q3_1_opt18">Nenhuma</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_1_opt19" name="q3_1" value="Outras"><label for="q3_1_opt19">Outras</label></div>
+        </div>
+      </div>
+      <div class="question"><label class="question-label" for="q3_3">Medicamentos<span class="required">*</span></label><textarea id="q3_3" class="textarea" placeholder="Liste ou: Nenhum" required></textarea></div>
+      <div class="section-divider">Exames</div>
+      <div class="question">
+        <label class="question-label">Tem exames recentes?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q3_7_opt1" name="q3_7" value="Sim" required onchange="toggleConditional('q3_upload_cond', true)"><label for="q3_7_opt1">Sim</label></div>
+          <div class="radio-option"><input type="radio" id="q3_7_opt2" name="q3_7" value="Não" onchange="toggleConditional('q3_upload_cond', false)"><label for="q3_7_opt2">Não</label></div>
+        </div>
+        <div id="q3_upload_cond" class="conditional">
+          <div class="upload-area" id="uploadArea">
+            <input type="file" id="fileInput" class="upload-input" accept=".pdf,.jpg,.jpeg,.png" multiple>
+            <div class="upload-icon">📎</div>
+            <div class="upload-title">Selecione exames</div>
+            <div class="upload-btn">Escolher</div>
+          </div>
+          <div class="file-list" id="fileList"></div>
+        </div>
+      </div>
+      <div class="nav-buttons">
+        <button class="btn btn-secondary" onclick="previousModule()">← Voltar</button>
+        <button class="btn btn-primary" onclick="nextModule()">Continuar →</button>
+      </div>
+    </div>
+
+    <!-- ===== M4 ===== -->
+    <div class="module-card" data-module="4" style="display: none;">
+      <div class="module-header">
+        <div class="module-eyebrow">Módulo 4</div>
+        <h2 class="module-title">Suas <em>medidas</em></h2>
+        <p class="module-description">Informações sobre seu peso e altura. Circunferências serão medidas na consulta presencial.</p>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Peso e altura atuais<span class="required">*</span></label>
+        <div class="input-row">
+          <div>
+            <p class="question-helper" style="margin-top: 0;">Peso (kg)</p>
+            <input type="number" id="q4_1" class="input" placeholder="Ex: 70.5" step="0.1" min="30" max="300" required>
+          </div>
+          <div>
+            <p class="question-helper" style="margin-top: 0;">Altura (cm)</p>
+            <input type="number" id="q4_2" class="input" placeholder="Ex: 170" step="1" min="100" max="230" required>
+          </div>
+        </div>
+        <div id="imc_result" class="calc-result" style="display: none;">
+          📊 <span>Seu IMC: <strong id="imc_value">—</strong> · <span id="imc_class">—</span></span>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label" for="q4_3">Peso habitual no último ano (kg)</label>
+        <input type="number" id="q4_3" class="input" placeholder="Ex: 72.0" step="0.1" min="30" max="300">
+        <p class="question-helper">Quanto você costumava pesar antes de oscilar</p>
+      </div>
+
+      <div class="question">
+        <label class="question-label" for="q4_4">Peso desejado (kg)<span class="required">*</span></label>
+        <input type="number" id="q4_4" class="input" placeholder="Ex: 65.0" step="0.1" min="30" max="300" required>
+      </div>
+
+      <div class="question">
+        <label class="question-label" for="q4_5">Em quanto tempo deseja atingir essa meta? (meses)<span class="required">*</span></label>
+        <input type="number" id="q4_5" class="input" placeholder="Ex: 6" step="1" min="1" max="60" required>
+        <div id="meta_result" class="calc-result" style="display: none;">
+          🎯 <span><strong id="meta_text">—</strong></span>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Tem balança de bioimpedância em casa?</label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q4_8_opt1" name="q4_8" value="Sim" onchange="toggleConditional('q4_9_cond', true)"><label for="q4_8_opt1">Sim</label></div>
+          <div class="radio-option"><input type="radio" id="q4_8_opt2" name="q4_8" value="Não" onchange="toggleConditional('q4_9_cond', false)"><label for="q4_8_opt2">Não</label></div>
+        </div>
+        <div id="q4_9_cond" class="conditional">
+          <label class="question-label" for="q4_9">% de gordura corporal (se souber)</label>
+          <input type="number" id="q4_9" class="input" placeholder="Ex: 22.5" step="0.1" min="3" max="60">
+        </div>
+      </div>
+
+      <div class="info-box">
+        📏 <strong>Circunferências:</strong> Cintura e quadril serão medidos pelo seu nutricionista na consulta presencial para maior precisão.
+      </div>
+
+      <div class="nav-buttons">
+        <button class="btn btn-secondary" onclick="previousModule()">← Voltar</button>
+        <button class="btn btn-primary" onclick="nextModule()">Continuar →</button>
+      </div>
+    </div>
+
+    <!-- ===== M5 ===== -->
+    <div class="module-card" data-module="5" style="display: none;">
+      <div class="module-header">
+        <div class="module-eyebrow">Módulo 5</div>
+        <h2 class="module-title">Seu <em>estilo de vida</em></h2>
+        <p class="module-description">Sua rotina, suporte familiar e hábitos diários.</p>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Quantas pessoas moram com você?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q5_1_opt1" name="q5_1" value="Moro sozinho" required><label for="q5_1_opt1">Moro sozinho(a)</label></div>
+          <div class="radio-option"><input type="radio" id="q5_1_opt2" name="q5_1" value="2 pessoas"><label for="q5_1_opt2">2 pessoas</label></div>
+          <div class="radio-option"><input type="radio" id="q5_1_opt3" name="q5_1" value="3 pessoas"><label for="q5_1_opt3">3 pessoas</label></div>
+          <div class="radio-option"><input type="radio" id="q5_1_opt4" name="q5_1" value="4 pessoas"><label for="q5_1_opt4">4 pessoas</label></div>
+          <div class="radio-option"><input type="radio" id="q5_1_opt5" name="q5_1" value="5+ pessoas"><label for="q5_1_opt5">5 ou mais</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Tem filhos?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q5_2_opt1" name="q5_2" value="Sim" required onchange="toggleConditional('q5_3_cond', true)"><label for="q5_2_opt1">Sim</label></div>
+          <div class="radio-option"><input type="radio" id="q5_2_opt2" name="q5_2" value="Não" onchange="toggleConditional('q5_3_cond', false)"><label for="q5_2_opt2">Não</label></div>
+        </div>
+        <div id="q5_3_cond" class="conditional">
+          <label class="question-label" for="q5_3">Quantos?</label>
+          <select id="q5_3" class="select">
+            <option value="">Selecione...</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4+">4 ou mais</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Quem cozinha em casa?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q5_4_opt1" name="q5_4" value="Você" required><label for="q5_4_opt1">Eu mesmo(a)</label></div>
+          <div class="radio-option"><input type="radio" id="q5_4_opt2" name="q5_4" value="Cônjuge"><label for="q5_4_opt2">Cônjuge/companheiro(a)</label></div>
+          <div class="radio-option"><input type="radio" id="q5_4_opt3" name="q5_4" value="Pai/Mãe"><label for="q5_4_opt3">Pai ou mãe</label></div>
+          <div class="radio-option"><input type="radio" id="q5_4_opt4" name="q5_4" value="Outro familiar"><label for="q5_4_opt4">Outro familiar</label></div>
+          <div class="radio-option"><input type="radio" id="q5_4_opt5" name="q5_4" value="Empregado"><label for="q5_4_opt5">Empregado(a) doméstico(a)</label></div>
+          <div class="radio-option"><input type="radio" id="q5_4_opt6" name="q5_4" value="Sempre fora"><label for="q5_4_opt6">Como sempre fora de casa</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label" for="q5_7">Horário de trabalho<span class="required">*</span></label>
+        <input type="text" id="q5_7" class="input" placeholder="Ex: 08h às 17h, ou turnos noturnos" required>
+        <p class="question-helper">Importante para definir o melhor horário das refeições</p>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Como é o estresse no trabalho/rotina?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q5_8_opt1" name="q5_8" value="Calmo" required><label for="q5_8_opt1">Sempre calmo e tranquilo</label></div>
+          <div class="radio-option"><input type="radio" id="q5_8_opt2" name="q5_8" value="Oscila"><label for="q5_8_opt2">Oscila entre calmo e agitado</label></div>
+          <div class="radio-option"><input type="radio" id="q5_8_opt3" name="q5_8" value="Sempre agitado"><label for="q5_8_opt3">Sempre agitado e estressante</label></div>
+          <div class="radio-option"><input type="radio" id="q5_8_opt4" name="q5_8" value="Estudante calmo"><label for="q5_8_opt4">Sou estudante, ambiente tranquilo</label></div>
+          <div class="radio-option"><input type="radio" id="q5_8_opt5" name="q5_8" value="Estudante agitado"><label for="q5_8_opt5">Sou estudante, ambiente agitado</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Você fuma?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q5_9_opt1" name="q5_9" value="Sim" required><label for="q5_9_opt1">Sim</label></div>
+          <div class="radio-option"><input type="radio" id="q5_9_opt2" name="q5_9" value="Não"><label for="q5_9_opt2">Não</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Bebe álcool?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q5_10_opt1" name="q5_10" value="Sim" required onchange="toggleConditional('q5_11_cond', true)"><label for="q5_10_opt1">Sim</label></div>
+          <div class="radio-option"><input type="radio" id="q5_10_opt2" name="q5_10" value="Não" onchange="toggleConditional('q5_11_cond', false)"><label for="q5_10_opt2">Não</label></div>
+        </div>
+        <div id="q5_11_cond" class="conditional">
+          <label class="question-label">Com que frequência?</label>
+          <div class="radio-group">
+            <div class="radio-option"><input type="radio" id="q5_11_opt1" name="q5_11" value="Esporádico"><label for="q5_11_opt1">Esporadicamente</label></div>
+            <div class="radio-option"><input type="radio" id="q5_11_opt2" name="q5_11" value="Pouco fim de semana"><label for="q5_11_opt2">Pouco, nos finais de semana</label></div>
+            <div class="radio-option"><input type="radio" id="q5_11_opt3" name="q5_11" value="Muito fim de semana"><label for="q5_11_opt3">Muito, nos finais de semana</label></div>
+            <div class="radio-option"><input type="radio" id="q5_11_opt4" name="q5_11" value="Diariamente"><label for="q5_11_opt4">Todos os dias</label></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Quanta água bebe por dia?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q5_12_opt1" name="q5_12" value="1-4 copos" required><label for="q5_12_opt1">1 a 4 copos (menos de 1L)</label></div>
+          <div class="radio-option"><input type="radio" id="q5_12_opt2" name="q5_12" value="5-10 copos"><label for="q5_12_opt2">5 a 10 copos (1 a 2L)</label></div>
+          <div class="radio-option"><input type="radio" id="q5_12_opt3" name="q5_12" value="11+ copos"><label for="q5_12_opt3">Mais de 11 copos (+2L)</label></div>
+        </div>
+      </div>
+
+      <div class="nav-buttons">
+        <button class="btn btn-secondary" onclick="previousModule()">← Voltar</button>
+        <button class="btn btn-primary" onclick="nextModule()">Continuar →</button>
+      </div>
+    </div>
+
+    <!-- ===== M6 ===== -->
+    <div class="module-card" data-module="6" style="display: none;">
+      <div class="module-header">
+        <div class="module-eyebrow">Módulo 6</div>
+        <h2 class="module-title">Seu <em>sono</em> e ritmo biológico</h2>
+        <p class="module-description">Esta é uma seção fundamental — seu sono e cronotipo definem grande parte da estratégia nutricional.</p>
+      </div>
+
+      <div class="info-box">
+        🌙 <strong>Avaliação científica:</strong> Usamos os questionários PSQI (Pittsburgh) e MEQ (Horne-Östberg), padrão-ouro internacional em medicina do sono e cronobiologia.
+      </div>
+
+      <div class="section-divider">Qualidade do sono — PSQI</div>
+
+      <div class="question">
+        <label class="question-label">No último mês, geralmente:<span class="required">*</span></label>
+        <div class="time-row">
+          <div class="time-block">
+            <div class="time-block-label">Que horas você vai dormir?</div>
+            <input type="time" id="q6_psqi_1" class="input" required>
+          </div>
+          <div class="time-block">
+            <div class="time-block-label">Que horas você acorda?</div>
+            <input type="time" id="q6_psqi_3" class="input" required>
+          </div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label" for="q6_psqi_2">Quanto tempo (em minutos) você costuma levar para adormecer?<span class="required">*</span></label>
+        <input type="number" id="q6_psqi_2" class="input" placeholder="Ex: 15" min="0" max="300" required>
+      </div>
+
+      <div class="question">
+        <label class="question-label" for="q6_psqi_4">Quantas horas você efetivamente dorme por noite?<span class="required">*</span></label>
+        <input type="number" id="q6_psqi_4" class="input" placeholder="Ex: 7" step="0.5" min="0" max="14" required>
+        <p class="question-helper">Tempo real dormindo (diferente do tempo na cama)</p>
+      </div>
+
+      <div class="question">
+        <label class="question-label">No último mês, com que frequência você teve dificuldade de dormir porque...<span class="required">*</span></label>
+
+        <div style="margin-top: 14px;">
+          <p style="font-size: 13.5px; color: var(--ink); margin-bottom: 6px; font-weight: 500;">a) Não conseguiu adormecer em 30min</p>
+          <div class="radio-group" style="margin-bottom: 14px;">
+            <div class="radio-option"><input type="radio" id="q6_psqi_5a_opt1" name="q6_psqi_5a" value="0" required><label for="q6_psqi_5a_opt1">Nenhuma vez no último mês</label></div>
+            <div class="radio-option"><input type="radio" id="q6_psqi_5a_opt2" name="q6_psqi_5a" value="1"><label for="q6_psqi_5a_opt2">Menos de 1x por semana</label></div>
+            <div class="radio-option"><input type="radio" id="q6_psqi_5a_opt3" name="q6_psqi_5a" value="2"><label for="q6_psqi_5a_opt3">1 ou 2x por semana</label></div>
+            <div class="radio-option"><input type="radio" id="q6_psqi_5a_opt4" name="q6_psqi_5a" value="3"><label for="q6_psqi_5a_opt4">3 ou mais vezes por semana</label></div>
+          </div>
+        </div>
+
+        <div>
+          <p style="font-size: 13.5px; color: var(--ink); margin-bottom: 6px; font-weight: 500;">b) Acordou no meio da noite ou de madrugada</p>
+          <div class="radio-group" style="margin-bottom: 14px;">
+            <div class="radio-option"><input type="radio" id="q6_psqi_5b_opt1" name="q6_psqi_5b" value="0" required><label for="q6_psqi_5b_opt1">Nenhuma vez no último mês</label></div>
+            <div class="radio-option"><input type="radio" id="q6_psqi_5b_opt2" name="q6_psqi_5b" value="1"><label for="q6_psqi_5b_opt2">Menos de 1x por semana</label></div>
+            <div class="radio-option"><input type="radio" id="q6_psqi_5b_opt3" name="q6_psqi_5b" value="2"><label for="q6_psqi_5b_opt3">1 ou 2x por semana</label></div>
+            <div class="radio-option"><input type="radio" id="q6_psqi_5b_opt4" name="q6_psqi_5b" value="3"><label for="q6_psqi_5b_opt4">3 ou mais vezes por semana</label></div>
+          </div>
+        </div>
+
+        <div>
+          <p style="font-size: 13.5px; color: var(--ink); margin-bottom: 6px; font-weight: 500;">c) Precisou levantar para ir ao banheiro</p>
+          <div class="radio-group" style="margin-bottom: 14px;">
+            <div class="radio-option"><input type="radio" id="q6_psqi_5c_opt1" name="q6_psqi_5c" value="0" required><label for="q6_psqi_5c_opt1">Nenhuma vez no último mês</label></div>
+            <div class="radio-option"><input type="radio" id="q6_psqi_5c_opt2" name="q6_psqi_5c" value="1"><label for="q6_psqi_5c_opt2">Menos de 1x por semana</label></div>
+            <div class="radio-option"><input type="radio" id="q6_psqi_5c_opt3" name="q6_psqi_5c" value="2"><label for="q6_psqi_5c_opt3">1 ou 2x por semana</label></div>
+            <div class="radio-option"><input type="radio" id="q6_psqi_5c_opt4" name="q6_psqi_5c" value="3"><label for="q6_psqi_5c_opt4">3 ou mais vezes por semana</label></div>
+          </div>
+        </div>
+
+        <div>
+          <p style="font-size: 13.5px; color: var(--ink); margin-bottom: 6px; font-weight: 500;">d) Sentiu calor / frio / dor / outras dificuldades</p>
+          <div class="radio-group">
+            <div class="radio-option"><input type="radio" id="q6_psqi_5d_opt1" name="q6_psqi_5d" value="0" required><label for="q6_psqi_5d_opt1">Nenhuma vez no último mês</label></div>
+            <div class="radio-option"><input type="radio" id="q6_psqi_5d_opt2" name="q6_psqi_5d" value="1"><label for="q6_psqi_5d_opt2">Menos de 1x por semana</label></div>
+            <div class="radio-option"><input type="radio" id="q6_psqi_5d_opt3" name="q6_psqi_5d" value="2"><label for="q6_psqi_5d_opt3">1 ou 2x por semana</label></div>
+            <div class="radio-option"><input type="radio" id="q6_psqi_5d_opt4" name="q6_psqi_5d" value="3"><label for="q6_psqi_5d_opt4">3 ou mais vezes por semana</label></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Como você avalia a QUALIDADE do seu sono?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q6_psqi_6_opt1" name="q6_psqi_6" value="0" required><label for="q6_psqi_6_opt1">Muito boa</label></div>
+          <div class="radio-option"><input type="radio" id="q6_psqi_6_opt2" name="q6_psqi_6" value="1"><label for="q6_psqi_6_opt2">Razoavelmente boa</label></div>
+          <div class="radio-option"><input type="radio" id="q6_psqi_6_opt3" name="q6_psqi_6" value="2"><label for="q6_psqi_6_opt3">Razoavelmente ruim</label></div>
+          <div class="radio-option"><input type="radio" id="q6_psqi_6_opt4" name="q6_psqi_6" value="3"><label for="q6_psqi_6_opt4">Muito ruim</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Tomou algum medicamento para dormir?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q6_psqi_7_opt1" name="q6_psqi_7" value="0" required><label for="q6_psqi_7_opt1">Nunca</label></div>
+          <div class="radio-option"><input type="radio" id="q6_psqi_7_opt2" name="q6_psqi_7" value="1"><label for="q6_psqi_7_opt2">Menos de 1x por semana</label></div>
+          <div class="radio-option"><input type="radio" id="q6_psqi_7_opt3" name="q6_psqi_7" value="2"><label for="q6_psqi_7_opt3">1 ou 2x por semana</label></div>
+          <div class="radio-option"><input type="radio" id="q6_psqi_7_opt4" name="q6_psqi_7" value="3"><label for="q6_psqi_7_opt4">3 ou mais vezes por semana</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Sentiu sonolência durante o dia (dirigindo, comendo, trabalhando)?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q6_psqi_8_opt1" name="q6_psqi_8" value="0" required><label for="q6_psqi_8_opt1">Nenhuma vez</label></div>
+          <div class="radio-option"><input type="radio" id="q6_psqi_8_opt2" name="q6_psqi_8" value="1"><label for="q6_psqi_8_opt2">Menos de 1x por semana</label></div>
+          <div class="radio-option"><input type="radio" id="q6_psqi_8_opt3" name="q6_psqi_8" value="2"><label for="q6_psqi_8_opt3">1 ou 2x por semana</label></div>
+          <div class="radio-option"><input type="radio" id="q6_psqi_8_opt4" name="q6_psqi_8" value="3"><label for="q6_psqi_8_opt4">3 ou mais vezes por semana</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Tem tido disposição para realizar suas atividades?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q6_psqi_9_opt1" name="q6_psqi_9" value="0" required><label for="q6_psqi_9_opt1">Nenhum problema</label></div>
+          <div class="radio-option"><input type="radio" id="q6_psqi_9_opt2" name="q6_psqi_9" value="1"><label for="q6_psqi_9_opt2">Pequeno problema</label></div>
+          <div class="radio-option"><input type="radio" id="q6_psqi_9_opt3" name="q6_psqi_9" value="2"><label for="q6_psqi_9_opt3">Problema moderado</label></div>
+          <div class="radio-option"><input type="radio" id="q6_psqi_9_opt4" name="q6_psqi_9" value="3"><label for="q6_psqi_9_opt4">Grande problema</label></div>
+        </div>
+      </div>
+
+      <div id="psqi_score_box" class="calc-result" style="display: none;">
+        🌙 <span>Score PSQI: <strong id="psqi_score">—</strong> · <span id="psqi_class">—</span></span>
+      </div>
+
+      <div class="section-divider">Seu cronotipo — MEQ</div>
+
+      <p style="font-size: 14px; color: var(--ink-soft); margin-bottom: 20px;">
+        As próximas perguntas vão identificar se você é mais <em>matutino</em> (acorda cedo naturalmente) ou <em>vespertino</em> (mais ativo à noite). Isso vai direcionar como distribuir suas refeições ao longo do dia.
+      </p>
+
+      <div class="question">
+        <label class="question-label">Se pudesse planejar livremente seu dia, que horas acordaria?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q6_meq_1_opt1" name="q6_meq_1" value="5" required><label for="q6_meq_1_opt1">05:00 às 06:30</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_1_opt2" name="q6_meq_1" value="4"><label for="q6_meq_1_opt2">06:30 às 07:45</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_1_opt3" name="q6_meq_1" value="3"><label for="q6_meq_1_opt3">07:45 às 09:45</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_1_opt4" name="q6_meq_1" value="2"><label for="q6_meq_1_opt4">09:45 às 11:00</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_1_opt5" name="q6_meq_1" value="1"><label for="q6_meq_1_opt5">11:00 às 12:00</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Se pudesse planejar livremente seu dia, que horas iria dormir?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q6_meq_2_opt1" name="q6_meq_2" value="5" required><label for="q6_meq_2_opt1">20:00 às 21:00</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_2_opt2" name="q6_meq_2" value="4"><label for="q6_meq_2_opt2">21:00 às 22:15</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_2_opt3" name="q6_meq_2" value="3"><label for="q6_meq_2_opt3">22:15 às 00:30</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_2_opt4" name="q6_meq_2" value="2"><label for="q6_meq_2_opt4">00:30 às 01:45</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_2_opt5" name="q6_meq_2" value="1"><label for="q6_meq_2_opt5">01:45 às 03:00</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Quanto depende do despertador para acordar de manhã?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q6_meq_3_opt1" name="q6_meq_3" value="4" required><label for="q6_meq_3_opt1">Nem um pouco — acordo naturalmente</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_3_opt2" name="q6_meq_3" value="3"><label for="q6_meq_3_opt2">Um pouco</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_3_opt3" name="q6_meq_3" value="2"><label for="q6_meq_3_opt3">Bastante</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_3_opt4" name="q6_meq_3" value="1"><label for="q6_meq_3_opt4">Muito — não acordo sem ele</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Como você se sente nos primeiros 30 min após acordar?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q6_meq_4_opt1" name="q6_meq_4" value="4" required><label for="q6_meq_4_opt1">Muito bem desperto(a)</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_4_opt2" name="q6_meq_4" value="3"><label for="q6_meq_4_opt2">Razoavelmente bem desperto(a)</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_4_opt3" name="q6_meq_4" value="2"><label for="q6_meq_4_opt3">Razoavelmente sonolento(a)</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_4_opt4" name="q6_meq_4" value="1"><label for="q6_meq_4_opt4">Muito sonolento(a) — me arrasto</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Que horas você gostaria de fazer atividade física se tivesse total liberdade?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q6_meq_5_opt1" name="q6_meq_5" value="4" required><label for="q6_meq_5_opt1">Cedo de manhã (06h–08h)</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_5_opt2" name="q6_meq_5" value="3"><label for="q6_meq_5_opt2">Final da manhã (10h–12h)</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_5_opt3" name="q6_meq_5" value="2"><label for="q6_meq_5_opt3">Tarde (15h–17h)</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_5_opt4" name="q6_meq_5" value="1"><label for="q6_meq_5_opt4">Noite (19h–22h)</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">A que horas do dia você se sente MELHOR?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q6_meq_6_opt1" name="q6_meq_6" value="5" required><label for="q6_meq_6_opt1">Manhã cedo (06h–10h)</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_6_opt2" name="q6_meq_6" value="4"><label for="q6_meq_6_opt2">Final da manhã (10h–12h)</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_6_opt3" name="q6_meq_6" value="3"><label for="q6_meq_6_opt3">Tarde (14h–17h)</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_6_opt4" name="q6_meq_6" value="2"><label for="q6_meq_6_opt4">Final de tarde / noite (17h–21h)</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_6_opt5" name="q6_meq_6" value="1"><label for="q6_meq_6_opt5">Tarde da noite (após 21h)</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Você se considera uma pessoa do tipo:<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q6_meq_7_opt1" name="q6_meq_7" value="6" required><label for="q6_meq_7_opt1">Definitivamente matutina</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_7_opt2" name="q6_meq_7" value="4"><label for="q6_meq_7_opt2">Mais matutina que vespertina</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_7_opt3" name="q6_meq_7" value="2"><label for="q6_meq_7_opt3">Mais vespertina que matutina</label></div>
+          <div class="radio-option"><input type="radio" id="q6_meq_7_opt4" name="q6_meq_7" value="0"><label for="q6_meq_7_opt4">Definitivamente vespertina</label></div>
+        </div>
+      </div>
+
+      <div id="meq_score_box" class="calc-result" style="display: none;">
+        🌅 <span>Cronotipo: <strong id="meq_class">—</strong></span>
+      </div>
+
+      <div class="nav-buttons">
+        <button class="btn btn-secondary" onclick="previousModule()">← Voltar</button>
+        <button class="btn btn-primary" onclick="nextModule()">Continuar →</button>
+      </div>
+    </div>
+
+    <!-- ===== M7 ===== -->
+    <div class="module-card" data-module="7" style="display: none;">
+      <div class="module-header">
+        <div class="module-eyebrow">Módulo 7</div>
+        <h2 class="module-title">Seu <em>comportamento</em> alimentar</h2>
+        <p class="module-description">Como você se relaciona com a comida no dia a dia.</p>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Como está seu apetite atualmente?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q7_1_opt1" name="q7_1" value="Ruim" required><label for="q7_1_opt1">Ruim — como pouco</label></div>
+          <div class="radio-option"><input type="radio" id="q7_1_opt2" name="q7_1" value="Bom"><label for="q7_1_opt2">Bom — normal</label></div>
+          <div class="radio-option"><input type="radio" id="q7_1_opt3" name="q7_1" value="Excessivo"><label for="q7_1_opt3">Excessivo — como muito</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Qual sua preferência de sabor?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q7_2_opt1" name="q7_2" value="Doce" required><label for="q7_2_opt1">Doce</label></div>
+          <div class="radio-option"><input type="radio" id="q7_2_opt2" name="q7_2" value="Salgado"><label for="q7_2_opt2">Salgado</label></div>
+          <div class="radio-option"><input type="radio" id="q7_2_opt3" name="q7_2" value="Cítrico"><label for="q7_2_opt3">Cítrico</label></div>
+          <div class="radio-option"><input type="radio" id="q7_2_opt4" name="q7_2" value="Amargo"><label for="q7_2_opt4">Amargo</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Qual seu período de MAIOR FOME no dia?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q7_3_opt1" name="q7_3" value="Manhã" required><label for="q7_3_opt1">De manhã</label></div>
+          <div class="radio-option"><input type="radio" id="q7_3_opt2" name="q7_3" value="Tarde"><label for="q7_3_opt2">À tarde</label></div>
+          <div class="radio-option"><input type="radio" id="q7_3_opt3" name="q7_3" value="Noite"><label for="q7_3_opt3">À noite</label></div>
+        </div>
+        <p class="question-helper">Esta resposta será cruzada com seu cronotipo para personalizar a distribuição de calorias</p>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Come muito à noite (após o jantar)?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q7_4_opt1" name="q7_4" value="Sim" required><label for="q7_4_opt1">Sim</label></div>
+          <div class="radio-option"><input type="radio" id="q7_4_opt2" name="q7_4" value="Não"><label for="q7_4_opt2">Não</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Como é sua mastigação?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q7_5_opt1" name="q7_5" value="Rápida" required><label for="q7_5_opt1">Rápida — engulo logo</label></div>
+          <div class="radio-option"><input type="radio" id="q7_5_opt2" name="q7_5" value="Normal"><label for="q7_5_opt2">Normal</label></div>
+          <div class="radio-option"><input type="radio" id="q7_5_opt3" name="q7_5" value="Lenta"><label for="q7_5_opt3">Lenta — mastigo bem</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Toma líquido durante as refeições?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q7_6_opt1" name="q7_6" value="Sim" required><label for="q7_6_opt1">Sim</label></div>
+          <div class="radio-option"><input type="radio" id="q7_6_opt2" name="q7_6" value="Não"><label for="q7_6_opt2">Não</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Consegue fazer refeições sólidas em todos os horários?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q7_7_opt1" name="q7_7" value="Sim" required onchange="toggleConditional('q7_8_cond', false)"><label for="q7_7_opt1">Sim, em todos</label></div>
+          <div class="radio-option"><input type="radio" id="q7_7_opt2" name="q7_7" value="Não" onchange="toggleConditional('q7_8_cond', true)"><label for="q7_7_opt2">Não, em alguns não consigo</label></div>
+        </div>
+        <div id="q7_8_cond" class="conditional">
+          <label class="question-label" for="q7_8">Quais horários e por quê?</label>
+          <textarea id="q7_8" class="textarea" placeholder="Ex: De manhã, sem fome — só consigo tomar shake..."></textarea>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label" for="q7_9">Alimentos que NÃO gosta<span class="required">*</span></label>
+        <textarea id="q7_9" class="textarea" placeholder="Liste os alimentos que você não gosta..." required></textarea>
+      </div>
+
+      <div class="question">
+        <label class="question-label" for="q7_10">Alimentos que GOSTA muito<span class="required">*</span></label>
+        <textarea id="q7_10" class="textarea" placeholder="Liste os alimentos que você adora — eles serão priorizados no seu plano..." required></textarea>
+      </div>
+
+      <div class="nav-buttons">
+        <button class="btn btn-secondary" onclick="previousModule()">← Voltar</button>
+        <button class="btn btn-primary" onclick="nextModule()">Continuar →</button>
+      </div>
+    </div>
+
+    <!-- ===== M8 ===== -->
+    <div class="module-card" data-module="8" style="display: none;">
+      <div class="module-header">
+        <div class="module-eyebrow">Módulo 8</div>
+        <h2 class="module-title">Recordatório <em>24 horas</em></h2>
+        <p class="module-description">Conte o que você comeu em um dia típico recente. Quanto mais detalhe, melhor.</p>
+      </div>
+
+      <div class="info-box">
+        ⚛ <strong>Nossa IA vai analisar:</strong> identificamos automaticamente os alimentos, calculamos calorias e macros (proteína, carboidrato, gordura) e seu nutricionista revisa antes da consulta.
+        <br><br>
+        💡 <strong>Dica:</strong> seja honesto e específico. Em vez de "pão", escreva "2 fatias de pão integral". Em vez de "salada", escreva "salada de alface, tomate e azeite".
+      </div>
+
+      <!-- CAFÉ DA MANHÃ -->
+      <div class="meal-card filled" id="meal_breakfast">
+        <div class="meal-card-header">
+          <div class="meal-icon-name">
+            <div class="meal-icon">☀️</div>
+            <div class="meal-name-text">Café da manhã</div>
+          </div>
+          <input type="time" id="q8_2" class="meal-time-input">
+        </div>
+        <div class="meal-toggle">
+          <button class="meal-toggle-btn active" type="button" onclick="toggleMeal('meal_breakfast', 'q8_1', true)">Faço esta refeição</button>
+          <button class="meal-toggle-btn" type="button" onclick="toggleMeal('meal_breakfast', 'q8_1', false)">Não faço</button>
+        </div>
+        <input type="hidden" id="q8_1" value="Sim">
+        <div class="meal-content active" id="meal_breakfast_content">
+          <textarea id="q8_3" class="meal-textarea" placeholder="Ex: 2 fatias de pão integral, 1 ovo mexido, 1 xícara de café com leite desnatado..."></textarea>
+          <div class="meal-suggestion">💡 <strong>Inclua quantidades:</strong> "2 fatias", "1 colher de sopa", "1 xícara"</div>
+        </div>
+      </div>
+
+      <!-- LANCHE DA MANHÃ -->
+      <div class="meal-card filled" id="meal_colation">
+        <div class="meal-card-header">
+          <div class="meal-icon-name">
+            <div class="meal-icon">🍎</div>
+            <div class="meal-name-text">Lanche da manhã</div>
+          </div>
+          <input type="time" id="q8_5_time" class="meal-time-input">
+        </div>
+        <div class="meal-toggle">
+          <button class="meal-toggle-btn active" type="button" onclick="toggleMeal('meal_colation', 'q8_4', true)">Faço esta refeição</button>
+          <button class="meal-toggle-btn" type="button" onclick="toggleMeal('meal_colation', 'q8_4', false)">Não faço</button>
+        </div>
+        <input type="hidden" id="q8_4" value="Sim">
+        <div class="meal-content active" id="meal_colation_content">
+          <textarea id="q8_5" class="meal-textarea" placeholder="Ex: 1 fruta com 1 punhado de castanhas, ou 1 iogurte natural..."></textarea>
+        </div>
+      </div>
+
+      <!-- ALMOÇO -->
+      <div class="meal-card filled" id="meal_lunch">
+        <div class="meal-card-header">
+          <div class="meal-icon-name">
+            <div class="meal-icon">🍽️</div>
+            <div class="meal-name-text">Almoço</div>
+          </div>
+          <input type="time" id="q8_7_time" class="meal-time-input">
+        </div>
+        <div class="meal-toggle">
+          <button class="meal-toggle-btn active" type="button" onclick="toggleMeal('meal_lunch', 'q8_6', true)">Faço esta refeição</button>
+          <button class="meal-toggle-btn" type="button" onclick="toggleMeal('meal_lunch', 'q8_6', false)">Não faço</button>
+        </div>
+        <input type="hidden" id="q8_6" value="Sim">
+        <div class="meal-content active" id="meal_lunch_content">
+          <textarea id="q8_7" class="meal-textarea" placeholder="Ex: Arroz integral, feijão, 1 filé de frango grelhado, salada de alface e tomate com azeite..."></textarea>
+          <div class="meal-suggestion">💡 Descreva: arroz, feijão, proteína (carne/frango/peixe/ovo), vegetais e como preparou</div>
+        </div>
+      </div>
+
+      <!-- LANCHE DA TARDE -->
+      <div class="meal-card filled" id="meal_snack">
+        <div class="meal-card-header">
+          <div class="meal-icon-name">
+            <div class="meal-icon">🥪</div>
+            <div class="meal-name-text">Lanche da tarde</div>
+          </div>
+          <input type="time" id="q8_9_time" class="meal-time-input">
+        </div>
+        <div class="meal-toggle">
+          <button class="meal-toggle-btn active" type="button" onclick="toggleMeal('meal_snack', 'q8_8', true)">Faço esta refeição</button>
+          <button class="meal-toggle-btn" type="button" onclick="toggleMeal('meal_snack', 'q8_8', false)">Não faço</button>
+        </div>
+        <input type="hidden" id="q8_8" value="Sim">
+        <div class="meal-content active" id="meal_snack_content">
+          <textarea id="q8_9" class="meal-textarea" placeholder="Ex: 1 vitamina de banana com aveia, ou 1 tapioca com queijo..."></textarea>
+        </div>
+      </div>
+
+      <!-- JANTAR -->
+      <div class="meal-card filled" id="meal_dinner">
+        <div class="meal-card-header">
+          <div class="meal-icon-name">
+            <div class="meal-icon">🌙</div>
+            <div class="meal-name-text">Jantar</div>
+          </div>
+          <input type="time" id="q8_11_time" class="meal-time-input">
+        </div>
+        <div class="meal-toggle">
+          <button class="meal-toggle-btn active" type="button" onclick="toggleMeal('meal_dinner', 'q8_10', true)">Faço esta refeição</button>
+          <button class="meal-toggle-btn" type="button" onclick="toggleMeal('meal_dinner', 'q8_10', false)">Não faço</button>
+        </div>
+        <input type="hidden" id="q8_10" value="Sim">
+        <div class="meal-content active" id="meal_dinner_content">
+          <textarea id="q8_11" class="meal-textarea" placeholder="Ex: Sopa de legumes com frango, ou wrap de frango com salada..."></textarea>
+        </div>
+      </div>
+
+      <!-- CEIA -->
+      <div class="meal-card skipped" id="meal_supper">
+        <div class="meal-card-header">
+          <div class="meal-icon-name">
+            <div class="meal-icon">🌌</div>
+            <div class="meal-name-text">Ceia (antes de dormir)</div>
+          </div>
+          <input type="time" id="q8_13_time" class="meal-time-input">
+        </div>
+        <div class="meal-toggle">
+          <button class="meal-toggle-btn" type="button" onclick="toggleMeal('meal_supper', 'q8_12', true)">Faço esta refeição</button>
+          <button class="meal-toggle-btn active" type="button" onclick="toggleMeal('meal_supper', 'q8_12', false)">Não faço</button>
+        </div>
+        <input type="hidden" id="q8_12" value="Não">
+        <div class="meal-content" id="meal_supper_content">
+          <textarea id="q8_13" class="meal-textarea" placeholder="Ex: 1 chá de camomila e 1 fatia de queijo branco..."></textarea>
+        </div>
+      </div>
+
+      <div class="nav-buttons">
+        <button class="btn btn-secondary" onclick="previousModule()">← Voltar</button>
+        <button class="btn btn-primary" onclick="nextModule()">Continuar →</button>
+      </div>
+    </div>
+
+    <!-- ===== M9 ===== -->
+    <div class="module-card" data-module="9" style="display: none;">
+      <div class="module-header">
+        <div class="module-eyebrow">Módulo 9</div>
+        <h2 class="module-title">Frequência <em>alimentar</em></h2>
+        <p class="module-description">Com que frequência você consome cada grupo de alimentos?</p>
+      </div>
+
+      <div class="info-box">
+        📊 <strong>Importante:</strong> Esta seção identifica o padrão da sua alimentação ao longo da semana. Marque a opção mais próxima da realidade.
+      </div>
+
+      <div class="section-divider">Grupos saudáveis</div>
+
+      <div class="freq-question">
+        <div class="freq-question-row"><div class="freq-question-emoji">🍎</div><div class="freq-question-name">Frutas<span class="required">*</span></div></div>
+        <div class="freq-options">
+          <div class="freq-opt"><input type="radio" id="q9_1_opt1" name="q9_1" value="Nunca" required><label for="q9_1_opt1">Nunca</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_1_opt2" name="q9_1" value="1-2x/sem"><label for="q9_1_opt2">1-2x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_1_opt3" name="q9_1" value="3-4x/sem"><label for="q9_1_opt3">3-4x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_1_opt4" name="q9_1" value="5-6x/sem"><label for="q9_1_opt4">5-6x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_1_opt5" name="q9_1" value="Diariamente"><label for="q9_1_opt5">Diário</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_1_opt6" name="q9_1" value="+1x/dia"><label for="q9_1_opt6">+1x/dia</label></div>
+        </div>
+      </div>
+
+      <div class="freq-question">
+        <div class="freq-question-row"><div class="freq-question-emoji">🥗</div><div class="freq-question-name">Verduras e legumes<span class="required">*</span></div></div>
+        <div class="freq-options">
+          <div class="freq-opt"><input type="radio" id="q9_2_opt1" name="q9_2" value="Nunca" required><label for="q9_2_opt1">Nunca</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_2_opt2" name="q9_2" value="1-2x/sem"><label for="q9_2_opt2">1-2x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_2_opt3" name="q9_2" value="3-4x/sem"><label for="q9_2_opt3">3-4x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_2_opt4" name="q9_2" value="5-6x/sem"><label for="q9_2_opt4">5-6x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_2_opt5" name="q9_2" value="Diariamente"><label for="q9_2_opt5">Diário</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_2_opt6" name="q9_2" value="+1x/dia"><label for="q9_2_opt6">+1x/dia</label></div>
+        </div>
+      </div>
+
+      <div class="freq-question">
+        <div class="freq-question-row"><div class="freq-question-emoji">🥩</div><div class="freq-question-name">Carnes vermelhas<span class="required">*</span></div></div>
+        <div class="freq-options">
+          <div class="freq-opt"><input type="radio" id="q9_3_opt1" name="q9_3" value="Nunca" required><label for="q9_3_opt1">Nunca</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_3_opt2" name="q9_3" value="1-2x/sem"><label for="q9_3_opt2">1-2x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_3_opt3" name="q9_3" value="3-4x/sem"><label for="q9_3_opt3">3-4x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_3_opt4" name="q9_3" value="5-6x/sem"><label for="q9_3_opt4">5-6x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_3_opt5" name="q9_3" value="Diariamente"><label for="q9_3_opt5">Diário</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_3_opt6" name="q9_3" value="+1x/dia"><label for="q9_3_opt6">+1x/dia</label></div>
+        </div>
+      </div>
+
+      <div class="freq-question">
+        <div class="freq-question-row"><div class="freq-question-emoji">🍗</div><div class="freq-question-name">Frango e peixes<span class="required">*</span></div></div>
+        <div class="freq-options">
+          <div class="freq-opt"><input type="radio" id="q9_4_opt1" name="q9_4" value="Nunca" required><label for="q9_4_opt1">Nunca</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_4_opt2" name="q9_4" value="1-2x/sem"><label for="q9_4_opt2">1-2x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_4_opt3" name="q9_4" value="3-4x/sem"><label for="q9_4_opt3">3-4x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_4_opt4" name="q9_4" value="5-6x/sem"><label for="q9_4_opt4">5-6x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_4_opt5" name="q9_4" value="Diariamente"><label for="q9_4_opt5">Diário</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_4_opt6" name="q9_4" value="+1x/dia"><label for="q9_4_opt6">+1x/dia</label></div>
+        </div>
+      </div>
+
+      <div class="freq-question">
+        <div class="freq-question-row"><div class="freq-question-emoji">🥚</div><div class="freq-question-name">Ovos<span class="required">*</span></div></div>
+        <div class="freq-options">
+          <div class="freq-opt"><input type="radio" id="q9_5_opt1" name="q9_5" value="Nunca" required><label for="q9_5_opt1">Nunca</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_5_opt2" name="q9_5" value="1-2x/sem"><label for="q9_5_opt2">1-2x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_5_opt3" name="q9_5" value="3-4x/sem"><label for="q9_5_opt3">3-4x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_5_opt4" name="q9_5" value="5-6x/sem"><label for="q9_5_opt4">5-6x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_5_opt5" name="q9_5" value="Diariamente"><label for="q9_5_opt5">Diário</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_5_opt6" name="q9_5" value="+1x/dia"><label for="q9_5_opt6">+1x/dia</label></div>
+        </div>
+      </div>
+
+      <div class="freq-question">
+        <div class="freq-question-row"><div class="freq-question-emoji">🥛</div><div class="freq-question-name">Leite e derivados<span class="required">*</span></div></div>
+        <div class="freq-options">
+          <div class="freq-opt"><input type="radio" id="q9_6_opt1" name="q9_6" value="Nunca" required><label for="q9_6_opt1">Nunca</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_6_opt2" name="q9_6" value="1-2x/sem"><label for="q9_6_opt2">1-2x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_6_opt3" name="q9_6" value="3-4x/sem"><label for="q9_6_opt3">3-4x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_6_opt4" name="q9_6" value="5-6x/sem"><label for="q9_6_opt4">5-6x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_6_opt5" name="q9_6" value="Diariamente"><label for="q9_6_opt5">Diário</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_6_opt6" name="q9_6" value="+1x/dia"><label for="q9_6_opt6">+1x/dia</label></div>
+        </div>
+      </div>
+
+      <div class="freq-question">
+        <div class="freq-question-row"><div class="freq-question-emoji">🫘</div><div class="freq-question-name">Feijões e leguminosas<span class="required">*</span></div></div>
+        <div class="freq-options">
+          <div class="freq-opt"><input type="radio" id="q9_7_opt1" name="q9_7" value="Nunca" required><label for="q9_7_opt1">Nunca</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_7_opt2" name="q9_7" value="1-2x/sem"><label for="q9_7_opt2">1-2x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_7_opt3" name="q9_7" value="3-4x/sem"><label for="q9_7_opt3">3-4x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_7_opt4" name="q9_7" value="5-6x/sem"><label for="q9_7_opt4">5-6x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_7_opt5" name="q9_7" value="Diariamente"><label for="q9_7_opt5">Diário</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_7_opt6" name="q9_7" value="+1x/dia"><label for="q9_7_opt6">+1x/dia</label></div>
+        </div>
+      </div>
+
+      <div class="freq-question">
+        <div class="freq-question-row"><div class="freq-question-emoji">🌾</div><div class="freq-question-name">Cereais integrais<span class="required">*</span></div></div>
+        <div class="freq-options">
+          <div class="freq-opt"><input type="radio" id="q9_8_opt1" name="q9_8" value="Nunca" required><label for="q9_8_opt1">Nunca</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_8_opt2" name="q9_8" value="1-2x/sem"><label for="q9_8_opt2">1-2x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_8_opt3" name="q9_8" value="3-4x/sem"><label for="q9_8_opt3">3-4x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_8_opt4" name="q9_8" value="5-6x/sem"><label for="q9_8_opt4">5-6x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_8_opt5" name="q9_8" value="Diariamente"><label for="q9_8_opt5">Diário</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_8_opt6" name="q9_8" value="+1x/dia"><label for="q9_8_opt6">+1x/dia</label></div>
+        </div>
+      </div>
+
+      <div class="freq-question">
+        <div class="freq-question-row"><div class="freq-question-emoji">🥜</div><div class="freq-question-name">Oleaginosas (castanhas, nozes)<span class="required">*</span></div></div>
+        <div class="freq-options">
+          <div class="freq-opt"><input type="radio" id="q9_9_opt1" name="q9_9" value="Nunca" required><label for="q9_9_opt1">Nunca</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_9_opt2" name="q9_9" value="1-2x/sem"><label for="q9_9_opt2">1-2x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_9_opt3" name="q9_9" value="3-4x/sem"><label for="q9_9_opt3">3-4x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_9_opt4" name="q9_9" value="5-6x/sem"><label for="q9_9_opt4">5-6x/sem</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_9_opt5" name="q9_9" value="Diariamente"><label for="q9_9_opt5">Diário</label></div>
+          <div class="freq-opt"><input type="radio" id="q9_9_opt6" name="q9_9" value="+1x/dia"><label for="q9_9_opt6">+1x/dia</label></div>
+        </div>
+      </div>
+
+      <div class="section-divider">Padrão de risco</div>
+
+      <div class="freq-question">
+        <div class="freq-question-row"><div class="freq-question-emoji">🍬</div><div class="freq-question-name">Doces e açúcares<span class="required">*</span></div></div>
+        <div class="freq-options">
+          <div class="freq-opt risk"><input type="radio" id="q9_10_opt1" name="q9_10" value="Nunca" required><label for="q9_10_opt1">Nunca</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_10_opt2" name="q9_10" value="1-2x/sem"><label for="q9_10_opt2">1-2x/sem</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_10_opt3" name="q9_10" value="3-4x/sem"><label for="q9_10_opt3">3-4x/sem</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_10_opt4" name="q9_10" value="5-6x/sem"><label for="q9_10_opt4">5-6x/sem</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_10_opt5" name="q9_10" value="Diariamente"><label for="q9_10_opt5">Diário</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_10_opt6" name="q9_10" value="+1x/dia"><label for="q9_10_opt6">+1x/dia</label></div>
+        </div>
+      </div>
+
+      <div class="freq-question">
+        <div class="freq-question-row"><div class="freq-question-emoji">🍿</div><div class="freq-question-name">Ultraprocessados (biscoitos, salgadinhos, embutidos)<span class="required">*</span></div></div>
+        <div class="freq-options">
+          <div class="freq-opt risk"><input type="radio" id="q9_11_opt1" name="q9_11" value="Nunca" required><label for="q9_11_opt1">Nunca</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_11_opt2" name="q9_11" value="1-2x/sem"><label for="q9_11_opt2">1-2x/sem</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_11_opt3" name="q9_11" value="3-4x/sem"><label for="q9_11_opt3">3-4x/sem</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_11_opt4" name="q9_11" value="5-6x/sem"><label for="q9_11_opt4">5-6x/sem</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_11_opt5" name="q9_11" value="Diariamente"><label for="q9_11_opt5">Diário</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_11_opt6" name="q9_11" value="+1x/dia"><label for="q9_11_opt6">+1x/dia</label></div>
+        </div>
+      </div>
+
+      <div class="freq-question">
+        <div class="freq-question-row"><div class="freq-question-emoji">🍕</div><div class="freq-question-name">Fast-food / delivery<span class="required">*</span></div></div>
+        <div class="freq-options">
+          <div class="freq-opt risk"><input type="radio" id="q9_12_opt1" name="q9_12" value="Nunca" required><label for="q9_12_opt1">Nunca</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_12_opt2" name="q9_12" value="1-2x/sem"><label for="q9_12_opt2">1-2x/sem</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_12_opt3" name="q9_12" value="3-4x/sem"><label for="q9_12_opt3">3-4x/sem</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_12_opt4" name="q9_12" value="5-6x/sem"><label for="q9_12_opt4">5-6x/sem</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_12_opt5" name="q9_12" value="Diariamente"><label for="q9_12_opt5">Diário</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_12_opt6" name="q9_12" value="+1x/dia"><label for="q9_12_opt6">+1x/dia</label></div>
+        </div>
+      </div>
+
+      <div class="freq-question">
+        <div class="freq-question-row"><div class="freq-question-emoji">🥤</div><div class="freq-question-name">Refrigerantes e sucos industrializados<span class="required">*</span></div></div>
+        <div class="freq-options">
+          <div class="freq-opt risk"><input type="radio" id="q9_13_opt1" name="q9_13" value="Nunca" required><label for="q9_13_opt1">Nunca</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_13_opt2" name="q9_13" value="1-2x/sem"><label for="q9_13_opt2">1-2x/sem</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_13_opt3" name="q9_13" value="3-4x/sem"><label for="q9_13_opt3">3-4x/sem</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_13_opt4" name="q9_13" value="5-6x/sem"><label for="q9_13_opt4">5-6x/sem</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_13_opt5" name="q9_13" value="Diariamente"><label for="q9_13_opt5">Diário</label></div>
+          <div class="freq-opt risk"><input type="radio" id="q9_13_opt6" name="q9_13" value="+1x/dia"><label for="q9_13_opt6">+1x/dia</label></div>
+        </div>
+      </div>
+
+      <div class="nav-buttons">
+        <button class="btn btn-secondary" onclick="previousModule()">← Voltar</button>
+        <button class="btn btn-primary" onclick="nextModule()">Continuar →</button>
+      </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- MÓDULO 10: ATIVIDADE FÍSICA                    -->
+    <!-- ============================================ -->
+    <div class="module-card" data-module="10" style="display: none;">
+      <div class="module-header">
+        <div class="module-eyebrow">Módulo 10</div>
+        <h2 class="module-title">Sua <em>atividade física</em></h2>
+        <p class="module-description">Movimento e exercício são essenciais para calcular suas calorias gastas.</p>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Você pratica atividade física regularmente?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option">
+            <input type="radio" name="q10_1" id="q10_1_s" value="Sim" required onchange="toggleConditional('q10_activities_cond', true)">
+            <label for="q10_1_s">Sim, pratico regularmente</label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" name="q10_1" id="q10_1_p" value="Esporádico" onchange="toggleConditional('q10_activities_cond', true)">
+            <label for="q10_1_p">Esporadicamente</label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" name="q10_1" id="q10_1_n" value="Não" onchange="toggleConditional('q10_activities_cond', false)">
+            <label for="q10_1_n">Não pratico atualmente</label>
+          </div>
+        </div>
+      </div>
+
+      <div id="q10_activities_cond" class="conditional">
+        <div class="question">
+          <label class="question-label">Quais atividades você pratica?<span class="required">*</span></label>
+          <p class="question-helper">Marque <strong>todas</strong> que se aplicam. Os detalhes (frequência e intensidade) aparecem abaixo de cada uma marcada.</p>
+          <div class="activity-grid">
+          <div class="activity-btn">
+            <input type="checkbox" id="q10_caminhada_check" data-act="q10_caminhada" data-name="Caminhada" data-emoji="🚶">
+            <label for="q10_caminhada_check"><span class="activity-emoji-small">🚶</span> Caminhada</label>
+          </div>
+          <div class="activity-btn">
+            <input type="checkbox" id="q10_corrida_check" data-act="q10_corrida" data-name="Corrida" data-emoji="🏃">
+            <label for="q10_corrida_check"><span class="activity-emoji-small">🏃</span> Corrida</label>
+          </div>
+          <div class="activity-btn">
+            <input type="checkbox" id="q10_musc_check" data-act="q10_musc" data-name="Musculação" data-emoji="🏋">
+            <label for="q10_musc_check"><span class="activity-emoji-small">🏋</span> Musculação</label>
+          </div>
+          <div class="activity-btn">
+            <input type="checkbox" id="q10_crossfit_check" data-act="q10_crossfit" data-name="CrossFit" data-emoji="🔥">
+            <label for="q10_crossfit_check"><span class="activity-emoji-small">🔥</span> CrossFit</label>
+          </div>
+          <div class="activity-btn">
+            <input type="checkbox" id="q10_bike_check" data-act="q10_bike" data-name="Ciclismo" data-emoji="🚴">
+            <label for="q10_bike_check"><span class="activity-emoji-small">🚴</span> Ciclismo</label>
+          </div>
+          <div class="activity-btn">
+            <input type="checkbox" id="q10_natacao_check" data-act="q10_natacao" data-name="Natação" data-emoji="🏊">
+            <label for="q10_natacao_check"><span class="activity-emoji-small">🏊</span> Natação</label>
+          </div>
+          <div class="activity-btn">
+            <input type="checkbox" id="q10_pilates_check" data-act="q10_pilates" data-name="Pilates" data-emoji="🧘">
+            <label for="q10_pilates_check"><span class="activity-emoji-small">🧘</span> Pilates</label>
+          </div>
+          <div class="activity-btn">
+            <input type="checkbox" id="q10_danca_check" data-act="q10_danca" data-name="Dança" data-emoji="💃">
+            <label for="q10_danca_check"><span class="activity-emoji-small">💃</span> Dança</label>
+          </div>
+          <div class="activity-btn">
+            <input type="checkbox" id="q10_futebol_check" data-act="q10_futebol" data-name="Futebol" data-emoji="⚽">
+            <label for="q10_futebol_check"><span class="activity-emoji-small">⚽</span> Futebol</label>
+          </div>
+          <div class="activity-btn">
+            <input type="checkbox" id="q10_basquete_check" data-act="q10_basquete" data-name="Basquete" data-emoji="🏀">
+            <label for="q10_basquete_check"><span class="activity-emoji-small">🏀</span> Basquete</label>
+          </div>
+          <div class="activity-btn">
+            <input type="checkbox" id="q10_volei_check" data-act="q10_volei" data-name="Vôlei" data-emoji="🏐">
+            <label for="q10_volei_check"><span class="activity-emoji-small">🏐</span> Vôlei</label>
+          </div>
+          <div class="activity-btn">
+            <input type="checkbox" id="q10_tenis_check" data-act="q10_tenis" data-name="Tênis" data-emoji="🎾">
+            <label for="q10_tenis_check"><span class="activity-emoji-small">🎾</span> Tênis</label>
+          </div>
+          <div class="activity-btn">
+            <input type="checkbox" id="q10_tmesa_check" data-act="q10_tmesa" data-name="Tênis de mesa" data-emoji="🏓">
+            <label for="q10_tmesa_check"><span class="activity-emoji-small">🏓</span> Tênis de mesa</label>
+          </div>
+          <div class="activity-btn">
+            <input type="checkbox" id="q10_boxe_check" data-act="q10_boxe" data-name="Boxe" data-emoji="🥊">
+            <label for="q10_boxe_check"><span class="activity-emoji-small">🥊</span> Boxe</label>
+          </div>
+          <div class="activity-btn">
+            <input type="checkbox" id="q10_artes_check" data-act="q10_artes" data-name="Artes Marciais" data-emoji="🥋">
+            <label for="q10_artes_check"><span class="activity-emoji-small">🥋</span> Artes Marciais</label>
+          </div>
+          </div>
+        </div>
+
+        <div id="activities_details_container" style="margin-top: 20px;">
+        <div class="activity-detail-card" id="q10_futebol_detail" style="display:none;">
+          <div class="activity-detail-header">
+            <span style="font-size:22px;">⚽</span>
+            <div class="activity-detail-title">Futebol</div>
+          </div>
+          <span class="activity-sublabel">Quantas vezes por semana?</span>
+          <div class="freq-buttons-row">
+            <div class="freq-btn"><input type="radio" id="q10_futebol_f1" name="q10_futebol_freq" value="1"><label for="q10_futebol_f1">1x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_futebol_f2" name="q10_futebol_freq" value="2"><label for="q10_futebol_f2">2x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_futebol_f3" name="q10_futebol_freq" value="3"><label for="q10_futebol_f3">3x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_futebol_f4" name="q10_futebol_freq" value="4"><label for="q10_futebol_f4">4x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_futebol_f5" name="q10_futebol_freq" value="5"><label for="q10_futebol_f5">5x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_futebol_f6" name="q10_futebol_freq" value="6"><label for="q10_futebol_f6">6x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_futebol_f7" name="q10_futebol_freq" value="7"><label for="q10_futebol_f7">7x</label></div>
+          </div>
+          <span class="activity-sublabel">Qual a intensidade?</span>
+          <div class="intensity-buttons-row">
+            <div class="int-btn"><input type="radio" id="q10_futebol_il" name="q10_futebol_int" value="Leve" data-met="5"><label for="q10_futebol_il">Leve<span class="int-desc">consigo conversar fácil</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_futebol_im" name="q10_futebol_int" value="Moderada" data-met="7"><label for="q10_futebol_im">Moderada<span class="int-desc">respiração acelerada</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_futebol_ia" name="q10_futebol_int" value="Alta" data-met="10"><label for="q10_futebol_ia">Alta<span class="int-desc">não consigo conversar</span></label></div>
+          </div>
+        </div>
+        <div class="activity-detail-card" id="q10_basquete_detail" style="display:none;">
+          <div class="activity-detail-header">
+            <span style="font-size:22px;">🏀</span>
+            <div class="activity-detail-title">Basquete</div>
+          </div>
+          <span class="activity-sublabel">Quantas vezes por semana?</span>
+          <div class="freq-buttons-row">
+            <div class="freq-btn"><input type="radio" id="q10_basquete_f1" name="q10_basquete_freq" value="1"><label for="q10_basquete_f1">1x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_basquete_f2" name="q10_basquete_freq" value="2"><label for="q10_basquete_f2">2x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_basquete_f3" name="q10_basquete_freq" value="3"><label for="q10_basquete_f3">3x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_basquete_f4" name="q10_basquete_freq" value="4"><label for="q10_basquete_f4">4x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_basquete_f5" name="q10_basquete_freq" value="5"><label for="q10_basquete_f5">5x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_basquete_f6" name="q10_basquete_freq" value="6"><label for="q10_basquete_f6">6x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_basquete_f7" name="q10_basquete_freq" value="7"><label for="q10_basquete_f7">7x</label></div>
+          </div>
+          <span class="activity-sublabel">Qual a intensidade?</span>
+          <div class="intensity-buttons-row">
+            <div class="int-btn"><input type="radio" id="q10_basquete_il" name="q10_basquete_int" value="Leve" data-met="4"><label for="q10_basquete_il">Leve<span class="int-desc">consigo conversar fácil</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_basquete_im" name="q10_basquete_int" value="Moderada" data-met="6"><label for="q10_basquete_im">Moderada<span class="int-desc">respiração acelerada</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_basquete_ia" name="q10_basquete_int" value="Alta" data-met="8"><label for="q10_basquete_ia">Alta<span class="int-desc">não consigo conversar</span></label></div>
+          </div>
+        </div>
+        <div class="activity-detail-card" id="q10_tenis_detail" style="display:none;">
+          <div class="activity-detail-header">
+            <span style="font-size:22px;">🎾</span>
+            <div class="activity-detail-title">Tênis</div>
+          </div>
+          <span class="activity-sublabel">Quantas vezes por semana?</span>
+          <div class="freq-buttons-row">
+            <div class="freq-btn"><input type="radio" id="q10_tenis_f1" name="q10_tenis_freq" value="1"><label for="q10_tenis_f1">1x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_tenis_f2" name="q10_tenis_freq" value="2"><label for="q10_tenis_f2">2x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_tenis_f3" name="q10_tenis_freq" value="3"><label for="q10_tenis_f3">3x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_tenis_f4" name="q10_tenis_freq" value="4"><label for="q10_tenis_f4">4x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_tenis_f5" name="q10_tenis_freq" value="5"><label for="q10_tenis_f5">5x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_tenis_f6" name="q10_tenis_freq" value="6"><label for="q10_tenis_f6">6x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_tenis_f7" name="q10_tenis_freq" value="7"><label for="q10_tenis_f7">7x</label></div>
+          </div>
+          <span class="activity-sublabel">Qual a intensidade?</span>
+          <div class="intensity-buttons-row">
+            <div class="int-btn"><input type="radio" id="q10_tenis_il" name="q10_tenis_int" value="Leve" data-met="5"><label for="q10_tenis_il">Leve<span class="int-desc">consigo conversar fácil</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_tenis_im" name="q10_tenis_int" value="Moderada" data-met="7"><label for="q10_tenis_im">Moderada<span class="int-desc">respiração acelerada</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_tenis_ia" name="q10_tenis_int" value="Alta" data-met="8"><label for="q10_tenis_ia">Alta<span class="int-desc">não consigo conversar</span></label></div>
+          </div>
+        </div>
+        <div class="activity-detail-card" id="q10_volei_detail" style="display:none;">
+          <div class="activity-detail-header">
+            <span style="font-size:22px;">🏐</span>
+            <div class="activity-detail-title">Vôlei</div>
+          </div>
+          <span class="activity-sublabel">Quantas vezes por semana?</span>
+          <div class="freq-buttons-row">
+            <div class="freq-btn"><input type="radio" id="q10_volei_f1" name="q10_volei_freq" value="1"><label for="q10_volei_f1">1x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_volei_f2" name="q10_volei_freq" value="2"><label for="q10_volei_f2">2x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_volei_f3" name="q10_volei_freq" value="3"><label for="q10_volei_f3">3x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_volei_f4" name="q10_volei_freq" value="4"><label for="q10_volei_f4">4x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_volei_f5" name="q10_volei_freq" value="5"><label for="q10_volei_f5">5x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_volei_f6" name="q10_volei_freq" value="6"><label for="q10_volei_f6">6x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_volei_f7" name="q10_volei_freq" value="7"><label for="q10_volei_f7">7x</label></div>
+          </div>
+          <span class="activity-sublabel">Qual a intensidade?</span>
+          <div class="intensity-buttons-row">
+            <div class="int-btn"><input type="radio" id="q10_volei_il" name="q10_volei_int" value="Leve" data-met="3"><label for="q10_volei_il">Leve<span class="int-desc">consigo conversar fácil</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_volei_im" name="q10_volei_int" value="Moderada" data-met="4.5"><label for="q10_volei_im">Moderada<span class="int-desc">respiração acelerada</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_volei_ia" name="q10_volei_int" value="Alta" data-met="6"><label for="q10_volei_ia">Alta<span class="int-desc">não consigo conversar</span></label></div>
+          </div>
+        </div>
+        <div class="activity-detail-card" id="q10_corrida_detail" style="display:none;">
+          <div class="activity-detail-header">
+            <span style="font-size:22px;">🏃</span>
+            <div class="activity-detail-title">Corrida</div>
+          </div>
+          <span class="activity-sublabel">Quantas vezes por semana?</span>
+          <div class="freq-buttons-row">
+            <div class="freq-btn"><input type="radio" id="q10_corrida_f1" name="q10_corrida_freq" value="1"><label for="q10_corrida_f1">1x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_corrida_f2" name="q10_corrida_freq" value="2"><label for="q10_corrida_f2">2x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_corrida_f3" name="q10_corrida_freq" value="3"><label for="q10_corrida_f3">3x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_corrida_f4" name="q10_corrida_freq" value="4"><label for="q10_corrida_f4">4x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_corrida_f5" name="q10_corrida_freq" value="5"><label for="q10_corrida_f5">5x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_corrida_f6" name="q10_corrida_freq" value="6"><label for="q10_corrida_f6">6x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_corrida_f7" name="q10_corrida_freq" value="7"><label for="q10_corrida_f7">7x</label></div>
+          </div>
+          <span class="activity-sublabel">Qual a intensidade?</span>
+          <div class="intensity-buttons-row">
+            <div class="int-btn"><input type="radio" id="q10_corrida_il" name="q10_corrida_int" value="Leve" data-met="6"><label for="q10_corrida_il">Leve<span class="int-desc">consigo conversar fácil</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_corrida_im" name="q10_corrida_int" value="Moderada" data-met="9"><label for="q10_corrida_im">Moderada<span class="int-desc">respiração acelerada</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_corrida_ia" name="q10_corrida_int" value="Alta" data-met="15"><label for="q10_corrida_ia">Alta<span class="int-desc">não consigo conversar</span></label></div>
+          </div>
+        </div>
+        <div class="activity-detail-card" id="q10_bike_detail" style="display:none;">
+          <div class="activity-detail-header">
+            <span style="font-size:22px;">🚴</span>
+            <div class="activity-detail-title">Ciclismo</div>
+          </div>
+          <span class="activity-sublabel">Quantas vezes por semana?</span>
+          <div class="freq-buttons-row">
+            <div class="freq-btn"><input type="radio" id="q10_bike_f1" name="q10_bike_freq" value="1"><label for="q10_bike_f1">1x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_bike_f2" name="q10_bike_freq" value="2"><label for="q10_bike_f2">2x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_bike_f3" name="q10_bike_freq" value="3"><label for="q10_bike_f3">3x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_bike_f4" name="q10_bike_freq" value="4"><label for="q10_bike_f4">4x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_bike_f5" name="q10_bike_freq" value="5"><label for="q10_bike_f5">5x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_bike_f6" name="q10_bike_freq" value="6"><label for="q10_bike_f6">6x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_bike_f7" name="q10_bike_freq" value="7"><label for="q10_bike_f7">7x</label></div>
+          </div>
+          <span class="activity-sublabel">Qual a intensidade?</span>
+          <div class="intensity-buttons-row">
+            <div class="int-btn"><input type="radio" id="q10_bike_il" name="q10_bike_int" value="Leve" data-met="4"><label for="q10_bike_il">Leve<span class="int-desc">consigo conversar fácil</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_bike_im" name="q10_bike_int" value="Moderada" data-met="7"><label for="q10_bike_im">Moderada<span class="int-desc">respiração acelerada</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_bike_ia" name="q10_bike_int" value="Alta" data-met="12"><label for="q10_bike_ia">Alta<span class="int-desc">não consigo conversar</span></label></div>
+          </div>
+        </div>
+        <div class="activity-detail-card" id="q10_natacao_detail" style="display:none;">
+          <div class="activity-detail-header">
+            <span style="font-size:22px;">🏊</span>
+            <div class="activity-detail-title">Natação</div>
+          </div>
+          <span class="activity-sublabel">Quantas vezes por semana?</span>
+          <div class="freq-buttons-row">
+            <div class="freq-btn"><input type="radio" id="q10_natacao_f1" name="q10_natacao_freq" value="1"><label for="q10_natacao_f1">1x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_natacao_f2" name="q10_natacao_freq" value="2"><label for="q10_natacao_f2">2x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_natacao_f3" name="q10_natacao_freq" value="3"><label for="q10_natacao_f3">3x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_natacao_f4" name="q10_natacao_freq" value="4"><label for="q10_natacao_f4">4x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_natacao_f5" name="q10_natacao_freq" value="5"><label for="q10_natacao_f5">5x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_natacao_f6" name="q10_natacao_freq" value="6"><label for="q10_natacao_f6">6x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_natacao_f7" name="q10_natacao_freq" value="7"><label for="q10_natacao_f7">7x</label></div>
+          </div>
+          <span class="activity-sublabel">Qual a intensidade?</span>
+          <div class="intensity-buttons-row">
+            <div class="int-btn"><input type="radio" id="q10_natacao_il" name="q10_natacao_int" value="Leve" data-met="5"><label for="q10_natacao_il">Leve<span class="int-desc">consigo conversar fácil</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_natacao_im" name="q10_natacao_int" value="Moderada" data-met="7"><label for="q10_natacao_im">Moderada<span class="int-desc">respiração acelerada</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_natacao_ia" name="q10_natacao_int" value="Alta" data-met="11"><label for="q10_natacao_ia">Alta<span class="int-desc">não consigo conversar</span></label></div>
+          </div>
+        </div>
+        <div class="activity-detail-card" id="q10_artes_detail" style="display:none;">
+          <div class="activity-detail-header">
+            <span style="font-size:22px;">🥋</span>
+            <div class="activity-detail-title">Artes Marciais</div>
+          </div>
+          <span class="activity-sublabel">Quantas vezes por semana?</span>
+          <div class="freq-buttons-row">
+            <div class="freq-btn"><input type="radio" id="q10_artes_f1" name="q10_artes_freq" value="1"><label for="q10_artes_f1">1x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_artes_f2" name="q10_artes_freq" value="2"><label for="q10_artes_f2">2x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_artes_f3" name="q10_artes_freq" value="3"><label for="q10_artes_f3">3x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_artes_f4" name="q10_artes_freq" value="4"><label for="q10_artes_f4">4x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_artes_f5" name="q10_artes_freq" value="5"><label for="q10_artes_f5">5x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_artes_f6" name="q10_artes_freq" value="6"><label for="q10_artes_f6">6x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_artes_f7" name="q10_artes_freq" value="7"><label for="q10_artes_f7">7x</label></div>
+          </div>
+          <span class="activity-sublabel">Qual a intensidade?</span>
+          <div class="intensity-buttons-row">
+            <div class="int-btn"><input type="radio" id="q10_artes_il" name="q10_artes_int" value="Leve" data-met="6"><label for="q10_artes_il">Leve<span class="int-desc">consigo conversar fácil</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_artes_im" name="q10_artes_int" value="Moderada" data-met="8"><label for="q10_artes_im">Moderada<span class="int-desc">respiração acelerada</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_artes_ia" name="q10_artes_int" value="Alta" data-met="10"><label for="q10_artes_ia">Alta<span class="int-desc">não consigo conversar</span></label></div>
+          </div>
+        </div>
+        <div class="activity-detail-card" id="q10_musc_detail" style="display:none;">
+          <div class="activity-detail-header">
+            <span style="font-size:22px;">🏋</span>
+            <div class="activity-detail-title">Musculação</div>
+          </div>
+          <span class="activity-sublabel">Quantas vezes por semana?</span>
+          <div class="freq-buttons-row">
+            <div class="freq-btn"><input type="radio" id="q10_musc_f1" name="q10_musc_freq" value="1"><label for="q10_musc_f1">1x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_musc_f2" name="q10_musc_freq" value="2"><label for="q10_musc_f2">2x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_musc_f3" name="q10_musc_freq" value="3"><label for="q10_musc_f3">3x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_musc_f4" name="q10_musc_freq" value="4"><label for="q10_musc_f4">4x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_musc_f5" name="q10_musc_freq" value="5"><label for="q10_musc_f5">5x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_musc_f6" name="q10_musc_freq" value="6"><label for="q10_musc_f6">6x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_musc_f7" name="q10_musc_freq" value="7"><label for="q10_musc_f7">7x</label></div>
+          </div>
+          <span class="activity-sublabel">Qual a intensidade?</span>
+          <div class="intensity-buttons-row">
+            <div class="int-btn"><input type="radio" id="q10_musc_il" name="q10_musc_int" value="Leve" data-met="3"><label for="q10_musc_il">Leve<span class="int-desc">consigo conversar fácil</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_musc_im" name="q10_musc_int" value="Moderada" data-met="4.5"><label for="q10_musc_im">Moderada<span class="int-desc">respiração acelerada</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_musc_ia" name="q10_musc_int" value="Alta" data-met="6"><label for="q10_musc_ia">Alta<span class="int-desc">não consigo conversar</span></label></div>
+          </div>
+        </div>
+        <div class="activity-detail-card" id="q10_crossfit_detail" style="display:none;">
+          <div class="activity-detail-header">
+            <span style="font-size:22px;">🔥</span>
+            <div class="activity-detail-title">CrossFit</div>
+          </div>
+          <span class="activity-sublabel">Quantas vezes por semana?</span>
+          <div class="freq-buttons-row">
+            <div class="freq-btn"><input type="radio" id="q10_crossfit_f1" name="q10_crossfit_freq" value="1"><label for="q10_crossfit_f1">1x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_crossfit_f2" name="q10_crossfit_freq" value="2"><label for="q10_crossfit_f2">2x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_crossfit_f3" name="q10_crossfit_freq" value="3"><label for="q10_crossfit_f3">3x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_crossfit_f4" name="q10_crossfit_freq" value="4"><label for="q10_crossfit_f4">4x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_crossfit_f5" name="q10_crossfit_freq" value="5"><label for="q10_crossfit_f5">5x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_crossfit_f6" name="q10_crossfit_freq" value="6"><label for="q10_crossfit_f6">6x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_crossfit_f7" name="q10_crossfit_freq" value="7"><label for="q10_crossfit_f7">7x</label></div>
+          </div>
+          <span class="activity-sublabel">Qual a intensidade?</span>
+          <div class="intensity-buttons-row">
+            <div class="int-btn"><input type="radio" id="q10_crossfit_il" name="q10_crossfit_int" value="Leve" data-met="8"><label for="q10_crossfit_il">Leve<span class="int-desc">consigo conversar fácil</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_crossfit_im" name="q10_crossfit_int" value="Moderada" data-met="10"><label for="q10_crossfit_im">Moderada<span class="int-desc">respiração acelerada</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_crossfit_ia" name="q10_crossfit_int" value="Alta" data-met="14"><label for="q10_crossfit_ia">Alta<span class="int-desc">não consigo conversar</span></label></div>
+          </div>
+        </div>
+        <div class="activity-detail-card" id="q10_tmesa_detail" style="display:none;">
+          <div class="activity-detail-header">
+            <span style="font-size:22px;">🏓</span>
+            <div class="activity-detail-title">Tênis de mesa</div>
+          </div>
+          <span class="activity-sublabel">Quantas vezes por semana?</span>
+          <div class="freq-buttons-row">
+            <div class="freq-btn"><input type="radio" id="q10_tmesa_f1" name="q10_tmesa_freq" value="1"><label for="q10_tmesa_f1">1x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_tmesa_f2" name="q10_tmesa_freq" value="2"><label for="q10_tmesa_f2">2x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_tmesa_f3" name="q10_tmesa_freq" value="3"><label for="q10_tmesa_f3">3x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_tmesa_f4" name="q10_tmesa_freq" value="4"><label for="q10_tmesa_f4">4x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_tmesa_f5" name="q10_tmesa_freq" value="5"><label for="q10_tmesa_f5">5x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_tmesa_f6" name="q10_tmesa_freq" value="6"><label for="q10_tmesa_f6">6x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_tmesa_f7" name="q10_tmesa_freq" value="7"><label for="q10_tmesa_f7">7x</label></div>
+          </div>
+          <span class="activity-sublabel">Qual a intensidade?</span>
+          <div class="intensity-buttons-row">
+            <div class="int-btn"><input type="radio" id="q10_tmesa_il" name="q10_tmesa_int" value="Leve" data-met="3"><label for="q10_tmesa_il">Leve<span class="int-desc">consigo conversar fácil</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_tmesa_im" name="q10_tmesa_int" value="Moderada" data-met="5"><label for="q10_tmesa_im">Moderada<span class="int-desc">respiração acelerada</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_tmesa_ia" name="q10_tmesa_int" value="Alta" data-met="7"><label for="q10_tmesa_ia">Alta<span class="int-desc">não consigo conversar</span></label></div>
+          </div>
+        </div>
+        <div class="activity-detail-card" id="q10_danca_detail" style="display:none;">
+          <div class="activity-detail-header">
+            <span style="font-size:22px;">💃</span>
+            <div class="activity-detail-title">Dança</div>
+          </div>
+          <span class="activity-sublabel">Quantas vezes por semana?</span>
+          <div class="freq-buttons-row">
+            <div class="freq-btn"><input type="radio" id="q10_danca_f1" name="q10_danca_freq" value="1"><label for="q10_danca_f1">1x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_danca_f2" name="q10_danca_freq" value="2"><label for="q10_danca_f2">2x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_danca_f3" name="q10_danca_freq" value="3"><label for="q10_danca_f3">3x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_danca_f4" name="q10_danca_freq" value="4"><label for="q10_danca_f4">4x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_danca_f5" name="q10_danca_freq" value="5"><label for="q10_danca_f5">5x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_danca_f6" name="q10_danca_freq" value="6"><label for="q10_danca_f6">6x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_danca_f7" name="q10_danca_freq" value="7"><label for="q10_danca_f7">7x</label></div>
+          </div>
+          <span class="activity-sublabel">Qual a intensidade?</span>
+          <div class="intensity-buttons-row">
+            <div class="int-btn"><input type="radio" id="q10_danca_il" name="q10_danca_int" value="Leve" data-met="3"><label for="q10_danca_il">Leve<span class="int-desc">consigo conversar fácil</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_danca_im" name="q10_danca_int" value="Moderada" data-met="5"><label for="q10_danca_im">Moderada<span class="int-desc">respiração acelerada</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_danca_ia" name="q10_danca_int" value="Alta" data-met="8"><label for="q10_danca_ia">Alta<span class="int-desc">não consigo conversar</span></label></div>
+          </div>
+        </div>
+        <div class="activity-detail-card" id="q10_pilates_detail" style="display:none;">
+          <div class="activity-detail-header">
+            <span style="font-size:22px;">🧘</span>
+            <div class="activity-detail-title">Pilates</div>
+          </div>
+          <span class="activity-sublabel">Quantas vezes por semana?</span>
+          <div class="freq-buttons-row">
+            <div class="freq-btn"><input type="radio" id="q10_pilates_f1" name="q10_pilates_freq" value="1"><label for="q10_pilates_f1">1x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_pilates_f2" name="q10_pilates_freq" value="2"><label for="q10_pilates_f2">2x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_pilates_f3" name="q10_pilates_freq" value="3"><label for="q10_pilates_f3">3x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_pilates_f4" name="q10_pilates_freq" value="4"><label for="q10_pilates_f4">4x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_pilates_f5" name="q10_pilates_freq" value="5"><label for="q10_pilates_f5">5x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_pilates_f6" name="q10_pilates_freq" value="6"><label for="q10_pilates_f6">6x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_pilates_f7" name="q10_pilates_freq" value="7"><label for="q10_pilates_f7">7x</label></div>
+          </div>
+          <span class="activity-sublabel">Qual a intensidade?</span>
+          <div class="intensity-buttons-row">
+            <div class="int-btn"><input type="radio" id="q10_pilates_il" name="q10_pilates_int" value="Leve" data-met="2.5"><label for="q10_pilates_il">Leve<span class="int-desc">consigo conversar fácil</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_pilates_im" name="q10_pilates_int" value="Moderada" data-met="3.5"><label for="q10_pilates_im">Moderada<span class="int-desc">respiração acelerada</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_pilates_ia" name="q10_pilates_int" value="Alta" data-met="5"><label for="q10_pilates_ia">Alta<span class="int-desc">não consigo conversar</span></label></div>
+          </div>
+        </div>
+        <div class="activity-detail-card" id="q10_boxe_detail" style="display:none;">
+          <div class="activity-detail-header">
+            <span style="font-size:22px;">🥊</span>
+            <div class="activity-detail-title">Boxe</div>
+          </div>
+          <span class="activity-sublabel">Quantas vezes por semana?</span>
+          <div class="freq-buttons-row">
+            <div class="freq-btn"><input type="radio" id="q10_boxe_f1" name="q10_boxe_freq" value="1"><label for="q10_boxe_f1">1x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_boxe_f2" name="q10_boxe_freq" value="2"><label for="q10_boxe_f2">2x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_boxe_f3" name="q10_boxe_freq" value="3"><label for="q10_boxe_f3">3x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_boxe_f4" name="q10_boxe_freq" value="4"><label for="q10_boxe_f4">4x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_boxe_f5" name="q10_boxe_freq" value="5"><label for="q10_boxe_f5">5x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_boxe_f6" name="q10_boxe_freq" value="6"><label for="q10_boxe_f6">6x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_boxe_f7" name="q10_boxe_freq" value="7"><label for="q10_boxe_f7">7x</label></div>
+          </div>
+          <span class="activity-sublabel">Qual a intensidade?</span>
+          <div class="intensity-buttons-row">
+            <div class="int-btn"><input type="radio" id="q10_boxe_il" name="q10_boxe_int" value="Leve" data-met="6"><label for="q10_boxe_il">Leve<span class="int-desc">consigo conversar fácil</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_boxe_im" name="q10_boxe_int" value="Moderada" data-met="9"><label for="q10_boxe_im">Moderada<span class="int-desc">respiração acelerada</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_boxe_ia" name="q10_boxe_int" value="Alta" data-met="12"><label for="q10_boxe_ia">Alta<span class="int-desc">não consigo conversar</span></label></div>
+          </div>
+        </div>
+        <div class="activity-detail-card" id="q10_caminhada_detail" style="display:none;">
+          <div class="activity-detail-header">
+            <span style="font-size:22px;">🚶</span>
+            <div class="activity-detail-title">Caminhada</div>
+          </div>
+          <span class="activity-sublabel">Quantas vezes por semana?</span>
+          <div class="freq-buttons-row">
+            <div class="freq-btn"><input type="radio" id="q10_caminhada_f1" name="q10_caminhada_freq" value="1"><label for="q10_caminhada_f1">1x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_caminhada_f2" name="q10_caminhada_freq" value="2"><label for="q10_caminhada_f2">2x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_caminhada_f3" name="q10_caminhada_freq" value="3"><label for="q10_caminhada_f3">3x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_caminhada_f4" name="q10_caminhada_freq" value="4"><label for="q10_caminhada_f4">4x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_caminhada_f5" name="q10_caminhada_freq" value="5"><label for="q10_caminhada_f5">5x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_caminhada_f6" name="q10_caminhada_freq" value="6"><label for="q10_caminhada_f6">6x</label></div>
+            <div class="freq-btn"><input type="radio" id="q10_caminhada_f7" name="q10_caminhada_freq" value="7"><label for="q10_caminhada_f7">7x</label></div>
+          </div>
+          <span class="activity-sublabel">Qual a intensidade?</span>
+          <div class="intensity-buttons-row">
+            <div class="int-btn"><input type="radio" id="q10_caminhada_il" name="q10_caminhada_int" value="Leve" data-met="2"><label for="q10_caminhada_il">Leve<span class="int-desc">consigo conversar fácil</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_caminhada_im" name="q10_caminhada_int" value="Moderada" data-met="3.5"><label for="q10_caminhada_im">Moderada<span class="int-desc">respiração acelerada</span></label></div>
+            <div class="int-btn"><input type="radio" id="q10_caminhada_ia" name="q10_caminhada_int" value="Alta" data-met="5"><label for="q10_caminhada_ia">Alta<span class="int-desc">não consigo conversar</span></label></div>
+          </div>
+        </div>
+        </div>
+      </div>
+
+      <div class="section-divider">Nível de atividade diária</div>
+
+      <div class="question">
+        <label class="question-label">Como descreveria seu nível de atividade no DIA A DIA (não conta exercício)?<span class="required">*</span></label>
+        <p class="question-helper">Pense nas tarefas do dia: trabalho, casa, deslocamento, etc.</p>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q10_neat_opt1" name="q10_neat" value="Sedentário" required><label for="q10_neat_opt1">Sedentário — fico sentado(a) quase o dia inteiro</label></div>
+          <div class="radio-option"><input type="radio" id="q10_neat_opt2" name="q10_neat" value="Leve"><label for="q10_neat_opt2">Levemente ativo — me movimento um pouco</label></div>
+          <div class="radio-option"><input type="radio" id="q10_neat_opt3" name="q10_neat" value="Moderado"><label for="q10_neat_opt3">Moderadamente ativo — caminho ou subo escadas com frequência</label></div>
+          <div class="radio-option"><input type="radio" id="q10_neat_opt4" name="q10_neat" value="Ativo"><label for="q10_neat_opt4">Muito ativo — trabalho exige movimento</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Quantos passos por dia em média? (se souber)</label>
+        <select id="q10_passos" class="select">
+          <option value="">Não sei / não meço</option>
+          <option value="<3000">Menos de 3.000</option>
+          <option value="3000-5000">3.000 a 5.000</option>
+          <option value="5000-8000">5.000 a 8.000</option>
+          <option value="8000-10000">8.000 a 10.000</option>
+          <option value="+10000">Mais de 10.000</option>
+        </select>
+        <p class="question-helper">Smartwatch, celular ou outro contador</p>
+      </div>
+
+      <div class="nav-buttons">
+        <button class="btn btn-secondary" onclick="previousModule()">← Voltar</button>
+        <button class="btn btn-primary" onclick="nextModule()">Continuar →</button>
+      </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- MÓDULO 11: SUPLEMENTAÇÃO                       -->
+    <!-- ============================================ -->
+    <div class="module-card" data-module="11" style="display: none;">
+      <div class="module-header">
+        <div class="module-eyebrow">Módulo 11</div>
+        <h2 class="module-title">Sua <em>suplementação</em></h2>
+        <p class="module-description">Vitaminas, minerais, proteínas e outros suplementos que você usa.</p>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Você toma algum suplemento atualmente?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option">
+            <input type="radio" name="q11_1" id="q11_1_s" value="Sim" required onchange="toggleConditional('q11_sup_list', true)">
+            <label for="q11_1_s">Sim, tomo</label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" name="q11_1" id="q11_1_n" value="Não" onchange="toggleConditional('q11_sup_list', false)">
+            <label for="q11_1_n">Não tomo nenhum</label>
+          </div>
+        </div>
+      </div>
+
+      <div id="q11_sup_list" class="conditional">
+        <label class="question-label">Liste seus suplementos:</label>
+        <p class="question-helper">Adicione um por linha com nome e dose</p>
+
+        <div id="supplements_container">
+          <div class="supplement-row">
+            <input type="text" class="supplement-input supplement-name" placeholder="Nome (ex: Whey Protein)">
+            <input type="text" class="supplement-input supplement-dose" placeholder="Dose (ex: 30g pós-treino)">
+            <button class="supplement-remove" onclick="removeSupplement(this)" type="button">×</button>
+          </div>
+        </div>
+        <button class="add-supplement-btn" type="button" onclick="addSupplement()">+ Adicionar outro suplemento</button>
+
+        <div class="question" style="margin-top: 28px;">
+          <label class="question-label">Quem indicou esses suplementos?</label>
+          <div class="checkbox-group">
+            <div class="checkbox-option"><input type="checkbox" id="q11_indicacao_opt1" name="q11_indicacao" value="Nutricionista"><label for="q11_indicacao_opt1">Nutricionista</label></div>
+            <div class="checkbox-option"><input type="checkbox" id="q11_indicacao_opt2" name="q11_indicacao" value="Médico"><label for="q11_indicacao_opt2">Médico</label></div>
+            <div class="checkbox-option"><input type="checkbox" id="q11_indicacao_opt3" name="q11_indicacao" value="Personal"><label for="q11_indicacao_opt3">Personal trainer</label></div>
+            <div class="checkbox-option"><input type="checkbox" id="q11_indicacao_opt4" name="q11_indicacao" value="Amigo"><label for="q11_indicacao_opt4">Amigo / família</label></div>
+            <div class="checkbox-option"><input type="checkbox" id="q11_indicacao_opt5" name="q11_indicacao" value="Própria"><label for="q11_indicacao_opt5">Por conta própria</label></div>
+            <div class="checkbox-option"><input type="checkbox" id="q11_indicacao_opt6" name="q11_indicacao" value="Internet"><label for="q11_indicacao_opt6">Internet / influencer</label></div>
+          </div>
+        </div>
+
+        <div class="question">
+          <label class="question-label" for="q11_objetivo">O que espera obter com esses suplementos?</label>
+          <textarea id="q11_objetivo" class="textarea" placeholder="Ex: Ganho de massa, mais energia, melhor sono..."></textarea>
+        </div>
+      </div>
+
+      <div class="nav-buttons">
+        <button class="btn btn-secondary" onclick="previousModule()">← Voltar</button>
+        <button class="btn btn-primary" onclick="nextModule()">Continuar →</button>
+      </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- MÓDULO 12: FINAL DE SEMANA                     -->
+    <!-- ============================================ -->
+    <div class="module-card" data-module="12" style="display: none;">
+      <div class="module-header">
+        <div class="module-eyebrow">Módulo 12</div>
+        <h2 class="module-title">Seus <em>finais de semana</em></h2>
+        <p class="module-description">Para muitas pessoas, o fim de semana é onde a alimentação muda — e isso afeta os resultados.</p>
+      </div>
+
+      <div class="info-box">
+        💡 <strong>Por que essa pergunta importa:</strong> identificar a diferença entre semana e fim-de-semana ajuda a personalizar estratégias que funcionam <em>na sua realidade</em>.
+      </div>
+
+      <div class="question">
+        <label class="question-label">Sua alimentação muda nos finais de semana?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q12_1_opt1" name="q12_1" value="Mantenho igual" required><label for="q12_1_opt1">Mantenho a mesma rotina</label></div>
+          <div class="radio-option"><input type="radio" id="q12_1_opt2" name="q12_1" value="Pouco diferente"><label for="q12_1_opt2">Um pouco diferente, mas controlado</label></div>
+          <div class="radio-option"><input type="radio" id="q12_1_opt3" name="q12_1" value="Muito diferente"><label for="q12_1_opt3">Muito diferente — solto mais</label></div>
+          <div class="radio-option"><input type="radio" id="q12_1_opt4" name="q12_1" value="Descontrolado"><label for="q12_1_opt4">Descontrolado — como tudo o que evito na semana</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Quais comportamentos aparecem MAIS nos fins de semana?<span class="required">*</span></label>
+        <p class="question-helper">Marque todos que se aplicam</p>
+        <div class="checkbox-group">
+          <div class="checkbox-option"><input type="checkbox" id="q12_2_opt1" name="q12_2" value="Pulo refeições"><label for="q12_2_opt1">Pulo refeições (ex: acordo tarde e como direto no almoço)</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q12_2_opt2" name="q12_2" value="Como mais quantidade"><label for="q12_2_opt2">Como em maior quantidade</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q12_2_opt3" name="q12_2" value="Como mais doces"><label for="q12_2_opt3">Como mais doces / sobremesas</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q12_2_opt4" name="q12_2" value="Como ultraprocessados"><label for="q12_2_opt4">Como mais ultraprocessados (salgadinhos, biscoitos)</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q12_2_opt5" name="q12_2" value="Fast-food"><label for="q12_2_opt5">Pido fast-food / delivery</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q12_2_opt6" name="q12_2" value="Álcool"><label for="q12_2_opt6">Bebo álcool</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q12_2_opt7" name="q12_2" value="Refrigerante"><label for="q12_2_opt7">Bebo refrigerante / sucos industrializados</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q12_2_opt8" name="q12_2" value="Beliscar"><label for="q12_2_opt8">Belisco o dia inteiro</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q12_2_opt9" name="q12_2" value="Como à noite"><label for="q12_2_opt9">Como mais à noite / madrugada</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q12_2_opt10" name="q12_2" value="Nenhum"><label for="q12_2_opt10">Nenhum desses — me mantenho na linha</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Costuma sair pra restaurante / eventos sociais?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q12_3_opt1" name="q12_3" value="Raramente" required><label for="q12_3_opt1">Raramente (1x/mês ou menos)</label></div>
+          <div class="radio-option"><input type="radio" id="q12_3_opt2" name="q12_3" value="Eventual"><label for="q12_3_opt2">Eventualmente (2-3x/mês)</label></div>
+          <div class="radio-option"><input type="radio" id="q12_3_opt3" name="q12_3" value="Frequente"><label for="q12_3_opt3">Frequentemente (1x/sem)</label></div>
+          <div class="radio-option"><input type="radio" id="q12_3_opt4" name="q12_3" value="Muito"><label for="q12_3_opt4">Muito frequente (2+ vezes/sem)</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label" for="q12_4">O que mais te tira da linha no fim de semana?</label>
+        <textarea id="q12_4" class="textarea" placeholder="Conte: é o convívio social? Ansiedade? Vontade de descansar/relaxar? Falta de planejamento?"></textarea>
+      </div>
+
+      <div class="nav-buttons">
+        <button class="btn btn-secondary" onclick="previousModule()">← Voltar</button>
+        <button class="btn btn-primary" onclick="nextModule()">Continuar →</button>
+      </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- MÓDULO 13: MINDSET E ADESÃO                    -->
+    <!-- ============================================ -->
+    <div class="module-card" data-module="13" style="display: none;">
+      <div class="module-header">
+        <div class="module-eyebrow">Módulo 13 · Final</div>
+        <h2 class="module-title">Seu <em>mindset</em> e prontidão</h2>
+        <p class="module-description">As últimas perguntas — sobre você, suas barreiras e seu suporte para essa jornada.</p>
+      </div>
+
+      <div class="info-box">
+        🎯 <strong>Quase lá!</strong> Essas respostas ajudam seu nutri a personalizar a abordagem comportamental do seu plano.
+      </div>
+
+      <div class="question">
+        <label class="question-label">Qual sua nota para os HÁBITOS ATUAIS de saúde?<span class="required">*</span></label>
+        <p class="question-helper">0 (péssimos) a 10 (excelentes)</p>
+        <div class="slider-wrap">
+          <input type="range" id="q13_1" class="slider-track" min="0" max="10" value="5" step="1" required oninput="document.getElementById('q13_1_val').textContent = this.value">
+          <div class="slider-value"><span id="q13_1_val">5</span> / 10</div>
+          <div class="slider-anchors"><span>Péssimos</span><span>Excelentes</span></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Sua CAPACIDADE de mudar hábitos<span class="required">*</span></label>
+        <p class="question-helper">Como você se vê para implementar mudanças?</p>
+        <div class="slider-wrap">
+          <input type="range" id="q13_2" class="slider-track" min="0" max="10" value="5" step="1" required oninput="document.getElementById('q13_2_val').textContent = this.value">
+          <div class="slider-value"><span id="q13_2_val">5</span> / 10</div>
+          <div class="slider-anchors"><span>Baixa</span><span>Total</span></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Suporte do seu ambiente (família, amigos, trabalho)<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q13_3_opt1" name="q13_3" value="Total" required><label for="q13_3_opt1">Total — todos me apoiam</label></div>
+          <div class="radio-option"><input type="radio" id="q13_3_opt2" name="q13_3" value="Parcial"><label for="q13_3_opt2">Parcial — algumas pessoas apoiam</label></div>
+          <div class="radio-option"><input type="radio" id="q13_3_opt3" name="q13_3" value="Pouco"><label for="q13_3_opt3">Pouco apoio</label></div>
+          <div class="radio-option"><input type="radio" id="q13_3_opt4" name="q13_3" value="Nenhum"><label for="q13_3_opt4">Nenhum — estou sozinho(a) nessa</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Já tentou algum método antes?<span class="required">*</span></label>
+        <p class="question-helper">Marque tudo que se aplica</p>
+        <div class="checkbox-group">
+          <div class="checkbox-option"><input type="checkbox" id="q13_4_opt1" name="q13_4" value="Dieta sozinho"><label for="q13_4_opt1">Dieta sozinho(a) (Instagram, Google)</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q13_4_opt2" name="q13_4" value="Nutricionista"><label for="q13_4_opt2">Nutricionista</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q13_4_opt3" name="q13_4" value="Personal"><label for="q13_4_opt3">Personal trainer</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q13_4_opt4" name="q13_4" value="Apps"><label for="q13_4_opt4">Apps de dieta</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q13_4_opt5" name="q13_4" value="Jejum"><label for="q13_4_opt5">Jejum intermitente</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q13_4_opt6" name="q13_4" value="Lowcarb"><label for="q13_4_opt6">Low carb / Cetogênica</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q13_4_opt7" name="q13_4" value="Plant-based"><label for="q13_4_opt7">Plant-based / Vegana</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q13_4_opt8" name="q13_4" value="Medicamentos"><label for="q13_4_opt8">Medicamentos para emagrecer</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q13_4_opt9" name="q13_4" value="Cirurgia"><label for="q13_4_opt9">Cirurgia bariátrica</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q13_4_opt10" name="q13_4" value="Nenhum"><label for="q13_4_opt10">Nenhum método ainda</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label" for="q13_5">O que NÃO funcionou nas tentativas anteriores?</label>
+        <textarea id="q13_5" class="textarea" placeholder="Compartilhe o que aprendeu — isso ajuda muito o seu nutri a evitar o que já te fez desistir antes..."></textarea>
+      </div>
+
+      <div class="question">
+        <label class="question-label">O que VAI te ajudar a seguir o plano dessa vez?<span class="required">*</span></label>
+        <p class="question-helper">Marque o que mais funciona PARA VOCÊ</p>
+        <div class="checkbox-group">
+          <div class="checkbox-option"><input type="checkbox" id="q13_6_opt1" name="q13_6" value="Acompanhamento próximo"><label for="q13_6_opt1">Acompanhamento próximo (mensagens regulares)</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q13_6_opt2" name="q13_6" value="Plano detalhado"><label for="q13_6_opt2">Plano detalhado com receitas e listas</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q13_6_opt3" name="q13_6" value="Flexibilidade"><label for="q13_6_opt3">Flexibilidade — poder substituir alimentos</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q13_6_opt4" name="q13_6" value="Metas"><label for="q13_6_opt4">Metas claras e mensuráveis</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q13_6_opt5" name="q13_6" value="Educação"><label for="q13_6_opt5">Entender o "por quê" de cada orientação</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q13_6_opt6" name="q13_6" value="Resultados rápidos"><label for="q13_6_opt6">Ver resultados rápidos no início</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q13_6_opt7" name="q13_6" value="Apoio emocional"><label for="q13_6_opt7">Apoio emocional / motivacional</label></div>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label" for="q13_7">Algo mais que seu nutricionista PRECISA saber sobre você?</label>
+        <textarea id="q13_7" class="textarea" placeholder="Qualquer informação que você ache importante e não foi perguntada..."></textarea>
+      </div>
+
+      <div class="nav-buttons">
+        <button class="btn btn-secondary" onclick="previousModule()">← Voltar</button>
+        <button class="btn btn-finish" onclick="goToReview()">Revisar e enviar →</button>
+      </div>
+    </div>
+
+    <div class="info-box">💾 <strong>Salvo automaticamente</strong></div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- TELA DE REVISÃO E ENVIO                        -->
+  <!-- ============================================ -->
+  <div id="screen-review" class="screen">
+    <div class="final-screen">
+      <div class="final-icon-wrap">
+        <div class="final-icon-ring"></div>
+        <div class="final-icon-bg">✓</div>
+      </div>
+
+      <h1 class="final-title">Quase pronto! <br>Vamos <em>revisar</em>?</h1>
+      <p class="final-subtitle">Você completou todos os 13 módulos. Verifique se as informações estão corretas antes de enviar.</p>
+
+      <div class="summary-card">
+        <div class="summary-title">📋 Resumo do que você preencheu</div>
+        <ul class="summary-list">
+          <li class="summary-item">
+            <div class="summary-icon">👤</div>
+            <div class="summary-text">
+              <div class="summary-name">Identificação</div>
+              <div class="summary-value" id="summary_name">—</div>
+            </div>
+          </li>
+          <li class="summary-item">
+            <div class="summary-icon">🎯</div>
+            <div class="summary-text">
+              <div class="summary-name">Objetivo principal</div>
+              <div class="summary-value" id="summary_goal">—</div>
+            </div>
+          </li>
+          <li class="summary-item">
+            <div class="summary-icon">📏</div>
+            <div class="summary-text">
+              <div class="summary-name">Medidas</div>
+              <div class="summary-value" id="summary_measures">—</div>
+            </div>
+          </li>
+          <li class="summary-item">
+            <div class="summary-icon">🌙</div>
+            <div class="summary-text">
+              <div class="summary-name">Sono e cronotipo</div>
+              <div class="summary-value" id="summary_sleep">Avaliado</div>
+            </div>
+          </li>
+          <li class="summary-item">
+            <div class="summary-icon">📎</div>
+            <div class="summary-text">
+              <div class="summary-name">Exames laboratoriais</div>
+              <div class="summary-value" id="summary_exams">Nenhum enviado</div>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="next-steps">
+        <div class="next-steps-title">O que <em>acontece</em> agora?</div>
+        <ul class="next-steps-list">
+          <li>Suas respostas serão enviadas para seu nutricionista</li>
+          <li>A inteligência artificial vai processar seus dados (recordatório, exames)</li>
+          <li>Seu nutricionista chega na consulta com seu perfil completo já analisado</li>
+          <li>Você ganha tempo na consulta para focar no plano de ação</li>
+        </ul>
+      </div>
+
+      <div style="display: flex; gap: 12px; max-width: 480px; margin: 0 auto;">
+        <button class="btn btn-secondary" onclick="goBackFromReview()">← Voltar e editar</button>
+        <button class="submit-btn" onclick="submitQuestionnaire()" id="submitBtn">Enviar respostas ✓</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- TELA DE OBRIGADO                                -->
+  <!-- ============================================ -->
+  <div id="screen-thanks" class="screen">
+    <div class="thanks-screen">
+      <div class="thanks-icon">🌿</div>
+      <h1 class="thanks-title">Obrigado, <em><span id="thanks_name">—</span></em>!</h1>
+      <p class="thanks-subtitle">Seu questionário foi enviado com sucesso. Seu nutricionista vai entrar em contato em breve.</p>
+
+      <div class="thanks-card">
+        <div class="thanks-card-title">⚐ Próximos passos</div>
+        <ul class="next-steps-list">
+          <li>Seu nutricionista vai analisar suas respostas antes da consulta</li>
+          <li>Compareça à consulta no dia e horário marcados</li>
+          <li>Se tiver exames físicos, leve impressos</li>
+          <li>Tire dúvidas e prepare-se para começar sua jornada</li>
+        </ul>
+      </div>
+
+      <p style="margin-top: 28px; font-size: 13px; color: var(--ink-mute);">
+        💾 Suas respostas estão salvas. Você pode fechar esta página com segurança.
+      </p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ════════════════════════════════════════════════════
+  // CONFIGURAÇÃO DA INTEGRAÇÃO COM GOOGLE SHEETS
+  // ════════════════════════════════════════════════════
+  // ⚠️ IMPORTANTE: substitua a string abaixo pela URL do seu Apps Script
+  // Como obter: Implantar → Nova implantação → Aplicativo da Web → Copiar URL
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwwezhVaMcEoTxjI3oVj7jL_5o_zzNKAaBEvE9Y8-EmrqRFn03SnX87U5XyEW5kz8O28w/exec';
+
+  const TOTAL_MODULES = 13;
+  let currentModule = 1;
+  let uploadedFiles = [];
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const patientCode = urlParams.get('p') || 'demo';
+  const STORAGE_KEY = `prenutri_paciente_${patientCode}`;
+
+  function saveAnswer(field, value) {
+    showSavingStatus();
+    const data = loadAllAnswers();
+    data[field] = value;
+    data._lastSaved = new Date().toISOString();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    setTimeout(showSavedStatus, 400);
+  }
+  function loadAllAnswers() {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? JSON.parse(stored) : {};
+  }
+  function showSavingStatus() {
+    const el = document.getElementById('autosaveStatus');
+    el.classList.add('saving'); el.textContent = 'Salvando...';
+  }
+  function showSavedStatus() {
+    const el = document.getElementById('autosaveStatus');
+    el.classList.remove('saving'); el.textContent = 'Salvo';
+  }
+
+  // Captura automática
+  function setupAutoSave() {
+    document.querySelectorAll('input, select, textarea').forEach(el => {
+      if (el.type === 'file') return;
+      const eventName = ['radio','checkbox','select-one','select-multiple'].includes(el.type) ? 'change' : 'blur';
+      el.addEventListener(eventName, () => {
+        const key = el.id || el.name;
+        if (!key) return;
+        if (el.type === 'checkbox') {
+          const checked = Array.from(document.querySelectorAll(`input[name="${el.name}"]:checked`)).map(c => c.value);
+          saveAnswer(el.name, checked);
+        } else if (el.type === 'radio') {
+          if (el.checked) saveAnswer(el.name, el.value);
+        } else {
+          saveAnswer(key, el.value);
+        }
+        // Triggers
+        if (['q4_1','q4_2'].includes(key)) calculateIMC();
+        if (['q4_1','q4_4','q4_5'].includes(key)) calculateMeta();
+        if (key && key.startsWith('q6_psqi_')) calculatePSQI();
+        if (key && key.startsWith('q6_meq_')) calculateMEQ();
+      });
+      if (el.type === 'range') {
+        el.addEventListener('input', () => saveAnswer(el.id, el.value));
+      }
+      // Cálculos em tempo real para o M4
+      if (['q4_1','q4_2','q4_4','q4_5'].includes(el.id)) {
+        el.addEventListener('input', () => {
+          calculateIMC();
+          calculateMeta();
+        });
+      }
+      // Cálculos em tempo real para o M6 (PSQI tem campos texto/number)
+      if (el.id && el.id.startsWith('q6_psqi_')) {
+        el.addEventListener('input', calculatePSQI);
+      }
+    });
+  }
+
+  function restoreAnswers() {
+    const data = loadAllAnswers();
+    Object.keys(data).forEach(key => {
+      if (key.startsWith('_')) return;
+      const val = data[key];
+      // Texto direto por ID
+      const elById = document.getElementById(key);
+      if (elById && elById.type !== 'radio' && elById.type !== 'checkbox') {
+        elById.value = val;
+        // Se for um range/slider, atualizar o span de valor associado
+        if (elById.type === 'range') {
+          const valSpan = document.getElementById(key + '_val');
+          if (valSpan) valSpan.textContent = val;
+        }
+      }
+      // Radio
+      const radio = document.querySelector(`input[type="radio"][name="${key}"][value="${val}"]`);
+      if (radio) { radio.checked = true; radio.dispatchEvent(new Event('change')); }
+      // Checkbox (array)
+      if (Array.isArray(val)) {
+        val.forEach(v => {
+          const cb = document.querySelector(`input[type="checkbox"][name="${key}"][value="${v}"]`);
+          if (cb) { cb.checked = true; cb.dispatchEvent(new Event('change')); }
+        });
+      }
+    });
+    if (data._uploadedFiles) { uploadedFiles = data._uploadedFiles; renderFileList(); }
+    calculateIMC();
+    calculateMeta();
+    calculatePSQI();
+    calculateMEQ();
+    if (Object.keys(data).filter(k => !k.startsWith('_')).length > 0) {
+      goToQuestionnaire();
+    }
+  }
+
+  function showScreen(screenId) {
+    document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+    document.getElementById(screenId).classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  function startQuestionnaire() { goToQuestionnaire(); }
+  function goToWelcome() { showScreen('screen-welcome'); }
+  function goToQuestionnaire() {
+    showScreen('screen-questionnaire');
+    showModule(currentModule);
+    updateProgress();
+  }
+  function showModule(num) {
+    document.querySelectorAll('.module-card').forEach(el => el.style.display = 'none');
+    const card = document.querySelector(`.module-card[data-module="${num}"]`);
+    if (card) { card.style.display = 'block'; window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  }
+  function nextModule() {
+    if (!validateCurrentModule()) return;
+    if (currentModule < TOTAL_MODULES) {
+      currentModule++;
+      showModule(currentModule);
+      updateProgress();
+    }
+  }
+  function previousModule() {
+    if (currentModule > 1) {
+      currentModule--;
+      showModule(currentModule);
+      updateProgress();
+    }
+  }
+  function validateCurrentModule() {
+    const card = document.querySelector(`.module-card[data-module="${currentModule}"]`);
+    if (!card) return true;
+    const required = card.querySelectorAll('[required]');
+    let valid = true; let firstInvalid = null;
+    required.forEach(field => {
+      if (field.offsetParent === null) return; // Skip campos ocultos
+      if (field.type === 'radio') {
+        const checked = card.querySelector(`input[name="${field.name}"]:checked`);
+        if (!checked && !firstInvalid) { firstInvalid = field; valid = false; }
+      } else if (field.type === 'checkbox') {
+        const anyChecked = card.querySelector(`input[name="${field.name}"]:checked`);
+        if (!anyChecked && !firstInvalid) { firstInvalid = field; valid = false; }
+      } else {
+        if (!field.value.trim()) {
+          field.style.borderColor = 'var(--rose)';
+          if (!firstInvalid) firstInvalid = field; valid = false;
+        } else { field.style.borderColor = ''; }
+      }
+    });
+    if (!valid) {
+      if (firstInvalid) { firstInvalid.focus(); firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      alert('Preencha os campos obrigatórios marcados com *');
+      return false;
+    }
+    if (currentModule === 1) {
+      const email = document.getElementById('q1_2').value;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        alert('E-mail inválido'); document.getElementById('q1_2').focus(); return false;
+      }
+    }
+    return true;
+  }
+  function updateProgress() {
+    const pct = Math.round((currentModule / TOTAL_MODULES) * 100);
+    document.getElementById('progressCurrent').textContent = `Módulo ${currentModule} de ${TOTAL_MODULES}`;
+    document.getElementById('progressPct').textContent = `${pct}%`;
+    document.getElementById('progressFill').style.width = `${pct}%`;
+  }
+
+  function toggleConditional(id, show) {
+    const el = document.getElementById(id);
+    if (el) { if (show) el.classList.add('active'); else el.classList.remove('active'); }
+  }
+  function maskPhone(input) {
+    let v = input.value.replace(/\D/g, '');
+    if (v.length > 11) v = v.slice(0, 11);
+    if (v.length > 10) v = v.replace(/^(\d{2})(\d{5})(\d{0,4}).*/, '($1) $2-$3');
+    else if (v.length > 6) v = v.replace(/^(\d{2})(\d{4})(\d{0,4}).*/, '($1) $2-$3');
+    else if (v.length > 2) v = v.replace(/^(\d{2})(\d{0,5}).*/, '($1) $2');
+    else if (v.length > 0) v = v.replace(/^(\d{0,2}).*/, '($1');
+    input.value = v;
+  }
+  function calculateIMC() {
+    const peso = parseFloat(document.getElementById('q4_1')?.value || 0);
+    const altura = parseFloat(document.getElementById('q4_2')?.value || 0);
+    if (peso > 0 && altura > 0) {
+      const imc = peso / Math.pow(altura/100, 2);
+      let classif = '';
+      if (imc < 18.5) classif = 'Baixo peso';
+      else if (imc < 25) classif = 'Eutrofia';
+      else if (imc < 30) classif = 'Sobrepeso';
+      else if (imc < 35) classif = 'Obesidade I';
+      else if (imc < 40) classif = 'Obesidade II';
+      else classif = 'Obesidade III';
+      document.getElementById('imc_value').textContent = imc.toFixed(1) + ' kg/m²';
+      document.getElementById('imc_class').textContent = classif;
+      document.getElementById('imc_result').style.display = 'flex';
+    }
+  }
+
+  function calculateMeta() {
+    const peso = parseFloat(document.getElementById('q4_1')?.value || 0);
+    const desejado = parseFloat(document.getElementById('q4_4')?.value || 0);
+    const meses = parseFloat(document.getElementById('q4_5')?.value || 0);
+    if (peso > 0 && desejado > 0 && meses > 0) {
+      const diff = peso - desejado;
+      const pctSemana = Math.abs((diff / meses / 4.33) / peso) * 100;
+      let msg = '';
+      if (pctSemana < 0.3) msg = `Meta confortável: ${diff > 0 ? 'perder' : 'ganhar'} ${Math.abs(diff).toFixed(1)} kg em ${meses} meses (${pctSemana.toFixed(2)}%/sem)`;
+      else if (pctSemana <= 1) msg = `Meta sustentável: ${diff > 0 ? 'perder' : 'ganhar'} ${Math.abs(diff).toFixed(1)} kg em ${meses} meses (${pctSemana.toFixed(2)}%/sem)`;
+      else msg = `⚠️ Meta agressiva: ${pctSemana.toFixed(2)}%/sem. Seu nutri pode sugerir um prazo maior.`;
+      document.getElementById('meta_text').textContent = msg;
+      document.getElementById('meta_result').style.display = 'flex';
+    }
+  }
+
+  function calculatePSQI() {
+    // Soma simplificada: qualidade subjetiva (q6) + duração (calculada de q4) + distúrbios (5b+5c+5d) + medicação (7) + sonolência (8) + disposição (9)
+    const c1 = parseInt(document.querySelector('input[name="q6_psqi_6"]:checked')?.value || -1);
+    const dur = parseFloat(document.getElementById('q6_psqi_4')?.value || -1);
+    const q5b = parseInt(document.querySelector('input[name="q6_psqi_5b"]:checked')?.value || -1);
+    const q5c = parseInt(document.querySelector('input[name="q6_psqi_5c"]:checked')?.value || -1);
+    const q5d = parseInt(document.querySelector('input[name="q6_psqi_5d"]:checked')?.value || -1);
+    const c6 = parseInt(document.querySelector('input[name="q6_psqi_7"]:checked')?.value || -1);
+    const c8 = parseInt(document.querySelector('input[name="q6_psqi_8"]:checked')?.value || -1);
+    const c9 = parseInt(document.querySelector('input[name="q6_psqi_9"]:checked')?.value || -1);
+
+    if (c1 >= 0 && dur >= 0 && q5b >= 0 && q5c >= 0 && q5d >= 0 && c6 >= 0 && c8 >= 0 && c9 >= 0) {
+      // Duração
+      let durScore = 0;
+      if (dur < 5) durScore = 3;
+      else if (dur < 6) durScore = 2;
+      else if (dur < 7) durScore = 1;
+      // Distúrbios
+      const distSum = q5b + q5c + q5d;
+      let distScore = 0;
+      if (distSum === 0) distScore = 0;
+      else if (distSum <= 3) distScore = 1;
+      else if (distSum <= 6) distScore = 2;
+      else distScore = 3;
+      // Sonolência
+      const sonoSum = c8 + c9;
+      let sonoScore = 0;
+      if (sonoSum === 0) sonoScore = 0;
+      else if (sonoSum <= 2) sonoScore = 1;
+      else if (sonoSum <= 4) sonoScore = 2;
+      else sonoScore = 3;
+
+      const total = c1 + durScore + distScore + c6 + sonoScore;
+      let classif = '';
+      if (total <= 4) classif = '🟢 Boa qualidade do sono';
+      else if (total <= 10) classif = '🟡 Qualidade ruim';
+      else classif = '🔴 Distúrbio grave';
+      document.getElementById('psqi_score').textContent = total + ' / 15';
+      document.getElementById('psqi_class').textContent = classif;
+      document.getElementById('psqi_score_box').style.display = 'flex';
+    }
+  }
+
+  function calculateMEQ() {
+    const fields = ['q6_meq_1', 'q6_meq_2', 'q6_meq_3', 'q6_meq_4', 'q6_meq_5', 'q6_meq_6', 'q6_meq_7'];
+    const values = fields.map(name => parseInt(document.querySelector(`input[name="${name}"]:checked`)?.value || -1));
+    if (values.every(v => v >= 0)) {
+      const total = values.reduce((a, b) => a + b, 0);
+      // Normalizar para escala 16-86 (MEQ original)
+      const normalized = Math.round(16 + (total / 32) * 70);
+      let classif = '';
+      if (normalized <= 30) classif = '🌙 Definitivamente Vespertino';
+      else if (normalized <= 41) classif = '🌆 Vespertino moderado';
+      else if (normalized <= 58) classif = '⚖️ Intermediário';
+      else if (normalized <= 69) classif = '🌅 Matutino moderado';
+      else classif = '☀️ Definitivamente Matutino';
+      document.getElementById('meq_class').textContent = classif + ' (' + normalized + ')';
+      document.getElementById('meq_score_box').style.display = 'flex';
+    }
+  }
+
+  // ===== TOGGLE MEAL (Módulo 8) =====
+  function toggleMeal(mealCardId, hiddenFieldId, makesMeal) {
+    const card = document.getElementById(mealCardId);
+    const content = document.getElementById(mealCardId + '_content');
+    const buttons = card.querySelectorAll('.meal-toggle-btn');
+    if (makesMeal) {
+      card.classList.remove('skipped');
+      card.classList.add('filled');
+      content.classList.add('active');
+      buttons[0].classList.add('active');
+      buttons[1].classList.remove('active');
+      document.getElementById(hiddenFieldId).value = 'Sim';
+    } else {
+      card.classList.remove('filled');
+      card.classList.add('skipped');
+      content.classList.remove('active');
+      buttons[0].classList.remove('active');
+      buttons[1].classList.add('active');
+      document.getElementById(hiddenFieldId).value = 'Não';
+    }
+    saveAnswer(hiddenFieldId, document.getElementById(hiddenFieldId).value);
+  }
+
+  // ===== SUPLEMENTOS =====
+  function addSupplement() {
+    const container = document.getElementById('supplements_container');
+    const row = document.createElement('div');
+    row.className = 'supplement-row';
+    row.innerHTML = `
+      <input type="text" class="supplement-input supplement-name" placeholder="Nome">
+      <input type="text" class="supplement-input supplement-dose" placeholder="Dose">
+      <button class="supplement-remove" onclick="removeSupplement(this)" type="button">×</button>
+    `;
+    container.appendChild(row);
+  }
+  function removeSupplement(btn) {
+    const rows = document.querySelectorAll('.supplement-row');
+    if (rows.length > 1) {
+      btn.closest('.supplement-row').remove();
+    } else {
+      // Limpar em vez de remover o último
+      btn.parentElement.querySelector('.supplement-name').value = '';
+      btn.parentElement.querySelector('.supplement-dose').value = '';
+    }
+    saveSupplements();
+  }
+  function saveSupplements() {
+    const supplements = Array.from(document.querySelectorAll('.supplement-row')).map(row => ({
+      name: row.querySelector('.supplement-name').value,
+      dose: row.querySelector('.supplement-dose').value
+    })).filter(s => s.name);
+    saveAnswer('q11_supplements', supplements);
+  }
+
+  // ===== UPLOAD =====
+  function handleFiles(files) {
+    Array.from(files).forEach(file => {
+      if (file.size > 10*1024*1024) { alert(`${file.name} > 10MB`); return; }
+      const fileObj = { id: Date.now()+Math.random(), name: file.name, size: file.size, status: 'uploading', progress: 0 };
+      uploadedFiles.push(fileObj);
+      renderFileList();
+      simulateUpload(fileObj);
+    });
+  }
+  function simulateUpload(fileObj) {
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += 15 + Math.random()*20;
+      if (progress >= 100) {
+        progress = 100; clearInterval(interval);
+        fileObj.status = 'success'; fileObj.progress = 100;
+        saveAnswer('_uploadedFiles', uploadedFiles);
+      } else fileObj.progress = progress;
+      renderFileList();
+    }, 300);
+  }
+  function renderFileList() {
+    const list = document.getElementById('fileList');
+    if (!list) return;
+    list.innerHTML = uploadedFiles.map(f => `
+      <div class="file-item ${f.status}">
+        <div class="file-icon">${f.status==='success'?'✓':'📄'}</div>
+        <div class="file-info">
+          <div class="file-name">${f.name}</div>
+          <div class="file-size">${formatFileSize(f.size)} ${f.status==='success'?'· Enviado':''}</div>
+          ${f.status==='uploading'?`<div class="file-progress"><div class="file-progress-fill" style="width:${f.progress}%;"></div></div>`:''}
+        </div>
+        <button class="file-remove" onclick="removeFile(${f.id})">×</button>
+      </div>
+    `).join('');
+  }
+  function removeFile(id) {
+    uploadedFiles = uploadedFiles.filter(f => f.id !== id);
+    renderFileList();
+    saveAnswer('_uploadedFiles', uploadedFiles);
+  }
+  function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+    return (bytes/(1024*1024)).toFixed(1) + ' MB';
+  }
+
+  // ===== REVIEW + SUBMIT =====
+  function goToReview() {
+    if (!validateCurrentModule()) return;
+
+    const data = loadAllAnswers();
+    document.getElementById('summary_name').textContent = data.q1_1 || '—';
+
+    const goalMap = {
+      'Perder peso': 'Perder peso (gordura)',
+      'Ganhar massa': 'Ganhar massa muscular',
+      'Melhorar hábitos': 'Melhorar hábitos alimentares',
+      'Melhorar saúde': 'Melhorar saúde geral',
+      'Performance': 'Performance esportiva'
+    };
+    document.getElementById('summary_goal').textContent = goalMap[data.q2_1] || data.q2_1 || '—';
+
+    if (data.q4_1 && data.q4_2 && data.q4_4) {
+      document.getElementById('summary_measures').textContent =
+        `${data.q4_1} kg · ${data.q4_2} cm · meta ${data.q4_4} kg`;
+    }
+
+    if (uploadedFiles.length > 0) {
+      document.getElementById('summary_exams').textContent =
+        `${uploadedFiles.length} arquivo${uploadedFiles.length > 1 ? 's' : ''} enviado${uploadedFiles.length > 1 ? 's' : ''}`;
+    }
+
+    showScreen('screen-review');
+  }
+
+  function goBackFromReview() {
+    showScreen('screen-questionnaire');
+    showModule(13);
+    updateProgress();
+  }
+
+  async function submitQuestionnaire() {
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+
+    const data = loadAllAnswers();
+
+    // Verificar se temos código de paciente
+    if (!patientCode || patientCode === 'demo') {
+      alert('⚠️ Atenção: este link não tem código de paciente.\n\nAs respostas ficarão salvas apenas neste navegador.\nPeça ao seu nutricionista um link com código único.');
+      // Continua mesmo assim — salva localmente
+      data._submitted = true;
+      data._submittedAt = new Date().toISOString();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      const firstName = (data.q1_1 || '').split(' ')[0];
+      document.getElementById('thanks_name').textContent = firstName || 'paciente';
+      showScreen('screen-thanks');
+      return;
+    }
+
+    // Verificar se a URL do Apps Script foi configurada
+    if (APPS_SCRIPT_URL === 'COLE_AQUI_A_URL_DO_APPS_SCRIPT') {
+      console.warn('⚠️ APPS_SCRIPT_URL não configurada. Salvando apenas localmente.');
+      data._submitted = true;
+      data._submittedAt = new Date().toISOString();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      const firstName = (data.q1_1 || '').split(' ')[0];
+      document.getElementById('thanks_name').textContent = firstName || 'paciente';
+      setTimeout(() => showScreen('screen-thanks'), 1500);
+      return;
+    }
+
+    try {
+      // Preparar payload
+      const payload = {
+        action: 'salvar_completo',
+        codigo: patientCode,
+        respostas: data
+      };
+
+      // Enviar para o Apps Script
+      // Nota: não definimos Content-Type para evitar preflight CORS no Apps Script
+      const response = await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        redirect: 'follow'
+      });
+
+      const result = await response.json();
+
+      if (result.ok) {
+        // Sucesso!
+        data._submitted = true;
+        data._submittedAt = new Date().toISOString();
+        data._submittedToSheets = true;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+        const firstName = (data.q1_1 || '').split(' ')[0];
+        document.getElementById('thanks_name').textContent = firstName || 'paciente';
+        showScreen('screen-thanks');
+      } else {
+        throw new Error(result.erro || 'Erro desconhecido');
+      }
+
+    } catch (erro) {
+      console.error('❌ Erro ao enviar para Sheets:', erro);
+
+      // Salvar localmente mesmo se falhou no envio
+      data._submitted = true;
+      data._submittedAt = new Date().toISOString();
+      data._submittedToSheets = false;
+      data._submitError = erro.toString();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+      // Mostrar erro mas seguir para tela de obrigado (dados estão salvos localmente)
+      alert('⚠️ Houve um problema ao enviar suas respostas, mas elas foram salvas localmente.\n\nPor favor, avise seu nutricionista que seu código é: ' + patientCode + '\n\nEle poderá recuperar seus dados.');
+
+      const firstName = (data.q1_1 || '').split(' ')[0];
+      document.getElementById('thanks_name').textContent = firstName || 'paciente';
+      showScreen('screen-thanks');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Enviar respostas ✓';
+    }
+  }
+
+  // ===== INIT =====
+  document.addEventListener('DOMContentLoaded', () => {
+    setupAutoSave();
+
+    // Suplementos: setup listeners
+    document.addEventListener('input', (e) => {
+      if (e.target.classList.contains('supplement-name') || e.target.classList.contains('supplement-dose')) {
+        saveSupplements();
+      }
+    });
+
+    // ===== ATIVIDADES FÍSICAS (Módulo 10) =====
+    // Quando uma atividade é marcada, mostra o card de detalhes correspondente
+    document.querySelectorAll('.activity-btn input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const actId = cb.getAttribute('data-act');
+        const detailCard = document.getElementById(actId + '_detail');
+        if (detailCard) {
+          if (cb.checked) {
+            detailCard.style.display = 'block';
+          } else {
+            detailCard.style.display = 'none';
+            // Limpar respostas de frequência e intensidade ao desmarcar
+            document.querySelectorAll(`input[name="${actId}_freq"]:checked, input[name="${actId}_int"]:checked`).forEach(r => r.checked = false);
+          }
+          saveAnswer('q10_atividades_marcadas', getMarkedActivities());
+        }
+      });
+    });
+
+    function getMarkedActivities() {
+      return Array.from(document.querySelectorAll('.activity-btn input[type="checkbox"]:checked')).map(cb => ({
+        id: cb.getAttribute('data-act'),
+        name: cb.getAttribute('data-name'),
+        emoji: cb.getAttribute('data-emoji')
+      }));
+    }
+
+    // Restore: re-mostrar cards de detalhes de atividades marcadas previamente
+    setTimeout(() => {
+      document.querySelectorAll('.activity-btn input[type="checkbox"]:checked').forEach(cb => {
+        const actId = cb.getAttribute('data-act');
+        const detailCard = document.getElementById(actId + '_detail');
+        if (detailCard) detailCard.style.display = 'block';
+      });
+    }, 100);
+
+    restoreAnswers();
+
+    const fileInput = document.getElementById('fileInput');
+    const uploadArea = document.getElementById('uploadArea');
+    if (fileInput) fileInput.addEventListener('change', (e) => { handleFiles(e.target.files); e.target.value = ''; });
+    if (uploadArea) {
+      uploadArea.addEventListener('click', () => fileInput && fileInput.click());
+      uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+      uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+      uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault(); uploadArea.classList.remove('dragover');
+        handleFiles(e.dataTransfer.files);
+      });
+    }
+  });
+</script>
+
+</body>
+</html>
