@@ -418,6 +418,17 @@
     margin: 4px 0;
   }
   .distrib-kcal { font-size: 11.5px; color: var(--ink-mute); font-family: 'JetBrains Mono', monospace; }
+  .distrib-macros {
+    display: flex; justify-content: center; gap: 5px; margin-top: 10px;
+    padding-top: 10px; border-top: 1px solid var(--line); flex-wrap: wrap;
+  }
+  .dm {
+    font-family: 'JetBrains Mono', monospace; font-size: 10.5px; font-weight: 500;
+    padding: 2px 7px; border-radius: 100px;
+  }
+  .dm-p { background: rgba(184,103,74,0.15); color: var(--terracotta); }
+  .dm-c { background: rgba(184,146,74,0.15); color: var(--gold); }
+  .dm-g { background: rgba(135,160,130,0.2); color: var(--moss); }
 
   /* RED FLAGS */
   .rel-flags {
@@ -1310,11 +1321,20 @@
     const distrib = Object.keys(mac.distribuicao).map(ref => {
       const pct = mac.distribuicao[ref];
       const kcal = Math.round(mac.metaKcal * pct / 100);
+      // Macros proporcionais a esta refeição
+      const protRef = Math.round(mac.proteina.g * pct / 100);
+      const carbRef = Math.round(mac.carbo.g * pct / 100);
+      const gordRef = Math.round(mac.gordura.g * pct / 100);
       return `
         <div class="distrib-item">
           <div class="distrib-ref">${ref}</div>
           <div class="distrib-pct">${pct}%</div>
           <div class="distrib-kcal">${kcal} kcal</div>
+          <div class="distrib-macros">
+            <span class="dm dm-p">P ${protRef}g</span>
+            <span class="dm dm-c">C ${carbRef}g</span>
+            <span class="dm dm-g">G ${gordRef}g</span>
+          </div>
         </div>
       `;
     }).join('');
