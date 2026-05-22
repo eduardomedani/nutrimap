@@ -296,6 +296,37 @@
     margin-top: 4px;
   }
 
+  /* RADAR */
+  .radar-card {
+    background: var(--bg-card); border-radius: 18px; padding: 24px;
+    box-shadow: var(--shadow); margin-bottom: 24px;
+  }
+  .radar-title {
+    font-family: 'Fraunces', serif; font-size: 20px; color: var(--moss-deep);
+    font-weight: 500; margin-bottom: 18px; text-align: center;
+  }
+  .radar-layout {
+    display: grid; grid-template-columns: 300px 1fr; gap: 30px; align-items: center;
+  }
+  @media (max-width: 640px) { .radar-layout { grid-template-columns: 1fr; } }
+  .radar-svg { width: 100%; max-width: 300px; margin: 0 auto; display: block; overflow: visible; }
+  .radar-legend { display: flex; flex-direction: column; gap: 12px; }
+  .radar-legend-item {}
+  .radar-legend-top {
+    display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px;
+  }
+  .radar-legend-label { font-size: 14px; color: var(--ink); font-weight: 500; }
+  .radar-legend-value {
+    font-family: 'Fraunces', serif; font-size: 20px; color: var(--moss-deep); font-weight: 600;
+  }
+  .radar-legend-bar {
+    height: 8px; background: var(--bg-warm); border-radius: 100px; overflow: hidden;
+  }
+  .radar-legend-fill { height: 100%; border-radius: 100px; transition: width 0.6s; }
+  .radar-legend-fill.good { background: var(--sage); }
+  .radar-legend-fill.mid { background: var(--gold-soft); }
+  .radar-legend-fill.bad { background: var(--terracotta); }
+
   /* RED FLAGS */
   .rel-flags {
     background: var(--bg-card); border-radius: 18px; padding: 22px;
@@ -739,19 +770,89 @@
       else if (neat.includes('ativo')) fatorBase = 1.725;
 
       let getBase = Math.round(tmb * fatorBase);
+      return getBase;
+    },
 
-      // Adicionar gasto das atividades físicas (kcal/semana → kcal/dia)
-      let kcalAtividades = 0;
-      if (m10 && m10.detalhes_atividades_json) {
+    // ═══ SCORES DO RADAR (0-100, quanto maior melhor) ═══
+
+    scoreSono(m6, psqiScore) {
+      if (psqiScore === null) return null;
+      // PSQI vai de 0 (ótimo) a 21 (péssimo). Invertemos para 0-100.
+      return Math.round(Math.max(0, 100 - (psqiScore / 21) * 100));
+    },
+
+    scoreAlimentacao(m9) {
+      if (!m9) return null;
+      // Mapa de frequência → pontos
+      const freqMap = { 'Nunca': 0, '1-2x/sem': 1, '3-4x/sem': 2, '5-6x/sem': 3, 'Diariamente': 4, '+1x/dia': 5 };
+      // Grupos saudáveis (quanto mais, melhor)
+      const saudaveis = ['frutas', 'verduras', 'frango_peixe', 'ovos', 'lacteos', 'leguminosas', 'integrais', 'oleaginosas'];
+      // Grupos de risco (quanto mais, pior)
+      const risco = ['doces', 'ultraprocessados', 'fastfood', 'refrigerantes'];
+
+      let pontosBons = 0, maxBons = saudaveis.length * 5;
+      saudaveis.forEach(g => { pontosBons += (freqMap[m9[g]] || 0); });
+
+      let pontosRuins = 0, maxRuins = risco.length * 5;
+      risco.forEach(g => { pontosRuins += (freqMap[m9[g]] || 0); });
+
+      // Score: % de bons - penalidade dos ruins
+      const scoreBons = (pontosBons / maxBons) * 100;
+      const penalidade = (pontosRuins / maxRuins) * 60; // risco pesa até -60
+      return Math.round(Math.max(0, Math.min(100, scoreBons - penalidade + 30)));
+    },
+
+    scoreAtividade(m10) {
+      if (!m10) return null;
+      const pratica = (m10.pratica || '').toLowerCase();
+      let base = 0;
+      if (pratica.includes('sim')) base = 50;
+      else if (pratica.includes('espor')) base = 25;
+
+      // Bônus por NEAT
+      const neat = (m10.nivel_neat || '').toLowerCase();
+      if (neat.includes('ativo')) base += 30;
+      else if (neat.includes('moderad')) base += 20;
+      else if (neat.includes('leve')) base += 10;
+
+      // Bônus por atividades detalhadas
+      if (m10.detalhes_atividades_json) {
         try {
-          const detalhes = typeof m10.detalhes_atividades_json === 'string'
-            ? JSON.parse(m10.detalhes_atividades_json)
-            : m10.detalhes_atividades_json;
-          // Estimativa: MET * peso(kg) * duração(h) — assumindo 1h por sessão
-          // Como não temos peso aqui, usamos estimativa de 60min e peso médio depois
+          const det = typeof m10.detalhes_atividades_json === 'string'
+            ? JSON.parse(m10.detalhes_atividades_json) : m10.detalhes_atividades_json;
+          const numAtividades = Object.keys(det).length;
+          base += Math.min(numAtividades * 7, 20);
         } catch (e) {}
       }
-      return getBase;
+      return Math.round(Math.min(100, base));
+    },
+
+    scoreComportamento(m7) {
+      if (!m7) return null;
+      let score = 50; // base neutra
+      // Mastigação lenta é melhor
+      const mast = (m7.q7_5_mastigacao || '').toLowerCase();
+      if (mast.includes('lenta')) score += 15;
+      else if (mast.includes('rápida') || mast.includes('rapida')) score -= 15;
+      // Não comer muito à noite é melhor
+      const noite = (m7.q7_4_come_noite || '').toLowerCase();
+      if (noite === 'não' || noite === 'nao') score += 15;
+      else if (noite === 'sim') score -= 10;
+      // Apetite controlado
+      const apetite = (m7.q7_1_apetite || '').toLowerCase();
+      if (apetite.includes('bom')) score += 20;
+      else if (apetite.includes('excessivo')) score -= 15;
+      return Math.round(Math.max(0, Math.min(100, score)));
+    },
+
+    scoreMindset(m13) {
+      if (!m13) return null;
+      const habitos = parseInt(m13.q13_1_habitos_atuais) || 0;
+      const capacidade = parseInt(m13.q13_2_capacidade_mudar) || 0;
+      // Média dos dois sliders (0-10) → 0-100
+      // Capacidade pesa mais (motivação para mudar)
+      const score = ((habitos * 0.4) + (capacidade * 0.6)) * 10;
+      return Math.round(Math.max(0, Math.min(100, score)));
     }
   };
 
@@ -812,6 +913,15 @@
     calc.tmb = CALC.tmb(peso, altura, idade, sexo);
     calc.get = CALC.get(calc.tmb, m.m10);
 
+    // Scores do radar
+    const radarScores = [
+      { label: 'Sono', valor: CALC.scoreSono(m.m6, calc.psqiScore) },
+      { label: 'Alimentação', valor: CALC.scoreAlimentacao(m.m9) },
+      { label: 'Atividade', valor: CALC.scoreAtividade(m.m10) },
+      { label: 'Comportamento', valor: CALC.scoreComportamento(m.m7) },
+      { label: 'Mindset', valor: CALC.scoreMindset(m.m13) }
+    ];
+
     const redFlags = detectarRedFlags(d, calc);
     const nome = (m.m1 && m.m1.q1_1_nome) || p.nome || 'Paciente';
     const iniciais = nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
@@ -860,6 +970,8 @@
         ${metricCard('GET estimado', calc.get ? calc.get + ' kcal' : '—', 'Gasto total/dia', 'var(--olive)')}
       </div>
 
+      ${gerarRadar(radarScores)}
+
       ${renderModulosDetalhados(m)}
 
       <div class="rel-disclaimer">
@@ -876,6 +988,99 @@
         <div class="metric-label">${label}</div>
         <div class="metric-value" style="color: ${cor};">${valor}</div>
         ${sub ? `<div class="metric-sub">${sub}</div>` : ''}
+      </div>
+    `;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // RADAR CHART (SVG dinâmico de 5 eixos)
+  // ═══════════════════════════════════════════════════════════
+  function gerarRadar(scores) {
+    // scores = [{label, valor, cor}], 5 eixos
+    const cx = 160, cy = 160, raio = 120;
+    const n = scores.length;
+    const anguloInicial = -Math.PI / 2; // começa no topo
+
+    function ponto(indice, distancia) {
+      const ang = anguloInicial + (2 * Math.PI * indice / n);
+      return {
+        x: cx + Math.cos(ang) * distancia,
+        y: cy + Math.sin(ang) * distancia
+      };
+    }
+
+    // Grades concêntricas (4 níveis)
+    let gradesHtml = '';
+    for (let nivel = 1; nivel <= 4; nivel++) {
+      const r = (raio * nivel) / 4;
+      const pts = scores.map((_, i) => { const p = ponto(i, r); return `${p.x.toFixed(1)},${p.y.toFixed(1)}`; }).join(' ');
+      gradesHtml += `<polygon points="${pts}" />`;
+    }
+
+    // Linhas radiais
+    let linhasHtml = '';
+    scores.forEach((_, i) => {
+      const p = ponto(i, raio);
+      linhasHtml += `<line x1="${cx}" y1="${cy}" x2="${p.x.toFixed(1)}" y2="${p.y.toFixed(1)}" />`;
+    });
+
+    // Polígono dos dados
+    const pontosData = scores.map((s, i) => {
+      const valor = s.valor !== null ? s.valor : 0;
+      const p = ponto(i, (raio * valor) / 100);
+      return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+    }).join(' ');
+
+    // Pontos (círculos) nos vértices
+    let circulosHtml = '';
+    scores.forEach((s, i) => {
+      const valor = s.valor !== null ? s.valor : 0;
+      const p = ponto(i, (raio * valor) / 100);
+      circulosHtml += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5"/>`;
+    });
+
+    // Labels dos eixos
+    let labelsHtml = '';
+    scores.forEach((s, i) => {
+      const p = ponto(i, raio + 22);
+      let anchor = 'middle';
+      if (p.x < cx - 10) anchor = 'end';
+      else if (p.x > cx + 10) anchor = 'start';
+      labelsHtml += `<text x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" text-anchor="${anchor}">${s.label.toUpperCase()}</text>`;
+    });
+
+    const svg = `
+      <svg viewBox="0 0 320 320" class="radar-svg" xmlns="http://www.w3.org/2000/svg">
+        <g stroke="#DDD6C5" fill="none" stroke-width="1">${gradesHtml}</g>
+        <g stroke="#C3BBA8" stroke-width="1">${linhasHtml}</g>
+        <polygon points="${pontosData}" fill="rgba(61,77,63,0.18)" stroke="#3D4D3F" stroke-width="2.5"/>
+        <g fill="#2A3A2C">${circulosHtml}</g>
+        <g font-family="Inter Tight, sans-serif" font-size="10" fill="#4A524C" font-weight="600">${labelsHtml}</g>
+      </svg>
+    `;
+
+    // Legenda com barras
+    const legendaHtml = scores.map(s => {
+      const valor = s.valor !== null ? s.valor : 0;
+      const classe = valor >= 60 ? 'good' : (valor >= 40 ? 'mid' : 'bad');
+      return `
+        <div class="radar-legend-item">
+          <div class="radar-legend-top">
+            <span class="radar-legend-label">${s.label}</span>
+            <span class="radar-legend-value">${s.valor !== null ? s.valor : '—'}</span>
+          </div>
+          <div class="radar-legend-bar"><div class="radar-legend-fill ${classe}" style="width: ${valor}%;"></div></div>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="radar-card">
+        <div class="radar-title">Mapa Nutricional</div>
+        <div class="radar-layout">
+          ${svg}
+          <div class="radar-legend">${legendaHtml}</div>
+        </div>
       </div>
     `;
   }
