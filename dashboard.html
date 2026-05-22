@@ -329,6 +329,96 @@
   .radar-legend-fill.mid { background: var(--gold-soft); }
   .radar-legend-fill.bad { background: var(--terracotta); }
 
+  /* ═══════════ MACROS ═══════════ */
+  .macros-card {
+    background: var(--bg-card); border-radius: 18px; padding: 26px;
+    box-shadow: var(--shadow); margin-bottom: 24px;
+  }
+  .macros-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px;
+  }
+  .macros-title {
+    font-family: 'Fraunces', serif; font-size: 20px; color: var(--moss-deep); font-weight: 500;
+  }
+  .macros-badge {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    background: var(--moss); color: var(--cream);
+    padding: 6px 14px; border-radius: 100px; font-weight: 500;
+  }
+  .macros-kcal {
+    text-align: center; padding: 18px;
+    background: linear-gradient(135deg, var(--cream), rgba(184,146,74,0.12));
+    border-radius: 14px; margin-bottom: 20px;
+  }
+  .macros-kcal-value {
+    font-family: 'Fraunces', serif; font-size: 44px; color: var(--moss-deep);
+    font-weight: 600; line-height: 1;
+  }
+  .macros-kcal-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--ink-soft);
+    margin-top: 6px;
+  }
+  .macros-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  }
+  @media (max-width: 600px) { .macros-grid { grid-template-columns: 1fr; } }
+  .macro-item {
+    background: var(--bg); border-radius: 14px; padding: 18px; text-align: center;
+    border-top: 3px solid var(--line);
+  }
+  .macro-prot { border-top-color: var(--terracotta); }
+  .macro-carb { border-top-color: var(--gold); }
+  .macro-gord { border-top-color: var(--sage); }
+  .macro-icon { font-size: 26px; margin-bottom: 6px; }
+  .macro-nome {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute); font-weight: 600;
+  }
+  .macro-g {
+    font-family: 'Fraunces', serif; font-size: 32px; color: var(--moss-deep);
+    font-weight: 600; margin: 4px 0;
+  }
+  .macro-detalhe { font-size: 12.5px; color: var(--ink-soft); }
+
+  .macro-ajustes {
+    margin-top: 18px; padding: 14px 16px;
+    background: var(--bg-warm); border-radius: 12px;
+  }
+  .macro-ajustes-label {
+    font-size: 12px; color: var(--ink-soft); font-weight: 600; margin-bottom: 8px;
+  }
+  .macro-ajuste-tag {
+    display: inline-block; background: var(--cream); color: var(--moss-deep);
+    padding: 4px 12px; border-radius: 100px; font-size: 12px; margin: 3px;
+  }
+  .macro-alerta {
+    margin-top: 14px; padding: 12px 16px;
+    background: rgba(184,103,74,0.1); border-left: 3px solid var(--terracotta);
+    border-radius: 10px; font-size: 12.5px; color: var(--ink-soft);
+  }
+
+  .distrib-section { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); }
+  .distrib-titulo {
+    font-size: 13px; color: var(--ink-soft); font-weight: 600; margin-bottom: 14px;
+  }
+  .distrib-crono {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--moss); background: var(--cream); padding: 3px 10px;
+    border-radius: 100px; margin-left: 6px; font-weight: 400;
+  }
+  .distrib-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  @media (max-width: 600px) { .distrib-grid { grid-template-columns: repeat(2, 1fr); } }
+  .distrib-item {
+    background: var(--bg); border-radius: 12px; padding: 14px; text-align: center;
+  }
+  .distrib-ref { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .distrib-pct {
+    font-family: 'Fraunces', serif; font-size: 24px; color: var(--moss); font-weight: 600;
+    margin: 4px 0;
+  }
+  .distrib-kcal { font-size: 11.5px; color: var(--ink-mute); font-family: 'JetBrains Mono', monospace; }
+
   /* RED FLAGS */
   .rel-flags {
     background: var(--bg-card); border-radius: 18px; padding: 22px;
@@ -866,6 +956,105 @@
       // Capacidade pesa mais (motivação para mudar)
       const score = ((habitos * 0.4) + (capacidade * 0.6)) * 10;
       return Math.round(Math.max(0, Math.min(100, score)));
+    },
+
+    // ═══════════════════════════════════════════════════════════
+    // MACROS EM 3 CAMADAS (objetivo → patologia → cronotipo)
+    // ═══════════════════════════════════════════════════════════
+    macros(dados) {
+      const { get, pesoAtual, pesoMeta, objetivo, patologias, cronotipoLabel } = dados;
+      if (!get || !pesoAtual) return null;
+
+      // Peso ajustado (média entre atual e meta)
+      const meta = pesoMeta || pesoAtual;
+      const pesoAjustado = +((parseFloat(pesoAtual) + parseFloat(meta)) / 2).toFixed(1);
+
+      // ─── CAMADA 1: OBJETIVO ───
+      const obj = (objetivo || '').toLowerCase();
+      let metaKcal, gPorKg, ajusteLabel;
+
+      if (obj.includes('emagre') || obj.includes('perder') || obj.includes('gordura') || obj.includes('peso')) {
+        metaKcal = Math.round(get * 0.725); // déficit 27.5%
+        gPorKg = 2.0; // faixa 1.8-2.2, usamos 2.0
+        ajusteLabel = 'Déficit 27,5%';
+      } else if (obj.includes('hipertrofia') || obj.includes('massa') || obj.includes('ganho') || obj.includes('músculo') || obj.includes('musculo')) {
+        metaKcal = Math.round(get * 1.10); // superávit 10%
+        gPorKg = 2.4; // faixa 2.2-2.6
+        ajusteLabel = 'Superávit 10%';
+      } else {
+        metaKcal = get; // manutenção
+        gPorKg = 1.8;
+        ajusteLabel = 'Manutenção';
+      }
+
+      // ─── CAMADA 2: PATOLOGIA ───
+      const pat = (patologias || '').toLowerCase();
+      let pctCarbo = 0.40, pctGordura = 0.30; // padrão (proteína calculada por g/kg)
+      const ajustesPatologia = [];
+
+      // Limite proteico em questão renal
+      if (pat.includes('renal') || pat.includes('rim') || pat.includes('insufici')) {
+        gPorKg = Math.min(gPorKg, 1.1);
+        ajustesPatologia.push('Proteína limitada (questão renal)');
+      }
+      // Diabético: reduz carbo
+      if (pat.includes('diabet') || pat.includes('glic') || pat.includes('insulin')) {
+        pctCarbo = 0.35;
+        pctGordura = 0.35;
+        ajustesPatologia.push('Carboidrato reduzido (controle glicêmico)');
+      }
+      // Dislipidemia
+      if (pat.includes('colesterol') || pat.includes('triglic') || pat.includes('dislipid')) {
+        ajustesPatologia.push('Atenção a gordura saturada');
+      }
+      // Hipertensão (informativo)
+      if (pat.includes('hipertens') || pat.includes('pressão') || pat.includes('pressao')) {
+        ajustesPatologia.push('Atenção ao sódio');
+      }
+
+      // Calcular gramas
+      const proteinaG = Math.round(pesoAjustado * gPorKg);
+      const proteinaKcal = proteinaG * 4;
+
+      // Carbo e gordura distribuem o restante das calorias
+      const kcalRestante = metaKcal - proteinaKcal;
+      // Manter proporção relativa entre carbo e gordura
+      const totalCG = pctCarbo + pctGordura;
+      const carboKcal = kcalRestante * (pctCarbo / totalCG);
+      const gorduraKcal = kcalRestante * (pctGordura / totalCG);
+
+      const carboG = Math.round(carboKcal / 4);
+      const gorduraG = Math.round(gorduraKcal / 9);
+
+      // Percentuais reais (do total)
+      const pctProteinaReal = Math.round((proteinaKcal / metaKcal) * 100);
+      const pctCarboReal = Math.round((carboKcal / metaKcal) * 100);
+      const pctGorduraReal = Math.round((gorduraKcal / metaKcal) * 100);
+
+      // ─── CAMADA 3: CRONOTIPO (distribuição nas refeições) ───
+      const crono = (cronotipoLabel || '').toLowerCase();
+      let distribuicao;
+
+      if (crono.includes('matutino')) {
+        distribuicao = { 'Café': 25, 'Almoço': 35, 'Lanche': 15, 'Jantar': 25 };
+      } else if (crono.includes('vespertino')) {
+        distribuicao = { 'Café': 15, 'Almoço': 30, 'Lanche': 20, 'Jantar': 35 };
+      } else {
+        distribuicao = { 'Café': 20, 'Almoço': 32, 'Lanche': 18, 'Jantar': 30 };
+      }
+
+      return {
+        pesoAjustado,
+        metaKcal,
+        ajusteLabel,
+        gPorKg,
+        proteina: { g: proteinaG, pct: pctProteinaReal },
+        carbo: { g: carboG, pct: pctCarboReal },
+        gordura: { g: gorduraG, pct: pctGorduraReal },
+        ajustesPatologia,
+        distribuicao,
+        cronotipoLabel
+      };
     }
   };
 
@@ -935,6 +1124,16 @@
       { label: 'Mindset', valor: CALC.scoreMindset(m.m13) }
     ];
 
+    // Macros em 3 camadas
+    const macros = CALC.macros({
+      get: calc.get,
+      pesoAtual: peso,
+      pesoMeta: pesoDesejado,
+      objetivo: m.m2 ? m.m2.q2_1_objetivo_principal : '',
+      patologias: m.m3 ? m.m3.q3_1_patologias : '',
+      cronotipoLabel: calc.cronotipo.label
+    });
+
     const redFlags = detectarRedFlags(d, calc);
     const nome = (m.m1 && m.m1.q1_1_nome) || p.nome || 'Paciente';
     const iniciais = nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
@@ -984,6 +1183,8 @@
       </div>
 
       ${gerarRadar(radarScores)}
+
+      ${macros ? gerarCardMacros(macros, calc.imc) : ''}
 
       ${renderModulosDetalhados(m)}
 
@@ -1093,6 +1294,77 @@
         <div class="radar-layout">
           ${svg}
           <div class="radar-legend">${legendaHtml}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // CARD DE MACROS (prescrição em 3 camadas)
+  // ═══════════════════════════════════════════════════════════
+  function gerarCardMacros(mac, imc) {
+    const alertaPesoAjustado = (imc !== null && imc >= 30)
+      ? `<div class="macro-alerta">⚠️ IMC elevado (${imc}) — proteína calculada sobre peso ajustado (${mac.pesoAjustado} kg). Considere revisar conforme composição corporal.</div>`
+      : '';
+
+    const distrib = Object.keys(mac.distribuicao).map(ref => {
+      const pct = mac.distribuicao[ref];
+      const kcal = Math.round(mac.metaKcal * pct / 100);
+      return `
+        <div class="distrib-item">
+          <div class="distrib-ref">${ref}</div>
+          <div class="distrib-pct">${pct}%</div>
+          <div class="distrib-kcal">${kcal} kcal</div>
+        </div>
+      `;
+    }).join('');
+
+    const ajustesPat = mac.ajustesPatologia.length > 0
+      ? `<div class="macro-ajustes">
+           <div class="macro-ajustes-label">Ajustes por patologia:</div>
+           ${mac.ajustesPatologia.map(a => `<span class="macro-ajuste-tag">${a}</span>`).join('')}
+         </div>`
+      : '';
+
+    return `
+      <div class="macros-card">
+        <div class="macros-header">
+          <div class="macros-title">Prescrição Nutricional</div>
+          <div class="macros-badge">${mac.ajusteLabel}</div>
+        </div>
+
+        <div class="macros-kcal">
+          <div class="macros-kcal-value">${mac.metaKcal.toLocaleString('pt-BR')}</div>
+          <div class="macros-kcal-label">kcal / dia · meta calórica</div>
+        </div>
+
+        <div class="macros-grid">
+          <div class="macro-item macro-prot">
+            <div class="macro-icon">🥩</div>
+            <div class="macro-nome">Proteína</div>
+            <div class="macro-g">${mac.proteina.g}g</div>
+            <div class="macro-detalhe">${mac.proteina.pct}% · ${mac.gPorKg}g/kg</div>
+          </div>
+          <div class="macro-item macro-carb">
+            <div class="macro-icon">🍚</div>
+            <div class="macro-nome">Carboidrato</div>
+            <div class="macro-g">${mac.carbo.g}g</div>
+            <div class="macro-detalhe">${mac.carbo.pct}% do total</div>
+          </div>
+          <div class="macro-item macro-gord">
+            <div class="macro-icon">🥑</div>
+            <div class="macro-nome">Gordura</div>
+            <div class="macro-g">${mac.gordura.g}g</div>
+            <div class="macro-detalhe">${mac.gordura.pct}% do total</div>
+          </div>
+        </div>
+
+        ${ajustesPat}
+        ${alertaPesoAjustado}
+
+        <div class="distrib-section">
+          <div class="distrib-titulo">Distribuição sugerida nas refeições <span class="distrib-crono">cronotipo ${mac.cronotipoLabel.toLowerCase()}</span></div>
+          <div class="distrib-grid">${distrib}</div>
         </div>
       </div>
     `;
