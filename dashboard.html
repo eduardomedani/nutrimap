@@ -306,21 +306,22 @@
     font-weight: 500; margin-bottom: 18px; text-align: center;
   }
   .radar-layout {
-    display: grid; grid-template-columns: 300px 1fr; gap: 30px; align-items: center;
+    display: grid; grid-template-columns: 320px 1fr; gap: 56px; align-items: center;
+    padding: 0 20px;
   }
-  @media (max-width: 640px) { .radar-layout { grid-template-columns: 1fr; } }
+  @media (max-width: 720px) { .radar-layout { grid-template-columns: 1fr; gap: 24px; padding: 0; } }
   .radar-svg { width: 100%; max-width: 300px; margin: 0 auto; display: block; overflow: visible; }
-  .radar-legend { display: flex; flex-direction: column; gap: 12px; }
+  .radar-legend { display: flex; flex-direction: column; gap: 11px; max-width: 520px; }
   .radar-legend-item {}
   .radar-legend-top {
-    display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px;
+    display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;
   }
-  .radar-legend-label { font-size: 14px; color: var(--ink); font-weight: 500; }
+  .radar-legend-label { font-size: 13.5px; color: var(--ink); font-weight: 500; }
   .radar-legend-value {
-    font-family: 'Fraunces', serif; font-size: 20px; color: var(--moss-deep); font-weight: 600;
+    font-family: 'Fraunces', serif; font-size: 18px; color: var(--moss-deep); font-weight: 600;
   }
   .radar-legend-bar {
-    height: 8px; background: var(--bg-warm); border-radius: 100px; overflow: hidden;
+    height: 6px; background: var(--bg-warm); border-radius: 100px; overflow: hidden;
   }
   .radar-legend-fill { height: 100%; border-radius: 100px; transition: width 0.6s; }
   .radar-legend-fill.good { background: var(--sage); }
@@ -653,7 +654,18 @@
       const data = await resp.json();
 
       if (data.ok) {
-        renderizarRelatorio(data);
+        try {
+          renderizarRelatorio(data);
+        } catch (erroRender) {
+          console.error('Erro ao renderizar:', erroRender);
+          document.getElementById('view-relatorio').innerHTML =
+            `<div class="empty-state">
+               <div class="empty-state-icon">⚠️</div>
+               <div style="margin-bottom:10px;">Erro ao montar o relatório:</div>
+               <div style="font-family:monospace; font-size:12px; color:var(--rose); background:var(--bg-warm); padding:14px; border-radius:10px; text-align:left; max-width:600px; margin:0 auto;">${erroRender.toString()}<br><br>${(erroRender.stack||'').split('\n').slice(0,3).join('<br>')}</div>
+             </div>
+             <div style="text-align:center; margin-top:20px;"><button class="btn" onclick="mostrarView('view-lista')">← Voltar</button></div>`;
+        }
       } else {
         document.getElementById('view-relatorio').innerHTML =
           `<div class="empty-state"><div class="empty-state-icon">⚠️</div>${data.erro || 'Erro ao carregar'}</div>
@@ -997,7 +1009,7 @@
   // ═══════════════════════════════════════════════════════════
   function gerarRadar(scores) {
     // scores = [{label, valor, cor}], 5 eixos
-    const cx = 160, cy = 160, raio = 120;
+    const cx = 160, cy = 160, raio = 108;
     const n = scores.length;
     const anguloInicial = -Math.PI / 2; // começa no topo
 
@@ -1042,7 +1054,7 @@
     // Labels dos eixos
     let labelsHtml = '';
     scores.forEach((s, i) => {
-      const p = ponto(i, raio + 22);
+      const p = ponto(i, raio + 26);
       let anchor = 'middle';
       if (p.x < cx - 10) anchor = 'end';
       else if (p.x > cx + 10) anchor = 'start';
@@ -1050,12 +1062,12 @@
     });
 
     const svg = `
-      <svg viewBox="0 0 320 320" class="radar-svg" xmlns="http://www.w3.org/2000/svg">
+      <svg viewBox="-10 -10 340 340" class="radar-svg" xmlns="http://www.w3.org/2000/svg">
         <g stroke="#DDD6C5" fill="none" stroke-width="1">${gradesHtml}</g>
         <g stroke="#C3BBA8" stroke-width="1">${linhasHtml}</g>
         <polygon points="${pontosData}" fill="rgba(61,77,63,0.18)" stroke="#3D4D3F" stroke-width="2.5"/>
         <g fill="#2A3A2C">${circulosHtml}</g>
-        <g font-family="Inter Tight, sans-serif" font-size="10" fill="#4A524C" font-weight="600">${labelsHtml}</g>
+        <g font-family="Inter Tight, sans-serif" font-size="9" fill="#4A524C" font-weight="600">${labelsHtml}</g>
       </svg>
     `;
 
