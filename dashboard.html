@@ -296,6 +296,94 @@
     margin-top: 4px;
   }
 
+  /* ═══════════ NOVO PACIENTE ═══════════ */
+  .novo-paciente-card {
+    background: var(--bg-card); border-radius: 18px; padding: 24px;
+    box-shadow: var(--shadow); margin-bottom: 24px;
+    border-left: 4px solid var(--moss);
+  }
+  .novo-paciente-header {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 18px;
+  }
+  .novo-paciente-icon {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: var(--cream); color: var(--moss);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 600;
+  }
+  .novo-paciente-title {
+    font-family: 'Fraunces', serif; font-size: 20px; color: var(--ink); font-weight: 500;
+  }
+  .novo-paciente-title em { color: var(--moss); font-style: italic; }
+  .novo-paciente-sub { font-size: 13px; color: var(--ink-mute); margin-top: 2px; }
+  .novo-paciente-form {
+    display: flex; gap: 10px; align-items: stretch;
+  }
+  .np-input {
+    flex: 1;
+    padding: 13px 18px;
+    background: var(--bg);
+    border: 1.5px solid var(--line);
+    border-radius: 12px;
+    font-family: 'Inter Tight', sans-serif; font-size: 15px;
+    color: var(--ink);
+    transition: border-color 0.2s;
+  }
+  .np-input:focus { outline: none; border-color: var(--moss); }
+  @media (max-width: 600px) { .novo-paciente-form { flex-direction: column; } }
+
+  .novo-paciente-result {
+    margin-top: 18px; padding: 18px;
+    background: linear-gradient(135deg, var(--cream), rgba(184,146,74,0.12));
+    border-radius: 14px;
+    border: 1px solid var(--gold-soft);
+    animation: slideDown 0.3s;
+  }
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .np-result-header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 10px;
+  }
+  .np-result-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.08em; color: var(--moss); font-weight: 600;
+  }
+  .np-result-code {
+    font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 600;
+    color: var(--moss-deep); letter-spacing: 0.1em;
+  }
+  .np-result-link {
+    background: var(--bg-card); padding: 10px 14px; border-radius: 10px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11.5px;
+    color: var(--ink); word-break: break-all; margin-bottom: 12px;
+  }
+  .np-result-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn-sm {
+    background: var(--moss); color: var(--cream);
+    border: none; padding: 8px 14px; border-radius: 100px;
+    font-family: 'Inter Tight', sans-serif; font-size: 12.5px; font-weight: 500;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .btn-sm:hover { background: var(--moss-deep); transform: translateY(-1px); }
+  .btn-sm-secondary {
+    background: var(--bg-warm); color: var(--ink);
+  }
+  .btn-sm-secondary:hover { background: var(--line); }
+
+  .patient-action {
+    background: var(--bg-warm); border: none;
+    padding: 8px 14px; border-radius: 100px;
+    font-family: 'Inter Tight', sans-serif; font-size: 12.5px; font-weight: 500;
+    color: var(--ink); cursor: pointer; transition: all 0.2s;
+    margin-left: 6px;
+  }
+  .patient-action:hover { background: var(--line); }
+  .patient-action.primary { background: var(--moss); color: var(--cream); }
+  .patient-action.primary:hover { background: var(--moss-deep); }
+
   /* RADAR */
   .radar-card {
     background: var(--bg-card); border-radius: 18px; padding: 24px;
@@ -560,9 +648,15 @@
 
   <!-- CONFIG (escondido por padrão) -->
   <div class="config-bar" id="configBar">
-    <div style="font-size: 13px; color: var(--ink-soft); font-weight: 500;">URL do Apps Script:</div>
+    <div style="font-size: 13px; color: var(--ink-soft); font-weight: 600; margin-bottom: 4px;">⚙️ Configurações</div>
+
+    <div style="font-size: 12px; color: var(--ink-soft); margin-top: 12px;">1) URL do Apps Script (backend):</div>
     <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/.../exec" />
-    <button class="btn primary" style="margin-top: 10px;" onclick="salvarConfig()">Salvar e conectar</button>
+
+    <div style="font-size: 12px; color: var(--ink-soft); margin-top: 12px;">2) URL do questionário (frontend):</div>
+    <input type="text" id="questUrlInput" placeholder="https://eduardomedani.github.io/nutrimap/" />
+
+    <button class="btn primary" style="margin-top: 12px;" onclick="salvarConfig()">Salvar e conectar</button>
   </div>
 
   <!-- ═══════════ VIEW 1: LISTA DE PACIENTES ═══════════ -->
@@ -584,6 +678,35 @@
       <div class="stat-card">
         <div class="stat-value" id="stat-taxa">—</div>
         <div class="stat-label">Taxa conclusão</div>
+      </div>
+    </div>
+
+    <!-- ➕ Novo Paciente -->
+    <div class="novo-paciente-card">
+      <div class="novo-paciente-header">
+        <div class="novo-paciente-icon">➕</div>
+        <div>
+          <div class="novo-paciente-title">Cadastrar <em>novo paciente</em></div>
+          <div class="novo-paciente-sub">Gere um código único e envie o link pelo WhatsApp</div>
+        </div>
+      </div>
+      <div class="novo-paciente-form">
+        <input type="text" id="novoPacienteNome" placeholder="Nome do paciente (opcional)" class="np-input" />
+        <button class="btn primary" id="btnGerar" onclick="gerarCodigo()">Gerar código →</button>
+      </div>
+      <div class="novo-paciente-result" id="resultGerado" style="display: none;">
+        <div class="np-result-header">
+          <span class="np-result-label">✓ Código gerado</span>
+          <span class="np-result-code" id="resultCode">—</span>
+        </div>
+        <div class="np-result-link">
+          <span class="np-link-text" id="resultLink">—</span>
+        </div>
+        <div class="np-result-actions">
+          <button class="btn-sm" onclick="copiarLinkGerado()">📋 Copiar link</button>
+          <button class="btn-sm" onclick="enviarWhatsappGerado()">💬 WhatsApp</button>
+          <button class="btn-sm btn-sm-secondary" onclick="abrirLinkGerado()">👁 Pré-visualizar</button>
+        </div>
       </div>
     </div>
 
@@ -614,8 +737,20 @@
   // CONFIGURAÇÃO
   // ═══════════════════════════════════════════════════════════
   const API_URL_KEY = 'nutrimap_dashboard_api_url';
+  const QUEST_URL_KEY = 'nutrimap_dashboard_quest_url';
   let apiUrl = localStorage.getItem(API_URL_KEY) || '';
+  let questionarioUrl = localStorage.getItem(QUEST_URL_KEY) || detectarUrlQuestionario();
   let todosPacientes = [];
+  let ultimoCodigoGerado = null;
+
+  function detectarUrlQuestionario() {
+    let url = window.location.href.split('?')[0].split('#')[0];
+    // Remover o nome do arquivo (dashboard.html, admin.html, etc) para ficar só a pasta
+    if (url.match(/\/[^\/]+\.html$/)) {
+      url = url.replace(/\/[^\/]+\.html$/, '/');
+    }
+    return url;
+  }
 
   // ═══════════════════════════════════════════════════════════
   // UI HELPERS
@@ -632,9 +767,14 @@
 
   function salvarConfig() {
     const url = document.getElementById('apiUrlInput').value.trim();
+    const quest = document.getElementById('questUrlInput').value.trim();
     if (!url) { alert('Cole a URL do Apps Script'); return; }
     apiUrl = url;
     localStorage.setItem(API_URL_KEY, url);
+    if (quest) {
+      questionarioUrl = quest;
+      localStorage.setItem(QUEST_URL_KEY, quest);
+    }
     document.getElementById('configBar').classList.remove('show');
     carregarPacientes();
   }
@@ -707,6 +847,9 @@
       const iniciais = (p.nome || '?').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
       const status = (p.status || 'aguardando').toLowerCase();
       const podeAbrir = status === 'completo';
+      const acaoPrincipal = podeAbrir
+        ? `<button class="patient-action primary" onclick="event.stopPropagation(); abrirRelatorio('${p.codigo}')" title="Ver relatório">👁 Ver</button>`
+        : `<button class="patient-action" onclick="event.stopPropagation(); copiarLinkPaciente('${p.codigo}')" title="Copiar link">📋 Link</button>`;
 
       return `
         <div class="patient-row" onclick="${podeAbrir ? `abrirRelatorio('${p.codigo}')` : `avisarIncompleto()`}">
@@ -717,7 +860,7 @@
           </div>
           <span class="patient-code">${p.codigo}</span>
           <span class="status-tag status-${status}">${status}</span>
-          <span class="patient-arrow">→</span>
+          ${acaoPrincipal}
         </div>
       `;
     }).join('') + '</div>';
@@ -741,6 +884,88 @@
     const d = new Date(data);
     if (isNaN(d.getTime())) return String(data);
     return d.toLocaleDateString('pt-BR');
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // GERAR NOVO CÓDIGO DE PACIENTE
+  // ═══════════════════════════════════════════════════════════
+  async function gerarCodigo() {
+    if (!apiUrl) {
+      alert('Configure a URL do Apps Script primeiro (botão ⚙️ Config)');
+      document.getElementById('configBar').classList.add('show');
+      return;
+    }
+
+    const btn = document.getElementById('btnGerar');
+    const nomeInput = document.getElementById('novoPacienteNome');
+    const nome = nomeInput.value.trim();
+
+    btn.disabled = true;
+    btn.textContent = 'Gerando...';
+
+    try {
+      const resp = await fetch(apiUrl, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'gerar_codigo', nome: nome })
+      });
+      const data = await resp.json();
+
+      if (data.ok) {
+        const codigo = data.codigo;
+        const linkCompleto = questionarioUrl + (questionarioUrl.endsWith('/') ? '' : '/') + '?p=' + codigo;
+        ultimoCodigoGerado = { codigo, link: linkCompleto, nome };
+
+        document.getElementById('resultCode').textContent = codigo;
+        document.getElementById('resultLink').textContent = linkCompleto;
+        document.getElementById('resultGerado').style.display = 'block';
+        nomeInput.value = '';
+
+        // Atualizar lista
+        setTimeout(carregarPacientes, 500);
+      } else {
+        alert('Erro ao gerar código: ' + (data.erro || 'desconhecido'));
+      }
+    } catch (erro) {
+      console.error(erro);
+      alert('Falha de conexão ao gerar código');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Gerar código →';
+    }
+  }
+
+  function copiarLinkGerado() {
+    if (!ultimoCodigoGerado) return;
+    navigator.clipboard.writeText(ultimoCodigoGerado.link);
+    const btn = event.target;
+    const txtOriginal = btn.textContent;
+    btn.textContent = '✓ Copiado!';
+    setTimeout(() => btn.textContent = txtOriginal, 1500);
+  }
+
+  function abrirLinkGerado() {
+    if (!ultimoCodigoGerado) return;
+    window.open(ultimoCodigoGerado.link, '_blank');
+  }
+
+  function enviarWhatsappGerado() {
+    if (!ultimoCodigoGerado) return;
+    const nome = ultimoCodigoGerado.nome ? ultimoCodigoGerado.nome.split(' ')[0] + ', ' : '';
+    const msg = encodeURIComponent(
+      `Oi ${nome}aqui está seu questionário pré-consulta nutricional:\n\n${ultimoCodigoGerado.link}\n\nLeva entre 15 e 25 minutos. As respostas são salvas automaticamente — pode pausar e voltar quando quiser. 🌿`
+    );
+    window.open(`https://wa.me/?text=${msg}`, '_blank');
+  }
+
+  function copiarLinkPaciente(codigo) {
+    const link = questionarioUrl + (questionarioUrl.endsWith('/') ? '' : '/') + '?p=' + codigo;
+    navigator.clipboard.writeText(link);
+    // Toast simples
+    const toast = document.createElement('div');
+    toast.textContent = '✓ Link copiado: ' + codigo;
+    toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:var(--moss-deep);color:var(--cream);padding:12px 18px;border-radius:10px;font-size:13px;z-index:1000;box-shadow:0 8px 30px rgba(0,0,0,0.15);';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2000);
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -1523,8 +1748,11 @@
   // INIT
   // ═══════════════════════════════════════════════════════════
   document.addEventListener('DOMContentLoaded', () => {
+    // Preencher campos de config
+    if (apiUrl) document.getElementById('apiUrlInput').value = apiUrl;
+    if (questionarioUrl) document.getElementById('questUrlInput').value = questionarioUrl;
+
     if (apiUrl) {
-      document.getElementById('apiUrlInput').value = apiUrl;
       carregarPacientes();
     } else {
       atualizarStatus('error', 'Configure a URL');
