@@ -599,6 +599,31 @@
           <div class="checkbox-option"><input type="checkbox" id="q3_1_opt19" name="q3_1" value="Outras"><label for="q3_1_opt19">Outras</label></div>
         </div>
       </div>
+
+      <!-- 🆕 Cirurgia prévia -->
+      <div class="question">
+        <label class="question-label">Já fez alguma cirurgia?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q3_2_opt1" name="q3_2" value="Não" required onchange="toggleConditional('q3_2_cond', false)"><label for="q3_2_opt1">Não, nunca</label></div>
+          <div class="radio-option"><input type="radio" id="q3_2_opt2" name="q3_2" value="Sim" onchange="toggleConditional('q3_2_cond', true)"><label for="q3_2_opt2">Sim</label></div>
+        </div>
+        <div id="q3_2_cond" class="conditional">
+          <label class="question-label" for="q3_2_detalhe">Qual cirurgia e quando?</label>
+          <textarea id="q3_2_detalhe" class="textarea" placeholder="Ex: Bariátrica em 2020, apendicite em 2015..."></textarea>
+        </div>
+      </div>
+
+      <!-- 🆕 Dificuldade de deglutição -->
+      <div class="question">
+        <label class="question-label">Tem dificuldade para deglutir (engolir)?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q3_4_opt1" name="q3_4" value="Não" required><label for="q3_4_opt1">Não, sem problemas</label></div>
+          <div class="radio-option"><input type="radio" id="q3_4_opt2" name="q3_4" value="Líquidos"><label for="q3_4_opt2">Sim, com líquidos</label></div>
+          <div class="radio-option"><input type="radio" id="q3_4_opt3" name="q3_4" value="Sólidos"><label for="q3_4_opt3">Sim, com sólidos</label></div>
+          <div class="radio-option"><input type="radio" id="q3_4_opt4" name="q3_4" value="Ambos"><label for="q3_4_opt4">Sim, com ambos</label></div>
+        </div>
+      </div>
+
       <div class="question"><label class="question-label" for="q3_3">Medicamentos<span class="required">*</span></label><textarea id="q3_3" class="textarea" placeholder="Liste ou: Nenhum" required></textarea></div>
       <div class="section-divider">Exames</div>
       <div class="question">
@@ -742,6 +767,20 @@
         <label class="question-label" for="q5_7">Horário de trabalho<span class="required">*</span></label>
         <input type="text" id="q5_7" class="input" placeholder="Ex: 08h às 17h, ou turnos noturnos" required>
         <p class="question-helper">Importante para definir o melhor horário das refeições</p>
+      </div>
+
+      <!-- 🆕 Rotina de refeições no trabalho -->
+      <div class="question">
+        <label class="question-label">Como é sua rotina de refeições no trabalho?<span class="required">*</span></label>
+        <p class="question-helper">Marque todas que se aplicam</p>
+        <div class="checkbox-group">
+          <div class="checkbox-option"><input type="checkbox" id="q5_7b_opt1" name="q5_7b" value="Horários normais"><label for="q5_7b_opt1">Consigo fazer todas as refeições nos horários normais</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q5_7b_opt2" name="q5_7b" value="Flexíveis"><label for="q5_7b_opt2">Tenho horários flexíveis para comer</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q5_7b_opt3" name="q5_7b" value="Pulo refeições"><label for="q5_7b_opt3">Pulo refeições por falta de tempo</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q5_7b_opt4" name="q5_7b" value="Irregulares"><label for="q5_7b_opt4">Como em horários muito irregulares</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q5_7b_opt5" name="q5_7b" value="Plantão/turnos"><label for="q5_7b_opt5">Trabalho com plantão / turnos variáveis</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q5_7b_opt6" name="q5_7b" value="Marmita/refeitório"><label for="q5_7b_opt6">Faço refeições no trabalho (marmita / refeitório)</label></div>
+        </div>
       </div>
 
       <div class="question">
@@ -2198,7 +2237,7 @@
   // ════════════════════════════════════════════════════
   // ⚠️ IMPORTANTE: substitua a string abaixo pela URL do seu Apps Script
   // Como obter: Implantar → Nova implantação → Aplicativo da Web → Copiar URL
-  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwwezhVaMcEoTxjI3oVj7jL_5o_zzNKAaBEvE9Y8-EmrqRFn03SnX87U5XyEW5kz8O28w/exec';
+  const APPS_SCRIPT_URL = 'COLE_AQUI_A_URL_DO_APPS_SCRIPT';
 
   const TOTAL_MODULES = 13;
   let currentModule = 1;
