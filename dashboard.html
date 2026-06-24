@@ -1316,6 +1316,29 @@
       if (pat.includes('renal') || pat.includes('rim')) flags.push({ tipo: 'Questão renal', detalhe: 'Cautela com proteína', nivel: 'alto' });
     }
 
+    // 🆕 Dificuldade de deglutição
+    if (m.m3 && m.m3.q3_4_deglutição && m.m3.q3_4_deglutição !== 'Não') {
+      flags.push({
+        tipo: 'Dificuldade de deglutição',
+        detalhe: `Com ${m.m3.q3_4_deglutição.toLowerCase()} — adaptar texturas`,
+        nivel: 'alto'
+      });
+    }
+
+    // 🆕 Cirurgia prévia relevante
+    if (m.m3 && m.m3.q3_2_cirurgia === 'Sim' && m.m3.q3_2_detalhe) {
+      const cir = String(m.m3.q3_2_detalhe).toLowerCase();
+      if (cir.includes('bariátrica') || cir.includes('bariatrica') ||
+          cir.includes('gástrica') || cir.includes('gastrica') ||
+          cir.includes('intestinal') || cir.includes('bypass')) {
+        flags.push({
+          tipo: 'Cirurgia digestiva prévia',
+          detalhe: 'Impacta absorção — revisar suplementação',
+          nivel: 'alto'
+        });
+      }
+    }
+
     // Ultraprocessados/fast-food frequentes
     if (m.m9) {
       const freqRuim = ['Diariamente', '+1x/dia', '5-6x/sem'];
@@ -1631,9 +1654,14 @@
 
     // Histórico clínico
     if (m.m3) {
+      const cirurgiaDisplay = m.m3.q3_2_cirurgia === 'Sim'
+        ? `Sim — ${m.m3.q3_2_detalhe || '(sem detalhes)'}`
+        : (m.m3.q3_2_cirurgia || null);
       html += secaoCard('🩺 Histórico Clínico', [
         ['Patologias', m.m3.q3_1_patologias],
+        ['Cirurgia prévia', cirurgiaDisplay],
         ['Medicamentos', m.m3.q3_3_medicamentos],
+        ['Deglutição', m.m3.q3_4_deglutição],
         ['Alergias/intolerâncias', m.m3.q3_5_alergias],
         ['Exames', (m.m3exames && m.m3exames.length) ? m.m3exames.length + ' arquivo(s) enviado(s)' : 'Nenhum']
       ]);
@@ -1643,6 +1671,8 @@
     if (m.m5) {
       html += secaoCard('🏠 Estilo de Vida', [
         ['Quem cozinha', m.m5.q5_4_quem_cozinha],
+        ['Horário de trabalho', m.m5.q5_7_horario_trabalho],
+        ['Rotina refeições no trabalho', m.m5.q5_7b_rotina_trabalho],
         ['Nível de estresse', m.m5.q5_8_estresse],
         ['Fuma', m.m5.q5_9_fuma],
         ['Álcool', m.m5.q5_10_alcool],
