@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NutriMap · Painel do Nutricionista</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --bg: #F4F1EA;
@@ -25,7 +24,6 @@
     --rose: #A8534A;
     --cream: #F8F1DD;
     --line: #DDD6C5;
-    --line-strong: #C3BBA8;
     --shadow: 0 4px 20px rgba(60,80,60,0.06);
     --shadow-lg: 0 10px 30px rgba(60,80,60,0.08);
   }
@@ -45,463 +43,108 @@
   }
 
   /* ═══════════ TELA DE LOGIN ═══════════ */
-  .auth-wrapper {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-  }
-  .auth-card {
-    background: var(--bg-card);
-    border-radius: 24px;
-    padding: 40px;
-    width: 100%;
-    max-width: 440px;
-    box-shadow: var(--shadow-lg);
-  }
-  .auth-brand {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    margin-bottom: 32px;
-    justify-content: center;
-  }
-  .brand-mark {
-    width: 48px; height: 48px;
-    background: linear-gradient(135deg, var(--moss), var(--olive));
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    color: var(--cream);
-    font-family: 'Fraunces', serif;
-    font-size: 22px; font-weight: 600; font-style: italic;
-  }
-  .brand-name-large {
-    font-family: 'Fraunces', serif;
-    font-size: 32px; color: var(--ink); font-weight: 500;
-    letter-spacing: -0.01em;
-  }
+  .auth-wrapper { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .auth-card { background: var(--bg-card); border-radius: 24px; padding: 40px; width: 100%; max-width: 440px; box-shadow: var(--shadow-lg); }
+  .auth-brand { display: flex; align-items: center; gap: 14px; margin-bottom: 32px; justify-content: center; }
+  .brand-mark { width: 48px; height: 48px; background: linear-gradient(135deg, var(--moss), var(--olive)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--cream); font-family: 'Fraunces', serif; font-size: 22px; font-weight: 600; font-style: italic; }
+  .brand-name-large { font-family: 'Fraunces', serif; font-size: 32px; color: var(--ink); font-weight: 500; }
   .brand-name-large em { color: var(--moss); font-style: italic; font-weight: 400; }
+  .auth-title { font-family: 'Fraunces', serif; font-size: 24px; color: var(--moss-deep); text-align: center; margin-bottom: 8px; font-weight: 500; }
+  .auth-sub { text-align: center; color: var(--ink-mute); margin-bottom: 28px; font-size: 13.5px; }
+  .auth-tabs { display: flex; background: var(--bg); border-radius: 100px; padding: 4px; margin-bottom: 24px; }
+  .auth-tab { flex: 1; padding: 10px 18px; border-radius: 100px; text-align: center; cursor: pointer; font-size: 13.5px; font-weight: 500; color: var(--ink-soft); transition: all 0.2s; }
+  .auth-tab.active { background: var(--moss); color: var(--cream); }
+  .form-group { margin-bottom: 16px; }
+  .form-label { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); margin-bottom: 6px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.04em; }
+  .form-input { width: 100%; padding: 13px 16px; background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; font-family: 'Inter Tight', sans-serif; font-size: 15px; color: var(--ink); transition: border-color 0.2s; }
+  .form-input:focus { outline: none; border-color: var(--moss); }
+  .form-btn { width: 100%; padding: 14px; background: var(--moss); color: var(--cream); border: none; border-radius: 12px; font-family: 'Inter Tight', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; margin-top: 8px; }
+  .form-btn:hover:not(:disabled) { background: var(--moss-deep); transform: translateY(-1px); }
+  .form-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .form-error { background: rgba(168,83,74,0.1); border-left: 3px solid var(--rose); color: var(--rose); padding: 12px 14px; border-radius: 10px; font-size: 13px; margin-top: 12px; display: none; }
+  .form-success { background: rgba(135,160,130,0.15); border-left: 3px solid var(--sage); color: var(--moss-deep); padding: 12px 14px; border-radius: 10px; font-size: 13px; margin-top: 12px; display: none; }
+  .auth-footer { text-align: center; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-mute); }
 
-  .auth-title {
-    font-family: 'Fraunces', serif;
-    font-size: 24px; color: var(--moss-deep);
-    text-align: center;
-    margin-bottom: 8px;
-    font-weight: 500;
-  }
-  .auth-sub {
-    text-align: center;
-    color: var(--ink-mute);
-    margin-bottom: 28px;
-    font-size: 13.5px;
-  }
-  .auth-tabs {
-    display: flex;
-    background: var(--bg);
-    border-radius: 100px;
-    padding: 4px;
-    margin-bottom: 24px;
-  }
-  .auth-tab {
-    flex: 1;
-    padding: 10px 18px;
-    border-radius: 100px;
-    text-align: center;
-    cursor: pointer;
-    font-size: 13.5px;
-    font-weight: 500;
-    color: var(--ink-soft);
-    transition: all 0.2s;
-  }
-  .auth-tab.active {
-    background: var(--moss);
-    color: var(--cream);
-  }
-  .form-group {
-    margin-bottom: 16px;
-  }
-  .form-label {
-    display: block;
-    font-size: 12.5px;
-    font-weight: 600;
-    color: var(--ink-soft);
-    margin-bottom: 6px;
-    font-family: 'JetBrains Mono', monospace;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  .form-input {
-    width: 100%;
-    padding: 13px 16px;
-    background: var(--bg);
-    border: 1.5px solid var(--line);
-    border-radius: 12px;
-    font-family: 'Inter Tight', sans-serif;
-    font-size: 15px;
-    color: var(--ink);
-    transition: border-color 0.2s;
-  }
-  .form-input:focus {
-    outline: none;
-    border-color: var(--moss);
-  }
-  .form-btn {
-    width: 100%;
-    padding: 14px;
-    background: var(--moss);
-    color: var(--cream);
-    border: none;
-    border-radius: 12px;
-    font-family: 'Inter Tight', sans-serif;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    margin-top: 8px;
-  }
-  .form-btn:hover:not(:disabled) {
-    background: var(--moss-deep);
-    transform: translateY(-1px);
-  }
-  .form-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  .form-error {
-    background: rgba(168,83,74,0.1);
-    border-left: 3px solid var(--rose);
-    color: var(--rose);
-    padding: 12px 14px;
-    border-radius: 10px;
-    font-size: 13px;
-    margin-top: 12px;
-    display: none;
-  }
-  .form-success {
-    background: rgba(135,160,130,0.15);
-    border-left: 3px solid var(--sage);
-    color: var(--moss-deep);
-    padding: 12px 14px;
-    border-radius: 10px;
-    font-size: 13px;
-    margin-top: 12px;
-    display: none;
-  }
-  .auth-footer {
-    text-align: center;
-    margin-top: 24px;
-    padding-top: 20px;
-    border-top: 1px solid var(--line);
-    font-size: 12px;
-    color: var(--ink-mute);
-  }
-
-  /* ═══════════ DASHBOARD (depois do login) ═══════════ */
-  .dashboard {
-    display: none;
-    padding: 24px 32px;
-  }
-  .dashboard.active {
-    display: block;
-  }
+  /* ═══════════ DASHBOARD ═══════════ */
+  .dashboard { display: none; padding: 24px 32px; }
+  .dashboard.active { display: block; }
   .page { max-width: 1600px; margin: 0 auto; }
+  @media (min-width: 1400px) { .dashboard { padding: 32px 48px; } }
 
-  @media (min-width: 1400px) {
-    .dashboard { padding: 32px 48px; }
-  }
-
-  /* TOPBAR */
-  .topbar {
-    background: var(--bg-card);
-    border-radius: 20px;
-    padding: 18px 28px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
-    box-shadow: var(--shadow);
-    flex-wrap: wrap;
-    gap: 14px;
-  }
+  .topbar { background: var(--bg-card); border-radius: 20px; padding: 18px 28px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; box-shadow: var(--shadow); flex-wrap: wrap; gap: 14px; }
   .brand { display: flex; align-items: center; gap: 14px; }
-  .brand-mark-sm {
-    width: 38px; height: 38px;
-    background: linear-gradient(135deg, var(--moss), var(--olive));
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    color: var(--cream);
-    font-family: 'Fraunces', serif;
-    font-size: 18px; font-weight: 600; font-style: italic;
-  }
-  .brand-name {
-    font-family: 'Fraunces', serif;
-    font-size: 24px; color: var(--ink); font-weight: 500;
-    letter-spacing: -0.01em;
-  }
+  .brand-mark-sm { width: 38px; height: 38px; background: linear-gradient(135deg, var(--moss), var(--olive)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--cream); font-family: 'Fraunces', serif; font-size: 18px; font-weight: 600; font-style: italic; }
+  .brand-name { font-family: 'Fraunces', serif; font-size: 24px; color: var(--ink); font-weight: 500; }
   .brand-name em { color: var(--moss); font-style: italic; font-weight: 400; }
-  .brand-sub {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; color: var(--moss);
-    text-transform: uppercase; letter-spacing: 0.1em;
-    margin-top: 1px; font-weight: 600;
-  }
+  .brand-sub { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--moss); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 1px; font-weight: 600; }
   .topbar-actions { display: flex; gap: 10px; align-items: center; }
+  .user-info { display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: var(--bg); border-radius: 100px; font-size: 13px; color: var(--ink-soft); }
+  .user-avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, var(--sage), var(--moss-light)); color: var(--cream); display: flex; align-items: center; justify-content: center; font-family: 'Fraunces', serif; font-size: 13px; font-weight: 600; }
 
-  .user-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 14px;
-    background: var(--bg);
-    border-radius: 100px;
-    font-size: 13px;
-    color: var(--ink-soft);
-  }
-  .user-avatar {
-    width: 28px; height: 28px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--sage), var(--moss-light));
-    color: var(--cream);
-    display: flex; align-items: center; justify-content: center;
-    font-family: 'Fraunces', serif;
-    font-size: 13px;
-    font-weight: 600;
-  }
-
-  .btn {
-    background: var(--bg-warm); border: none; color: var(--ink);
-    padding: 10px 20px; border-radius: 100px;
-    font-family: 'Inter Tight', sans-serif;
-    font-size: 13px; font-weight: 500; cursor: pointer;
-    transition: all 0.2s;
-  }
+  .btn { background: var(--bg-warm); border: none; color: var(--ink); padding: 10px 20px; border-radius: 100px; font-family: 'Inter Tight', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
   .btn:hover { background: var(--line); transform: translateY(-1px); }
   .btn.primary { background: var(--moss); color: var(--cream); }
   .btn.primary:hover { background: var(--moss-deep); }
   .btn.danger { background: rgba(168,83,74,0.15); color: var(--rose); }
 
-  .view { display: none; }
-  .view.active { display: block; animation: fadeIn 0.4s; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+  .stat-card { background: var(--bg-card); border-radius: 16px; padding: 18px 20px; box-shadow: var(--shadow); }
+  .stat-value { font-family: 'Fraunces', serif; font-size: 32px; color: var(--moss-deep); font-weight: 600; line-height: 1; }
+  .stat-label { font-size: 12px; color: var(--ink-mute); margin-top: 6px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.05em; }
 
-  .stats-row {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 14px;
-    margin-bottom: 24px;
-  }
-  .stat-card {
-    background: var(--bg-card);
-    border-radius: 16px;
-    padding: 18px 20px;
-    box-shadow: var(--shadow);
-  }
-  .stat-value {
-    font-family: 'Fraunces', serif;
-    font-size: 32px; color: var(--moss-deep); font-weight: 600;
-    line-height: 1;
-  }
-  .stat-label {
-    font-size: 12px; color: var(--ink-mute);
-    margin-top: 6px;
-    font-family: 'JetBrains Mono', monospace;
-    text-transform: uppercase; letter-spacing: 0.05em;
-  }
-
-  /* NOVO PACIENTE */
-  .novo-paciente-card {
-    background: var(--bg-card); border-radius: 18px; padding: 24px;
-    box-shadow: var(--shadow); margin-bottom: 24px;
-    border-left: 4px solid var(--moss);
-  }
-  .novo-paciente-header {
-    display: flex; align-items: center; gap: 14px; margin-bottom: 18px;
-  }
-  .novo-paciente-icon {
-    width: 42px; height: 42px; border-radius: 50%;
-    background: var(--cream); color: var(--moss);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 20px; font-weight: 600;
-  }
-  .novo-paciente-title {
-    font-family: 'Fraunces', serif; font-size: 20px; color: var(--ink); font-weight: 500;
-  }
+  .novo-paciente-card { background: var(--bg-card); border-radius: 18px; padding: 24px; box-shadow: var(--shadow); margin-bottom: 24px; border-left: 4px solid var(--moss); }
+  .novo-paciente-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  .novo-paciente-icon { width: 42px; height: 42px; border-radius: 50%; background: var(--cream); color: var(--moss); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 600; }
+  .novo-paciente-title { font-family: 'Fraunces', serif; font-size: 20px; color: var(--ink); font-weight: 500; }
   .novo-paciente-title em { color: var(--moss); font-style: italic; }
   .novo-paciente-sub { font-size: 13px; color: var(--ink-mute); margin-top: 2px; }
-  .novo-paciente-form {
-    display: flex; gap: 10px; align-items: stretch;
-  }
-  .np-input {
-    flex: 1;
-    padding: 13px 18px;
-    background: var(--bg);
-    border: 1.5px solid var(--line);
-    border-radius: 12px;
-    font-family: 'Inter Tight', sans-serif; font-size: 15px;
-    color: var(--ink);
-    transition: border-color 0.2s;
-  }
+  .novo-paciente-form { display: flex; gap: 10px; align-items: stretch; }
+  .np-input { flex: 1; padding: 13px 18px; background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; font-family: 'Inter Tight', sans-serif; font-size: 15px; color: var(--ink); transition: border-color 0.2s; }
   .np-input:focus { outline: none; border-color: var(--moss); }
   @media (max-width: 600px) { .novo-paciente-form { flex-direction: column; } }
-
-  .novo-paciente-result {
-    margin-top: 18px; padding: 18px;
-    background: linear-gradient(135deg, var(--cream), rgba(184,146,74,0.12));
-    border-radius: 14px;
-    border: 1px solid var(--gold-soft);
-    animation: slideDown 0.3s;
-  }
-  @keyframes slideDown {
-    from { opacity: 0; transform: translateY(-8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  .np-result-header {
-    display: flex; justify-content: space-between; align-items: baseline;
-    margin-bottom: 10px;
-  }
-  .np-result-label {
-    font-family: 'JetBrains Mono', monospace; font-size: 11px;
-    text-transform: uppercase; letter-spacing: 0.08em; color: var(--moss); font-weight: 600;
-  }
-  .np-result-code {
-    font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 600;
-    color: var(--moss-deep); letter-spacing: 0.1em;
-  }
-  .np-result-link {
-    background: var(--bg-card); padding: 10px 14px; border-radius: 10px;
-    font-family: 'JetBrains Mono', monospace; font-size: 11.5px;
-    color: var(--ink); word-break: break-all; margin-bottom: 12px;
-  }
+  .novo-paciente-result { margin-top: 18px; padding: 18px; background: linear-gradient(135deg, var(--cream), rgba(184,146,74,0.12)); border-radius: 14px; border: 1px solid var(--gold-soft); animation: slideDown 0.3s; }
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  .np-result-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .np-result-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--moss); font-weight: 600; }
+  .np-result-code { font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 600; color: var(--moss-deep); letter-spacing: 0.1em; }
+  .np-result-link { background: var(--bg-card); padding: 10px 14px; border-radius: 10px; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--ink); word-break: break-all; margin-bottom: 12px; }
   .np-result-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-  .btn-sm {
-    background: var(--moss); color: var(--cream);
-    border: none; padding: 8px 14px; border-radius: 100px;
-    font-family: 'Inter Tight', sans-serif; font-size: 12.5px; font-weight: 500;
-    cursor: pointer; transition: all 0.2s;
-  }
+  .btn-sm { background: var(--moss); color: var(--cream); border: none; padding: 8px 14px; border-radius: 100px; font-family: 'Inter Tight', sans-serif; font-size: 12.5px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
   .btn-sm:hover { background: var(--moss-deep); transform: translateY(-1px); }
-  .btn-sm-secondary {
-    background: var(--bg-warm); color: var(--ink);
-  }
-  .btn-sm-secondary:hover { background: var(--line); }
+  .btn-sm-secondary { background: var(--bg-warm); color: var(--ink); }
 
-  /* LIST */
-  .list-header {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-    gap: 14px;
-  }
-  .list-title {
-    font-family: 'Fraunces', serif;
-    font-size: 28px; color: var(--ink); font-weight: 500;
-  }
+  .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 14px; }
+  .list-title { font-family: 'Fraunces', serif; font-size: 28px; color: var(--ink); font-weight: 500; }
   .list-title em { color: var(--moss); font-style: italic; }
-
-  .search-box {
-    background: var(--bg-card);
-    border: 1.5px solid var(--line);
-    border-radius: 100px;
-    padding: 10px 18px;
-    display: flex; align-items: center; gap: 10px;
-    width: 320px;
-    max-width: 100%;
-  }
-  .search-box input {
-    border: none; background: none; outline: none;
-    font-family: 'Inter Tight', sans-serif; font-size: 14px;
-    color: var(--ink); width: 100%;
-  }
+  .search-box { background: var(--bg-card); border: 1.5px solid var(--line); border-radius: 100px; padding: 10px 18px; display: flex; align-items: center; gap: 10px; width: 320px; max-width: 100%; }
+  .search-box input { border: none; background: none; outline: none; font-family: 'Inter Tight', sans-serif; font-size: 14px; color: var(--ink); width: 100%; }
 
   .patients-grid { display: flex; flex-direction: column; gap: 10px; }
-  .patient-row {
-    background: var(--bg-card);
-    border-radius: 14px;
-    padding: 18px 22px;
-    display: flex; align-items: center; gap: 18px;
-    box-shadow: var(--shadow);
-    cursor: pointer;
-    transition: all 0.2s;
-    border: 1.5px solid transparent;
-    flex-wrap: wrap;
-  }
-  .patient-row:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
-    border-color: var(--sage);
-  }
-  .patient-avatar {
-    width: 46px; height: 46px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--sage), var(--moss-light));
-    color: var(--cream);
-    display: flex; align-items: center; justify-content: center;
-    font-family: 'Fraunces', serif; font-size: 18px; font-weight: 600;
-    flex-shrink: 0;
-  }
+  .patient-row { background: var(--bg-card); border-radius: 14px; padding: 18px 22px; display: flex; align-items: center; gap: 18px; box-shadow: var(--shadow); cursor: pointer; transition: all 0.2s; border: 1.5px solid transparent; flex-wrap: wrap; }
+  .patient-row:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); border-color: var(--sage); }
+  .patient-avatar { width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(135deg, var(--sage), var(--moss-light)); color: var(--cream); display: flex; align-items: center; justify-content: center; font-family: 'Fraunces', serif; font-size: 18px; font-weight: 600; flex-shrink: 0; }
   .patient-info { flex: 1; min-width: 120px; }
-  .patient-name {
-    font-size: 16px; font-weight: 600; color: var(--ink);
-  }
-  .patient-meta {
-    font-size: 12.5px; color: var(--ink-mute);
-    font-family: 'JetBrains Mono', monospace;
-    margin-top: 2px;
-  }
-  .patient-code {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px; color: var(--moss);
-    background: var(--cream);
-    padding: 4px 10px; border-radius: 8px;
-  }
-  .status-tag {
-    font-size: 11px; padding: 4px 12px; border-radius: 100px;
-    font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
-    font-family: 'JetBrains Mono', monospace;
-  }
+  .patient-name { font-size: 16px; font-weight: 600; color: var(--ink); }
+  .patient-meta { font-size: 12.5px; color: var(--ink-mute); font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+  .patient-code { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--moss); background: var(--cream); padding: 4px 10px; border-radius: 8px; }
+  .status-tag { font-size: 11px; padding: 4px 12px; border-radius: 100px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; font-family: 'JetBrains Mono', monospace; }
   .status-completo { background: rgba(135,160,130,0.2); color: var(--moss-deep); }
   .status-aguardando { background: rgba(184,146,74,0.15); color: var(--gold); }
-  .patient-action {
-    background: var(--bg-warm); border: none;
-    padding: 8px 14px; border-radius: 100px;
-    font-family: 'Inter Tight', sans-serif; font-size: 12.5px; font-weight: 500;
-    color: var(--ink); cursor: pointer; transition: all 0.2s;
-    margin-left: 6px;
-  }
+  .patient-action { background: var(--bg-warm); border: none; padding: 8px 14px; border-radius: 100px; font-family: 'Inter Tight', sans-serif; font-size: 12.5px; font-weight: 500; color: var(--ink); cursor: pointer; transition: all 0.2s; margin-left: 6px; }
   .patient-action:hover { background: var(--line); }
   .patient-action.primary { background: var(--moss); color: var(--cream); }
   .patient-action.primary:hover { background: var(--moss-deep); }
-  .patient-action-danger {
-    background: rgba(168,83,74,0.12);
-    color: var(--rose);
-    padding: 8px 10px;
-    font-size: 14px;
-  }
-  .patient-action-danger:hover {
-    background: var(--rose);
-    color: var(--cream);
-  }
+  .patient-action-danger { background: rgba(168,83,74,0.12); color: var(--rose); padding: 8px 10px; font-size: 14px; }
+  .patient-action-danger:hover { background: var(--rose); color: var(--cream); }
 
-  .empty-state {
-    text-align: center; padding: 60px 20px; color: var(--ink-mute);
-    background: var(--bg-card); border-radius: 16px;
-  }
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--ink-mute); background: var(--bg-card); border-radius: 16px; }
   .empty-state-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
 
-  .loading {
-    text-align: center; padding: 60px 20px; color: var(--ink-mute);
-  }
-  .spinner {
-    width: 36px; height: 36px;
-    border: 3px solid var(--line);
-    border-top-color: var(--moss);
-    border-radius: 50%;
-    margin: 0 auto 16px;
-    animation: spin 0.8s linear infinite;
-  }
+  .loading { text-align: center; padding: 60px 20px; color: var(--ink-mute); }
+  .spinner { width: 36px; height: 36px; border: 3px solid var(--line); border-top-color: var(--moss); border-radius: 50%; margin: 0 auto 16px; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* MOBILE */
   @media (max-width: 768px) {
     .dashboard { padding: 16px; }
     .stats-row { grid-template-columns: repeat(2, 1fr); gap: 10px; }
@@ -509,86 +152,30 @@
     .stat-value { font-size: 26px; }
     .stat-label { font-size: 10.5px; }
     .search-box { width: 100%; }
-
-    /* Topbar empilha */
-    .topbar {
-      padding: 16px 18px;
-      gap: 12px;
-    }
-    .topbar-actions {
-      width: 100%;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    .user-info {
-      flex: 1;
-      min-width: 0;
-      overflow: hidden;
-    }
-    .user-info span {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
+    .topbar { padding: 16px 18px; gap: 12px; }
+    .topbar-actions { width: 100%; justify-content: space-between; gap: 8px; }
+    .user-info { flex: 1; min-width: 0; overflow: hidden; }
+    .user-info span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .brand-name { font-size: 20px; }
-
-    /* Novo paciente */
     .novo-paciente-card { padding: 18px; }
     .novo-paciente-title { font-size: 17px; }
     .novo-paciente-sub { font-size: 12px; }
     .np-input { padding: 14px 16px; min-height: 48px; }
     .btn.primary { min-height: 48px; padding: 0 24px; }
-
-    /* Pacientes */
     .list-title { font-size: 22px; }
-    .patient-row {
-      padding: 14px 16px;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
+    .patient-row { padding: 14px 16px; gap: 12px; }
     .patient-avatar { width: 40px; height: 40px; font-size: 15px; }
     .patient-name { font-size: 15px; }
-    .patient-meta { font-size: 11.5px; }
     .patient-info { width: calc(100% - 52px); min-width: 0; }
-    .patient-info .patient-name {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    /* Linha de baixo: código + status + ações */
-    .patient-code,
-    .status-tag,
-    .patient-action {
-      margin-left: 0;
-    }
-    .patient-action {
-      min-height: 36px;
-      padding: 8px 16px;
-    }
-    .patient-action-danger {
-      min-height: 36px;
-      min-width: 44px;
-    }
-
-    /* Botões gerais touch */
-    .btn {
-      min-height: 40px;
-      padding: 0 16px;
-      font-size: 13px;
-    }
-
-    /* Resultado de gerar código */
+    .patient-info .patient-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .patient-code, .status-tag, .patient-action { margin-left: 0; }
+    .patient-action { min-height: 36px; padding: 8px 16px; }
+    .patient-action-danger { min-height: 36px; min-width: 44px; }
+    .btn { min-height: 40px; padding: 0 16px; font-size: 13px; }
     .np-result-code { font-size: 22px; }
     .np-result-link { font-size: 10.5px; padding: 10px; }
     .np-result-actions { gap: 6px; }
-    .btn-sm {
-      min-height: 38px;
-      padding: 0 14px;
-      flex: 1;
-      min-width: 0;
-    }
-
-    /* Auth (login/cadastro) */
+    .btn-sm { min-height: 38px; padding: 0 14px; flex: 1; min-width: 0; }
     .auth-wrapper { padding: 16px; }
     .auth-card { padding: 28px 22px; }
     .brand-name-large { font-size: 26px; }
@@ -596,22 +183,11 @@
     .form-input { min-height: 48px; }
     .form-btn { min-height: 48px; font-size: 15px; }
   }
-
-  @media (max-width: 420px) {
-    .stats-row { gap: 8px; }
-    .stat-value { font-size: 22px; }
-    .topbar { padding: 14px; }
-    .brand-mark-sm { width: 34px; height: 34px; font-size: 15px; }
-    .brand-name { font-size: 18px; }
-    .brand-sub { font-size: 9px; }
-    .user-info { padding: 6px 10px; font-size: 12px; }
-    .user-avatar { width: 24px; height: 24px; font-size: 11px; }
-  }
 </style>
 </head>
 <body>
 
-<!-- ═══════════ TELA DE LOGIN/CADASTRO ═══════════ -->
+<!-- TELA DE LOGIN -->
 <div class="auth-wrapper" id="authWrapper">
   <div class="auth-card">
     <div class="auth-brand">
@@ -623,12 +199,11 @@
     <div class="auth-sub" id="authSub">Entre para gerenciar seus pacientes</div>
 
     <div class="auth-tabs">
-      <div class="auth-tab active" id="tabLogin" onclick="trocarAba('login')">Entrar</div>
-      <div class="auth-tab" id="tabSignup" onclick="trocarAba('signup')">Criar conta</div>
+      <div class="auth-tab active" id="tabLogin">Entrar</div>
+      <div class="auth-tab" id="tabSignup">Criar conta</div>
     </div>
 
-    <!-- Formulário de login -->
-    <form id="formLogin" onsubmit="fazerLogin(event)">
+    <form id="formLogin">
       <div class="form-group">
         <label class="form-label">Email</label>
         <input type="email" class="form-input" id="loginEmail" required placeholder="seu@email.com">
@@ -641,8 +216,7 @@
       <div class="form-error" id="errorLogin"></div>
     </form>
 
-    <!-- Formulário de cadastro -->
-    <form id="formSignup" onsubmit="criarConta(event)" style="display: none;">
+    <form id="formSignup" style="display: none;">
       <div class="form-group">
         <label class="form-label">Nome completo</label>
         <input type="text" class="form-input" id="signupNome" required placeholder="Dr. Eduardo Medani">
@@ -666,10 +240,9 @@
   </div>
 </div>
 
-<!-- ═══════════ DASHBOARD ═══════════ -->
+<!-- DASHBOARD -->
 <div class="dashboard" id="dashboard">
   <div class="page">
-
     <div class="topbar">
       <div class="brand">
         <div class="brand-mark-sm">N</div>
@@ -683,102 +256,75 @@
           <div class="user-avatar" id="userAvatar">?</div>
           <span id="userName">—</span>
         </div>
-        <button class="btn" onclick="carregarPacientes()">🔄 Atualizar</button>
-        <button class="btn danger" onclick="fazerLogout()">Sair</button>
+        <button class="btn" id="btnAtualizar">🔄 Atualizar</button>
+        <button class="btn danger" id="btnLogout">Sair</button>
       </div>
     </div>
 
-    <div class="view active" id="view-lista">
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-value" id="stat-total">—</div><div class="stat-label">Total pacientes</div></div>
+      <div class="stat-card"><div class="stat-value" id="stat-completos">—</div><div class="stat-label">Completos</div></div>
+      <div class="stat-card"><div class="stat-value" id="stat-aguardando">—</div><div class="stat-label">Aguardando</div></div>
+      <div class="stat-card"><div class="stat-value" id="stat-taxa">—</div><div class="stat-label">Taxa conclusão</div></div>
+    </div>
 
-      <div class="stats-row">
-        <div class="stat-card">
-          <div class="stat-value" id="stat-total">—</div>
-          <div class="stat-label">Total pacientes</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value" id="stat-completos">—</div>
-          <div class="stat-label">Completos</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value" id="stat-aguardando">—</div>
-          <div class="stat-label">Aguardando</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value" id="stat-taxa">—</div>
-          <div class="stat-label">Taxa conclusão</div>
+    <div class="novo-paciente-card">
+      <div class="novo-paciente-header">
+        <div class="novo-paciente-icon">➕</div>
+        <div>
+          <div class="novo-paciente-title">Cadastrar <em>novo paciente</em></div>
+          <div class="novo-paciente-sub">Gere um código único e envie o link pelo WhatsApp</div>
         </div>
       </div>
-
-      <div class="novo-paciente-card">
-        <div class="novo-paciente-header">
-          <div class="novo-paciente-icon">➕</div>
-          <div>
-            <div class="novo-paciente-title">Cadastrar <em>novo paciente</em></div>
-            <div class="novo-paciente-sub">Gere um código único e envie o link pelo WhatsApp</div>
-          </div>
-        </div>
-        <div class="novo-paciente-form">
-          <input type="text" id="novoPacienteNome" placeholder="Nome do paciente (opcional)" class="np-input" />
-          <button class="btn primary" id="btnGerar" onclick="gerarCodigo()">Gerar código →</button>
-        </div>
-        <div class="novo-paciente-result" id="resultGerado" style="display: none;">
-          <div class="np-result-header">
-            <span class="np-result-label">✓ Código gerado</span>
-            <span class="np-result-code" id="resultCode">—</span>
-          </div>
-          <div class="np-result-link">
-            <span id="resultLink">—</span>
-          </div>
-          <div class="np-result-actions">
-            <button class="btn-sm" onclick="copiarLinkGerado()">📋 Copiar link</button>
-            <button class="btn-sm" onclick="enviarWhatsappGerado()">💬 WhatsApp</button>
-            <button class="btn-sm btn-sm-secondary" onclick="abrirLinkGerado()">👁 Pré-visualizar</button>
-          </div>
-        </div>
+      <div class="novo-paciente-form">
+        <input type="text" id="novoPacienteNome" placeholder="Nome do paciente (opcional)" class="np-input" />
+        <button class="btn primary" id="btnGerar">Gerar código →</button>
       </div>
-
-      <div class="list-header">
-        <div class="list-title">Seus <em>pacientes</em></div>
-        <div class="search-box">
-          🔍 <input type="text" id="searchInput" placeholder="Buscar por nome ou código..." oninput="filtrarPacientes()" />
+      <div class="novo-paciente-result" id="resultGerado" style="display: none;">
+        <div class="np-result-header">
+          <span class="np-result-label">✓ Código gerado</span>
+          <span class="np-result-code" id="resultCode">—</span>
         </div>
-      </div>
-
-      <div id="patientsContainer">
-        <div class="loading">
-          <div class="spinner"></div>
-          Carregando pacientes...
+        <div class="np-result-link" id="resultLink">—</div>
+        <div class="np-result-actions">
+          <button class="btn-sm" id="btnCopiar">📋 Copiar link</button>
+          <button class="btn-sm" id="btnWhatsapp">💬 WhatsApp</button>
+          <button class="btn-sm btn-sm-secondary" id="btnPreview">👁 Pré-visualizar</button>
         </div>
       </div>
     </div>
 
-    <div class="view" id="view-relatorio">
-      <!-- Conteúdo gerado dinamicamente -->
+    <div class="list-header">
+      <div class="list-title">Seus <em>pacientes</em></div>
+      <div class="search-box">
+        🔍 <input type="text" id="searchInput" placeholder="Buscar por nome ou código..." />
+      </div>
     </div>
 
+    <div id="patientsContainer">
+      <div class="loading"><div class="spinner"></div>Carregando pacientes...</div>
+    </div>
   </div>
 </div>
 
-<script>
+<script type="module">
   // ═══════════════════════════════════════════════════════════
-  // CONFIGURAÇÃO DO SUPABASE
+  // IMPORTS dos módulos centrais
   // ═══════════════════════════════════════════════════════════
-  const SUPABASE_URL = 'https://jdtpludqkpvhnzkekrgm.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpkdHBsdWRxa3B2aG56a2VrcmdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MzI4MTIsImV4cCI6MjA5ODMwODgxMn0.dgvZHm5sIGQqcC-ZpSsw8U-_ZlUQ49JHSwt4nE8VXu4';
-  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  import { QUESTIONARIO_URL } from './js/supabase.js';
+  import { fazerLogin, criarConta, fazerLogout, obterSessao, obterPerfilNutri, traduzirErroAuth } from './js/auth.js';
+  import { listarPacientes, criarPaciente, excluirPaciente, calcularEstatisticas } from './js/pacientes.js';
+  import { formatarData, iniciaisDoNome, copiarParaClipboard, mostrarToast, gerarLinkWhatsapp, montarMensagemQuestionario } from './js/utils.js';
 
-  // URL base do questionário (será preenchida automaticamente)
-  const QUESTIONARIO_URL = window.location.origin + window.location.pathname.replace(/dashboard\.html$/, '');
-
-  let usuarioAtual = null;
-  let perfilNutri = null;
+  // ═══════════════════════════════════════════════════════════
+  // ESTADO
+  // ═══════════════════════════════════════════════════════════
   let todosPacientes = [];
   let ultimoCodigoGerado = null;
 
   // ═══════════════════════════════════════════════════════════
-  // AUTENTICAÇÃO
+  // AUTENTICAÇÃO — UI
   // ═══════════════════════════════════════════════════════════
-
   function trocarAba(aba) {
     document.getElementById('tabLogin').classList.toggle('active', aba === 'login');
     document.getElementById('tabSignup').classList.toggle('active', aba === 'signup');
@@ -788,126 +334,90 @@
     document.getElementById('authSub').textContent = aba === 'login' ? 'Entre para gerenciar seus pacientes' : 'Comece a usar o NutriMap';
   }
 
-  async function fazerLogin(e) {
+  document.getElementById('tabLogin').addEventListener('click', () => trocarAba('login'));
+  document.getElementById('tabSignup').addEventListener('click', () => trocarAba('signup'));
+
+  document.getElementById('formLogin').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = document.getElementById('btnLogin');
     const error = document.getElementById('errorLogin');
     error.style.display = 'none';
-    btn.disabled = true;
-    btn.textContent = 'Entrando...';
+    btn.disabled = true; btn.textContent = 'Entrando...';
 
     try {
-      const { data, error: err } = await sb.auth.signInWithPassword({
-        email: document.getElementById('loginEmail').value,
-        password: document.getElementById('loginSenha').value
-      });
-
-      if (err) throw err;
-
-      usuarioAtual = data.user;
+      await fazerLogin(
+        document.getElementById('loginEmail').value,
+        document.getElementById('loginSenha').value
+      );
       await iniciarDashboard();
-    } catch (e) {
-      error.textContent = traduzirErro(e.message);
+    } catch (err) {
+      error.textContent = traduzirErroAuth(err.message);
       error.style.display = 'block';
     } finally {
-      btn.disabled = false;
-      btn.textContent = 'Entrar';
+      btn.disabled = false; btn.textContent = 'Entrar';
     }
-  }
+  });
 
-  async function criarConta(e) {
+  document.getElementById('formSignup').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = document.getElementById('btnSignup');
     const error = document.getElementById('errorSignup');
     const success = document.getElementById('successSignup');
-    error.style.display = 'none';
-    success.style.display = 'none';
-    btn.disabled = true;
-    btn.textContent = 'Criando...';
+    error.style.display = 'none'; success.style.display = 'none';
+    btn.disabled = true; btn.textContent = 'Criando...';
 
     try {
-      const { data, error: err } = await sb.auth.signUp({
+      const data = await criarConta({
+        nome: document.getElementById('signupNome').value,
         email: document.getElementById('signupEmail').value,
-        password: document.getElementById('signupSenha').value,
-        options: {
-          data: { nome: document.getElementById('signupNome').value }
-        }
+        senha: document.getElementById('signupSenha').value
       });
-
-      if (err) throw err;
-
       if (data.session) {
-        // Login automático
-        usuarioAtual = data.user;
         await iniciarDashboard();
       } else {
         success.textContent = '✓ Conta criada! Verifique seu email para confirmar.';
         success.style.display = 'block';
       }
-    } catch (e) {
-      error.textContent = traduzirErro(e.message);
+    } catch (err) {
+      error.textContent = traduzirErroAuth(err.message);
       error.style.display = 'block';
     } finally {
-      btn.disabled = false;
-      btn.textContent = 'Criar conta';
+      btn.disabled = false; btn.textContent = 'Criar conta';
     }
-  }
+  });
 
-  async function fazerLogout() {
+  document.getElementById('btnLogout').addEventListener('click', async () => {
     if (!confirm('Tem certeza que quer sair?')) return;
-    await sb.auth.signOut();
+    await fazerLogout();
     location.reload();
-  }
-
-  function traduzirErro(msg) {
-    const m = msg.toLowerCase();
-    if (m.includes('invalid login')) return 'Email ou senha incorretos';
-    if (m.includes('already registered')) return 'Este email já está cadastrado. Tente entrar.';
-    if (m.includes('password')) return 'Senha muito curta (mínimo 6 caracteres)';
-    if (m.includes('email')) return 'Email inválido';
-    return msg;
-  }
+  });
 
   // ═══════════════════════════════════════════════════════════
-  // DASHBOARD INIT
+  // DASHBOARD
   // ═══════════════════════════════════════════════════════════
   async function iniciarDashboard() {
     document.getElementById('authWrapper').style.display = 'none';
     document.getElementById('dashboard').classList.add('active');
 
-    // Carregar perfil do nutri
-    const { data: perfil } = await sb
-      .from('nutricionistas')
-      .select('*')
-      .eq('id', usuarioAtual.id)
-      .single();
-
-    if (perfil) {
-      perfilNutri = perfil;
-      document.getElementById('userName').textContent = perfil.nome || perfil.email;
-      document.getElementById('userAvatar').textContent =
-        (perfil.nome || perfil.email).substring(0, 1).toUpperCase();
+    try {
+      const perfil = await obterPerfilNutri();
+      if (perfil) {
+        document.getElementById('userName').textContent = perfil.nome || perfil.email;
+        document.getElementById('userAvatar').textContent = (perfil.nome || perfil.email).substring(0, 1).toUpperCase();
+      }
+    } catch (e) {
+      console.warn('Não conseguiu carregar perfil:', e);
     }
 
     await carregarPacientes();
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // CARREGAR PACIENTES
-  // ═══════════════════════════════════════════════════════════
   async function carregarPacientes() {
     document.getElementById('patientsContainer').innerHTML =
       '<div class="loading"><div class="spinner"></div>Carregando pacientes...</div>';
 
     try {
-      const { data, error } = await sb
-        .from('pacientes')
-        .select('*')
-        .order('criado_em', { ascending: false });
-
-      if (error) throw error;
-
-      todosPacientes = data || [];
+      todosPacientes = await listarPacientes();
       renderizarEstatisticas();
       renderizarPacientes(todosPacientes);
     } catch (e) {
@@ -918,38 +428,29 @@
   }
 
   function renderizarEstatisticas() {
-    const total = todosPacientes.length;
-    const completos = todosPacientes.filter(p => p.status === 'completo').length;
-    const aguardando = total - completos;
-    const taxa = total > 0 ? Math.round((completos / total) * 100) : 0;
-
-    document.getElementById('stat-total').textContent = total;
-    document.getElementById('stat-completos').textContent = completos;
-    document.getElementById('stat-aguardando').textContent = aguardando;
-    document.getElementById('stat-taxa').textContent = taxa + '%';
+    const stats = calcularEstatisticas(todosPacientes);
+    document.getElementById('stat-total').textContent = stats.total;
+    document.getElementById('stat-completos').textContent = stats.completos;
+    document.getElementById('stat-aguardando').textContent = stats.aguardando;
+    document.getElementById('stat-taxa').textContent = stats.taxa + '%';
   }
 
   function renderizarPacientes(lista) {
     const container = document.getElementById('patientsContainer');
-
     if (lista.length === 0) {
-      container.innerHTML =
-        '<div class="empty-state"><div class="empty-state-icon">📭</div>Você ainda não tem pacientes. Cadastre o primeiro acima!</div>';
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div>Você ainda não tem pacientes. Cadastre o primeiro acima!</div>';
       return;
     }
 
     container.innerHTML = '<div class="patients-grid">' + lista.map(p => {
-      const iniciais = (p.nome || '?').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
       const status = p.status || 'aguardando';
       const podeAbrir = status === 'completo';
       const acaoPrincipal = podeAbrir
-        ? `<button class="patient-action primary" onclick="event.stopPropagation(); abrirRelatorio('${p.id}')">👁 Ver</button>`
-        : `<button class="patient-action" onclick="event.stopPropagation(); copiarLinkPaciente('${p.codigo}')">📋 Link</button>`;
-      const acaoExcluir = `<button class="patient-action patient-action-danger" onclick="event.stopPropagation(); excluirPaciente('${p.id}', '${(p.nome || p.codigo).replace(/'/g, "\\'")}')">🗑</button>`;
-
+        ? `<button class="patient-action primary" data-action="ver" data-id="${p.id}">👁 Ver</button>`
+        : `<button class="patient-action" data-action="link" data-codigo="${p.codigo}">📋 Link</button>`;
       return `
-        <div class="patient-row" onclick="${podeAbrir ? `abrirRelatorio('${p.id}')` : `avisarIncompleto()`}">
-          <div class="patient-avatar">${iniciais}</div>
+        <div class="patient-row">
+          <div class="patient-avatar">${iniciaisDoNome(p.nome)}</div>
           <div class="patient-info">
             <div class="patient-name">${p.nome || '(sem nome)'}</div>
             <div class="patient-meta">Criado em ${formatarData(p.criado_em)}</div>
@@ -957,163 +458,105 @@
           <span class="patient-code">${p.codigo}</span>
           <span class="status-tag status-${status}">${status}</span>
           ${acaoPrincipal}
-          ${acaoExcluir}
+          <button class="patient-action patient-action-danger" data-action="excluir" data-id="${p.id}" data-nome="${(p.nome || p.codigo).replace(/"/g, '&quot;')}">🗑</button>
         </div>
       `;
     }).join('') + '</div>';
+
+    // Event delegation
+    container.querySelectorAll('[data-action]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const action = btn.dataset.action;
+        if (action === 'ver') abrirRelatorio(btn.dataset.id);
+        else if (action === 'link') copiarLinkPaciente(btn.dataset.codigo);
+        else if (action === 'excluir') confirmarExclusao(btn.dataset.id, btn.dataset.nome);
+      });
+    });
   }
 
-  function filtrarPacientes() {
-    const termo = document.getElementById('searchInput').value.toLowerCase();
+  // Busca
+  document.getElementById('searchInput').addEventListener('input', (e) => {
+    const termo = e.target.value.toLowerCase();
     const filtrados = todosPacientes.filter(p =>
       (p.nome || '').toLowerCase().includes(termo) ||
       (p.codigo || '').toLowerCase().includes(termo)
     );
     renderizarPacientes(filtrados);
-  }
+  });
 
-  function avisarIncompleto() {
-    alert('Este paciente ainda não completou o questionário.');
-  }
-
-  function formatarData(data) {
-    if (!data) return '—';
-    const d = new Date(data);
-    return d.toLocaleDateString('pt-BR');
-  }
+  // Atualizar
+  document.getElementById('btnAtualizar').addEventListener('click', carregarPacientes);
 
   // ═══════════════════════════════════════════════════════════
-  // GERAR CÓDIGO DE PACIENTE
+  // GERAR CÓDIGO
   // ═══════════════════════════════════════════════════════════
-  async function gerarCodigo() {
+  document.getElementById('btnGerar').addEventListener('click', async () => {
     const btn = document.getElementById('btnGerar');
     const nomeInput = document.getElementById('novoPacienteNome');
     const nome = nomeInput.value.trim();
-
-    btn.disabled = true;
-    btn.textContent = 'Gerando...';
+    btn.disabled = true; btn.textContent = 'Gerando...';
 
     try {
-      // Gerar código via função SQL
-      const { data: codigoData, error: errCodigo } = await sb.rpc('gerar_codigo_paciente');
-      if (errCodigo) throw errCodigo;
-      const codigo = codigoData;
+      const paciente = await criarPaciente({ nome });
+      const linkCompleto = QUESTIONARIO_URL + 'index.html?p=' + paciente.codigo;
+      ultimoCodigoGerado = { codigo: paciente.codigo, link: linkCompleto, nome };
 
-      // Criar paciente
-      const { data: paciente, error } = await sb
-        .from('pacientes')
-        .insert({
-          codigo: codigo,
-          nutri_id: usuarioAtual.id,
-          nome: nome || null,
-          status: 'aguardando'
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      const linkCompleto = QUESTIONARIO_URL + '?p=' + codigo;
-      ultimoCodigoGerado = { codigo, link: linkCompleto, nome };
-
-      document.getElementById('resultCode').textContent = codigo;
+      document.getElementById('resultCode').textContent = paciente.codigo;
       document.getElementById('resultLink').textContent = linkCompleto;
       document.getElementById('resultGerado').style.display = 'block';
       nomeInput.value = '';
-
-      setTimeout(carregarPacientes, 500);
+      setTimeout(carregarPacientes, 300);
     } catch (e) {
       console.error(e);
       alert('Erro ao gerar código: ' + e.message);
     } finally {
-      btn.disabled = false;
-      btn.textContent = 'Gerar código →';
+      btn.disabled = false; btn.textContent = 'Gerar código →';
     }
-  }
+  });
 
-  function copiarLinkGerado() {
+  document.getElementById('btnCopiar').addEventListener('click', () => {
+    if (ultimoCodigoGerado) copiarParaClipboard(ultimoCodigoGerado.link, '✓ Link copiado!');
+  });
+  document.getElementById('btnWhatsapp').addEventListener('click', () => {
     if (!ultimoCodigoGerado) return;
-    navigator.clipboard.writeText(ultimoCodigoGerado.link);
-    const btn = event.target;
-    const original = btn.textContent;
-    btn.textContent = '✓ Copiado!';
-    setTimeout(() => btn.textContent = original, 1500);
-  }
-
-  function abrirLinkGerado() {
-    if (!ultimoCodigoGerado) return;
-    window.open(ultimoCodigoGerado.link, '_blank');
-  }
-
-  function enviarWhatsappGerado() {
-    if (!ultimoCodigoGerado) return;
-    const nome = ultimoCodigoGerado.nome ? ultimoCodigoGerado.nome.split(' ')[0] + ', ' : '';
-    const msg = encodeURIComponent(
-      `Oi ${nome}aqui está seu questionário pré-consulta nutricional:\n\n${ultimoCodigoGerado.link}\n\nLeva entre 15 e 25 minutos. As respostas são salvas automaticamente — pode pausar e voltar quando quiser. 🌿`
-    );
-    window.open(`https://wa.me/?text=${msg}`, '_blank');
-  }
+    const msg = montarMensagemQuestionario(ultimoCodigoGerado.nome, ultimoCodigoGerado.link);
+    window.open(gerarLinkWhatsapp(msg), '_blank');
+  });
+  document.getElementById('btnPreview').addEventListener('click', () => {
+    if (ultimoCodigoGerado) window.open(ultimoCodigoGerado.link, '_blank');
+  });
 
   function copiarLinkPaciente(codigo) {
-    const link = QUESTIONARIO_URL + '?p=' + codigo;
-    navigator.clipboard.writeText(link);
-    const toast = document.createElement('div');
-    toast.textContent = '✓ Link copiado: ' + codigo;
-    toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:var(--moss-deep);color:var(--cream);padding:12px 18px;border-radius:10px;font-size:13px;z-index:1000;box-shadow:0 8px 30px rgba(0,0,0,0.15);';
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 2000);
+    const link = QUESTIONARIO_URL + 'index.html?p=' + codigo;
+    copiarParaClipboard(link, '✓ Link copiado: ' + codigo);
   }
 
   // ═══════════════════════════════════════════════════════════
-  // EXCLUIR PACIENTE
+  // EXCLUIR / VER RELATÓRIO
   // ═══════════════════════════════════════════════════════════
-  async function excluirPaciente(pacienteId, nomeRef) {
-    const confirma = confirm(`⚠️ Excluir o paciente "${nomeRef}"?\n\nTodos os dados (respostas, exames) serão apagados permanentemente. Esta ação não pode ser desfeita.`);
-    if (!confirma) return;
-
+  async function confirmarExclusao(id, nome) {
+    if (!confirm(`⚠️ Excluir o paciente "${nome}"?\n\nTodos os dados serão apagados permanentemente.`)) return;
     try {
-      // O CASCADE no banco apaga respostas e exames automaticamente
-      const { error } = await sb
-        .from('pacientes')
-        .delete()
-        .eq('id', pacienteId);
-
-      if (error) throw error;
-
-      // Feedback visual
-      const toast = document.createElement('div');
-      toast.textContent = '✓ Paciente excluído';
-      toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:var(--moss-deep);color:var(--cream);padding:12px 18px;border-radius:10px;font-size:13px;z-index:1000;box-shadow:0 8px 30px rgba(0,0,0,0.15);';
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 2000);
-
+      await excluirPaciente(id);
+      mostrarToast('✓ Paciente excluído');
       await carregarPacientes();
     } catch (e) {
-      console.error(e);
       alert('Erro ao excluir: ' + e.message);
     }
   }
 
-  // ═══════════════════════════════════════════════════════════
-  // ABRIR RELATÓRIO (placeholder - próxima etapa)
-  // ═══════════════════════════════════════════════════════════
-  async function abrirRelatorio(pacienteId) {
-    alert('Relatório do paciente — será implementado na próxima etapa!\n\nID: ' + pacienteId);
-  }
-
-  function mostrarView(viewId) {
-    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-    document.getElementById(viewId).classList.add('active');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  function abrirRelatorio(id) {
+    // TODO: implementar relatório
+    alert('Relatório do paciente — em breve!\n\nID: ' + id);
   }
 
   // ═══════════════════════════════════════════════════════════
-  // INIT — verifica se já está logado
+  // INIT
   // ═══════════════════════════════════════════════════════════
   (async () => {
-    const { data: { session } } = await sb.auth.getSession();
-    if (session) {
-      usuarioAtual = session.user;
+    const sessao = await obterSessao();
+    if (sessao) {
       await iniciarDashboard();
     }
   })();
