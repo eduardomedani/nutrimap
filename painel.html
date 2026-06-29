@@ -200,12 +200,16 @@
   /* ═══════════ DASHBOARD (depois do login) ═══════════ */
   .dashboard {
     display: none;
-    padding: 24px;
+    padding: 24px 32px;
   }
   .dashboard.active {
     display: block;
   }
-  .page { max-width: 1240px; margin: 0 auto; }
+  .page { max-width: 1600px; margin: 0 auto; }
+
+  @media (min-width: 1400px) {
+    .dashboard { padding: 32px 48px; }
+  }
 
   /* TOPBAR */
   .topbar {
