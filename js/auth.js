@@ -34,6 +34,28 @@ export async function criarConta({ nome, email, senha }) {
 }
 
 /**
+ * Valida um código de convite ANTES do cadastro
+ */
+export async function validarCodigoConvite(codigo) {
+  const { data, error } = await sb.rpc('validar_codigo_convite', { p_codigo: codigo });
+  if (error) throw error;
+  return data; // { valido, erro?, codigo_id?, descricao? }
+}
+
+/**
+ * Registra uso do código DEPOIS do cadastro bem-sucedido
+ */
+export async function registrarUsoCodigo(codigo, nutriId, email) {
+  const { data, error } = await sb.rpc('registrar_uso_codigo', {
+    p_codigo: codigo,
+    p_nutri_id: nutriId,
+    p_email: email
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
  * Faz logout
  */
 export async function fazerLogout() {
