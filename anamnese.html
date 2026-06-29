@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NutriMap · Painel do Nutricionista</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F4F1EA;
+    --bg-card: #FDFBF7;
+    --bg-warm: #EDE7D8;
+    --ink: #1A1F1B;
+    --ink-soft: #4A524C;
+    --ink-mute: #8A8F89;
+    --moss: #3D4D3F;
+    --moss-deep: #2A3A2C;
+    --moss-light: #5C6E5E;
+    --olive: #5C6B47;
+    --sage: #87A082;
+    --gold: #B8924A;
+    --gold-soft: #D4B373;
+    --terracotta: #B8674A;
+    --rose: #A8534A;
+    --cream: #F8F1DD;
+    --line: #DDD6C5;
+    --shadow: 0 4px 20px rgba(60,80,60,0.06);
+    --shadow-lg: 0 10px 30px rgba(60,80,60,0.08);
+    --sidebar-w: 260px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); background-image: radial-gradient(circle at 15% 10%, rgba(135,160,130,0.08), transparent 45%), radial-gradient(circle at 85% 85%, rgba(184,146,74,0.06), transparent 45%); background-attachment: fixed; color: var(--ink); font-family: 'Inter Tight', sans-serif; font-size: 14.5px; line-height: 1.55; -webkit-font-smoothing: antialiased; min-height: 100vh; }
+
+  /* LOGIN */
+  .auth-wrapper { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .auth-card { background: var(--bg-card); border-radius: 24px; padding: 40px; width: 100%; max-width: 440px; box-shadow: var(--shadow-lg); }
+  .auth-brand { display: flex; align-items: center; gap: 14px; margin-bottom: 32px; justify-content: center; }
+  .brand-mark { width: 48px; height: 48px; background: linear-gradient(135deg, var(--moss), var(--olive)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--cream); font-family: 'Fraunces', serif; font-size: 22px; font-weight: 600; font-style: italic; }
+  .brand-name-large { font-family: 'Fraunces', serif; font-size: 32px; color: var(--ink); font-weight: 500; }
+  .brand-name-large em { color: var(--moss); font-style: italic; font-weight: 400; }
+  .auth-title { font-family: 'Fraunces', serif; font-size: 24px; color: var(--moss-deep); text-align: center; margin-bottom: 8px; font-weight: 500; }
+  .auth-sub { text-align: center; color: var(--ink-mute); margin-bottom: 28px; font-size: 13.5px; }
+  .auth-tabs { display: flex; background: var(--bg); border-radius: 100px; padding: 4px; margin-bottom: 24px; }
+  .auth-tab { flex: 1; padding: 10px 18px; border-radius: 100px; text-align: center; cursor: pointer; font-size: 13.5px; font-weight: 500; color: var(--ink-soft); transition: all 0.2s; }
+  .auth-tab.active { background: var(--moss); color: var(--cream); }
+  .form-group { margin-bottom: 16px; }
+  .form-label { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); margin-bottom: 6px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.04em; }
+  .form-input { width: 100%; padding: 13px 16px; background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; font-family: 'Inter Tight', sans-serif; font-size: 15px; color: var(--ink); transition: border-color 0.2s; }
+  .form-input:focus { outline: none; border-color: var(--moss); }
+  .form-btn { width: 100%; padding: 14px; background: var(--moss); color: var(--cream); border: none; border-radius: 12px; font-family: 'Inter Tight', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; margin-top: 8px; }
+  .form-btn:hover:not(:disabled) { background: var(--moss-deep); transform: translateY(-1px); }
+  .form-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .form-error { background: rgba(168,83,74,0.1); border-left: 3px solid var(--rose); color: var(--rose); padding: 12px 14px; border-radius: 10px; font-size: 13px; margin-top: 12px; display: none; }
+  .form-success { background: rgba(135,160,130,0.15); border-left: 3px solid var(--sage); color: var(--moss-deep); padding: 12px 14px; border-radius: 10px; font-size: 13px; margin-top: 12px; display: none; }
+  .auth-footer { text-align: center; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-mute); }
+
+  /* APP */
+  .app { display: none; }
+  .app.active { display: flex; min-height: 100vh; }
+
+  .sidebar { width: var(--sidebar-w); background: var(--bg-card); border-right: 1px solid var(--line); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; flex-shrink: 0; }
+  .sidebar-header { padding: 22px 22px 18px; border-bottom: 1px solid var(--line); }
+  .sidebar-brand { display: flex; align-items: center; gap: 12px; }
+  .sidebar-brand-mark { width: 36px; height: 36px; background: linear-gradient(135deg, var(--moss), var(--olive)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--cream); font-family: 'Fraunces', serif; font-size: 17px; font-weight: 600; font-style: italic; }
+  .sidebar-brand-text { font-family: 'Fraunces', serif; font-size: 22px; color: var(--ink); font-weight: 500; line-height: 1; }
+  .sidebar-brand-text em { color: var(--moss); font-style: italic; font-weight: 400; }
+  .sidebar-brand-sub { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; color: var(--moss); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; font-weight: 600; }
+  .sidebar-nav { flex: 1; overflow-y: auto; padding: 16px 12px; }
+  .nav-group { margin-bottom: 18px; }
+  .nav-group-title { font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-mute); padding: 0 12px 8px; font-weight: 600; }
+  .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; color: var(--ink-soft); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; margin-bottom: 2px; }
+  .nav-item:hover { background: var(--bg); color: var(--ink); }
+  .nav-item.active { background: var(--moss); color: var(--cream); }
+  .nav-item.disabled { cursor: not-allowed; color: var(--ink-mute); }
+  .nav-item.disabled:hover { background: var(--bg); }
+  .nav-icon { width: 20px; text-align: center; flex-shrink: 0; }
+  .nav-soon { margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 9.5px; background: var(--cream); color: var(--gold); padding: 2px 7px; border-radius: 100px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+  .nav-item.active .nav-soon { background: rgba(255,255,255,0.2); color: var(--cream); }
+
+  .sidebar-footer { padding: 16px; border-top: 1px solid var(--line); }
+  .user-box { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 12px; background: var(--bg); margin-bottom: 8px; }
+  .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--sage), var(--moss-light)); color: var(--cream); display: flex; align-items: center; justify-content: center; font-family: 'Fraunces', serif; font-size: 15px; font-weight: 600; flex-shrink: 0; }
+  .user-text { flex: 1; min-width: 0; }
+  .user-name { font-size: 13.5px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .user-email { font-size: 11px; color: var(--ink-mute); font-family: 'JetBrains Mono', monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .logout-btn { width: 100%; padding: 10px; background: transparent; color: var(--ink-mute); border: none; font-family: 'Inter Tight', sans-serif; font-size: 13px; cursor: pointer; border-radius: 10px; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .logout-btn:hover { background: rgba(168,83,74,0.1); color: var(--rose); }
+
+  .main { flex: 1; padding: 28px 36px; overflow-x: hidden; max-width: 100%; }
+  .page-header { margin-bottom: 24px; }
+  .page-title { font-family: 'Fraunces', serif; font-size: 32px; color: var(--ink); font-weight: 500; line-height: 1.1; }
+  .page-title em { color: var(--moss); font-style: italic; }
+  .page-sub { color: var(--ink-mute); font-size: 14px; margin-top: 6px; }
+
+  .module-page { display: none; animation: fadeIn 0.3s; }
+  .module-page.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  .em-breve-card { background: var(--bg-card); border-radius: 20px; padding: 64px 32px; text-align: center; box-shadow: var(--shadow); }
+  .em-breve-icon { font-size: 56px; margin-bottom: 18px; opacity: 0.6; }
+  .em-breve-titulo { font-family: 'Fraunces', serif; font-size: 28px; color: var(--moss-deep); font-weight: 500; margin-bottom: 8px; }
+  .em-breve-sub { color: var(--ink-mute); font-size: 15px; max-width: 480px; margin: 0 auto; line-height: 1.6; }
+  .em-breve-tag { display: inline-block; margin-top: 18px; background: var(--cream); color: var(--gold); font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; padding: 6px 14px; border-radius: 100px; }
+
+  .btn { background: var(--bg-warm); border: none; color: var(--ink); padding: 10px 20px; border-radius: 100px; font-family: 'Inter Tight', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+  .btn:hover { background: var(--line); transform: translateY(-1px); }
+  .btn.primary { background: var(--moss); color: var(--cream); }
+  .btn.primary:hover { background: var(--moss-deep); }
+
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+  .stat-card { background: var(--bg-card); border-radius: 16px; padding: 18px 20px; box-shadow: var(--shadow); }
+  .stat-value { font-family: 'Fraunces', serif; font-size: 32px; color: var(--moss-deep); font-weight: 600; line-height: 1; }
+  .stat-label { font-size: 12px; color: var(--ink-mute); margin-top: 6px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .novo-paciente-card { background: var(--bg-card); border-radius: 18px; padding: 24px; box-shadow: var(--shadow); margin-bottom: 24px; border-left: 4px solid var(--moss); }
+  .novo-paciente-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  .novo-paciente-icon { width: 42px; height: 42px; border-radius: 50%; background: var(--cream); color: var(--moss); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 600; }
+  .novo-paciente-title { font-family: 'Fraunces', serif; font-size: 20px; color: var(--ink); font-weight: 500; }
+  .novo-paciente-title em { color: var(--moss); font-style: italic; }
+  .novo-paciente-sub { font-size: 13px; color: var(--ink-mute); margin-top: 2px; }
+  .novo-paciente-form { display: flex; gap: 10px; align-items: stretch; }
+  .np-input { flex: 1; padding: 13px 18px; background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; font-family: 'Inter Tight', sans-serif; font-size: 15px; color: var(--ink); transition: border-color 0.2s; }
+  .np-input:focus { outline: none; border-color: var(--moss); }
+  @media (max-width: 600px) { .novo-paciente-form { flex-direction: column; } }
+  .novo-paciente-result { margin-top: 18px; padding: 18px; background: linear-gradient(135deg, var(--cream), rgba(184,146,74,0.12)); border-radius: 14px; border: 1px solid var(--gold-soft); animation: slideDown 0.3s; }
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  .np-result-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .np-result-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--moss); font-weight: 600; }
+  .np-result-code { font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 600; color: var(--moss-deep); letter-spacing: 0.1em; }
+  .np-result-link { background: var(--bg-card); padding: 10px 14px; border-radius: 10px; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--ink); word-break: break-all; margin-bottom: 12px; }
+  .np-result-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn-sm { background: var(--moss); color: var(--cream); border: none; padding: 8px 14px; border-radius: 100px; font-family: 'Inter Tight', sans-serif; font-size: 12.5px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+  .btn-sm:hover { background: var(--moss-deep); transform: translateY(-1px); }
+  .btn-sm-secondary { background: var(--bg-warm); color: var(--ink); }
+
+  .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 14px; }
+  .list-title { font-family: 'Fraunces', serif; font-size: 22px; color: var(--ink); font-weight: 500; }
+  .list-title em { color: var(--moss); font-style: italic; }
+  .search-box { background: var(--bg-card); border: 1.5px solid var(--line); border-radius: 100px; padding: 10px 18px; display: flex; align-items: center; gap: 10px; width: 320px; max-width: 100%; }
+  .search-box input { border: none; background: none; outline: none; font-family: 'Inter Tight', sans-serif; font-size: 14px; color: var(--ink); width: 100%; }
+
+  .patients-grid { display: flex; flex-direction: column; gap: 10px; }
+  .patient-row { background: var(--bg-card); border-radius: 14px; padding: 18px 22px; display: flex; align-items: center; gap: 18px; box-shadow: var(--shadow); transition: all 0.2s; border: 1.5px solid transparent; flex-wrap: wrap; }
+  .patient-row:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); border-color: var(--sage); }
+  .patient-avatar { width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(135deg, var(--sage), var(--moss-light)); color: var(--cream); display: flex; align-items: center; justify-content: center; font-family: 'Fraunces', serif; font-size: 18px; font-weight: 600; flex-shrink: 0; }
+  .patient-info { flex: 1; min-width: 120px; }
+  .patient-name { font-size: 16px; font-weight: 600; color: var(--ink); }
+  .patient-meta { font-size: 12.5px; color: var(--ink-mute); font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+  .patient-code { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--moss); background: var(--cream); padding: 4px 10px; border-radius: 8px; }
+  .status-tag { font-size: 11px; padding: 4px 12px; border-radius: 100px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; font-family: 'JetBrains Mono', monospace; }
+  .status-completo { background: rgba(135,160,130,0.2); color: var(--moss-deep); }
+  .status-aguardando { background: rgba(184,146,74,0.15); color: var(--gold); }
+  .patient-action { background: var(--bg-warm); border: none; padding: 8px 14px; border-radius: 100px; font-family: 'Inter Tight', sans-serif; font-size: 12.5px; font-weight: 500; color: var(--ink); cursor: pointer; transition: all 0.2s; margin-left: 6px; }
+  .patient-action:hover { background: var(--line); }
+  .patient-action.primary { background: var(--moss); color: var(--cream); }
+  .patient-action.primary:hover { background: var(--moss-deep); }
+  .patient-action-danger { background: rgba(168,83,74,0.12); color: var(--rose); padding: 8px 10px; font-size: 14px; }
+  .patient-action-danger:hover { background: var(--rose); color: var(--cream); }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--ink-mute); background: var(--bg-card); border-radius: 16px; }
+  .empty-state-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+  .loading { text-align: center; padding: 60px 20px; color: var(--ink-mute); }
+  .spinner { width: 36px; height: 36px; border: 3px solid var(--line); border-top-color: var(--moss); border-radius: 50%; margin: 0 auto 16px; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .menu-toggle { display: none; position: fixed; top: 16px; left: 16px; z-index: 100; background: var(--moss); color: var(--cream); border: none; width: 44px; height: 44px; border-radius: 12px; font-size: 20px; cursor: pointer; box-shadow: var(--shadow); }
+  .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 50; }
+
+  @media (max-width: 900px) {
+    .menu-toggle { display: flex; align-items: center; justify-content: center; }
+    .sidebar { position: fixed; left: -280px; top: 0; bottom: 0; z-index: 60; transition: left 0.3s; box-shadow: var(--shadow-lg); }
+    .sidebar.open { left: 0; }
+    .sidebar-overlay.show { display: block; }
+    .main { padding: 70px 20px 24px; width: 100%; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .page-title { font-size: 24px; }
+    .search-box { width: 100%; }
+    .patient-row { padding: 14px 16px; gap: 12px; }
+    .patient-info { width: calc(100% - 52px); }
+    .patient-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  }
+  @media (max-width: 420px) {
+    .stats-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat-value { font-size: 24px; }
+    .main { padding: 70px 14px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="auth-wrapper" id="authWrapper">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <div class="brand-mark">N</div>
+      <div class="brand-name-large">Nutri<em>Map</em></div>
+    </div>
+    <div class="auth-title" id="authTitle">Acesse sua conta</div>
+    <div class="auth-sub" id="authSub">Entre para gerenciar seus pacientes</div>
+    <div class="auth-tabs">
+      <div class="auth-tab active" id="tabLogin">Entrar</div>
+      <div class="auth-tab" id="tabSignup">Criar conta</div>
+    </div>
+    <form id="formLogin">
+      <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="loginEmail" required placeholder="seu@email.com"></div>
+      <div class="form-group"><label class="form-label">Senha</label><input type="password" class="form-input" id="loginSenha" required placeholder="••••••••"></div>
+      <button type="submit" class="form-btn" id="btnLogin">Entrar</button>
+      <div class="form-error" id="errorLogin"></div>
+    </form>
+    <form id="formSignup" style="display: none;">
+      <div class="form-group"><label class="form-label">Nome completo</label><input type="text" class="form-input" id="signupNome" required placeholder="Dr. Eduardo Medani"></div>
+      <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="signupEmail" required placeholder="seu@email.com"></div>
+      <div class="form-group"><label class="form-label">Senha</label><input type="password" class="form-input" id="signupSenha" required minlength="6" placeholder="Mínimo 6 caracteres"></div>
+      <button type="submit" class="form-btn" id="btnSignup">Criar conta</button>
+      <div class="form-error" id="errorSignup"></div>
+      <div class="form-success" id="successSignup"></div>
+    </form>
+    <div class="auth-footer">🔒 Seus dados ficam isolados — só você acessa seus pacientes</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="app">
+  <button class="menu-toggle" id="menuToggle">☰</button>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-brand">
+        <div class="sidebar-brand-mark">N</div>
+        <div>
+          <div class="sidebar-brand-text">Nutri<em>Map</em></div>
+          <div class="sidebar-brand-sub">Painel do Nutri</div>
+        </div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-group">
+        <div class="nav-group-title">Geral</div>
+        <div class="nav-item active" data-page="inicio"><span class="nav-icon">🏠</span><span>Início</span></div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Atendimento</div>
+        <div class="nav-item" data-page="anamnese"><span class="nav-icon">📋</span><span>Anamnese</span></div>
+        <div class="nav-item disabled" data-page="agenda"><span class="nav-icon">📅</span><span>Agenda</span><span class="nav-soon">Em breve</span></div>
+        <div class="nav-item disabled" data-page="mensagens"><span class="nav-icon">💬</span><span>Mensagens</span><span class="nav-soon">Em breve</span></div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Análise</div>
+        <div class="nav-item disabled" data-page="evolucao"><span class="nav-icon">📊</span><span>Evolução</span><span class="nav-soon">Em breve</span></div>
+        <div class="nav-item disabled" data-page="documentos"><span class="nav-icon">📎</span><span>Documentos</span><span class="nav-soon">Em breve</span></div>
+        <div class="nav-item disabled" data-page="ia"><span class="nav-icon">🤖</span><span>IA Nutricional</span><span class="nav-soon">Em breve</span></div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-title">Gestão</div>
+        <div class="nav-item disabled" data-page="financeiro"><span class="nav-icon">💰</span><span>Financeiro</span><span class="nav-soon">Em breve</span></div>
+        <div class="nav-item disabled" data-page="perfil"><span class="nav-icon">⚙️</span><span>Perfil</span><span class="nav-soon">Em breve</span></div>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-box">
+        <div class="user-avatar" id="userAvatar">?</div>
+        <div class="user-text">
+          <div class="user-name" id="userName">—</div>
+          <div class="user-email" id="userEmail">—</div>
+        </div>
+      </div>
+      <button class="logout-btn" id="btnLogout">↗ Sair</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- INÍCIO -->
+    <div class="module-page active" id="page-inicio">
+      <div class="page-header">
+        <h1 class="page-title">Olá, <em><span id="userFirstName">Dr.</span></em> 👋</h1>
+        <div class="page-sub">Visão geral do seu consultório no NutriMap</div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-value" id="stat-total">—</div><div class="stat-label">Total pacientes</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-completos">—</div><div class="stat-label">Completos</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-aguardando">—</div><div class="stat-label">Aguardando</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-taxa">—</div><div class="stat-label">Taxa conclusão</div></div>
+      </div>
+      <div class="novo-paciente-card">
+        <div class="novo-paciente-header">
+          <div class="novo-paciente-icon">➕</div>
+          <div>
+            <div class="novo-paciente-title">Cadastrar <em>novo paciente</em></div>
+            <div class="novo-paciente-sub">Gere um código único e envie o link da anamnese</div>
+          </div>
+        </div>
+        <div class="novo-paciente-form">
+          <input type="text" id="novoPacienteNome" placeholder="Nome do paciente (opcional)" class="np-input" />
+          <button class="btn primary" id="btnGerar">Gerar código →</button>
+        </div>
+        <div class="novo-paciente-result" id="resultGerado" style="display: none;">
+          <div class="np-result-header"><span class="np-result-label">✓ Código gerado</span><span class="np-result-code" id="resultCode">—</span></div>
+          <div class="np-result-link" id="resultLink">—</div>
+          <div class="np-result-actions">
+            <button class="btn-sm" id="btnCopiar">📋 Copiar link</button>
+            <button class="btn-sm" id="btnWhatsapp">💬 WhatsApp</button>
+            <button class="btn-sm btn-sm-secondary" id="btnPreview">👁 Pré-visualizar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ANAMNESE -->
+    <div class="module-page" id="page-anamnese">
+      <div class="page-header">
+        <h1 class="page-title">📋 <em>Anamnese</em></h1>
+        <div class="page-sub">Pacientes que preencheram o questionário pré-consulta</div>
+      </div>
+      <div class="list-header">
+        <div class="list-title">Seus <em>pacientes</em></div>
+        <div class="search-box">🔍 <input type="text" id="searchInput" placeholder="Buscar por nome ou código..." /></div>
+      </div>
+      <div id="patientsContainer"><div class="loading"><div class="spinner"></div>Carregando pacientes...</div></div>
+    </div>
+
+    <!-- EM BREVE -->
+    <div class="module-page" id="page-agenda">
+      <div class="em-breve-card"><div class="em-breve-icon">📅</div><div class="em-breve-titulo">Agenda</div><div class="em-breve-sub">Em breve você poderá gerenciar suas consultas, agendar retornos e enviar lembretes automáticos pelo WhatsApp.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
+    </div>
+    <div class="module-page" id="page-mensagens">
+      <div class="em-breve-card"><div class="em-breve-icon">💬</div><div class="em-breve-titulo">Mensagens</div><div class="em-breve-sub">Centralize a comunicação com seus pacientes em um só lugar. Mande mensagens, lembretes e tire dúvidas direto pelo painel.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
+    </div>
+    <div class="module-page" id="page-evolucao">
+      <div class="em-breve-card"><div class="em-breve-icon">📊</div><div class="em-breve-titulo">Evolução</div><div class="em-breve-sub">Acompanhe a evolução de cada paciente ao longo do tempo: peso, medidas, exames e adesão ao plano.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
+    </div>
+    <div class="module-page" id="page-documentos">
+      <div class="em-breve-card"><div class="em-breve-icon">📎</div><div class="em-breve-titulo">Documentos</div><div class="em-breve-sub">Armazene exames, laudos, atestados e prescrições. Tudo seguro, organizado por paciente e acessível de qualquer lugar.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
+    </div>
+    <div class="module-page" id="page-ia">
+      <div class="em-breve-card"><div class="em-breve-icon">🤖</div><div class="em-breve-titulo">IA Nutricional</div><div class="em-breve-sub">Análise automática de recordatórios alimentares, sugestão de planos baseados em cronotipo e patologias, e relatórios inteligentes.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
+    </div>
+    <div class="module-page" id="page-financeiro">
+      <div class="em-breve-card"><div class="em-breve-icon">💰</div><div class="em-breve-titulo">Financeiro</div><div class="em-breve-sub">Controle suas cobranças, recebimentos e relatórios financeiros. Integração com Pix e cartão.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
+    </div>
+    <div class="module-page" id="page-perfil">
+      <div class="em-breve-card"><div class="em-breve-icon">⚙️</div><div class="em-breve-titulo">Perfil</div><div class="em-breve-sub">Configure seus dados profissionais, foto, especialidades, mensagens automáticas e preferências do sistema.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+  import { QUESTIONARIO_URL } from './js/supabase.js';
+  import { fazerLogin, criarConta, fazerLogout, obterSessao, obterPerfilNutri, traduzirErroAuth } from './js/auth.js';
+  import { listarPacientes, criarPaciente, excluirPaciente, calcularEstatisticas } from './js/pacientes.js';
+  import { formatarData, iniciaisDoNome, copiarParaClipboard, mostrarToast, gerarLinkWhatsapp, montarMensagemQuestionario } from './js/utils.js';
+
+  let todosPacientes = [];
+  let ultimoCodigoGerado = null;
+
+  function navegar(pagina) {
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.page === pagina));
+    document.querySelectorAll('.module-page').forEach(el => el.classList.toggle('active', el.id === 'page-' + pagina));
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('show');
+  }
+
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => {
+      if (item.classList.contains('disabled')) {
+        mostrarToast('🚧 Módulo em desenvolvimento');
+        return;
+      }
+      navegar(item.dataset.page);
+    });
+  });
+
+  document.getElementById('menuToggle').addEventListener('click', () => {
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('sidebarOverlay').classList.add('show');
+  });
+  document.getElementById('sidebarOverlay').addEventListener('click', () => {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('show');
+  });
+
+  function trocarAba(aba) {
+    document.getElementById('tabLogin').classList.toggle('active', aba === 'login');
+    document.getElementById('tabSignup').classList.toggle('active', aba === 'signup');
+    document.getElementById('formLogin').style.display = aba === 'login' ? 'block' : 'none';
+    document.getElementById('formSignup').style.display = aba === 'signup' ? 'block' : 'none';
+    document.getElementById('authTitle').textContent = aba === 'login' ? 'Acesse sua conta' : 'Crie sua conta';
+    document.getElementById('authSub').textContent = aba === 'login' ? 'Entre para gerenciar seus pacientes' : 'Comece a usar o NutriMap';
+  }
+  document.getElementById('tabLogin').addEventListener('click', () => trocarAba('login'));
+  document.getElementById('tabSignup').addEventListener('click', () => trocarAba('signup'));
+
+  document.getElementById('formLogin').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('btnLogin');
+    const error = document.getElementById('errorLogin');
+    error.style.display = 'none';
+    btn.disabled = true; btn.textContent = 'Entrando...';
+    try {
+      await fazerLogin(document.getElementById('loginEmail').value, document.getElementById('loginSenha').value);
+      await iniciarApp();
+    } catch (err) {
+      error.textContent = traduzirErroAuth(err.message);
+      error.style.display = 'block';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Entrar';
+    }
+  });
+
+  document.getElementById('formSignup').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('btnSignup');
+    const error = document.getElementById('errorSignup');
+    const success = document.getElementById('successSignup');
+    error.style.display = 'none'; success.style.display = 'none';
+    btn.disabled = true; btn.textContent = 'Criando...';
+    try {
+      const data = await criarConta({
+        nome: document.getElementById('signupNome').value,
+        email: document.getElementById('signupEmail').value,
+        senha: document.getElementById('signupSenha').value
+      });
+      if (data.session) {
+        await iniciarApp();
+      } else {
+        success.textContent = '✓ Conta criada! Verifique seu email para confirmar.';
+        success.style.display = 'block';
+      }
+    } catch (err) {
+      error.textContent = traduzirErroAuth(err.message);
+      error.style.display = 'block';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Criar conta';
+    }
+  });
+
+  document.getElementById('btnLogout').addEventListener('click', async () => {
+    if (!confirm('Tem certeza que quer sair?')) return;
+    await fazerLogout();
+    location.reload();
+  });
+
+  async function iniciarApp() {
+    document.getElementById('authWrapper').style.display = 'none';
+    document.getElementById('app').classList.add('active');
+    try {
+      const perfil = await obterPerfilNutri();
+      if (perfil) {
+        const nome = perfil.nome || perfil.email;
+        const primeiroNome = nome.split(' ')[0];
+        document.getElementById('userName').textContent = nome;
+        document.getElementById('userEmail').textContent = perfil.email;
+        document.getElementById('userAvatar').textContent = nome.substring(0, 1).toUpperCase();
+        document.getElementById('userFirstName').textContent = primeiroNome;
+      }
+    } catch (e) { console.warn('Não conseguiu carregar perfil:', e); }
+    await carregarPacientes();
+  }
+
+  async function carregarPacientes() {
+    const container = document.getElementById('patientsContainer');
+    if (container) container.innerHTML = '<div class="loading"><div class="spinner"></div>Carregando pacientes...</div>';
+    try {
+      todosPacientes = await listarPacientes();
+      renderizarEstatisticas();
+      renderizarPacientes(todosPacientes);
+    } catch (e) {
+      console.error(e);
+      if (container) container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div>Erro: ' + e.message + '</div>';
+    }
+  }
+
+  function renderizarEstatisticas() {
+    const s = calcularEstatisticas(todosPacientes);
+    document.getElementById('stat-total').textContent = s.total;
+    document.getElementById('stat-completos').textContent = s.completos;
+    document.getElementById('stat-aguardando').textContent = s.aguardando;
+    document.getElementById('stat-taxa').textContent = s.taxa + '%';
+  }
+
+  function renderizarPacientes(lista) {
+    const container = document.getElementById('patientsContainer');
+    if (!container) return;
+    if (lista.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div>Você ainda não tem pacientes. Cadastre o primeiro no Início!</div>';
+      return;
+    }
+    container.innerHTML = '<div class="patients-grid">' + lista.map(p => {
+      const status = p.status || 'aguardando';
+      const podeAbrir = status === 'completo';
+      const acaoPrincipal = podeAbrir
+        ? `<button class="patient-action primary" data-action="ver" data-id="${p.id}">👁 Ver</button>`
+        : `<button class="patient-action" data-action="link" data-codigo="${p.codigo}">📋 Link</button>`;
+      return `<div class="patient-row"><div class="patient-avatar">${iniciaisDoNome(p.nome)}</div><div class="patient-info"><div class="patient-name">${p.nome || '(sem nome)'}</div><div class="patient-meta">Criado em ${formatarData(p.criado_em)}</div></div><span class="patient-code">${p.codigo}</span><span class="status-tag status-${status}">${status}</span>${acaoPrincipal}<button class="patient-action patient-action-danger" data-action="excluir" data-id="${p.id}" data-nome="${(p.nome || p.codigo).replace(/"/g, '&quot;')}">🗑</button></div>`;
+    }).join('') + '</div>';
+
+    container.querySelectorAll('[data-action]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const action = btn.dataset.action;
+        if (action === 'ver') abrirRelatorio(btn.dataset.id);
+        else if (action === 'link') copiarLinkPaciente(btn.dataset.codigo);
+        else if (action === 'excluir') confirmarExclusao(btn.dataset.id, btn.dataset.nome);
+      });
+    });
+  }
+
+  document.getElementById('searchInput').addEventListener('input', (e) => {
+    const termo = e.target.value.toLowerCase();
+    const filtrados = todosPacientes.filter(p =>
+      (p.nome || '').toLowerCase().includes(termo) ||
+      (p.codigo || '').toLowerCase().includes(termo)
+    );
+    renderizarPacientes(filtrados);
+  });
+
+  document.getElementById('btnGerar').addEventListener('click', async () => {
+    const btn = document.getElementById('btnGerar');
+    const nomeInput = document.getElementById('novoPacienteNome');
+    const nome = nomeInput.value.trim();
+    btn.disabled = true; btn.textContent = 'Gerando...';
+    try {
+      const paciente = await criarPaciente({ nome });
+      const linkCompleto = QUESTIONARIO_URL + 'anamnese.html?p=' + paciente.codigo;
+      ultimoCodigoGerado = { codigo: paciente.codigo, link: linkCompleto, nome };
+      document.getElementById('resultCode').textContent = paciente.codigo;
+      document.getElementById('resultLink').textContent = linkCompleto;
+      document.getElementById('resultGerado').style.display = 'block';
+      nomeInput.value = '';
+      setTimeout(carregarPacientes, 300);
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao gerar código: ' + e.message);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Gerar código →';
+    }
+  });
+
+  document.getElementById('btnCopiar').addEventListener('click', () => {
+    if (ultimoCodigoGerado) copiarParaClipboard(ultimoCodigoGerado.link, '✓ Link copiado!');
+  });
+  document.getElementById('btnWhatsapp').addEventListener('click', () => {
+    if (!ultimoCodigoGerado) return;
+    const msg = montarMensagemQuestionario(ultimoCodigoGerado.nome, ultimoCodigoGerado.link);
+    window.open(gerarLinkWhatsapp(msg), '_blank');
+  });
+  document.getElementById('btnPreview').addEventListener('click', () => {
+    if (ultimoCodigoGerado) window.open(ultimoCodigoGerado.link, '_blank');
+  });
+
+  function copiarLinkPaciente(codigo) {
+    const link = QUESTIONARIO_URL + 'anamnese.html?p=' + codigo;
+    copiarParaClipboard(link, '✓ Link copiado: ' + codigo);
+  }
+
+  async function confirmarExclusao(id, nome) {
+    if (!confirm(`⚠️ Excluir o paciente "${nome}"?\n\nTodos os dados serão apagados permanentemente.`)) return;
+    try {
+      await excluirPaciente(id);
+      mostrarToast('✓ Paciente excluído');
+      await carregarPacientes();
+    } catch (e) { alert('Erro: ' + e.message); }
+  }
+
+  function abrirRelatorio(id) {
+    alert('Relatório do paciente — em breve!\n\nID: ' + id);
+  }
+
+  (async () => {
+    const sessao = await obterSessao();
+    if (sessao) await iniciarApp();
+  })();
+</script>
+
+</body>
+</html>
