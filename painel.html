@@ -523,7 +523,7 @@
     btn.disabled = true; btn.textContent = 'Gerando...';
     try {
       const paciente = await criarPaciente({ nome });
-      const linkCompleto = QUESTIONARIO_URL + 'index.html?p=' + paciente.codigo;
+      const linkCompleto = QUESTIONARIO_URL + 'anamnese.html?p=' + paciente.codigo;
       ultimoCodigoGerado = { codigo: paciente.codigo, link: linkCompleto, nome };
       document.getElementById('resultCode').textContent = paciente.codigo;
       document.getElementById('resultLink').textContent = linkCompleto;
@@ -551,7 +551,7 @@
   });
 
   function copiarLinkPaciente(codigo) {
-    const link = QUESTIONARIO_URL + 'index.html?p=' + codigo;
+    const link = QUESTIONARIO_URL + 'anamnese.html?p=' + codigo;
     copiarParaClipboard(link, '✓ Link copiado: ' + codigo);
   }
 
