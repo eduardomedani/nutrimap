@@ -1,0 +1,696 @@
+// ═══════════════════════════════════════════════════════════
+// RELATÓRIO CLÍNICO — Cálculos + Renderização do Mapa Nutricional
+// Migrado do dashboard antigo (05_NutriMap_Dashboard.html), adaptado para Supabase
+// ═══════════════════════════════════════════════════════════
+
+import { buscarPacientePorId } from './pacientes.js';
+import { buscarRespostas } from './respostas.js';
+
+// ═══════════════════════════════════════════════════════════
+// CÁLCULOS CLÍNICOS
+// ═══════════════════════════════════════════════════════════
+const CALC = {
+  idade(nascimento) {
+    if (!nascimento) return null;
+    const nasc = new Date(nascimento);
+    if (isNaN(nasc.getTime())) return null;
+    const hoje = new Date();
+    let idade = hoje.getFullYear() - nasc.getFullYear();
+    const m = hoje.getMonth() - nasc.getMonth();
+    if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) idade--;
+    return idade;
+  },
+
+  imc(peso, altura) {
+    peso = parseFloat(peso); altura = parseFloat(altura);
+    if (!peso || !altura) return null;
+    const alturaM = altura > 3 ? altura / 100 : altura;
+    return +(peso / (alturaM * alturaM)).toFixed(1);
+  },
+
+  classificarIMC(imc) {
+    if (imc === null) return { label: '—', cor: 'var(--ink-mute)' };
+    if (imc < 18.5) return { label: 'Abaixo do peso', cor: 'var(--gold)' };
+    if (imc < 25) return { label: 'Peso normal', cor: 'var(--sage)' };
+    if (imc < 30) return { label: 'Sobrepeso', cor: 'var(--gold)' };
+    if (imc < 35) return { label: 'Obesidade I', cor: 'var(--terracotta)' };
+    if (imc < 40) return { label: 'Obesidade II', cor: 'var(--terracotta)' };
+    return { label: 'Obesidade III', cor: 'var(--rose)' };
+  },
+
+  psqi(m6) {
+    if (!m6) return null;
+    let score = 0;
+    score += parseInt(m6.q6_qualidade) || 0;
+    const lat = parseInt(m6.latencia_min) || 0;
+    if (lat > 60) score += 3; else if (lat > 30) score += 2; else if (lat > 15) score += 1;
+    const dist = (parseInt(m6.q5a)||0) + (parseInt(m6.q5b)||0) + (parseInt(m6.q5c)||0) + (parseInt(m6.q5d)||0);
+    if (dist > 9) score += 3; else if (dist > 6) score += 2; else if (dist > 0) score += 1;
+    score += parseInt(m6.q7_medicacao) || 0;
+    const diurna = (parseInt(m6.q8_sonolencia)||0) + (parseInt(m6.q9_disposicao)||0);
+    if (diurna > 4) score += 3; else if (diurna > 2) score += 2; else if (diurna > 0) score += 1;
+    const horas = parseFloat(m6.horas_sono) || 0;
+    if (horas < 5) score += 3; else if (horas < 6) score += 2; else if (horas < 7) score += 1;
+    return Math.min(score, 21);
+  },
+
+  classificarPSQI(score) {
+    if (score === null) return { label: '—', cor: 'var(--ink-mute)' };
+    if (score <= 5) return { label: 'Bom', cor: 'var(--sage)' };
+    if (score <= 10) return { label: 'Ruim', cor: 'var(--gold)' };
+    return { label: 'Muito ruim', cor: 'var(--rose)' };
+  },
+
+  meq(m6) {
+    if (!m6) return null;
+    let score = 0;
+    for (let i = 1; i <= 7; i++) {
+      score += parseInt(m6['meq_' + i]) || 0;
+    }
+    return score;
+  },
+
+  classificarCronotipo(score) {
+    if (score === null) return { label: '—', emoji: '', cor: 'var(--ink-mute)' };
+    if (score >= 24) return { label: 'Matutino', emoji: '🌅', cor: 'var(--gold)' };
+    if (score >= 18) return { label: 'Intermediário-matutino', emoji: '🌤️', cor: 'var(--sage)' };
+    if (score >= 12) return { label: 'Intermediário-vespertino', emoji: '🌆', cor: 'var(--moss-light)' };
+    return { label: 'Vespertino', emoji: '🌙', cor: 'var(--moss)' };
+  },
+
+  tmb(peso, altura, idade, sexo) {
+    peso = parseFloat(peso); altura = parseFloat(altura); idade = parseInt(idade);
+    if (!peso || !altura || !idade) return null;
+    const alturaCm = altura < 3 ? altura * 100 : altura;
+    const base = (10 * peso) + (6.25 * alturaCm) - (5 * idade);
+    const ehHomem = (sexo || '').toLowerCase().includes('masc');
+    return Math.round(base + (ehHomem ? 5 : -161));
+  },
+
+  get(tmb, m10) {
+    if (!tmb) return null;
+    let fatorBase = 1.2;
+    const neat = (m10 && m10.nivel_neat || '').toLowerCase();
+    if (neat.includes('leve')) fatorBase = 1.375;
+    else if (neat.includes('moderad')) fatorBase = 1.55;
+    else if (neat.includes('ativo')) fatorBase = 1.725;
+    return Math.round(tmb * fatorBase);
+  },
+
+  scoreSono(m6, psqiScore) {
+    if (psqiScore === null) return null;
+    return Math.round(Math.max(0, 100 - (psqiScore / 21) * 100));
+  },
+
+  scoreAlimentacao(m9) {
+    if (!m9) return null;
+    const freqMap = { 'Nunca': 0, '1-2x/sem': 1, '3-4x/sem': 2, '5-6x/sem': 3, 'Diariamente': 4, '+1x/dia': 5 };
+    const saudaveis = ['frutas', 'verduras', 'frango_peixe', 'ovos', 'lacteos', 'leguminosas', 'integrais', 'oleaginosas'];
+    const risco = ['doces', 'ultraprocessados', 'fastfood', 'refrigerantes'];
+
+    let pontosBons = 0, maxBons = saudaveis.length * 5;
+    saudaveis.forEach(g => { pontosBons += (freqMap[m9[g]] || 0); });
+
+    let pontosRuins = 0, maxRuins = risco.length * 5;
+    risco.forEach(g => { pontosRuins += (freqMap[m9[g]] || 0); });
+
+    const scoreBons = (pontosBons / maxBons) * 100;
+    const penalidade = (pontosRuins / maxRuins) * 60;
+    return Math.round(Math.max(0, Math.min(100, scoreBons - penalidade + 30)));
+  },
+
+  scoreAtividade(m10) {
+    if (!m10) return null;
+    const pratica = (m10.pratica || '').toLowerCase();
+    let base = 0;
+    if (pratica.includes('sim')) base = 50;
+    else if (pratica.includes('espor')) base = 25;
+    const neat = (m10.nivel_neat || '').toLowerCase();
+    if (neat.includes('ativo')) base += 30;
+    else if (neat.includes('moderad')) base += 20;
+    else if (neat.includes('leve')) base += 10;
+    if (m10.detalhes_atividades_json) {
+      try {
+        const det = typeof m10.detalhes_atividades_json === 'string'
+          ? JSON.parse(m10.detalhes_atividades_json) : m10.detalhes_atividades_json;
+        const numAtividades = Object.keys(det).length;
+        base += Math.min(numAtividades * 7, 20);
+      } catch (e) {}
+    }
+    return Math.round(Math.min(100, base));
+  },
+
+  scoreComportamento(m7) {
+    if (!m7) return null;
+    let score = 50;
+    const mast = (m7.q7_5_mastigacao || '').toLowerCase();
+    if (mast.includes('lenta')) score += 15;
+    else if (mast.includes('rápida') || mast.includes('rapida')) score -= 15;
+    const noite = (m7.q7_4_come_noite || '').toLowerCase();
+    if (noite === 'não' || noite === 'nao') score += 15;
+    else if (noite === 'sim') score -= 10;
+    const apetite = (m7.q7_1_apetite || '').toLowerCase();
+    if (apetite.includes('bom')) score += 20;
+    else if (apetite.includes('excessivo')) score -= 15;
+    return Math.round(Math.max(0, Math.min(100, score)));
+  },
+
+  scoreMindset(m13) {
+    if (!m13) return null;
+    const habitos = parseInt(m13.q13_1_habitos_atuais) || 0;
+    const capacidade = parseInt(m13.q13_2_capacidade_mudar) || 0;
+    const score = ((habitos * 0.4) + (capacidade * 0.6)) * 10;
+    return Math.round(Math.max(0, Math.min(100, score)));
+  },
+
+  macros(dados) {
+    const { get, pesoAtual, pesoMeta, objetivo, patologias, cronotipoLabel } = dados;
+    if (!get || !pesoAtual) return null;
+
+    const meta = pesoMeta || pesoAtual;
+    const pesoAjustado = +((parseFloat(pesoAtual) + parseFloat(meta)) / 2).toFixed(1);
+
+    const obj = (objetivo || '').toLowerCase();
+    let metaKcal, gPorKg, ajusteLabel;
+    if (obj.includes('emagre') || obj.includes('perder') || obj.includes('gordura') || obj.includes('peso')) {
+      metaKcal = Math.round(get * 0.725);
+      gPorKg = 2.0;
+      ajusteLabel = 'Déficit 27,5%';
+    } else if (obj.includes('hipertrofia') || obj.includes('massa') || obj.includes('ganho') || obj.includes('músculo') || obj.includes('musculo')) {
+      metaKcal = Math.round(get * 1.10);
+      gPorKg = 2.4;
+      ajusteLabel = 'Superávit 10%';
+    } else {
+      metaKcal = get;
+      gPorKg = 1.8;
+      ajusteLabel = 'Manutenção';
+    }
+
+    const pat = (patologias || '').toLowerCase();
+    let pctCarbo = 0.40, pctGordura = 0.30;
+    const ajustesPatologia = [];
+    if (pat.includes('renal') || pat.includes('rim') || pat.includes('insufici')) {
+      gPorKg = Math.min(gPorKg, 1.1);
+      ajustesPatologia.push('Proteína limitada (questão renal)');
+    }
+    if (pat.includes('diabet') || pat.includes('glic') || pat.includes('insulin')) {
+      pctCarbo = 0.35;
+      pctGordura = 0.35;
+      ajustesPatologia.push('Carboidrato reduzido (controle glicêmico)');
+    }
+    if (pat.includes('colesterol') || pat.includes('triglic') || pat.includes('dislipid')) {
+      ajustesPatologia.push('Atenção a gordura saturada');
+    }
+    if (pat.includes('hipertens') || pat.includes('pressão') || pat.includes('pressao')) {
+      ajustesPatologia.push('Atenção ao sódio');
+    }
+
+    const proteinaG = Math.round(pesoAjustado * gPorKg);
+    const proteinaKcal = proteinaG * 4;
+    const kcalRestante = metaKcal - proteinaKcal;
+    const totalCG = pctCarbo + pctGordura;
+    const carboKcal = kcalRestante * (pctCarbo / totalCG);
+    const gorduraKcal = kcalRestante * (pctGordura / totalCG);
+    const carboG = Math.round(carboKcal / 4);
+    const gorduraG = Math.round(gorduraKcal / 9);
+    const pctProteinaReal = Math.round((proteinaKcal / metaKcal) * 100);
+    const pctCarboReal = Math.round((carboKcal / metaKcal) * 100);
+    const pctGorduraReal = Math.round((gorduraKcal / metaKcal) * 100);
+
+    const crono = (cronotipoLabel || '').toLowerCase();
+    let distribuicao;
+    if (crono.includes('matutino')) {
+      distribuicao = { 'Café': 25, 'Almoço': 35, 'Lanche': 15, 'Jantar': 25 };
+    } else if (crono.includes('vespertino')) {
+      distribuicao = { 'Café': 15, 'Almoço': 30, 'Lanche': 20, 'Jantar': 35 };
+    } else {
+      distribuicao = { 'Café': 20, 'Almoço': 32, 'Lanche': 18, 'Jantar': 30 };
+    }
+
+    return {
+      pesoAjustado, metaKcal, ajusteLabel, gPorKg,
+      proteina: { g: proteinaG, pct: pctProteinaReal },
+      carbo: { g: carboG, pct: pctCarboReal },
+      gordura: { g: gorduraG, pct: pctGorduraReal },
+      ajustesPatologia, distribuicao, cronotipoLabel
+    };
+  }
+};
+
+// ═══════════════════════════════════════════════════════════
+// RED FLAGS
+// ═══════════════════════════════════════════════════════════
+function detectarRedFlags(m, calc) {
+  const flags = [];
+  if (calc.imc !== null && calc.imc >= 30)
+    flags.push({ tipo: 'IMC elevado', detalhe: `IMC ${calc.imc} indica obesidade`, nivel: 'alto' });
+  if (calc.imc !== null && calc.imc < 18.5)
+    flags.push({ tipo: 'Baixo peso', detalhe: `IMC ${calc.imc} abaixo do saudável`, nivel: 'medio' });
+  if (calc.psqiScore !== null && calc.psqiScore > 10)
+    flags.push({ tipo: 'Sono muito comprometido', detalhe: `PSQI ${calc.psqiScore}/21`, nivel: 'alto' });
+
+  if (m.m3 && m.m3.q3_1_patologias) {
+    const pat = String(m.m3.q3_1_patologias).toLowerCase();
+    if (pat.includes('diabet')) flags.push({ tipo: 'Diabetes', detalhe: 'Requer atenção a carboidratos', nivel: 'alto' });
+    if (pat.includes('hipertens') || pat.includes('pressão')) flags.push({ tipo: 'Hipertensão', detalhe: 'Atenção ao sódio', nivel: 'alto' });
+    if (pat.includes('renal') || pat.includes('rim')) flags.push({ tipo: 'Questão renal', detalhe: 'Cautela com proteína', nivel: 'alto' });
+  }
+
+  if (m.m3 && (m.m3.q3_4_deglutição || m.m3['q3_4_degluti\u00e7\u00e3o']) && (m.m3.q3_4_deglutição || m.m3['q3_4_degluti\u00e7\u00e3o']) !== 'Não') {
+    const valor = m.m3.q3_4_deglutição || m.m3['q3_4_degluti\u00e7\u00e3o'];
+    flags.push({
+      tipo: 'Dificuldade de deglutição',
+      detalhe: `Com ${valor.toLowerCase()} — adaptar texturas`,
+      nivel: 'alto'
+    });
+  }
+
+  if (m.m3 && m.m3.q3_2_cirurgia === 'Sim' && m.m3.q3_2_detalhe) {
+    const cir = String(m.m3.q3_2_detalhe).toLowerCase();
+    if (cir.includes('bariátrica') || cir.includes('bariatrica') ||
+        cir.includes('gástrica') || cir.includes('gastrica') ||
+        cir.includes('intestinal') || cir.includes('bypass')) {
+      flags.push({
+        tipo: 'Cirurgia digestiva prévia',
+        detalhe: 'Impacta absorção — revisar suplementação',
+        nivel: 'alto'
+      });
+    }
+  }
+
+  if (m.m9) {
+    const freqRuim = ['Diariamente', '+1x/dia', '5-6x/sem'];
+    if (freqRuim.includes(m.m9.ultraprocessados)) flags.push({ tipo: 'Ultraprocessados frequentes', detalhe: m.m9.ultraprocessados, nivel: 'medio' });
+    if (freqRuim.includes(m.m9.fastfood)) flags.push({ tipo: 'Fast-food frequente', detalhe: m.m9.fastfood, nivel: 'medio' });
+  }
+
+  return flags;
+}
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS DE RENDERING
+// ═══════════════════════════════════════════════════════════
+function metricCard(label, valor, sub, cor) {
+  return `
+    <div class="metric-card">
+      <div class="metric-label">${label}</div>
+      <div class="metric-value" style="color: ${cor};">${valor}</div>
+      ${sub ? `<div class="metric-sub">${sub}</div>` : ''}
+    </div>
+  `;
+}
+
+function gerarRadar(scores) {
+  const cx = 160, cy = 160, raio = 108;
+  const n = scores.length;
+  const anguloInicial = -Math.PI / 2;
+
+  function ponto(indice, distancia) {
+    const ang = anguloInicial + (2 * Math.PI * indice / n);
+    return { x: cx + Math.cos(ang) * distancia, y: cy + Math.sin(ang) * distancia };
+  }
+
+  let gradesHtml = '';
+  for (let nivel = 1; nivel <= 4; nivel++) {
+    const r = (raio * nivel) / 4;
+    const pts = scores.map((_, i) => { const p = ponto(i, r); return `${p.x.toFixed(1)},${p.y.toFixed(1)}`; }).join(' ');
+    gradesHtml += `<polygon points="${pts}" />`;
+  }
+
+  let linhasHtml = '';
+  scores.forEach((_, i) => {
+    const p = ponto(i, raio);
+    linhasHtml += `<line x1="${cx}" y1="${cy}" x2="${p.x.toFixed(1)}" y2="${p.y.toFixed(1)}" />`;
+  });
+
+  const pontosData = scores.map((s, i) => {
+    const valor = s.valor !== null ? s.valor : 0;
+    const p = ponto(i, (raio * valor) / 100);
+    return `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+  }).join(' ');
+
+  let circulosHtml = '';
+  scores.forEach((s, i) => {
+    const valor = s.valor !== null ? s.valor : 0;
+    const p = ponto(i, (raio * valor) / 100);
+    circulosHtml += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5"/>`;
+  });
+
+  let labelsHtml = '';
+  scores.forEach((s, i) => {
+    const p = ponto(i, raio + 26);
+    let anchor = 'middle';
+    if (p.x < cx - 10) anchor = 'end';
+    else if (p.x > cx + 10) anchor = 'start';
+    labelsHtml += `<text x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" text-anchor="${anchor}">${s.label.toUpperCase()}</text>`;
+  });
+
+  const svg = `
+    <svg viewBox="-10 -10 340 340" class="radar-svg" xmlns="http://www.w3.org/2000/svg">
+      <g stroke="#DDD6C5" fill="none" stroke-width="1">${gradesHtml}</g>
+      <g stroke="#C3BBA8" stroke-width="1">${linhasHtml}</g>
+      <polygon points="${pontosData}" fill="rgba(61,77,63,0.18)" stroke="#3D4D3F" stroke-width="2.5"/>
+      <g fill="#2A3A2C">${circulosHtml}</g>
+      <g font-family="Inter Tight, sans-serif" font-size="9" fill="#4A524C" font-weight="600">${labelsHtml}</g>
+    </svg>
+  `;
+
+  const legendaHtml = scores.map(s => {
+    const valor = s.valor !== null ? s.valor : 0;
+    const classe = valor >= 60 ? 'good' : (valor >= 40 ? 'mid' : 'bad');
+    return `
+      <div class="radar-legend-item">
+        <div class="radar-legend-top">
+          <span class="radar-legend-label">${s.label}</span>
+          <span class="radar-legend-value">${s.valor !== null ? s.valor : '—'}</span>
+        </div>
+        <div class="radar-legend-bar"><div class="radar-legend-fill ${classe}" style="width: ${valor}%;"></div></div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="radar-card">
+      <div class="radar-title">Mapa Nutricional</div>
+      <div class="radar-layout">
+        ${svg}
+        <div class="radar-legend">${legendaHtml}</div>
+      </div>
+    </div>
+  `;
+}
+
+function gerarCardMacros(mac, imc) {
+  const alertaPesoAjustado = (imc !== null && imc >= 30)
+    ? `<div class="macro-alerta">⚠️ IMC elevado (${imc}) — proteína calculada sobre peso ajustado (${mac.pesoAjustado} kg). Considere revisar conforme composição corporal.</div>`
+    : '';
+
+  const distrib = Object.keys(mac.distribuicao).map(ref => {
+    const pct = mac.distribuicao[ref];
+    const kcal = Math.round(mac.metaKcal * pct / 100);
+    const protRef = Math.round(mac.proteina.g * pct / 100);
+    const carbRef = Math.round(mac.carbo.g * pct / 100);
+    const gordRef = Math.round(mac.gordura.g * pct / 100);
+    return `
+      <div class="distrib-item">
+        <div class="distrib-ref">${ref}</div>
+        <div class="distrib-pct">${pct}%</div>
+        <div class="distrib-kcal">${kcal} kcal</div>
+        <div class="distrib-macros">
+          <span class="dm dm-p">P ${protRef}g</span>
+          <span class="dm dm-c">C ${carbRef}g</span>
+          <span class="dm dm-g">G ${gordRef}g</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const ajustesPat = mac.ajustesPatologia.length > 0
+    ? `<div class="macro-ajustes">
+         <div class="macro-ajustes-label">Ajustes por patologia:</div>
+         ${mac.ajustesPatologia.map(a => `<span class="macro-ajuste-tag">${a}</span>`).join('')}
+       </div>`
+    : '';
+
+  return `
+    <div class="macros-card">
+      <div class="macros-header">
+        <div class="macros-title">Prescrição Nutricional</div>
+        <div class="macros-badge">${mac.ajusteLabel}</div>
+      </div>
+      <div class="macros-kcal">
+        <div class="macros-kcal-value">${mac.metaKcal.toLocaleString('pt-BR')}</div>
+        <div class="macros-kcal-label">kcal / dia · meta calórica</div>
+      </div>
+      <div class="macros-grid">
+        <div class="macro-item macro-prot">
+          <div class="macro-icon">🥩</div>
+          <div class="macro-nome">Proteína</div>
+          <div class="macro-g">${mac.proteina.g}g</div>
+          <div class="macro-detalhe">${mac.proteina.pct}% · ${mac.gPorKg}g/kg</div>
+        </div>
+        <div class="macro-item macro-carb">
+          <div class="macro-icon">🍚</div>
+          <div class="macro-nome">Carboidrato</div>
+          <div class="macro-g">${mac.carbo.g}g</div>
+          <div class="macro-detalhe">${mac.carbo.pct}% do total</div>
+        </div>
+        <div class="macro-item macro-gord">
+          <div class="macro-icon">🥑</div>
+          <div class="macro-nome">Gordura</div>
+          <div class="macro-g">${mac.gordura.g}g</div>
+          <div class="macro-detalhe">${mac.gordura.pct}% do total</div>
+        </div>
+      </div>
+      ${ajustesPat}
+      ${alertaPesoAjustado}
+      <div class="distrib-section">
+        <div class="distrib-titulo">Distribuição sugerida nas refeições <span class="distrib-crono">cronotipo ${mac.cronotipoLabel.toLowerCase()}</span></div>
+        <div class="distrib-grid">${distrib}</div>
+      </div>
+    </div>
+  `;
+}
+
+function secaoCard(titulo, pares) {
+  const rows = pares
+    .filter(([k, v]) => v !== null && v !== undefined && v !== '')
+    .map(([k, v]) => `
+      <div class="secao-row">
+        <span class="secao-key">${k}</span>
+        <span class="secao-val">${v}</span>
+      </div>
+    `).join('');
+  if (!rows) return '';
+  return `
+    <div class="secao-card">
+      <div class="secao-title">${titulo}</div>
+      <div class="secao-rows">${rows}</div>
+    </div>
+  `;
+}
+
+function renderModulosDetalhados(m) {
+  let html = '<div class="rel-sections">';
+
+  if (m.m2) {
+    html += secaoCard('🎯 Objetivo & Motivação', [
+      ['Objetivo principal', m.m2.q2_1_objetivo_principal],
+      ['Objetivo secundário', m.m2.q2_2_objetivo_secundario],
+      ['Por quê agora', m.m2.q2_3_por_que],
+      ['Alinhamento atual', m.m2.q2_7_alinhamento ? m.m2.q2_7_alinhamento + '/10' : null],
+      ['Maiores dificuldades', m.m2.q2_8_dificuldades]
+    ]);
+  }
+
+  if (m.m3) {
+    const cirurgiaDisplay = m.m3.q3_2_cirurgia === 'Sim'
+      ? `Sim — ${m.m3.q3_2_detalhe || '(sem detalhes)'}`
+      : (m.m3.q3_2_cirurgia || null);
+    html += secaoCard('🩺 Histórico Clínico', [
+      ['Patologias', m.m3.q3_1_patologias],
+      ['Cirurgia prévia', cirurgiaDisplay],
+      ['Medicamentos', m.m3.q3_3_medicamentos],
+      ['Deglutição', m.m3.q3_4_deglutição || m.m3['q3_4_degluti\u00e7\u00e3o']],
+      ['Alergias/intolerâncias', m.m3.q3_5_alergias]
+    ]);
+  }
+
+  if (m.m5) {
+    html += secaoCard('🏠 Estilo de Vida', [
+      ['Quem cozinha', m.m5.q5_4_quem_cozinha],
+      ['Horário de trabalho', m.m5.q5_7_horario_trabalho],
+      ['Rotina refeições no trabalho', m.m5.q5_7b_rotina_trabalho],
+      ['Nível de estresse', m.m5.q5_8_estresse],
+      ['Fuma', m.m5.q5_9_fuma],
+      ['Álcool', m.m5.q5_10_alcool],
+      ['Hidratação', m.m5.q5_12_agua]
+    ]);
+  }
+
+  if (m.m7) {
+    html += secaoCard('🍽️ Comportamento Alimentar', [
+      ['Apetite', m.m7.q7_1_apetite],
+      ['Preferência de sabor', m.m7.q7_2_sabor],
+      ['Maior fome', m.m7.q7_3_maior_fome],
+      ['Mastigação', m.m7.q7_5_mastigacao],
+      ['Não gosta', m.m7.q7_9_nao_gosta],
+      ['Gosta muito', m.m7.q7_10_gosta_muito]
+    ]);
+  }
+
+  if (m.m8) {
+    const refeicoes = [
+      ['☀️ Café da manhã', m.m8.cafe_faz, m.m8.cafe_descricao, m.m8.cafe_horario],
+      ['🍎 Lanche manhã', m.m8.lanche_manha_faz, m.m8.lanche_manha_descricao, m.m8.lanche_manha_horario],
+      ['🍽️ Almoço', m.m8.almoco_faz, m.m8.almoco_descricao, m.m8.almoco_horario],
+      ['🥪 Lanche tarde', m.m8.lanche_tarde_faz, m.m8.lanche_tarde_descricao, m.m8.lanche_tarde_horario],
+      ['🌙 Jantar', m.m8.jantar_faz, m.m8.jantar_descricao, m.m8.jantar_horario],
+      ['🌌 Ceia', m.m8.ceia_faz, m.m8.ceia_descricao, m.m8.ceia_horario]
+    ];
+    const refeicoesValidas = refeicoes.filter(r => (r[1]||'').toLowerCase() !== 'não' && (r[2] || r[3]));
+    if (refeicoesValidas.length > 0) {
+      html += `<div class="secao-card">
+        <div class="secao-title">📋 Recordatório 24h</div>
+        <div class="recordatorio-list">
+          ${refeicoesValidas.map(r => `
+            <div class="refeicao-item">
+              <div class="refeicao-head"><span>${r[0]}</span>${r[3] ? `<span class="refeicao-hora">${r[3]}</span>` : ''}</div>
+              <div class="refeicao-desc">${r[2] || '<em style="color:var(--ink-mute)">Sem descrição</em>'}</div>
+            </div>
+          `).join('')}
+        </div>
+        <div class="ia-hint">⚛ A análise de calorias e macros por IA será processada aqui (em breve)</div>
+      </div>`;
+    }
+  }
+
+  if (m.m10) {
+    let atividadesHtml = '';
+    if (m.m10.detalhes_atividades_json) {
+      try {
+        const det = typeof m.m10.detalhes_atividades_json === 'string'
+          ? JSON.parse(m.m10.detalhes_atividades_json) : m.m10.detalhes_atividades_json;
+        const nomes = { q10_caminhada:'🚶 Caminhada', q10_corrida:'🏃 Corrida', q10_musc:'🏋 Musculação', q10_crossfit:'🔥 CrossFit', q10_bike:'🚴 Ciclismo', q10_natacao:'🏊 Natação', q10_pilates:'🧘 Pilates', q10_danca:'💃 Dança', q10_futebol:'⚽ Futebol', q10_basquete:'🏀 Basquete', q10_volei:'🏐 Vôlei', q10_tenis:'🎾 Tênis', q10_tmesa:'🏓 Tênis mesa', q10_boxe:'🥊 Boxe', q10_artes:'🥋 Artes Marciais' };
+        atividadesHtml = Object.keys(det).map(k =>
+          `<div class="ativ-tag">${nomes[k] || k}: ${det[k].frequencia || '?'}x/sem · ${det[k].intensidade || '?'}</div>`
+        ).join('');
+      } catch (e) {}
+    }
+    html += `<div class="secao-card">
+      <div class="secao-title">🏃 Atividade Física</div>
+      <div class="secao-rows">
+        <div class="secao-row"><span class="secao-key">Pratica</span><span class="secao-val">${m.m10.pratica || '—'}</span></div>
+        <div class="secao-row"><span class="secao-key">Nível diário (NEAT)</span><span class="secao-val">${m.m10.nivel_neat || '—'}</span></div>
+        <div class="secao-row"><span class="secao-key">Passos/dia</span><span class="secao-val">${m.m10.passos_dia || '—'}</span></div>
+      </div>
+      ${atividadesHtml ? `<div class="ativ-tags">${atividadesHtml}</div>` : ''}
+    </div>`;
+  }
+
+  if (m.m13) {
+    html += secaoCard('🧠 Mindset & Adesão', [
+      ['Hábitos atuais', m.m13.q13_1_habitos_atuais ? m.m13.q13_1_habitos_atuais + '/10' : null],
+      ['Capacidade de mudar', m.m13.q13_2_capacidade_mudar ? m.m13.q13_2_capacidade_mudar + '/10' : null],
+      ['Suporte do ambiente', m.m13.q13_3_suporte],
+      ['Já tentou', m.m13.q13_4_metodos_tentados],
+      ['O que não funcionou', m.m13.q13_5_nao_funcionou],
+      ['Algo mais', m.m13.q13_7_algo_mais]
+    ]);
+  }
+
+  html += '</div>';
+  return html;
+}
+
+// ═══════════════════════════════════════════════════════════
+// FUNÇÃO PRINCIPAL — busca dados do Supabase e renderiza
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Carrega e renderiza o relatório do paciente
+ * @param {string} pacienteId
+ * @returns {string} HTML do relatório
+ */
+export async function gerarRelatorio(pacienteId) {
+  // Buscar dados do paciente e respostas
+  const paciente = await buscarPacientePorId(pacienteId);
+  const respostasPorModulo = await buscarRespostas(pacienteId);
+
+  // No Supabase respostas ficam por módulo (m1, m2, ...). Adapta pra estrutura esperada.
+  const m = respostasPorModulo || {};
+
+  // Cálculos
+  const nascimento = m.m1 ? m.m1.q1_4_nascimento : null;
+  const idade = CALC.idade(nascimento);
+  const sexo = m.m1 ? m.m1.q1_5_sexo : '';
+  const peso = m.m4 ? m.m4.q4_1_peso_atual : null;
+  const altura = m.m4 ? m.m4.q4_2_altura : null;
+  const pesoDesejado = m.m4 ? m.m4.q4_4_peso_desejado : null;
+
+  const calc = {};
+  calc.imc = CALC.imc(peso, altura);
+  calc.imcClass = CALC.classificarIMC(calc.imc);
+  calc.psqiScore = CALC.psqi(m.m6);
+  calc.psqiClass = CALC.classificarPSQI(calc.psqiScore);
+  calc.meqScore = CALC.meq(m.m6);
+  calc.cronotipo = CALC.classificarCronotipo(calc.meqScore);
+  calc.tmb = CALC.tmb(peso, altura, idade, sexo);
+  calc.get = CALC.get(calc.tmb, m.m10);
+
+  const radarScores = [
+    { label: 'Sono', valor: CALC.scoreSono(m.m6, calc.psqiScore) },
+    { label: 'Alimentação', valor: CALC.scoreAlimentacao(m.m9) },
+    { label: 'Atividade', valor: CALC.scoreAtividade(m.m10) },
+    { label: 'Comportamento', valor: CALC.scoreComportamento(m.m7) },
+    { label: 'Mindset', valor: CALC.scoreMindset(m.m13) }
+  ];
+
+  const macros = CALC.macros({
+    get: calc.get,
+    pesoAtual: peso,
+    pesoMeta: pesoDesejado,
+    objetivo: m.m2 ? m.m2.q2_1_objetivo_principal : '',
+    patologias: m.m3 ? m.m3.q3_1_patologias : '',
+    cronotipoLabel: calc.cronotipo.label
+  });
+
+  const redFlags = detectarRedFlags(m, calc);
+  const nome = (m.m1 && m.m1.q1_1_nome) || paciente.nome || 'Paciente';
+  const iniciais = nome.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+
+  return `
+    <div class="rel-topbar">
+      <button class="btn" data-relatorio-action="voltar">← Voltar</button>
+      <button class="btn primary" onclick="window.print()">🖨️ Imprimir / PDF</button>
+    </div>
+
+    <div class="rel-hero">
+      <div class="rel-avatar">${iniciais}</div>
+      <div class="rel-hero-info">
+        <h1 class="rel-name">${nome}</h1>
+        <div class="rel-meta">
+          ${idade ? idade + ' anos' : ''} ${sexo ? '· ' + sexo : ''} ${m.m1 && m.m1.q1_6_cidade ? '· ' + m.m1.q1_6_cidade : ''}
+        </div>
+        <div class="rel-code-badge">${paciente.codigo}</div>
+      </div>
+      ${m.m2 && m.m2.q2_1_objetivo_principal ? `
+      <div class="rel-objetivo">
+        <div class="rel-objetivo-label">Objetivo principal</div>
+        <div class="rel-objetivo-value">${m.m2.q2_1_objetivo_principal}</div>
+      </div>` : ''}
+    </div>
+
+    ${redFlags.length > 0 ? `
+    <div class="rel-flags">
+      <div class="rel-flags-title">⚠️ ${redFlags.length} ${redFlags.length === 1 ? 'ponto de atenção' : 'pontos de atenção'}</div>
+      <div class="rel-flags-grid">
+        ${redFlags.map(f => `
+          <div class="flag-card flag-${f.nivel}">
+            <div class="flag-tipo">${f.tipo}</div>
+            <div class="flag-detalhe">${f.detalhe}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>` : ''}
+
+    <div class="rel-metrics">
+      ${metricCard('IMC', calc.imc !== null ? calc.imc : '—', calc.imcClass.label, calc.imcClass.cor)}
+      ${metricCard('Peso atual', peso ? peso + ' kg' : '—', pesoDesejado ? 'Meta: ' + pesoDesejado + ' kg' : '', 'var(--moss)')}
+      ${metricCard('PSQI (sono)', calc.psqiScore !== null ? calc.psqiScore + '/21' : '—', calc.psqiClass.label, calc.psqiClass.cor)}
+      ${metricCard('Cronotipo', calc.cronotipo.emoji || '—', calc.cronotipo.label, calc.cronotipo.cor)}
+      ${metricCard('TMB', calc.tmb ? calc.tmb + ' kcal' : '—', 'Metabolismo basal', 'var(--olive)')}
+      ${metricCard('GET estimado', calc.get ? calc.get + ' kcal' : '—', 'Gasto total/dia', 'var(--olive)')}
+    </div>
+
+    ${gerarRadar(radarScores)}
+
+    ${macros ? gerarCardMacros(macros, calc.imc) : ''}
+
+    ${renderModulosDetalhados(m)}
+
+    <div class="rel-disclaimer">
+      ⚕️ Este relatório é uma <strong>estimativa preliminar gerada automaticamente</strong> a partir das respostas do paciente. Todos os dados, cálculos e estimativas devem ser <strong>validados pelo nutricionista</strong> antes de qualquer conduta clínica. Não constitui diagnóstico.
+    </div>
+  `;
+}
