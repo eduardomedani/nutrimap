@@ -468,6 +468,16 @@
   .patient-action:hover { background: var(--line); }
   .patient-action.primary { background: var(--moss); color: var(--cream); }
   .patient-action.primary:hover { background: var(--moss-deep); }
+  .patient-action-danger {
+    background: transparent;
+    color: var(--ink-mute);
+    padding: 8px 10px;
+    font-size: 14px;
+  }
+  .patient-action-danger:hover {
+    background: rgba(168,83,74,0.15);
+    color: var(--rose);
+  }
 
   .empty-state {
     text-align: center; padding: 60px 20px; color: var(--ink-mute);
@@ -830,6 +840,7 @@
       const acaoPrincipal = podeAbrir
         ? `<button class="patient-action primary" onclick="event.stopPropagation(); abrirRelatorio('${p.id}')">👁 Ver</button>`
         : `<button class="patient-action" onclick="event.stopPropagation(); copiarLinkPaciente('${p.codigo}')">📋 Link</button>`;
+      const acaoExcluir = `<button class="patient-action patient-action-danger" onclick="event.stopPropagation(); excluirPaciente('${p.id}', '${(p.nome || p.codigo).replace(/'/g, "\\'")}')">🗑</button>`;
 
       return `
         <div class="patient-row" onclick="${podeAbrir ? `abrirRelatorio('${p.id}')` : `avisarIncompleto()`}">
@@ -841,6 +852,7 @@
           <span class="patient-code">${p.codigo}</span>
           <span class="status-tag status-${status}">${status}</span>
           ${acaoPrincipal}
+          ${acaoExcluir}
         </div>
       `;
     }).join('') + '</div>';
@@ -945,6 +957,36 @@
     toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:var(--moss-deep);color:var(--cream);padding:12px 18px;border-radius:10px;font-size:13px;z-index:1000;box-shadow:0 8px 30px rgba(0,0,0,0.15);';
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 2000);
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // EXCLUIR PACIENTE
+  // ═══════════════════════════════════════════════════════════
+  async function excluirPaciente(pacienteId, nomeRef) {
+    const confirma = confirm(`⚠️ Excluir o paciente "${nomeRef}"?\n\nTodos os dados (respostas, exames) serão apagados permanentemente. Esta ação não pode ser desfeita.`);
+    if (!confirma) return;
+
+    try {
+      // O CASCADE no banco apaga respostas e exames automaticamente
+      const { error } = await sb
+        .from('pacientes')
+        .delete()
+        .eq('id', pacienteId);
+
+      if (error) throw error;
+
+      // Feedback visual
+      const toast = document.createElement('div');
+      toast.textContent = '✓ Paciente excluído';
+      toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:var(--moss-deep);color:var(--cream);padding:12px 18px;border-radius:10px;font-size:13px;z-index:1000;box-shadow:0 8px 30px rgba(0,0,0,0.15);';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2000);
+
+      await carregarPacientes();
+    } catch (e) {
+      console.error(e);
+      alert('Erro ao excluir: ' + e.message);
+    }
   }
 
   // ═══════════════════════════════════════════════════════════
