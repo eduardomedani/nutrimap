@@ -762,8 +762,22 @@ export async function gerarRelatorio(pacienteId) {
   const paciente = await buscarPacientePorId(pacienteId);
   const respostasPorModulo = await buscarRespostas(pacienteId);
 
+  // ⭐ DEBUG TEMPORÁRIO — pra diagnosticar problemas de campos vazios
+  console.log('═══════════════════════════════════════════');
+  console.log('🔍 DEBUG RELATÓRIO');
+  console.log('═══════════════════════════════════════════');
+  console.log('Paciente:', paciente);
+  console.log('Respostas (cru do Supabase):', respostasPorModulo);
+  console.log('Módulos presentes:', Object.keys(respostasPorModulo || {}));
+
   // ⭐ Adapta as chaves do NutriMap (curtas) para o formato esperado pelo relatório
   const m = adaptarRespostas(respostasPorModulo);
+
+  console.log('Módulos APÓS adaptação:', m);
+  console.log('m1 (dados pessoais):', m.m1);
+  console.log('m4 (peso/altura):', m.m4);
+  console.log('m10 (atividade):', m.m10);
+  console.log('═══════════════════════════════════════════');
 
   // Cálculos
   const nascimento = m.m1 ? m.m1.q1_4_nascimento : null;
