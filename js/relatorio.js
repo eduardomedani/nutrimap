@@ -7,6 +7,171 @@ import { buscarPacientePorId } from './pacientes.js';
 import { buscarRespostas } from './respostas.js';
 
 // ═══════════════════════════════════════════════════════════
+// MAPEAMENTO DE CHAVES — NutriMap (curtas) → Dashboard antigo (semânticas)
+// ═══════════════════════════════════════════════════════════
+function adaptarRespostas(respostasPorModulo) {
+  const r = JSON.parse(JSON.stringify(respostasPorModulo || {})); // clone
+
+  // ─── M1: Dados pessoais ───
+  if (r.m1) {
+    r.m1.q1_1_nome = r.m1.q1_1;
+    r.m1.q1_2_email = r.m1.q1_2;
+    r.m1.q1_3_telefone = r.m1.q1_3;
+    r.m1.q1_4_nascimento = r.m1.q1_4;
+    r.m1.q1_5_sexo = r.m1.q1_5;
+    r.m1.q1_6_cidade = r.m1.q1_6;
+    r.m1.q1_8_profissao = r.m1.q1_8;
+  }
+
+  // ─── M2: Objetivo ───
+  if (r.m2) {
+    r.m2.q2_1_objetivo_principal = r.m2.q2_1;
+    r.m2.q2_2_objetivo_secundario = r.m2.q2_2;
+    r.m2.q2_3_por_que = r.m2.q2_3;
+    r.m2.q2_7_alinhamento = r.m2.q2_7;
+    r.m2.q2_8_dificuldades = r.m2.q2_8;
+  }
+
+  // ─── M3: Histórico clínico ───
+  if (r.m3) {
+    const patologias = r.m3.q3_1;
+    r.m3.q3_1_patologias = Array.isArray(patologias) ? patologias.join(', ') : patologias;
+    r.m3.q3_2_cirurgia = r.m3.q3_2;
+    r.m3.q3_2_detalhe = r.m3.q3_2_detalhe || r.m3.q3_2_det;
+    r.m3.q3_3_medicamentos = r.m3.q3_3;
+    r.m3.q3_4_deglutição = r.m3.q3_4;
+    r.m3.q3_5_alergias = r.m3.q3_5;
+  }
+
+  // ─── M4: Antropometria ───
+  if (r.m4) {
+    r.m4.q4_1_peso_atual = r.m4.q4_1;
+    r.m4.q4_2_altura = r.m4.q4_2;
+    r.m4.q4_3_peso_habitual = r.m4.q4_3;
+    r.m4.q4_4_peso_desejado = r.m4.q4_4;
+    r.m4.q4_5_tempo_meta = r.m4.q4_5;
+  }
+
+  // ─── M5: Estilo de vida ───
+  if (r.m5) {
+    r.m5.q5_1_moradia = r.m5.q5_1;
+    r.m5.q5_2_mora_com = r.m5.q5_2;
+    r.m5.q5_4_quem_cozinha = r.m5.q5_4;
+    r.m5.q5_7_horario_trabalho = r.m5.q5_7;
+    r.m5.q5_7b_rotina_trabalho = r.m5.q5_7b;
+    r.m5.q5_8_estresse = r.m5.q5_8;
+    r.m5.q5_9_fuma = r.m5.q5_9;
+    r.m5.q5_10_alcool = r.m5.q5_10;
+    r.m5.q5_11_lazer = r.m5.q5_11;
+    r.m5.q5_12_agua = r.m5.q5_12;
+  }
+
+  // ─── M6: Sono (PSQI + MEQ) ───
+  if (r.m6) {
+    // MEQ: q6_meq_1 a q6_meq_7
+    for (let i = 1; i <= 7; i++) {
+      if (r.m6['q6_meq_' + i] !== undefined) {
+        r.m6['meq_' + i] = r.m6['q6_meq_' + i];
+      }
+    }
+    // Outros campos do sono (nomes prováveis)
+    r.m6.q6_qualidade = r.m6.q6_qualidade || r.m6.q6_qual || r.m6.q6_3;
+    r.m6.latencia_min = r.m6.latencia_min || r.m6.q6_latencia || r.m6.q6_2;
+    r.m6.horas_sono = r.m6.horas_sono || r.m6.q6_horas || r.m6.q6_1;
+    r.m6.q5a = r.m6.q5a || r.m6.q6_5a;
+    r.m6.q5b = r.m6.q5b || r.m6.q6_5b;
+    r.m6.q5c = r.m6.q5c || r.m6.q6_5c;
+    r.m6.q5d = r.m6.q5d || r.m6.q6_5d;
+    r.m6.q7_medicacao = r.m6.q7_medicacao || r.m6.q6_medicacao;
+    r.m6.q8_sonolencia = r.m6.q8_sonolencia || r.m6.q6_sonolencia;
+    r.m6.q9_disposicao = r.m6.q9_disposicao || r.m6.q6_disposicao;
+  }
+
+  // ─── M7: Comportamento alimentar ───
+  if (r.m7) {
+    r.m7.q7_1_apetite = r.m7.q7_1;
+    r.m7.q7_2_sabor = r.m7.q7_2;
+    r.m7.q7_3_maior_fome = r.m7.q7_3;
+    r.m7.q7_4_come_noite = r.m7.q7_4;
+    r.m7.q7_5_mastigacao = r.m7.q7_5;
+    r.m7.q7_9_nao_gosta = r.m7.q7_9;
+    r.m7.q7_10_gosta_muito = r.m7.q7_10;
+  }
+
+  // ─── M8: Recordatório 24h ───
+  if (r.m8) {
+    // Mapeia possíveis nomes do recordatório
+    const refeicoes = ['cafe', 'lanche_manha', 'almoco', 'lanche_tarde', 'jantar', 'ceia'];
+    refeicoes.forEach((ref, idx) => {
+      const n = idx + 1;
+      // Possíveis nomes: q8_cafe, q8_1_faz, cafe_faz...
+      r.m8[ref + '_faz'] = r.m8[ref + '_faz'] || r.m8['q8_' + n + '_faz'] || r.m8['q8_' + ref + '_faz'];
+      r.m8[ref + '_horario'] = r.m8[ref + '_horario'] || r.m8['q8_' + n + '_horario'] || r.m8['q8_' + ref + '_horario'];
+      r.m8[ref + '_descricao'] = r.m8[ref + '_descricao'] || r.m8['q8_' + n + '_descricao'] || r.m8['q8_' + n + '_desc'] || r.m8['q8_' + ref + '_desc'];
+    });
+  }
+
+  // ─── M9: Frequência alimentar ───
+  if (r.m9) {
+    // Tenta mapear de q9_1, q9_2, etc para nomes (frutas, verduras, etc)
+    // Mapeamento provável baseado na ordem das perguntas do questionário
+    const mapaFreqAlim = {
+      'q9_1': 'frutas',
+      'q9_2': 'verduras',
+      'q9_3': 'frango_peixe',
+      'q9_4': 'ovos',
+      'q9_5': 'lacteos',
+      'q9_6': 'leguminosas',
+      'q9_7': 'integrais',
+      'q9_8': 'oleaginosas',
+      'q9_9': 'doces',
+      'q9_10': 'ultraprocessados',
+      'q9_11': 'fastfood',
+      'q9_12': 'refrigerantes'
+    };
+    Object.keys(mapaFreqAlim).forEach(k => {
+      if (r.m9[k] !== undefined) {
+        r.m9[mapaFreqAlim[k]] = r.m9[k];
+      }
+    });
+  }
+
+  // ─── M10: Atividade física ───
+  if (r.m10) {
+    r.m10.pratica = r.m10.q10_1 || r.m10.pratica;
+    r.m10.nivel_neat = r.m10.q10_neat || r.m10.nivel_neat;
+    r.m10.passos_dia = r.m10.q10_passos || r.m10.passos_dia;
+
+    // Constrói detalhes_atividades_json a partir dos checkboxes + freq + int
+    const atividades = ['caminhada', 'corrida', 'musc', 'crossfit', 'bike', 'natacao', 'pilates', 'danca', 'futebol', 'basquete', 'volei', 'tenis', 'tmesa', 'boxe', 'artes'];
+    const detalhes = {};
+    atividades.forEach(at => {
+      const freq = r.m10['q10_' + at + '_freq'];
+      const inten = r.m10['q10_' + at + '_int'];
+      if (freq || inten) {
+        detalhes['q10_' + at] = { frequencia: freq, intensidade: inten };
+      }
+    });
+    if (Object.keys(detalhes).length > 0) {
+      r.m10.detalhes_atividades_json = detalhes;
+    }
+  }
+
+  // ─── M13: Mindset ───
+  if (r.m13) {
+    r.m13.q13_1_habitos_atuais = r.m13.q13_1;
+    r.m13.q13_2_capacidade_mudar = r.m13.q13_2;
+    r.m13.q13_3_suporte = r.m13.q13_3;
+    r.m13.q13_4_metodos_tentados = Array.isArray(r.m13.q13_4) ? r.m13.q13_4.join(', ') : r.m13.q13_4;
+    r.m13.q13_5_nao_funcionou = r.m13.q13_5;
+    r.m13.q13_6_quero_evitar = r.m13.q13_6;
+    r.m13.q13_7_algo_mais = r.m13.q13_7;
+  }
+
+  return r;
+}
+
+// ═══════════════════════════════════════════════════════════
 // CÁLCULOS CLÍNICOS
 // ═══════════════════════════════════════════════════════════
 const CALC = {
@@ -597,8 +762,8 @@ export async function gerarRelatorio(pacienteId) {
   const paciente = await buscarPacientePorId(pacienteId);
   const respostasPorModulo = await buscarRespostas(pacienteId);
 
-  // No Supabase respostas ficam por módulo (m1, m2, ...). Adapta pra estrutura esperada.
-  const m = respostasPorModulo || {};
+  // ⭐ Adapta as chaves do NutriMap (curtas) para o formato esperado pelo relatório
+  const m = adaptarRespostas(respostasPorModulo);
 
   // Cálculos
   const nascimento = m.m1 ? m.m1.q1_4_nascimento : null;
