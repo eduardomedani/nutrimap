@@ -318,6 +318,7 @@
       <div class="form-error" id="errorLogin"></div>
     </form>
     <form id="formSignup" style="display: none;">
+      <div class="form-group"><label class="form-label">Código de convite</label><input type="text" class="form-input" id="signupCodigo" required placeholder="Ex: EDUARDO2026" style="text-transform: uppercase; letter-spacing: 0.05em;"></div>
       <div class="form-group"><label class="form-label">Nome completo</label><input type="text" class="form-input" id="signupNome" required placeholder="Dr. Eduardo Medani"></div>
       <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="signupEmail" required placeholder="seu@email.com"></div>
       <div class="form-group"><label class="form-label">Senha</label><input type="password" class="form-input" id="signupSenha" required minlength="6" placeholder="Mínimo 6 caracteres"></div>
@@ -465,7 +466,7 @@
 
 <script type="module">
   import { QUESTIONARIO_URL } from './js/supabase.js';
-  import { fazerLogin, criarConta, fazerLogout, obterSessao, obterPerfilNutri, traduzirErroAuth } from './js/auth.js';
+  import { fazerLogin, criarConta, fazerLogout, obterSessao, obterPerfilNutri, traduzirErroAuth, validarCodigoConvite, registrarUsoCodigo } from './js/auth.js';
   import { listarPacientes, criarPaciente, excluirPaciente, calcularEstatisticas } from './js/pacientes.js';
   import { formatarData, iniciaisDoNome, copiarParaClipboard, mostrarToast, gerarLinkWhatsapp, montarMensagemQuestionario } from './js/utils.js';
   import { gerarRelatorio } from './js/relatorio.js';
@@ -533,13 +534,33 @@
     const error = document.getElementById('errorSignup');
     const success = document.getElementById('successSignup');
     error.style.display = 'none'; success.style.display = 'none';
-    btn.disabled = true; btn.textContent = 'Criando...';
+    btn.disabled = true; btn.textContent = 'Validando...';
+
+    const codigo = document.getElementById('signupCodigo').value.trim().toUpperCase();
+    const email = document.getElementById('signupEmail').value;
+    const nome = document.getElementById('signupNome').value;
+    const senha = document.getElementById('signupSenha').value;
+
     try {
-      const data = await criarConta({
-        nome: document.getElementById('signupNome').value,
-        email: document.getElementById('signupEmail').value,
-        senha: document.getElementById('signupSenha').value
-      });
+      // 1. Valida o código de convite ANTES de criar a conta
+      const validacao = await validarCodigoConvite(codigo);
+      if (!validacao.valido) {
+        throw new Error(validacao.erro || 'Código inválido');
+      }
+
+      // 2. Cria a conta
+      btn.textContent = 'Criando conta...';
+      const data = await criarConta({ nome, email, senha });
+
+      // 3. Registra o uso do código (best-effort, não bloqueia se falhar)
+      if (data.user) {
+        try {
+          await registrarUsoCodigo(codigo, data.user.id, email);
+        } catch (e) {
+          console.warn('Não foi possível registrar uso do código:', e);
+        }
+      }
+
       if (data.session) {
         await iniciarApp();
       } else {
