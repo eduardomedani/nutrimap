@@ -100,14 +100,20 @@ function adaptarRespostas(respostasPorModulo) {
 
   // ─── M8: Recordatório 24h ───
   if (r.m8) {
-    // Mapeia possíveis nomes do recordatório
-    const refeicoes = ['cafe', 'lanche_manha', 'almoco', 'lanche_tarde', 'jantar', 'ceia'];
-    refeicoes.forEach((ref, idx) => {
-      const n = idx + 1;
-      // Possíveis nomes: q8_cafe, q8_1_faz, cafe_faz...
-      r.m8[ref + '_faz'] = r.m8[ref + '_faz'] || r.m8['q8_' + n + '_faz'] || r.m8['q8_' + ref + '_faz'];
-      r.m8[ref + '_horario'] = r.m8[ref + '_horario'] || r.m8['q8_' + n + '_horario'] || r.m8['q8_' + ref + '_horario'];
-      r.m8[ref + '_descricao'] = r.m8[ref + '_descricao'] || r.m8['q8_' + n + '_descricao'] || r.m8['q8_' + n + '_desc'] || r.m8['q8_' + ref + '_desc'];
+    // Mapeamento REAL do questionário (anamnese.html):
+    // refeição → [campo_faz, campo_descricao, campo_horario]
+    const mapaRef = {
+      cafe:         ['q8_1',  'q8_3',  'q8_2'],
+      lanche_manha: ['q8_4',  'q8_5',  'q8_5_time'],
+      almoco:       ['q8_6',  'q8_7',  'q8_7_time'],
+      lanche_tarde: ['q8_8',  'q8_9',  'q8_9_time'],
+      jantar:       ['q8_10', 'q8_11', 'q8_11_time'],
+      ceia:         ['q8_12', 'q8_13', 'q8_13_time'],
+    };
+    Object.entries(mapaRef).forEach(([ref, [cFaz, cDesc, cHora]]) => {
+      r.m8[ref + '_faz']      = r.m8[ref + '_faz']      || r.m8[cFaz];
+      r.m8[ref + '_descricao']= r.m8[ref + '_descricao']|| r.m8[cDesc];
+      r.m8[ref + '_horario']  = r.m8[ref + '_horario']  || r.m8[cHora];
     });
   }
 
