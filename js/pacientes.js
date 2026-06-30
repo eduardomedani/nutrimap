@@ -22,14 +22,13 @@ export async function listarPacientes() {
  * Busca um paciente pelo código (usado pelo questionário, sem login)
  */
 export async function buscarPacientePorCodigo(codigo) {
+  // Acesso anônimo via RPC SECURITY DEFINER (não lê a tabela direto).
+  // Retorna apenas { id, nome, status } do paciente daquele código.
   const { data, error } = await sb
-    .from('pacientes')
-    .select('*')
-    .eq('codigo', codigo)
-    .maybeSingle();
+    .rpc('rpc_buscar_paciente_por_codigo', { p_codigo: codigo });
 
   if (error) throw error;
-  return data;
+  return (data && data[0]) || null;
 }
 
 /**
@@ -96,18 +95,12 @@ export async function atualizarPaciente(id, dados) {
  * Marca paciente como completo (chamado quando termina o questionário)
  */
 export async function marcarComoCompleto(codigo) {
-  const { data, error } = await sb
-    .from('pacientes')
-    .update({
-      status: 'completo',
-      completado_em: new Date().toISOString()
-    })
-    .eq('codigo', codigo)
-    .select()
-    .single();
+  // Acesso anônimo via RPC SECURITY DEFINER.
+  const { error } = await sb
+    .rpc('rpc_marcar_completo', { p_codigo: codigo });
 
   if (error) throw error;
-  return data;
+  return true;
 }
 
 /**
