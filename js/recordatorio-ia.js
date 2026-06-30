@@ -1,0 +1,220 @@
+// ═══════════════════════════════════════════════════════════
+// RECORDATÓRIO POR IA — estima kcal/macros do texto livre
+// Automático na 1ª abertura, salva em recordatorio_calc, reusa depois.
+// ═══════════════════════════════════════════════════════════
+
+import { sb } from './supabase.js';
+
+// Hash simples do texto do recordatório (pra saber se mudou e recalcular)
+function hashTexto(txt) {
+  let h = 0;
+  for (let i = 0; i < txt.length; i++) {
+    h = ((h << 5) - h + txt.charCodeAt(i)) | 0;
+  }
+  return String(h);
+}
+
+/**
+ * Monta o texto do recordatório a partir das refeições válidas.
+ * @param {Array} refeicoes - [[label, faz, descricao, horario], ...]
+ * @returns {string}
+ */
+export function montarTextoRecordatorio(refeicoes) {
+  return refeicoes
+    .filter(r => (r[1] || '').toLowerCase() !== 'não' && r[2])
+    .map(r => `${r[0]}${r[3] ? ' ('+r[3]+')' : ''}: ${r[2]}`)
+    .join('\n');
+}
+
+/**
+ * Busca o cálculo já salvo (cache). Retorna null se não existe.
+ */
+export async function buscarCache(pacienteId) {
+  const { data, error } = await sb
+    .from('recordatorio_calc')
+    .select('*')
+    .eq('paciente_id', pacienteId)
+    .maybeSingle();
+  if (error) { console.warn('cache recordatorio:', error.message); return null; }
+  return data;
+}
+
+/**
+ * Chama a IA pra estimar kcal/macros do texto livre do recordatório.
+ * Usa a Anthropic API (sem expor key — tratado pelo ambiente).
+ * @returns {Promise<{kcal_total, prot_g, carb_g, gord_g, observacao}>}
+ */
+export async function estimarPorIA(textoRecordatorio) {
+  const prompt = `Você é nutricionista. Abaixo está um recordatório alimentar de 24h escrito em texto livre por um paciente. Estime o total do DIA inteiro.
+
+RECORDATÓRIO:
+${textoRecordatorio}
+
+Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou depois, neste formato exato:
+{"kcal_total": número, "prot_g": número, "carb_g": número, "gord_g": número, "observacao": "string curta sobre a confiabilidade da estimativa"}
+
+Regras:
+- Estime porções padrão quando o paciente não especificar quantidade.
+- kcal_total = total do dia somando todas as refeições.
+- Arredonde para inteiros.
+- Na observacao, sinalize se o recordatório é vago (estimativa menos precisa) ou detalhado.`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  if (!response.ok) throw new Error('Falha na chamada de IA: ' + response.status);
+
+  const data = await response.json();
+  const texto = (data.content || [])
+    .filter(b => b.type === 'text')
+    .map(b => b.text)
+    .join('')
+    .replace(/```json|```/g, '')
+    .trim();
+
+  let parsed;
+  try {
+    parsed = JSON.parse(texto);
+  } catch (e) {
+    throw new Error('IA retornou formato inesperado');
+  }
+  return parsed;
+}
+
+/**
+ * Salva o resultado no cache.
+ */
+export async function salvarCache(pacienteId, calc, hashOrigem) {
+  const row = {
+    paciente_id: pacienteId,
+    kcal_total: calc.kcal_total,
+    prot_g: calc.prot_g,
+    carb_g: calc.carb_g,
+    gord_g: calc.gord_g,
+    detalhe: { observacao: calc.observacao || '' },
+    hash_origem: hashOrigem,
+    calculado_em: new Date().toISOString()
+  };
+  const { error } = await sb
+    .from('recordatorio_calc')
+    .upsert(row, { onConflict: 'paciente_id' });
+  if (error) console.warn('salvar cache:', error.message);
+}
+
+/**
+ * Fluxo completo: usa cache se válido, senão calcula por IA e salva.
+ * @param {string} pacienteId
+ * @param {Array} refeicoes - mesmas refeições montadas no relatorio.js
+ * @param {number|null} getKcal - GET da última avaliação (ou null)
+ * @returns {Promise<{kcal_total, prot_g, carb_g, gord_g, observacao, get_kcal, fonte}>}
+ */
+export async function obterRecordatorioCalculado(pacienteId, refeicoes, getKcal = null) {
+  const texto = montarTextoRecordatorio(refeicoes);
+  if (!texto.trim()) return null; // sem recordatório, nada a calcular
+
+  const hashAtual = hashTexto(texto);
+
+  // 1. Tenta cache
+  const cache = await buscarCache(pacienteId);
+  if (cache && cache.hash_origem === hashAtual) {
+    return {
+      kcal_total: cache.kcal_total, prot_g: cache.prot_g,
+      carb_g: cache.carb_g, gord_g: cache.gord_g,
+      observacao: cache.detalhe?.observacao || '',
+      get_kcal: getKcal, fonte: 'cache'
+    };
+  }
+
+  // 2. Calcula por IA
+  const calc = await estimarPorIA(texto);
+  await salvarCache(pacienteId, calc, hashAtual);
+  return { ...calc, get_kcal: getKcal, fonte: 'ia' };
+}
+
+/**
+ * Busca o GET da última avaliação física do paciente (ou null).
+ */
+export async function buscarGetUltimaAvaliacao(pacienteId) {
+  const { data, error } = await sb
+    .from('avaliacoes')
+    .select('get_kcal')
+    .eq('paciente_id', pacienteId)
+    .order('numero', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data.get_kcal || null;
+}
+
+/**
+ * Disparado pelo index.html LOGO APÓS o relatório entrar no DOM.
+ * Lê o container deixado pelo relatorio.js, calcula (ou usa cache) e
+ * substitui o "Calculando..." pelo card final.
+ */
+export async function processarRecordatorioIA(pacienteId) {
+  const cont = document.getElementById('rec-calc-container');
+  if (!cont) return; // paciente sem recordatório → nada a fazer
+
+  let refeicoes;
+  try {
+    refeicoes = JSON.parse(decodeURIComponent(cont.dataset.refeicoes || '[]'));
+  } catch { return; }
+
+  try {
+    const getKcal = await buscarGetUltimaAvaliacao(pacienteId);
+    const calc = await obterRecordatorioCalculado(pacienteId, refeicoes, getKcal);
+    if (!calc) { cont.remove(); return; }
+    // Substitui o container inteiro pelo card final
+    cont.outerHTML = renderCardRecordatorio(calc);
+  } catch (e) {
+    cont.innerHTML = `⚠️ Não foi possível calcular agora (${e.message}). Reabra o relatório para tentar de novo.`;
+  }
+}
+
+/**
+ * Monta o HTML do card do recordatório calculado.
+ */
+export function renderCardRecordatorio(calc) {
+  if (!calc) return '';
+
+  let comparacao = '';
+  if (calc.get_kcal) {
+    const diff = Math.round(calc.kcal_total - calc.get_kcal);
+    const cor = diff > 0 ? 'var(--terracotta)' : 'var(--moss)';
+    const sinal = diff > 0 ? '+' : '';
+    const rotulo = diff > 0 ? 'acima do GET (superávit)' : 'abaixo do GET (déficit)';
+    comparacao = `
+      <div class="rec-compara">
+        <div class="rec-compara-row">
+          <span>GET (avaliação)</span><strong>${Math.round(calc.get_kcal)} kcal</strong>
+        </div>
+        <div class="rec-compara-row">
+          <span>Recordatório</span><strong>${Math.round(calc.kcal_total)} kcal</strong>
+        </div>
+        <div class="rec-compara-diff" style="color:${cor}">
+          ${sinal}${diff} kcal · ${rotulo}
+        </div>
+      </div>`;
+  } else {
+    comparacao = `<div class="rec-sem-get">Sem avaliação física cadastrada — comparação com GET indisponível.</div>`;
+  }
+
+  return `
+    <div class="rec-calc-card">
+      <div class="rec-calc-title">⚛ Estimativa nutricional (IA)</div>
+      <div class="rec-calc-kcal">${Math.round(calc.kcal_total)} <span>kcal/dia</span></div>
+      <div class="rec-calc-macros">
+        <div class="rec-macro"><div class="rec-macro-v">${Math.round(calc.prot_g)}g</div><div class="rec-macro-l">Proteína</div></div>
+        <div class="rec-macro"><div class="rec-macro-v">${Math.round(calc.carb_g)}g</div><div class="rec-macro-l">Carboidrato</div></div>
+        <div class="rec-macro"><div class="rec-macro-v">${Math.round(calc.gord_g)}g</div><div class="rec-macro-l">Gordura</div></div>
+      </div>
+      ${comparacao}
+      <div class="rec-calc-aviso">⚠️ Estimativa aproximada a partir de texto livre. ${calc.observacao || ''} Não substitui pesagem de alimentos.</div>
+    </div>`;
+}
