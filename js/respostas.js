@@ -29,25 +29,20 @@ export async function salvarRespostasModulo(pacienteId, modulo, dados) {
 }
 
 /**
- * Salva TODAS as respostas de uma vez (usado ao finalizar o questionário)
- * @param {string} pacienteId
+ * Salva TODAS as respostas de uma vez (usado ao finalizar o questionário).
+ * Fluxo ANÔNIMO: usa RPC SECURITY DEFINER, validando pelo CÓDIGO do paciente.
+ * @param {string} codigo - código do paciente (não o id)
  * @param {object} todosOsModulos - { m1: {...}, m2: {...}, ... }
  */
-export async function salvarTodasRespostas(pacienteId, todosOsModulos) {
-  const linhas = Object.entries(todosOsModulos).map(([modulo, dados]) => ({
-    paciente_id: pacienteId,
-    modulo,
-    dados,
-    salvo_em: new Date().toISOString()
-  }));
-
-  const { data, error } = await sb
-    .from('respostas')
-    .upsert(linhas, { onConflict: 'paciente_id,modulo' })
-    .select();
+export async function salvarTodasRespostas(codigo, todosOsModulos) {
+  const { error } = await sb
+    .rpc('rpc_salvar_respostas', {
+      p_codigo: codigo,
+      p_modulos: todosOsModulos
+    });
 
   if (error) throw error;
-  return data;
+  return true;
 }
 
 /**
