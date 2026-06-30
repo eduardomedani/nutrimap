@@ -311,6 +311,21 @@
   .av-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 22px; }
   .form-warn { background: rgba(184,103,74,0.1); border-left: 3px solid var(--terracotta); color: var(--terracotta); padding: 11px 14px; border-radius: 10px; font-size: 13px; margin: 12px 0; }
   .form-ok { background: rgba(135,160,130,0.15); border-left: 3px solid var(--sage); color: var(--moss-deep); padding: 11px 14px; border-radius: 10px; font-size: 13px; margin: 12px 0; }
+
+  /* ===== RECORDATÓRIO CALCULADO (IA) ===== */
+  .rec-calc-card { background: var(--bg-card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; margin-top: 14px; box-shadow: var(--shadow); }
+  .rec-calc-title { font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--moss); font-weight: 600; margin-bottom: 10px; }
+  .rec-calc-kcal { font-family: 'Fraunces', serif; font-size: 34px; color: var(--moss-deep); font-weight: 500; line-height: 1; }
+  .rec-calc-kcal span { font-size: 15px; color: var(--ink-mute); font-family: 'Inter Tight', sans-serif; }
+  .rec-calc-macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0; }
+  .rec-macro { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px; text-align: center; }
+  .rec-macro-v { font-family: 'Fraunces', serif; font-size: 20px; color: var(--moss-deep); }
+  .rec-macro-l { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-mute); font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+  .rec-compara { background: var(--bg); border-radius: 12px; padding: 14px; margin-top: 10px; }
+  .rec-compara-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-soft); padding: 3px 0; }
+  .rec-compara-diff { text-align: center; font-family: 'Fraunces', serif; font-size: 17px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .rec-sem-get { font-size: 12.5px; color: var(--ink-mute); font-style: italic; margin-top: 8px; }
+  .rec-calc-aviso { font-size: 11.5px; color: var(--ink-mute); margin-top: 12px; line-height: 1.5; background: rgba(184,103,74,0.07); padding: 9px 11px; border-radius: 9px; }
 </style>
 </head>
 <body>
@@ -499,6 +514,7 @@
   import { listarPacientes, criarPaciente, excluirPaciente, calcularEstatisticas } from './js/pacientes.js';
   import { formatarData, iniciaisDoNome, copiarParaClipboard, mostrarToast, gerarLinkWhatsapp, montarMensagemQuestionario } from './js/utils.js';
   import { gerarRelatorio } from './js/relatorio.js';
+  import { processarRecordatorioIA } from './js/recordatorio-ia.js';
   import { initAvaliacoesUI } from './js/avaliacoes-ui.js';
 
   let todosPacientes = [];
@@ -748,6 +764,9 @@
     try {
       const html = await gerarRelatorio(id);
       pageEl.innerHTML = html;
+
+      // Dispara o cálculo do recordatório por IA (automático, com cache)
+      processarRecordatorioIA(id).catch(e => console.warn('recordatorio ia:', e));
 
       // Listener pro botão "Voltar"
       pageEl.querySelectorAll('[data-relatorio-action="voltar"]').forEach(btn => {
