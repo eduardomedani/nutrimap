@@ -294,6 +294,23 @@
     .main { padding: 0 !important; }
     body { background: white; }
   }
+
+  /* ===== AVALIAÇÕES ===== */
+  .av-form-card { background: var(--bg-card); border: 1px solid var(--line); border-radius: 18px; padding: 24px; margin-top: 18px; box-shadow: var(--shadow); }
+  .av-form-title { font-family: 'Fraunces', serif; font-size: 20px; color: var(--moss-deep); margin-bottom: 6px; }
+  .av-form-title em { color: var(--moss); font-style: italic; }
+  .av-section { font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--moss); font-weight: 600; margin: 22px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+  .av-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .av-field { display: flex; flex-direction: column; gap: 4px; }
+  .av-field label { font-size: 11.5px; font-weight: 600; color: var(--ink-soft); font-family: 'JetBrains Mono', monospace; }
+  .av-in { padding: 9px 11px !important; font-size: 14px !important; }
+  .av-preview { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+  .av-res { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .av-res-lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-mute); font-family: 'JetBrains Mono', monospace; margin-bottom: 3px; }
+  .av-res-val { font-family: 'Fraunces', serif; font-size: 21px; color: var(--moss-deep); font-weight: 500; }
+  .av-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 22px; }
+  .form-warn { background: rgba(184,103,74,0.1); border-left: 3px solid var(--terracotta); color: var(--terracotta); padding: 11px 14px; border-radius: 10px; font-size: 13px; margin: 12px 0; }
+  .form-ok { background: rgba(135,160,130,0.15); border-left: 3px solid var(--sage); color: var(--moss-deep); padding: 11px 14px; border-radius: 10px; font-size: 13px; margin: 12px 0; }
 </style>
 </head>
 <body>
@@ -356,7 +373,7 @@
         <div class="nav-item" data-page="anamnese"><span class="nav-icon">📋</span><span>Anamnese</span></div>
         <div class="nav-item disabled" data-page="plano-alimentar"><span class="nav-icon">🥗</span><span>Plano Alimentar</span><span class="nav-soon">Em breve</span></div>
         <div class="nav-item disabled" data-page="plano-ia"><span class="nav-icon">✨</span><span>Plano Alimentar com IA</span><span class="nav-soon">Em breve</span></div>
-        <div class="nav-item disabled" data-page="avaliacoes"><span class="nav-icon">📐</span><span>Avaliações</span><span class="nav-soon">Em breve</span></div>
+        <div class="nav-item" data-page="avaliacoes"><span class="nav-icon">📐</span><span>Avaliações</span></div>
       </div>
       <div class="nav-group">
         <div class="nav-group-title">Análise</div>
@@ -445,7 +462,7 @@
       <div class="em-breve-card"><div class="em-breve-icon">✨</div><div class="em-breve-titulo">Plano Alimentar com IA</div><div class="em-breve-sub">Gere automaticamente um plano alimentar com base nas respostas do paciente, patologias, cronotipo e objetivos — pronto para você revisar e ajustar.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
     </div>
     <div class="module-page" id="page-avaliacoes">
-      <div class="em-breve-card"><div class="em-breve-icon">📐</div><div class="em-breve-titulo">Avaliações</div><div class="em-breve-sub">Registre avaliações antropométricas, dobras cutâneas, bioimpedância e medidas de circunferência. Acompanhe a evolução visualmente.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
+      <div class="loading"><div class="spinner"></div>Carregando...</div>
     </div>
     <div class="module-page" id="page-evolucao">
       <div class="em-breve-card"><div class="em-breve-icon">📊</div><div class="em-breve-titulo">Evolução</div><div class="em-breve-sub">Acompanhe a evolução de cada paciente ao longo do tempo: peso, medidas, exames e adesão ao plano.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
@@ -482,6 +499,7 @@
   import { listarPacientes, criarPaciente, excluirPaciente, calcularEstatisticas } from './js/pacientes.js';
   import { formatarData, iniciaisDoNome, copiarParaClipboard, mostrarToast, gerarLinkWhatsapp, montarMensagemQuestionario } from './js/utils.js';
   import { gerarRelatorio } from './js/relatorio.js';
+  import { initAvaliacoesUI } from './js/avaliacoes-ui.js';
 
   let todosPacientes = [];
   let ultimoCodigoGerado = null;
@@ -491,6 +509,9 @@
     document.querySelectorAll('.module-page').forEach(el => el.classList.toggle('active', el.id === 'page-' + pagina));
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('sidebarOverlay').classList.remove('show');
+    if (pagina === 'avaliacoes') {
+      obterSessao().then(s => initAvaliacoesUI(s?.user?.id)).catch(console.error);
+    }
   }
 
   document.querySelectorAll('.nav-item').forEach(item => {
