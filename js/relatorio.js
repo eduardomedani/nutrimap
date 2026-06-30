@@ -705,7 +705,7 @@ function renderModulosDetalhados(m) {
             </div>
           `).join('')}
         </div>
-        <div class="ia-hint">⚛ A análise de calorias e macros por IA será processada aqui (em breve)</div>
+        <div class="ia-hint" id="rec-calc-container" data-refeicoes='${encodeURIComponent(JSON.stringify(refeicoesValidas))}'>⚛ Calculando calorias e macros por IA...</div>
       </div>`;
     }
   }
