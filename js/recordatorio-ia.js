@@ -40,50 +40,25 @@ export async function buscarCache(pacienteId) {
 }
 
 /**
- * Chama a IA pra estimar kcal/macros do texto livre do recordatório.
- * Usa a Anthropic API (sem expor key — tratado pelo ambiente).
+ * Chama a serverless function própria (/api/calcular-recordatorio) que,
+ * por sua vez, chama a Anthropic com a chave protegida no servidor.
  * @returns {Promise<{kcal_total, prot_g, carb_g, gord_g, observacao}>}
  */
 export async function estimarPorIA(textoRecordatorio) {
-  const prompt = `Você é nutricionista. Abaixo está um recordatório alimentar de 24h escrito em texto livre por um paciente. Estime o total do DIA inteiro.
-
-RECORDATÓRIO:
-${textoRecordatorio}
-
-Responda APENAS com um objeto JSON válido, sem markdown, sem texto antes ou depois, neste formato exato:
-{"kcal_total": número, "prot_g": número, "carb_g": número, "gord_g": número, "observacao": "string curta sobre a confiabilidade da estimativa"}
-
-Regras:
-- Estime porções padrão quando o paciente não especificar quantidade.
-- kcal_total = total do dia somando todas as refeições.
-- Arredonde para inteiros.
-- Na observacao, sinalize se o recordatório é vago (estimativa menos precisa) ou detalhado.`;
-
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const response = await fetch('/api/calcular-recordatorio', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1000,
-      messages: [{ role: 'user', content: prompt }]
-    })
+    body: JSON.stringify({ texto: textoRecordatorio })
   });
-  if (!response.ok) throw new Error('Falha na chamada de IA: ' + response.status);
 
-  const data = await response.json();
-  const texto = (data.content || [])
-    .filter(b => b.type === 'text')
-    .map(b => b.text)
-    .join('')
-    .replace(/```json|```/g, '')
-    .trim();
-
-  let parsed;
-  try {
-    parsed = JSON.parse(texto);
-  } catch (e) {
-    throw new Error('IA retornou formato inesperado');
+  if (!response.ok) {
+    let msg = 'Falha no cálculo: ' + response.status;
+    try { const e = await response.json(); if (e.error) msg = e.error; } catch {}
+    throw new Error(msg);
   }
+
+  const parsed = await response.json();
+  if (parsed.error) throw new Error(parsed.error);
   return parsed;
 }
 
