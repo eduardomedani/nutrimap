@@ -300,6 +300,9 @@
   /* Mapa nutricional + métricas lado a lado */
   .rel-mapa-metrics { display: grid; grid-template-columns: minmax(300px, 1.1fr) 1fr; gap: 20px; align-items: start; margin-bottom: 24px; }
   .rel-mapa-metrics .radar-card { margin-bottom: 0; height: 100%; }
+  /* Dentro do layout lado-a-lado, o radar empilha (SVG em cima, legendas embaixo) */
+  .rel-mapa-metrics .radar-layout { grid-template-columns: 1fr; gap: 20px; padding: 0; justify-items: center; }
+  .rel-mapa-metrics .radar-legend { max-width: 100%; }
   .rel-mapa-metrics .rel-metrics { grid-template-columns: repeat(2, 1fr); margin-bottom: 0; }
   @media (max-width: 780px) { .rel-mapa-metrics { grid-template-columns: 1fr; } .rel-mapa-metrics .rel-metrics { grid-template-columns: repeat(3, 1fr); } }
   @media (max-width: 480px) { .rel-mapa-metrics .rel-metrics { grid-template-columns: repeat(2, 1fr); } }
