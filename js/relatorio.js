@@ -478,7 +478,7 @@ function metricCard(label, valor, sub, cor) {
 // Card clicável (abre modal com conduta). Usado por PSQI e Cronotipo.
 function metricCardBotao(label, valor, sub, cor, tipoModal, chave) {
   return `
-    <div class="metric-card metric-card-btn" data-modal="${tipoModal}" data-chave="${esc(chave || '')}" role="button" tabindex="0">
+    <div class="metric-card metric-card-btn" data-modal="${tipoModal}" data-chave="${chave || ''}" role="button" tabindex="0">
       <div class="metric-label">${label} <span class="metric-info">ⓘ</span></div>
       <div class="metric-value" style="color: ${cor};">${valor}</div>
       ${sub ? `<div class="metric-sub">${sub}</div>` : ''}
