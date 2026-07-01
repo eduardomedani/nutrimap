@@ -258,7 +258,7 @@
 
   /* Cards de conduta (PSQI, Cronotipo) — largura total, um sob o outro */
   .rel-condutas { display: flex; flex-direction: column; gap: 12px; }
-  .conduta-card { background: var(--bg-card); border-radius: 16px; padding: 16px 18px; box-shadow: var(--shadow); border-left: 3px solid var(--sage); }
+  .conduta-card { background: var(--bg-card); border-radius: 16px; padding: 16px 18px; box-shadow: var(--shadow-lg); border: 1px solid var(--line); border-left: 3px solid var(--sage); }
   .conduta-card-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
   .conduta-card-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-mute); font-weight: 700; }
   .conduta-card-valor { font-family: 'Nunito', sans-serif; font-size: 22px; font-weight: 800; line-height: 1; }
@@ -341,7 +341,7 @@
   .rel-mapa-metrics .rel-metrics { grid-template-columns: repeat(2, 1fr); margin-bottom: 0; }
   @media (max-width: 780px) { .rel-mapa-metrics { grid-template-columns: 1fr; } .rel-mapa-metrics .rel-metrics { grid-template-columns: repeat(3, 1fr); } }
   @media (max-width: 480px) { .rel-mapa-metrics .rel-metrics { grid-template-columns: repeat(2, 1fr); } }
-  .metric-card { background: var(--bg-card); border-radius: 16px; padding: 20px; box-shadow: var(--shadow); text-align: center; }
+  .metric-card { background: var(--bg-card); border-radius: 16px; padding: 20px; box-shadow: var(--shadow-lg); border: 1px solid var(--line); text-align: center; }
   .metric-label { font-family: 'Nunito', sans-serif; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-mute); font-weight: 600; }
   .metric-value { font-family: 'Nunito', sans-serif; font-size: 34px; font-weight: 600; margin: 8px 0 4px; line-height: 1; }
   .metric-sub { font-size: 12px; color: var(--ink-soft); }
