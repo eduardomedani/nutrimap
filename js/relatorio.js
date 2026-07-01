@@ -389,14 +389,28 @@ const CALC = {
     const pctGorduraReal = Math.round((gorduraKcal / metaKcal) * 100);
 
     const crono = (cronotipoLabel || '').toLowerCase();
-    let distribuicao;
-    if (crono.includes('matutino')) {
-      distribuicao = { 'Café': 25, 'Almoço': 35, 'Lanche': 15, 'Jantar': 25 };
-    } else if (crono.includes('vespertino')) {
-      distribuicao = { 'Café': 15, 'Almoço': 30, 'Lanche': 20, 'Jantar': 35 };
-    } else {
-      distribuicao = { 'Café': 20, 'Almoço': 32, 'Lanche': 18, 'Jantar': 30 };
-    }
+    let tipoCrono = crono.includes('matutino') ? 'matutino' : (crono.includes('vespertino') ? 'vespertino' : 'intermediario');
+
+    // Distribuições por número de refeições e cronotipo (% das kcal do dia)
+    const DISTRIBUICOES = {
+      matutino: {
+        4: { 'Café da manhã': 25, 'Almoço': 35, 'Lanche da tarde': 15, 'Jantar': 25 },
+        5: { 'Café da manhã': 22, 'Lanche da manhã': 10, 'Almoço': 33, 'Lanche da tarde': 13, 'Jantar': 22 },
+        6: { 'Café da manhã': 20, 'Lanche da manhã': 10, 'Almoço': 30, 'Lanche da tarde': 12, 'Jantar': 20, 'Ceia': 8 },
+      },
+      vespertino: {
+        4: { 'Café da manhã': 15, 'Almoço': 30, 'Lanche da tarde': 20, 'Jantar': 35 },
+        5: { 'Café da manhã': 13, 'Lanche da manhã': 8, 'Almoço': 29, 'Lanche da tarde': 18, 'Jantar': 32 },
+        6: { 'Café da manhã': 12, 'Lanche da manhã': 8, 'Almoço': 27, 'Lanche da tarde': 16, 'Jantar': 27, 'Ceia': 10 },
+      },
+      intermediario: {
+        4: { 'Café da manhã': 20, 'Almoço': 32, 'Lanche da tarde': 18, 'Jantar': 30 },
+        5: { 'Café da manhã': 18, 'Lanche da manhã': 9, 'Almoço': 30, 'Lanche da tarde': 16, 'Jantar': 27 },
+        6: { 'Café da manhã': 17, 'Lanche da manhã': 9, 'Almoço': 28, 'Lanche da tarde': 14, 'Jantar': 24, 'Ceia': 8 },
+      },
+    };
+    const distribuicoesPorNum = DISTRIBUICOES[tipoCrono];
+    const distribuicao = distribuicoesPorNum[4]; // padrão inicial: 4 refeições
 
     return {
       pesoAjustado, metaKcal, ajusteLabel, gPorKg,
@@ -404,6 +418,7 @@ const CALC = {
       carbo: { g: carboG, pct: pctCarboReal },
       gordura: { g: gorduraG, pct: pctGorduraReal },
       ajustesPatologia, distribuicao, cronotipoLabel,
+      distribuicoesPorNum,
       pesoAtual: parseFloat(pesoAtual) || null,
       pesoMeta: pesoMeta ? parseFloat(pesoMeta) : null,
       objetivo: objetivo || '',
@@ -642,33 +657,19 @@ function gerarCardMacros(mac, imc) {
     ? `<div class="macro-alerta">⚠️ IMC elevado (${imc}) — proteína calculada sobre peso ajustado (${mac.pesoAjustado} kg). Considere revisar conforme composição corporal.</div>`
     : '';
 
-  const distrib = Object.keys(mac.distribuicao).map(ref => {
-    const pct = mac.distribuicao[ref];
-    const kcal = Math.round(mac.metaKcal * pct / 100);
-    const protRef = Math.round(mac.proteina.g * pct / 100);
-    const carbRef = Math.round(mac.carbo.g * pct / 100);
-    const gordRef = Math.round(mac.gordura.g * pct / 100);
-    return `
-      <div class="distrib-linha">
-        <div class="dl-head">
-          <span class="dl-ref">${ref}</span>
-          <span class="dl-kcal">${kcal} kcal <span class="dl-pct">(${pct}%)</span></span>
-        </div>
-        <div class="dl-macros">
-          <span class="dm dm-p">P ${protRef}g</span>
-          <span class="dm dm-c">C ${carbRef}g</span>
-          <span class="dm dm-g">G ${gordRef}g</span>
-        </div>
-      </div>
-    `;
-  }).join('');
-
   const ajustesPat = mac.ajustesPatologia.length > 0
     ? `<div class="macro-ajustes">
          <div class="macro-ajustes-label">Ajustes por patologia:</div>
          ${mac.ajustesPatologia.map(a => `<span class="macro-ajuste-tag">${a}</span>`).join('')}
        </div>`
     : '';
+
+  // Empacota os dados necessários pro seletor de refeições recalcular no front
+  const distribData = {
+    metaKcal: mac.metaKcal,
+    prot: mac.proteina.g, carb: mac.carbo.g, gord: mac.gordura.g,
+    dist: mac.distribuicoesPorNum || { 4: mac.distribuicao }
+  };
 
   return `
     <div class="macros-card">
@@ -678,53 +679,85 @@ function gerarCardMacros(mac, imc) {
       </div>
       ${gerarIntroPrescricao(mac)}
 
-      <div class="presc-2col">
-        <div class="presc-esquerda">
-          <div class="presc-layout">
-            <div class="presc-kcal">
-              <div class="presc-kcal-value">${mac.metaKcal.toLocaleString('pt-BR')}</div>
-              <div class="presc-kcal-label">kcal/dia</div>
-              <div class="presc-kcal-sub">meta calórica</div>
+      <div class="presc-layout">
+        <div class="presc-kcal">
+          <div class="presc-kcal-value">${mac.metaKcal.toLocaleString('pt-BR')}</div>
+          <div class="presc-kcal-label">kcal/dia</div>
+          <div class="presc-kcal-sub">meta calórica</div>
+        </div>
+        <div class="presc-macros">
+          <div class="presc-macro">
+            <div class="presc-macro-top">
+              <span class="presc-macro-nome">🥩 Proteína</span>
+              <span class="presc-macro-g">${mac.proteina.g}g</span>
             </div>
-            <div class="presc-macros">
-              <div class="presc-macro">
-                <div class="presc-macro-top">
-                  <span class="presc-macro-nome">🥩 Proteína</span>
-                  <span class="presc-macro-g">${mac.proteina.g}g</span>
-                </div>
-                <div class="presc-bar"><div class="presc-bar-fill" style="width:${mac.proteina.pct}%; background:var(--terracotta);"></div></div>
-                <div class="presc-macro-det">${mac.proteina.pct}% · ${mac.gPorKg}g/kg</div>
-              </div>
-              <div class="presc-macro">
-                <div class="presc-macro-top">
-                  <span class="presc-macro-nome">🍚 Carboidrato</span>
-                  <span class="presc-macro-g">${mac.carbo.g}g</span>
-                </div>
-                <div class="presc-bar"><div class="presc-bar-fill" style="width:${mac.carbo.pct}%; background:var(--gold);"></div></div>
-                <div class="presc-macro-det">${mac.carbo.pct}% do total</div>
-              </div>
-              <div class="presc-macro">
-                <div class="presc-macro-top">
-                  <span class="presc-macro-nome">🥑 Gordura</span>
-                  <span class="presc-macro-g">${mac.gordura.g}g</span>
-                </div>
-                <div class="presc-bar"><div class="presc-bar-fill" style="width:${mac.gordura.pct}%; background:var(--sage);"></div></div>
-                <div class="presc-macro-det">${mac.gordura.pct}% do total</div>
-              </div>
-            </div>
+            <div class="presc-bar"><div class="presc-bar-fill" style="width:${mac.proteina.pct}%; background:var(--terracotta);"></div></div>
+            <div class="presc-macro-det">${mac.proteina.pct}% · ${mac.gPorKg}g/kg</div>
           </div>
-          ${ajustesPat}
-          ${alertaPesoAjustado}
+          <div class="presc-macro">
+            <div class="presc-macro-top">
+              <span class="presc-macro-nome">🍚 Carboidrato</span>
+              <span class="presc-macro-g">${mac.carbo.g}g</span>
+            </div>
+            <div class="presc-bar"><div class="presc-bar-fill" style="width:${mac.carbo.pct}%; background:var(--gold);"></div></div>
+            <div class="presc-macro-det">${mac.carbo.pct}% do total</div>
+          </div>
+          <div class="presc-macro">
+            <div class="presc-macro-top">
+              <span class="presc-macro-nome">🥑 Gordura</span>
+              <span class="presc-macro-g">${mac.gordura.g}g</span>
+            </div>
+            <div class="presc-bar"><div class="presc-bar-fill" style="width:${mac.gordura.pct}%; background:var(--sage);"></div></div>
+            <div class="presc-macro-det">${mac.gordura.pct}% do total</div>
+          </div>
         </div>
+      </div>
+      ${ajustesPat}
+      ${alertaPesoAjustado}
 
-        <div class="presc-distrib">
-          <div class="distrib-titulo">Distribuição nas refeições</div>
-          <div class="distrib-crono">cronotipo ${mac.cronotipoLabel.toLowerCase()}</div>
-          <div class="distrib-lista">${distrib}</div>
+      <div class="distrib-section" data-distrib='${JSON.stringify(distribData).replace(/'/g, "&#39;")}'>
+        <div class="distrib-header">
+          <div>
+            <div class="distrib-titulo">Distribuição nas refeições</div>
+            <div class="distrib-crono">cronotipo ${mac.cronotipoLabel.toLowerCase()}</div>
+          </div>
+          <div class="distrib-seletor">
+            <button class="ds-btn active" data-n="4">4</button>
+            <button class="ds-btn" data-n="5">5</button>
+            <button class="ds-btn" data-n="6">6</button>
+            <span class="ds-label">refeições</span>
+          </div>
         </div>
+        <div class="distrib-lista">${gerarLinhasDistrib(distribData, 4)}</div>
       </div>
     </div>
   `;
+}
+
+// Gera as linhas da distribuição para N refeições (usada no render e no seletor)
+function gerarLinhasDistrib(data, n) {
+  const dist = data.dist[n] || data.dist[4];
+  return Object.keys(dist).map(ref => {
+    const pct = dist[ref];
+    const kcal = Math.round(data.metaKcal * pct / 100);
+    const protRef = Math.round(data.prot * pct / 100);
+    const carbRef = Math.round(data.carb * pct / 100);
+    const gordRef = Math.round(data.gord * pct / 100);
+    return `
+      <div class="distrib-linha">
+        <div class="dl-head">
+          <span class="dl-ref">${ref}</span>
+          <span class="dl-kcal">${kcal} kcal <span class="dl-pct">(${pct}%)</span></span>
+        </div>
+        <div class="dl-bar"><div class="dl-bar-fill" style="width:${pct * 2.5}%;"></div></div>
+        <div class="dl-macros">
+          <span class="dm dm-p">Proteína ${protRef}g</span>
+          <span class="dm dm-c">Carboidrato ${carbRef}g</span>
+          <span class="dm dm-g">Gorduras ${gordRef}g</span>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 function secaoCard(titulo, pares) {
@@ -992,6 +1025,26 @@ export function ativarConduta(container) {
     card.addEventListener('click', abrir);
     card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(); } });
   });
+
+  // Seletor de nº de refeições (4/5/6)
+  root.querySelectorAll('.distrib-section').forEach(sec => {
+    let data;
+    try { data = JSON.parse(sec.dataset.distrib.replace(/&#39;/g, "'")); } catch { return; }
+    const lista = sec.querySelector('.distrib-lista');
+    sec.querySelectorAll('.ds-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        sec.querySelectorAll('.ds-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const n = parseInt(btn.dataset.n);
+        lista.innerHTML = gerarLinhasDistribGlobal(data, n);
+      });
+    });
+  });
+}
+
+// Versão acessível globalmente pro seletor (mesma lógica de gerarLinhasDistrib)
+function gerarLinhasDistribGlobal(data, n) {
+  return gerarLinhasDistrib(data, n);
 }
 
 function mostrarModalConduta(titulo, texto) {
