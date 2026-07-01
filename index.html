@@ -411,15 +411,9 @@
 
     <nav class="sidebar-nav">
       <div class="nav-group">
-        <div class="nav-group-title">Geral</div>
+        <div class="nav-group-title">Início</div>
         <div class="nav-item active" data-page="inicio"><span class="nav-icon">🏠</span><span>Início</span></div>
-      </div>
-      <div class="nav-group">
-        <div class="nav-group-title">Atendimento</div>
-        <div class="nav-item" data-page="anamnese"><span class="nav-icon">📋</span><span>Anamnese</span></div>
-        <div class="nav-item disabled" data-page="plano-alimentar"><span class="nav-icon">🥗</span><span>Plano Alimentar</span><span class="nav-soon">Em breve</span></div>
-        <div class="nav-item disabled" data-page="plano-ia"><span class="nav-icon">✨</span><span>Plano Alimentar com IA</span><span class="nav-soon">Em breve</span></div>
-        <div class="nav-item" data-page="avaliacoes"><span class="nav-icon">📐</span><span>Avaliações</span></div>
+        <div class="nav-item" data-page="pacientes"><span class="nav-icon">👥</span><span>Pacientes</span></div>
       </div>
       <div class="nav-group">
         <div class="nav-group-title">Análise</div>
@@ -432,7 +426,6 @@
         <div class="nav-item disabled" data-page="agendamentos"><span class="nav-icon">📅</span><span>Agendamentos</span><span class="nav-soon">Em breve</span></div>
         <div class="nav-item disabled" data-page="financeiro"><span class="nav-icon">💰</span><span>Financeiro</span><span class="nav-soon">Em breve</span></div>
         <div class="nav-item disabled" data-page="materiais"><span class="nav-icon">📚</span><span>Materiais</span><span class="nav-soon">Em breve</span></div>
-        <div class="nav-item disabled" data-page="configuracoes"><span class="nav-icon">⚙️</span><span>Configurações</span><span class="nav-soon">Em breve</span></div>
       </div>
     </nav>
 
@@ -464,10 +457,10 @@
     </div>
 
     <!-- ANAMNESE -->
-    <div class="module-page" id="page-anamnese">
+    <div class="module-page" id="page-pacientes">
       <div class="page-header">
-        <h1 class="page-title">📋 <em>Anamnese</em></h1>
-        <div class="page-sub">Pacientes que preencheram o questionário pré-consulta</div>
+        <h1 class="page-title">👥 <em>Pacientes</em></h1>
+        <div class="page-sub">Selecione um paciente para abrir a ficha completa</div>
       </div>
 
       <div class="novo-paciente-card">
@@ -560,8 +553,8 @@
     document.querySelectorAll('.module-page').forEach(el => el.classList.toggle('active', el.id === 'page-' + pagina));
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('sidebarOverlay').classList.remove('show');
-    if (pagina === 'avaliacoes') {
-      obterSessao().then(s => initAvaliacoesUI(s?.user?.id)).catch(console.error);
+    if (pagina === 'pacientes') {
+      carregarPacientes().catch(console.error);
     }
   }
 
@@ -796,7 +789,7 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     const sessao = await obterSessao();
-    abrirFichaPaciente(id, sessao?.user?.id, () => navegar('anamnese'));
+    abrirFichaPaciente(id, sessao?.user?.id, () => navegar('pacientes'));
   }
 
   // Mantida para compatibilidade: relatório "puro" (não usado na ficha)
@@ -809,7 +802,7 @@
       pageEl.innerHTML = html;
       processarRecordatorioIA(id).catch(e => console.warn('recordatorio ia:', e));
       pageEl.querySelectorAll('[data-relatorio-action="voltar"]').forEach(btn => {
-        btn.addEventListener('click', () => navegar('anamnese'));
+        btn.addEventListener('click', () => navegar('pacientes'));
       });
     } catch (e) {
       console.error('Erro ao gerar relatório:', e);
@@ -822,7 +815,7 @@
         </div>
       `;
       pageEl.querySelectorAll('[data-relatorio-action="voltar"]').forEach(btn => {
-        btn.addEventListener('click', () => navegar('anamnese'));
+        btn.addEventListener('click', () => navegar('pacientes'));
       });
     }
   }
