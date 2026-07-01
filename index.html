@@ -236,25 +236,34 @@
   .distrib-section { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); }
   .distrib-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
   .distrib-titulo { font-size: 14px; font-weight: 800; color: var(--moss-deep); }
-  .distrib-crono { font-size: 11px; color: var(--ink-mute); font-weight: 600; margin-top: 2px; }
+  .distrib-titulo-sub { font-weight: 700; color: var(--ink-soft); }
   .distrib-seletor { display: flex; align-items: center; gap: 4px; }
   .ds-btn { width: 32px; height: 32px; border-radius: 8px; border: 1.5px solid var(--line); background: var(--bg-card); color: var(--ink-soft); font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 14px; cursor: pointer; transition: all 0.15s; }
   .ds-btn:hover { border-color: var(--sage); }
   .ds-btn.active { background: var(--moss); color: var(--cream); border-color: var(--moss); }
   .ds-label { font-size: 11px; color: var(--ink-mute); font-weight: 600; margin-left: 4px; }
-  .distrib-lista { display: flex; flex-direction: column; gap: 10px; }
-  .distrib-linha { background: var(--bg); border-radius: 12px; padding: 12px 14px; }
-  .dl-head { display: flex; justify-content: space-between; align-items: baseline; }
-  .dl-ref { font-size: 14px; font-weight: 700; color: var(--ink); }
-  .dl-kcal { font-size: 14px; font-weight: 800; color: var(--moss-deep); }
-  .dl-pct { font-size: 11px; color: var(--ink-mute); font-weight: 600; }
-  .dl-bar { height: 7px; background: var(--bg-card); border-radius: 6px; overflow: hidden; margin: 7px 0; }
-  .dl-bar-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--sage), var(--moss)); transition: width 0.4s; }
-  .dl-macros { display: flex; gap: 8px; flex-wrap: wrap; }
-  .dl-macros .dm { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 7px; }
-  .dm-p { background: rgba(184,103,74,0.15); color: var(--terracotta); }
-  .dm-c { background: rgba(201,164,92,0.18); color: #8A6D2A; }
-  .dm-g { background: rgba(135,160,130,0.2); color: var(--moss-deep); }
+  /* Grid auto-ajustável: refeições lado a lado, quebrando conforme couber */
+  .distrib-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .distrib-card { background: var(--bg); border-radius: 12px; padding: 12px; }
+  .dc-head { display: flex; flex-direction: column; margin-bottom: 10px; }
+  .dc-ref { font-size: 13px; font-weight: 700; color: var(--ink); line-height: 1.2; }
+  .dc-kcal { font-size: 15px; font-weight: 800; color: var(--moss-deep); }
+  .dc-macros { display: flex; flex-direction: column; gap: 7px; }
+  .dc-macro { display: grid; grid-template-columns: 1fr; gap: 2px; }
+  .dc-macro-nome { font-size: 10.5px; color: var(--ink-soft); font-weight: 600; }
+  .dc-macro-bar { height: 6px; background: var(--bg-card); border-radius: 5px; overflow: hidden; }
+  .dc-macro-fill { height: 100%; border-radius: 5px; transition: width 0.4s; }
+  .dc-macro-g { font-size: 11px; font-weight: 700; color: var(--ink); text-align: right; }
+
+  /* Cards de conduta (PSQI, Cronotipo) — largura total, um sob o outro */
+  .rel-condutas { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+  .conduta-card { background: var(--bg-card); border-radius: 16px; padding: 16px 18px; box-shadow: var(--shadow); border-left: 3px solid var(--sage); }
+  .conduta-card-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+  .conduta-card-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-mute); font-weight: 700; }
+  .conduta-card-valor { font-family: 'Nunito', sans-serif; font-size: 22px; font-weight: 800; line-height: 1; }
+  .conduta-card-sub { font-size: 12px; font-weight: 600; color: var(--ink-mute); }
+  .conduta-card-titulo { font-size: 13.5px; font-weight: 800; color: var(--moss-deep); margin-bottom: 4px; }
+  .conduta-card-texto { font-size: 12.5px; line-height: 1.55; color: var(--ink-soft); }
   .presc-macro-det { font-size: 11px; color: var(--ink-mute); margin-top: 3px; }
   @media (max-width: 560px) { .presc-layout { grid-template-columns: 1fr; } .presc-kcal { flex-direction: row; gap: 10px; padding: 12px; } .presc-kcal-value { font-size: 26px; } }
 
