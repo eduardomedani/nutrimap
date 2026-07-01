@@ -7,7 +7,7 @@
 
 import { buscarPacientePorId } from './pacientes.js';
 import { dadosBasicosDaAnamnese } from './avaliacoes.js';
-import { gerarRelatorio } from './relatorio.js';
+import { gerarRelatorio, ativarConduta } from './relatorio.js';
 import { processarRecordatorioIA } from './recordatorio-ia.js';
 // Fase 3 ligará as Avaliações dentro da ficha.
 
@@ -132,6 +132,8 @@ async function renderAba(abaId) {
       cont.innerHTML = html;
       // Dispara o cálculo do recordatório por IA (com cache)
       processarRecordatorioIA(p.id).catch(e => console.warn('recordatorio ia:', e));
+      // Liga os cards clicáveis de PSQI e Cronotipo
+      ativarConduta(cont);
       // Remove o botão "voltar" interno do relatório (a ficha já tem o seu)
       cont.querySelectorAll('[data-relatorio-action="voltar"]').forEach(b => b.remove());
     } catch (e) {
