@@ -403,7 +403,11 @@ const CALC = {
       proteina: { g: proteinaG, pct: pctProteinaReal },
       carbo: { g: carboG, pct: pctCarboReal },
       gordura: { g: gorduraG, pct: pctGorduraReal },
-      ajustesPatologia, distribuicao, cronotipoLabel
+      ajustesPatologia, distribuicao, cronotipoLabel,
+      pesoAtual: parseFloat(pesoAtual) || null,
+      pesoMeta: pesoMeta ? parseFloat(pesoMeta) : null,
+      objetivo: objetivo || '',
+      tempoMeta: dados.tempoMeta || null
     };
   }
 };
@@ -470,6 +474,54 @@ function metricCard(label, valor, sub, cor) {
     </div>
   `;
 }
+
+// Card clicável (abre modal com conduta). Usado por PSQI e Cronotipo.
+function metricCardBotao(label, valor, sub, cor, tipoModal, chave) {
+  return `
+    <div class="metric-card metric-card-btn" data-modal="${tipoModal}" data-chave="${esc(chave || '')}" role="button" tabindex="0">
+      <div class="metric-label">${label} <span class="metric-info">ⓘ</span></div>
+      <div class="metric-value" style="color: ${cor};">${valor}</div>
+      ${sub ? `<div class="metric-sub">${sub}</div>` : ''}
+      <div class="metric-cta">ver conduta</div>
+    </div>
+  `;
+}
+
+// Condutas por cronotipo
+const CONDUTA_CRONOTIPO = {
+  'Matutino': {
+    titulo: '🌅 Cronotipo Matutino',
+    texto: 'Pico de energia e apetite pela manhã. Conduta recomendada: concentrar as refeições maiores no café e almoço, reduzindo o volume no jantar. Treinos rendem melhor no início do dia. Evitar refeições pesadas à noite, que prejudicam o sono. Café da manhã reforçado favorece a adesão.'
+  },
+  'Intermediário-matutino': {
+    titulo: '🌤️ Intermediário-matutino',
+    texto: 'Tendência a funcionar melhor de manhã, com flexibilidade. Conduta: distribuir as calorias de forma equilibrada ao longo do dia, com leve ênfase no período da manhã/almoço. Treinos no fim da manhã ou início da tarde tendem a render bem.'
+  },
+  'Intermediário-vespertino': {
+    titulo: '🌆 Intermediário-vespertino',
+    texto: 'Energia cresce ao longo do dia. Conduta: café da manhã mais leve é aceitável, com refeições maiores concentradas no almoço e fim de tarde. Treinos no fim da tarde tendem a render melhor. Cuidar para o jantar não ser excessivamente tardio.'
+  },
+  'Vespertino': {
+    titulo: '🌙 Cronotipo Vespertino',
+    texto: 'Pico de energia e apetite à tarde/noite. Conduta: respeitar o apetite reduzido pela manhã (café mais leve), distribuindo calorias para almoço e jantar. Atenção ao risco de comer tarde demais — estabelecer um horário-limite para a última refeição ajuda o sono e o controle de peso. Treinos rendem melhor no fim do dia.'
+  }
+};
+
+// Condutas por classificação de PSQI (qualidade do sono)
+const CONDUTA_PSQI = {
+  'Bom': {
+    titulo: '😴 Sono de boa qualidade (PSQI ≤ 5)',
+    texto: 'Qualidade de sono adequada. Conduta: manter a higiene do sono atual. O sono preservado favorece a regulação hormonal (leptina/grelina), a recuperação e a adesão ao plano alimentar. Reforçar positivamente esse hábito com a paciente.'
+  },
+  'Ruim': {
+    titulo: '⚠️ Sono comprometido (PSQI 6–10)',
+    texto: 'Qualidade de sono prejudicada. Conduta: investigar higiene do sono (telas à noite, cafeína tardia, horários irregulares). Sono ruim aumenta a fome e a preferência por alimentos calóricos, dificultando o emagrecimento. Considerar orientações de sono como parte do plano e reavaliar em consulta.'
+  },
+  'Muito ruim': {
+    titulo: '🚨 Sono muito comprometido (PSQI > 10)',
+    texto: 'Qualidade de sono severamente prejudicada — ponto de atenção clínico. Conduta: priorizar a abordagem do sono, pois ele pode ser o principal limitante do resultado. Investigar causas (estresse, ansiedade, apneia). O impacto hormonal do sono ruim compromete diretamente a perda de peso. Avaliar encaminhamento se persistir.'
+  }
+};
 
 function gerarRadar(scores) {
   const cx = 160, cy = 160, raio = 108;
@@ -551,6 +603,27 @@ function gerarRadar(scores) {
   `;
 }
 
+function gerarIntroPrescricao(mac) {
+  const atual = mac.pesoAtual;
+  const meta = mac.pesoMeta;
+  const tempo = mac.tempoMeta;
+  // Só monta a frase de meta se houver peso atual e meta diferentes
+  if (atual && meta && atual !== meta) {
+    const diff = Math.abs(+(atual - meta).toFixed(1));
+    const acao = meta < atual ? 'reduzir' : 'ganhar';
+    const tempoTxt = tempo ? ` em <strong>${tempo}</strong>` : '';
+    return `<div class="prescricao-intro">
+      Recomendação para <strong>${acao} ${diff} kg</strong>${tempoTxt},
+      partindo de ${atual} kg em direção à meta de ${meta} kg.
+      Os valores abaixo são o ponto de partida calculado — ajuste conforme evolução e resposta individual.
+    </div>`;
+  }
+  return `<div class="prescricao-intro">
+    Prescrição calculada a partir do gasto energético estimado.
+    Use como ponto de partida e ajuste conforme a evolução da paciente.
+  </div>`;
+}
+
 function gerarCardMacros(mac, imc) {
   const alertaPesoAjustado = (imc !== null && imc >= 30)
     ? `<div class="macro-alerta">⚠️ IMC elevado (${imc}) — proteína calculada sobre peso ajustado (${mac.pesoAjustado} kg). Considere revisar conforme composição corporal.</div>`
@@ -589,6 +662,7 @@ function gerarCardMacros(mac, imc) {
         <div class="macros-title">Prescrição Nutricional</div>
         <div class="macros-badge">${mac.ajusteLabel}</div>
       </div>
+      ${gerarIntroPrescricao(mac)}
       <div class="macros-kcal">
         <div class="macros-kcal-value">${mac.metaKcal.toLocaleString('pt-BR')}</div>
         <div class="macros-kcal-label">kcal / dia · meta calórica</div>
@@ -803,7 +877,8 @@ export async function gerarRelatorio(pacienteId) {
     pesoMeta: pesoDesejado,
     objetivo: m.m2 ? m.m2.q2_1_objetivo_principal : '',
     patologias: m.m3 ? m.m3.q3_1_patologias : '',
-    cronotipoLabel: calc.cronotipo.label
+    cronotipoLabel: calc.cronotipo.label,
+    tempoMeta: m.m4 ? m.m4.q4_5_tempo_meta : null
   });
 
   const redFlags = detectarRedFlags(m, calc);
@@ -848,8 +923,8 @@ export async function gerarRelatorio(pacienteId) {
     <div class="rel-metrics">
       ${metricCard('IMC', calc.imc !== null ? calc.imc : '—', calc.imcClass.label, calc.imcClass.cor)}
       ${metricCard('Peso atual', peso ? peso + ' kg' : '—', pesoDesejado ? 'Meta: ' + pesoDesejado + ' kg' : '', 'var(--moss)')}
-      ${metricCard('PSQI (sono)', calc.psqiScore !== null ? calc.psqiScore + '/21' : '—', calc.psqiClass.label, calc.psqiClass.cor)}
-      ${metricCard('Cronotipo', calc.cronotipo.emoji || '—', calc.cronotipo.label, calc.cronotipo.cor)}
+      ${metricCardBotao('PSQI (sono)', calc.psqiScore !== null ? calc.psqiScore + '/21' : '—', calc.psqiClass.label, calc.psqiClass.cor, 'psqi', calc.psqiClass.label)}
+      ${metricCardBotao('Cronotipo', calc.cronotipo.emoji || '—', calc.cronotipo.label, calc.cronotipo.cor, 'cronotipo', calc.cronotipo.label)}
       ${metricCard('TMB', calc.tmb ? calc.tmb + ' kcal' : '—', 'Metabolismo basal', 'var(--olive)')}
       ${metricCard('GET estimado', calc.get ? calc.get + ' kcal' : '—', 'Gasto total/dia', 'var(--olive)')}
     </div>
@@ -864,4 +939,44 @@ export async function gerarRelatorio(pacienteId) {
       ⚕️ Este relatório é uma <strong>estimativa preliminar gerada automaticamente</strong> a partir das respostas do paciente. Todos os dados, cálculos e estimativas devem ser <strong>validados pelo nutricionista</strong> antes de qualquer conduta clínica. Não constitui diagnóstico.
     </div>
   `;
+}
+
+// ═══════════════════════════════════════════════════════════
+// CONDUTA (modal): liga os cliques dos cards PSQI e Cronotipo.
+// Chamar após inserir o relatório no DOM.
+// ═══════════════════════════════════════════════════════════
+export function ativarConduta(container) {
+  const root = container || document;
+  root.querySelectorAll('.metric-card-btn').forEach(card => {
+    const abrir = () => {
+      const tipo = card.dataset.modal;
+      const chave = card.dataset.chave;
+      const fonte = tipo === 'psqi' ? CONDUTA_PSQI : CONDUTA_CRONOTIPO;
+      const info = fonte[chave];
+      if (!info) return;
+      mostrarModalConduta(info.titulo, info.texto);
+    };
+    card.addEventListener('click', abrir);
+    card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(); } });
+  });
+}
+
+function mostrarModalConduta(titulo, texto) {
+  // Remove modal anterior se houver
+  document.getElementById('condutaModalOverlay')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'condutaModalOverlay';
+  overlay.className = 'conduta-overlay';
+  overlay.innerHTML = `
+    <div class="conduta-modal" role="dialog" aria-modal="true">
+      <button class="conduta-fechar" aria-label="Fechar">✕</button>
+      <div class="conduta-titulo">${titulo}</div>
+      <div class="conduta-texto">${texto}</div>
+      <div class="conduta-aviso">Sugestão de conduta baseada na classificação. Sempre valide clinicamente.</div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const fechar = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) fechar(); });
+  overlay.querySelector('.conduta-fechar').addEventListener('click', fechar);
+  document.addEventListener('keydown', function esc(e){ if(e.key==='Escape'){ fechar(); document.removeEventListener('keydown', esc);} });
 }
