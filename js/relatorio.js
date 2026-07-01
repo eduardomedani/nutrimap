@@ -1005,17 +1005,18 @@ export async function gerarRelatorio(pacienteId) {
       <div class="rel-mapa-col">
         ${gerarRadar(radarScores)}
       </div>
-      <div class="rel-metrics">
-        ${metricCard('IMC', calc.imc !== null ? calc.imc : '—', calc.imcClass.label, calc.imcClass.cor)}
-        ${metricCard('Peso atual', peso ? peso + ' kg' : '—', pesoDesejado ? 'Meta: ' + pesoDesejado + ' kg' : '', 'var(--moss)')}
-        ${metricCard('TMB', calc.tmb ? calc.tmb + ' kcal' : '—', 'Metabolismo basal', 'var(--olive)')}
-        ${metricCard('GET estimado', calc.get ? calc.get + ' kcal' : '—', 'Gasto total/dia', 'var(--olive)')}
+      <div class="rel-metrics-col">
+        <div class="rel-metrics">
+          ${metricCard('IMC', calc.imc !== null ? calc.imc : '—', calc.imcClass.label, calc.imcClass.cor)}
+          ${metricCard('Peso atual', peso ? peso + ' kg' : '—', pesoDesejado ? 'Meta: ' + pesoDesejado + ' kg' : '', 'var(--moss)')}
+          ${metricCard('TMB', calc.tmb ? calc.tmb + ' kcal' : '—', 'Metabolismo basal', 'var(--olive)')}
+          ${metricCard('GET estimado', calc.get ? calc.get + ' kcal' : '—', 'Gasto total/dia', 'var(--olive)')}
+        </div>
+        <div class="rel-condutas">
+          ${cardConduta('PSQI (sono)', calc.psqiScore !== null ? calc.psqiScore + '/21' : '—', calc.psqiClass.label, calc.psqiClass.cor, CONDUTA_PSQI[calc.psqiClass.label])}
+          ${cardConduta('Cronotipo', (calc.cronotipo.emoji ? calc.cronotipo.emoji + ' ' : '') + calc.cronotipo.label, '', calc.cronotipo.cor, CONDUTA_CRONOTIPO[calc.cronotipo.label])}
+        </div>
       </div>
-    </div>
-
-    <div class="rel-condutas">
-      ${cardConduta('PSQI (sono)', calc.psqiScore !== null ? calc.psqiScore + '/21' : '—', calc.psqiClass.label, calc.psqiClass.cor, CONDUTA_PSQI[calc.psqiClass.label])}
-      ${cardConduta('Cronotipo', (calc.cronotipo.emoji ? calc.cronotipo.emoji + ' ' : '') + calc.cronotipo.label, '', calc.cronotipo.cor, CONDUTA_CRONOTIPO[calc.cronotipo.label])}
     </div>
 
     ${macros ? gerarCardMacros(macros, calc.imc) : ''}
