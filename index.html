@@ -297,6 +297,12 @@
 
   /* METRICS */
   .rel-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 24px; }
+  /* Mapa nutricional + métricas lado a lado */
+  .rel-mapa-metrics { display: grid; grid-template-columns: minmax(300px, 1.1fr) 1fr; gap: 20px; align-items: start; margin-bottom: 24px; }
+  .rel-mapa-metrics .radar-card { margin-bottom: 0; height: 100%; }
+  .rel-mapa-metrics .rel-metrics { grid-template-columns: repeat(2, 1fr); margin-bottom: 0; }
+  @media (max-width: 780px) { .rel-mapa-metrics { grid-template-columns: 1fr; } .rel-mapa-metrics .rel-metrics { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 480px) { .rel-mapa-metrics .rel-metrics { grid-template-columns: repeat(2, 1fr); } }
   .metric-card { background: var(--bg-card); border-radius: 16px; padding: 20px; box-shadow: var(--shadow); text-align: center; }
   .metric-label { font-family: 'Nunito', sans-serif; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-mute); font-weight: 600; }
   .metric-value { font-family: 'Nunito', sans-serif; font-size: 34px; font-weight: 600; margin: 8px 0 4px; line-height: 1; }
