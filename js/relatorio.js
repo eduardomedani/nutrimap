@@ -480,6 +480,24 @@ function detectarRedFlags(m, calc) {
 // ═══════════════════════════════════════════════════════════
 // HELPERS DE RENDERING
 // ═══════════════════════════════════════════════════════════
+// Card largo (largura total) com valor + conduta escrita. Usado por PSQI e Cronotipo.
+function cardConduta(label, valor, sub, cor, conduta) {
+  const texto = conduta ? conduta.texto : 'Sem dados suficientes para conduta.';
+  const titulo = conduta ? conduta.titulo : label;
+  return `
+    <div class="conduta-card">
+      <div class="conduta-card-head">
+        <div class="conduta-card-label">${label}</div>
+        <div class="conduta-card-valor" style="color:${cor};">${valor}${sub ? ` <span class="conduta-card-sub">${sub}</span>` : ''}</div>
+      </div>
+      <div class="conduta-card-body">
+        <div class="conduta-card-titulo">${titulo}</div>
+        <div class="conduta-card-texto">${texto}</div>
+      </div>
+    </div>
+  `;
+}
+
 function metricCard(label, valor, sub, cor) {
   return `
     <div class="metric-card">
@@ -718,8 +736,7 @@ function gerarCardMacros(mac, imc) {
       <div class="distrib-section" data-distrib='${JSON.stringify(distribData).replace(/'/g, "&#39;")}'>
         <div class="distrib-header">
           <div>
-            <div class="distrib-titulo">Distribuição nas refeições</div>
-            <div class="distrib-crono">cronotipo ${mac.cronotipoLabel.toLowerCase()}</div>
+            <div class="distrib-titulo">Cronotipo ${mac.cronotipoLabel.toLowerCase()} · <span class="distrib-titulo-sub">Distribuição nas refeições</span></div>
           </div>
           <div class="distrib-seletor">
             <button class="ds-btn active" data-n="4">4</button>
@@ -728,7 +745,7 @@ function gerarCardMacros(mac, imc) {
             <span class="ds-label">refeições</span>
           </div>
         </div>
-        <div class="distrib-lista">${gerarLinhasDistrib(distribData, 4)}</div>
+        <div class="distrib-grid">${gerarLinhasDistrib(distribData, 4)}</div>
       </div>
     </div>
   `;
@@ -743,17 +760,18 @@ function gerarLinhasDistrib(data, n) {
     const protRef = Math.round(data.prot * pct / 100);
     const carbRef = Math.round(data.carb * pct / 100);
     const gordRef = Math.round(data.gord * pct / 100);
+    const maxG = Math.max(protRef, carbRef, gordRef, 1);
+    const barra = (g, cor) => `<div class="dl-macro-bar"><div class="dl-macro-fill" style="width:${(g/maxG*100).toFixed(0)}%; background:${cor};"></div></div>`;
     return `
-      <div class="distrib-linha">
-        <div class="dl-head">
-          <span class="dl-ref">${ref}</span>
-          <span class="dl-kcal">${kcal} kcal <span class="dl-pct">(${pct}%)</span></span>
+      <div class="distrib-card">
+        <div class="dc-head">
+          <span class="dc-ref">${ref}</span>
+          <span class="dc-kcal">${kcal} kcal</span>
         </div>
-        <div class="dl-bar"><div class="dl-bar-fill" style="width:${pct * 2.5}%;"></div></div>
-        <div class="dl-macros">
-          <span class="dm dm-p">Proteína ${protRef}g</span>
-          <span class="dm dm-c">Carboidrato ${carbRef}g</span>
-          <span class="dm dm-g">Gorduras ${gordRef}g</span>
+        <div class="dc-macros">
+          <div class="dc-macro"><span class="dc-macro-nome">Proteína</span>${barra(protRef, 'var(--terracotta)')}<span class="dc-macro-g">${protRef}g</span></div>
+          <div class="dc-macro"><span class="dc-macro-nome">Carboidrato</span>${barra(carbRef, 'var(--gold)')}<span class="dc-macro-g">${carbRef}g</span></div>
+          <div class="dc-macro"><span class="dc-macro-nome">Gorduras</span>${barra(gordRef, 'var(--sage)')}<span class="dc-macro-g">${gordRef}g</span></div>
         </div>
       </div>
     `;
@@ -990,10 +1008,12 @@ export async function gerarRelatorio(pacienteId) {
       <div class="rel-metrics">
         ${metricCard('IMC', calc.imc !== null ? calc.imc : '—', calc.imcClass.label, calc.imcClass.cor)}
         ${metricCard('Peso atual', peso ? peso + ' kg' : '—', pesoDesejado ? 'Meta: ' + pesoDesejado + ' kg' : '', 'var(--moss)')}
-        ${metricCardBotao('PSQI (sono)', calc.psqiScore !== null ? calc.psqiScore + '/21' : '—', calc.psqiClass.label, calc.psqiClass.cor, 'psqi', calc.psqiClass.label)}
-        ${metricCardBotao('Cronotipo', calc.cronotipo.emoji || '—', calc.cronotipo.label, calc.cronotipo.cor, 'cronotipo', calc.cronotipo.label)}
         ${metricCard('TMB', calc.tmb ? calc.tmb + ' kcal' : '—', 'Metabolismo basal', 'var(--olive)')}
         ${metricCard('GET estimado', calc.get ? calc.get + ' kcal' : '—', 'Gasto total/dia', 'var(--olive)')}
+      </div>
+      <div class="rel-condutas">
+        ${cardConduta('PSQI (sono)', calc.psqiScore !== null ? calc.psqiScore + '/21' : '—', calc.psqiClass.label, calc.psqiClass.cor, CONDUTA_PSQI[calc.psqiClass.label])}
+        ${cardConduta('Cronotipo', (calc.cronotipo.emoji ? calc.cronotipo.emoji + ' ' : '') + calc.cronotipo.label, '', calc.cronotipo.cor, CONDUTA_CRONOTIPO[calc.cronotipo.label])}
       </div>
     </div>
 
@@ -1030,7 +1050,7 @@ export function ativarConduta(container) {
   root.querySelectorAll('.distrib-section').forEach(sec => {
     let data;
     try { data = JSON.parse(sec.dataset.distrib.replace(/&#39;/g, "'")); } catch { return; }
-    const lista = sec.querySelector('.distrib-lista');
+    const lista = sec.querySelector('.distrib-grid');
     sec.querySelectorAll('.ds-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         sec.querySelectorAll('.ds-btn').forEach(b => b.classList.remove('active'));
