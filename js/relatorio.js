@@ -606,16 +606,29 @@ function gerarRadar(scores) {
 function gerarIntroPrescricao(mac) {
   const atual = mac.pesoAtual;
   const meta = mac.pesoMeta;
-  const tempo = mac.tempoMeta;
-  // Só monta a frase de meta se houver peso atual e meta diferentes
+  let tempo = mac.tempoMeta;
+
+  // Normaliza o tempo: se vier só número ("4"), vira "4 meses".
+  // Se já tiver texto (ex: "4 meses", "1 ano", "6 semanas"), mantém.
+  if (tempo != null && tempo !== '') {
+    const tempoStr = String(tempo).trim();
+    if (/^\d+([.,]\d+)?$/.test(tempoStr)) {
+      const n = parseFloat(tempoStr.replace(',', '.'));
+      tempo = `${tempoStr} ${n === 1 ? 'mês' : 'meses'}`;
+    } else {
+      tempo = tempoStr;
+    }
+  } else {
+    tempo = null;
+  }
+
   if (atual && meta && atual !== meta) {
     const diff = Math.abs(+(atual - meta).toFixed(1));
     const acao = meta < atual ? 'reduzir' : 'ganhar';
-    const tempoTxt = tempo ? ` em <strong>${tempo}</strong>` : '';
+    const prazoTxt = tempo ? ` em <strong>${tempo}</strong>` : '';
     return `<div class="prescricao-intro">
-      Recomendação para <strong>${acao} ${diff} kg</strong>${tempoTxt},
-      partindo de ${atual} kg em direção à meta de ${meta} kg.
-      Os valores abaixo são o ponto de partida calculado — ajuste conforme evolução e resposta individual.
+      Meta: <strong>${acao} ${diff} kg</strong>${prazoTxt} — de ${atual} kg para ${meta} kg.
+      Os valores abaixo são o ponto de partida; ajuste conforme a evolução da paciente.
     </div>`;
   }
   return `<div class="prescricao-intro">
@@ -636,11 +649,12 @@ function gerarCardMacros(mac, imc) {
     const carbRef = Math.round(mac.carbo.g * pct / 100);
     const gordRef = Math.round(mac.gordura.g * pct / 100);
     return `
-      <div class="distrib-item">
-        <div class="distrib-ref">${ref}</div>
-        <div class="distrib-pct">${pct}%</div>
-        <div class="distrib-kcal">${kcal} kcal</div>
-        <div class="distrib-macros">
+      <div class="distrib-linha">
+        <div class="dl-head">
+          <span class="dl-ref">${ref}</span>
+          <span class="dl-kcal">${kcal} kcal <span class="dl-pct">(${pct}%)</span></span>
+        </div>
+        <div class="dl-macros">
           <span class="dm dm-p">P ${protRef}g</span>
           <span class="dm dm-c">C ${carbRef}g</span>
           <span class="dm dm-g">G ${gordRef}g</span>
@@ -664,45 +678,50 @@ function gerarCardMacros(mac, imc) {
       </div>
       ${gerarIntroPrescricao(mac)}
 
-      <div class="presc-layout">
-        <div class="presc-kcal">
-          <div class="presc-kcal-value">${mac.metaKcal.toLocaleString('pt-BR')}</div>
-          <div class="presc-kcal-label">kcal/dia</div>
-          <div class="presc-kcal-sub">meta calórica</div>
+      <div class="presc-2col">
+        <div class="presc-esquerda">
+          <div class="presc-layout">
+            <div class="presc-kcal">
+              <div class="presc-kcal-value">${mac.metaKcal.toLocaleString('pt-BR')}</div>
+              <div class="presc-kcal-label">kcal/dia</div>
+              <div class="presc-kcal-sub">meta calórica</div>
+            </div>
+            <div class="presc-macros">
+              <div class="presc-macro">
+                <div class="presc-macro-top">
+                  <span class="presc-macro-nome">🥩 Proteína</span>
+                  <span class="presc-macro-g">${mac.proteina.g}g</span>
+                </div>
+                <div class="presc-bar"><div class="presc-bar-fill" style="width:${mac.proteina.pct}%; background:var(--terracotta);"></div></div>
+                <div class="presc-macro-det">${mac.proteina.pct}% · ${mac.gPorKg}g/kg</div>
+              </div>
+              <div class="presc-macro">
+                <div class="presc-macro-top">
+                  <span class="presc-macro-nome">🍚 Carboidrato</span>
+                  <span class="presc-macro-g">${mac.carbo.g}g</span>
+                </div>
+                <div class="presc-bar"><div class="presc-bar-fill" style="width:${mac.carbo.pct}%; background:var(--gold);"></div></div>
+                <div class="presc-macro-det">${mac.carbo.pct}% do total</div>
+              </div>
+              <div class="presc-macro">
+                <div class="presc-macro-top">
+                  <span class="presc-macro-nome">🥑 Gordura</span>
+                  <span class="presc-macro-g">${mac.gordura.g}g</span>
+                </div>
+                <div class="presc-bar"><div class="presc-bar-fill" style="width:${mac.gordura.pct}%; background:var(--sage);"></div></div>
+                <div class="presc-macro-det">${mac.gordura.pct}% do total</div>
+              </div>
+            </div>
+          </div>
+          ${ajustesPat}
+          ${alertaPesoAjustado}
         </div>
-        <div class="presc-macros">
-          <div class="presc-macro">
-            <div class="presc-macro-top">
-              <span class="presc-macro-nome">🥩 Proteína</span>
-              <span class="presc-macro-g">${mac.proteina.g}g</span>
-            </div>
-            <div class="presc-bar"><div class="presc-bar-fill" style="width:${mac.proteina.pct}%; background:var(--terracotta);"></div></div>
-            <div class="presc-macro-det">${mac.proteina.pct}% · ${mac.gPorKg}g/kg</div>
-          </div>
-          <div class="presc-macro">
-            <div class="presc-macro-top">
-              <span class="presc-macro-nome">🍚 Carboidrato</span>
-              <span class="presc-macro-g">${mac.carbo.g}g</span>
-            </div>
-            <div class="presc-bar"><div class="presc-bar-fill" style="width:${mac.carbo.pct}%; background:var(--gold);"></div></div>
-            <div class="presc-macro-det">${mac.carbo.pct}% do total</div>
-          </div>
-          <div class="presc-macro">
-            <div class="presc-macro-top">
-              <span class="presc-macro-nome">🥑 Gordura</span>
-              <span class="presc-macro-g">${mac.gordura.g}g</span>
-            </div>
-            <div class="presc-bar"><div class="presc-bar-fill" style="width:${mac.gordura.pct}%; background:var(--sage);"></div></div>
-            <div class="presc-macro-det">${mac.gordura.pct}% do total</div>
-          </div>
-        </div>
-      </div>
 
-      ${ajustesPat}
-      ${alertaPesoAjustado}
-      <div class="distrib-section">
-        <div class="distrib-titulo">Distribuição nas refeições <span class="distrib-crono">cronotipo ${mac.cronotipoLabel.toLowerCase()}</span></div>
-        <div class="distrib-grid">${distrib}</div>
+        <div class="presc-distrib">
+          <div class="distrib-titulo">Distribuição nas refeições</div>
+          <div class="distrib-crono">cronotipo ${mac.cronotipoLabel.toLowerCase()}</div>
+          <div class="distrib-lista">${distrib}</div>
+        </div>
       </div>
     </div>
   `;
