@@ -391,8 +391,24 @@
   .form-ok { background: rgba(135,160,130,0.15); border-left: 3px solid var(--sage); color: var(--moss-deep); padding: 11px 14px; border-radius: 10px; font-size: 13px; margin: 12px 0; }
 
   /* ===== RECORDATÓRIO CALCULADO (IA) ===== */
-  .rec-calc-card { background: var(--bg-card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; margin-top: 14px; box-shadow: var(--shadow); }
-  .rec-calc-title { font-family: 'Nunito', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--moss); font-weight: 600; margin-bottom: 10px; }
+  /* Card largo do recordatório: relato da pessoa | estimativa IA */
+  .rec-full-card { background: var(--bg-card); border: 1px solid var(--line); border-radius: 18px; padding: 22px; margin-bottom: 24px; box-shadow: var(--shadow-lg); }
+  .rec-full-title { font-size: 16px; font-weight: 800; color: var(--moss-deep); margin-bottom: 16px; }
+  .rec-full-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+  .rec-lado { }
+  .rec-lado-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--moss); font-weight: 700; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .rec-lado-pessoa { }
+  .rec-lado-ia { background: var(--bg); border-radius: 14px; padding: 16px; }
+  .rec-lado-ia .rec-lado-head { color: var(--terracotta); }
+  .rec-relato { display: flex; flex-direction: column; gap: 10px; }
+  .rec-refeicao { background: var(--bg); border-radius: 10px; padding: 11px 13px; }
+  .rec-refeicao-nome { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 3px; }
+  .rec-refeicao-hora { font-size: 11px; color: var(--ink-mute); font-weight: 600; }
+  .rec-refeicao-desc { font-size: 13px; color: var(--ink-soft); line-height: 1.45; }
+  .rec-vazio { font-size: 13px; color: var(--ink-mute); font-style: italic; }
+  @media (max-width: 680px) { .rec-full-grid { grid-template-columns: 1fr; } }
+
+  .rec-calc-card { background: var(--bg-card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; margin-top: 14px; box-shadow: var(--shadow); }  .rec-calc-title { font-family: 'Nunito', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--moss); font-weight: 600; margin-bottom: 10px; }
   .rec-calc-kcal { font-family: 'Nunito', sans-serif; font-size: 34px; color: var(--moss-deep); font-weight: 500; line-height: 1; }
   .rec-calc-kcal span { font-size: 15px; color: var(--ink-mute); font-family: 'Nunito', sans-serif; }
   .rec-calc-macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0; }
