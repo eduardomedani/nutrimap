@@ -257,7 +257,7 @@
   .dc-macro-g { font-size: 10.5px; font-weight: 700; color: var(--ink); text-align: right; }
 
   /* Cards de conduta (PSQI, Cronotipo) — largura total, um sob o outro */
-  .rel-condutas { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+  .rel-condutas { display: flex; flex-direction: column; gap: 12px; }
   .conduta-card { background: var(--bg-card); border-radius: 16px; padding: 16px 18px; box-shadow: var(--shadow); border-left: 3px solid var(--sage); }
   .conduta-card-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
   .conduta-card-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-mute); font-weight: 700; }
@@ -337,6 +337,7 @@
   /* Dentro do layout lado-a-lado, o radar empilha (SVG em cima, legendas embaixo) */
   .rel-mapa-metrics .radar-layout { grid-template-columns: 1fr; gap: 20px; padding: 0; justify-items: center; }
   .rel-mapa-metrics .radar-legend { max-width: 100%; }
+  .rel-metrics-col { display: flex; flex-direction: column; gap: 12px; }
   .rel-mapa-metrics .rel-metrics { grid-template-columns: repeat(2, 1fr); margin-bottom: 0; }
   @media (max-width: 780px) { .rel-mapa-metrics { grid-template-columns: 1fr; } .rel-mapa-metrics .rel-metrics { grid-template-columns: repeat(3, 1fr); } }
   @media (max-width: 480px) { .rel-mapa-metrics .rel-metrics { grid-template-columns: repeat(2, 1fr); } }
