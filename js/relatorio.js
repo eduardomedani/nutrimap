@@ -931,16 +931,19 @@ export async function gerarRelatorio(pacienteId) {
       </div>
     </div>` : ''}
 
-    <div class="rel-metrics">
-      ${metricCard('IMC', calc.imc !== null ? calc.imc : '—', calc.imcClass.label, calc.imcClass.cor)}
-      ${metricCard('Peso atual', peso ? peso + ' kg' : '—', pesoDesejado ? 'Meta: ' + pesoDesejado + ' kg' : '', 'var(--moss)')}
-      ${metricCardBotao('PSQI (sono)', calc.psqiScore !== null ? calc.psqiScore + '/21' : '—', calc.psqiClass.label, calc.psqiClass.cor, 'psqi', calc.psqiClass.label)}
-      ${metricCardBotao('Cronotipo', calc.cronotipo.emoji || '—', calc.cronotipo.label, calc.cronotipo.cor, 'cronotipo', calc.cronotipo.label)}
-      ${metricCard('TMB', calc.tmb ? calc.tmb + ' kcal' : '—', 'Metabolismo basal', 'var(--olive)')}
-      ${metricCard('GET estimado', calc.get ? calc.get + ' kcal' : '—', 'Gasto total/dia', 'var(--olive)')}
+    <div class="rel-mapa-metrics">
+      <div class="rel-mapa-col">
+        ${gerarRadar(radarScores)}
+      </div>
+      <div class="rel-metrics">
+        ${metricCard('IMC', calc.imc !== null ? calc.imc : '—', calc.imcClass.label, calc.imcClass.cor)}
+        ${metricCard('Peso atual', peso ? peso + ' kg' : '—', pesoDesejado ? 'Meta: ' + pesoDesejado + ' kg' : '', 'var(--moss)')}
+        ${metricCardBotao('PSQI (sono)', calc.psqiScore !== null ? calc.psqiScore + '/21' : '—', calc.psqiClass.label, calc.psqiClass.cor, 'psqi', calc.psqiClass.label)}
+        ${metricCardBotao('Cronotipo', calc.cronotipo.emoji || '—', calc.cronotipo.label, calc.cronotipo.cor, 'cronotipo', calc.cronotipo.label)}
+        ${metricCard('TMB', calc.tmb ? calc.tmb + ' kcal' : '—', 'Metabolismo basal', 'var(--olive)')}
+        ${metricCard('GET estimado', calc.get ? calc.get + ' kcal' : '—', 'Gasto total/dia', 'var(--olive)')}
+      </div>
     </div>
-
-    ${gerarRadar(radarScores)}
 
     ${macros ? gerarCardMacros(macros, calc.imc) : ''}
 
