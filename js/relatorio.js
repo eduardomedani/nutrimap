@@ -670,6 +670,23 @@ function gerarIntroPrescricao(mac) {
   </div>`;
 }
 
+// Container do recordatório (largura total, após a Prescrição).
+// A IA (processarRecordatorioIA) substitui isto pelo card com relato + estimativa.
+function gerarContainerRecordatorio(m) {
+  if (!m.m8) return '';
+  const refeicoes = [
+    ['☕ Café da manhã', m.m8.cafe_faz, m.m8.cafe_descricao, m.m8.cafe_horario],
+    ['🥪 Lanche da manhã', m.m8.lanche_manha_faz, m.m8.lanche_manha_descricao, m.m8.lanche_manha_horario],
+    ['🍽️ Almoço', m.m8.almoco_faz, m.m8.almoco_descricao, m.m8.almoco_horario],
+    ['🍎 Lanche da tarde', m.m8.lanche_tarde_faz, m.m8.lanche_tarde_descricao, m.m8.lanche_tarde_horario],
+    ['🍲 Jantar', m.m8.jantar_faz, m.m8.jantar_descricao, m.m8.jantar_horario],
+    ['🌌 Ceia', m.m8.ceia_faz, m.m8.ceia_descricao, m.m8.ceia_horario]
+  ];
+  const refeicoesValidas = refeicoes.filter(r => (r[1]||'').toLowerCase() !== 'não' && (r[2] || r[3]));
+  if (refeicoesValidas.length === 0) return '';
+  return `<div class="ia-hint" id="rec-calc-container" data-refeicoes='${encodeURIComponent(JSON.stringify(refeicoesValidas))}'>⚛ Calculando o recordatório por IA...</div>`;
+}
+
 function gerarCardMacros(mac, imc) {
   const alertaPesoAjustado = (imc !== null && imc >= 30)
     ? `<div class="macro-alerta">⚠️ IMC elevado (${imc}) — proteína calculada sobre peso ajustado (${mac.pesoAjustado} kg). Considere revisar conforme composição corporal.</div>`
@@ -855,20 +872,8 @@ function renderModulosDetalhados(m) {
       ['🌌 Ceia', m.m8.ceia_faz, m.m8.ceia_descricao, m.m8.ceia_horario]
     ];
     const refeicoesValidas = refeicoes.filter(r => (r[1]||'').toLowerCase() !== 'não' && (r[2] || r[3]));
-    if (refeicoesValidas.length > 0) {
-      html += `<div class="secao-card">
-        <div class="secao-title">📋 Recordatório 24h</div>
-        <div class="recordatorio-list">
-          ${refeicoesValidas.map(r => `
-            <div class="refeicao-item">
-              <div class="refeicao-head"><span>${r[0]}</span>${r[3] ? `<span class="refeicao-hora">${r[3]}</span>` : ''}</div>
-              <div class="refeicao-desc">${r[2] || '<em style="color:var(--ink-mute)">Sem descrição</em>'}</div>
-            </div>
-          `).join('')}
-        </div>
-        <div class="ia-hint" id="rec-calc-container" data-refeicoes='${encodeURIComponent(JSON.stringify(refeicoesValidas))}'>⚛ Calculando calorias e macros por IA...</div>
-      </div>`;
-    }
+    // Recordatório agora é renderizado como card largo após a Prescrição (gerarContainerRecordatorio).
+    // Aqui nos módulos detalhados não é mais duplicado.
   }
 
   if (m.m10) {
@@ -1020,6 +1025,8 @@ export async function gerarRelatorio(pacienteId) {
     </div>
 
     ${macros ? gerarCardMacros(macros, calc.imc) : ''}
+
+    ${gerarContainerRecordatorio(m)}
 
     ${renderModulosDetalhados(m)}
 
