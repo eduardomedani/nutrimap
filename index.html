@@ -326,6 +326,37 @@
   .rec-compara-diff { text-align: center; font-family: 'Nunito', sans-serif; font-size: 17px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
   .rec-sem-get { font-size: 12.5px; color: var(--ink-mute); font-style: italic; margin-top: 8px; }
   .rec-calc-aviso { font-size: 11.5px; color: var(--ink-mute); margin-top: 12px; line-height: 1.5; background: rgba(184,103,74,0.07); padding: 9px 11px; border-radius: 9px; }
+
+  /* ===== FICHA DO PACIENTE ===== */
+  .ficha-voltar { font-size: 13px; color: var(--moss); cursor: pointer; font-weight: 700; margin-bottom: 14px; display: inline-block; }
+  .ficha-voltar:hover { text-decoration: underline; }
+  .ficha-head { background: var(--bg-card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 20px; display: flex; align-items: center; gap: 14px; box-shadow: var(--shadow); margin-bottom: 16px; }
+  .ficha-avatar { width: 50px; height: 50px; border-radius: 50%; background: var(--moss); color: var(--cream); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; flex-shrink: 0; }
+  .ficha-nome { font-size: 20px; font-weight: 800; color: var(--moss-deep); }
+  .ficha-meta { font-size: 12.5px; color: var(--ink-mute); margin-top: 2px; }
+  .ficha-badges { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  .ficha-badge { padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+  .ficha-badge.badge-ok { background: rgba(135,160,130,0.2); color: var(--moss-deep); }
+  .ficha-badge.badge-wait { background: rgba(201,164,92,0.2); color: #8A6D2A; }
+  .ficha-badge.badge-cod { background: var(--bg); color: var(--ink-soft); border: 1px solid var(--line); }
+  .ficha-body { display: grid; grid-template-columns: 230px 1fr; gap: 16px; align-items: start; }
+  .ficha-menu { background: var(--bg-card); border: 1px solid var(--line); border-radius: 16px; padding: 8px; box-shadow: var(--shadow); }
+  .fm-item { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border-radius: 10px; font-size: 13.5px; font-weight: 600; color: var(--ink-soft); cursor: pointer; transition: all 0.15s; margin-bottom: 2px; }
+  .fm-item:hover { background: var(--bg); color: var(--ink); }
+  .fm-item.active { background: var(--moss); color: var(--cream); }
+  .fm-item.soon { color: var(--ink-mute); }
+  .fm-soon { margin-left: auto; font-size: 9px; background: var(--bg); color: var(--ink-mute); padding: 2px 6px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700; }
+  .fm-item.active .fm-soon { background: rgba(255,255,255,0.2); color: var(--cream); }
+  .ficha-conteudo { background: var(--bg-card); border: 1px solid var(--line); border-radius: 16px; padding: 24px; box-shadow: var(--shadow); min-height: 420px; }
+  .ficha-sec-titulo { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--moss); font-weight: 700; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .ficha-campos { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+  .fc-l { font-size: 11px; color: var(--ink-mute); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+  .fc-v { font-size: 15px; color: var(--ink); margin-top: 3px; font-weight: 600; }
+  .ficha-em-breve { text-align: center; padding: 50px 20px; }
+  .feb-ico { font-size: 44px; margin-bottom: 12px; }
+  .feb-t { font-size: 18px; font-weight: 800; color: var(--moss-deep); margin-bottom: 6px; }
+  .feb-s { font-size: 13.5px; color: var(--ink-mute); max-width: 380px; margin: 0 auto; line-height: 1.5; }
+  @media (max-width: 720px) { .ficha-body { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -505,6 +536,9 @@
     <div class="module-page" id="page-relatorio">
       <div class="loading"><div class="spinner"></div>Carregando relatório...</div>
     </div>
+    <div class="module-page" id="page-ficha">
+      <div class="loading"><div class="spinner"></div>Carregando ficha...</div>
+    </div>
   </main>
 </div>
 
@@ -515,6 +549,7 @@
   import { formatarData, iniciaisDoNome, copiarParaClipboard, mostrarToast, gerarLinkWhatsapp, montarMensagemQuestionario } from './js/utils.js';
   import { gerarRelatorio } from './js/relatorio.js';
   import { processarRecordatorioIA } from './js/recordatorio-ia.js';
+  import { abrirFichaPaciente } from './js/ficha.js';
   import { initAvaliacoesUI } from './js/avaliacoes-ui.js';
 
   let todosPacientes = [];
@@ -753,22 +788,26 @@
   }
 
   async function abrirRelatorio(id) {
-    // Navega pra página do relatório
+    // Abre a FICHA do paciente (modelo WebDiet). A ficha renderiza
+    // internamente o relatório na aba "Anamnese geral".
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.module-page').forEach(el => el.classList.remove('active'));
+    document.getElementById('page-ficha').classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    const sessao = await obterSessao();
+    abrirFichaPaciente(id, sessao?.user?.id, () => navegar('anamnese'));
+  }
+
+  // Mantida para compatibilidade: relatório "puro" (não usado na ficha)
+  async function abrirRelatorioLegado(id) {
     const pageEl = document.getElementById('page-relatorio');
     pageEl.classList.add('active');
     pageEl.innerHTML = '<div class="loading"><div class="spinner"></div>Carregando relatório...</div>';
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-
     try {
       const html = await gerarRelatorio(id);
       pageEl.innerHTML = html;
-
-      // Dispara o cálculo do recordatório por IA (automático, com cache)
       processarRecordatorioIA(id).catch(e => console.warn('recordatorio ia:', e));
-
-      // Listener pro botão "Voltar"
       pageEl.querySelectorAll('[data-relatorio-action="voltar"]').forEach(btn => {
         btn.addEventListener('click', () => navegar('anamnese'));
       });
