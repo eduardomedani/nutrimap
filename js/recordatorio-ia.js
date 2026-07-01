@@ -145,8 +145,8 @@ export async function processarRecordatorioIA(pacienteId) {
     const getKcal = await buscarGetUltimaAvaliacao(pacienteId);
     const calc = await obterRecordatorioCalculado(pacienteId, refeicoes, getKcal);
     if (!calc) { cont.remove(); return; }
-    // Substitui o container inteiro pelo card final
-    cont.outerHTML = renderCardRecordatorio(calc);
+    // Substitui o container inteiro pelo card final (com relato + estimativa)
+    cont.outerHTML = renderCardRecordatorio(calc, refeicoes);
   } catch (e) {
     cont.innerHTML = `⚠️ Não foi possível calcular agora (${e.message}). Reabra o relatório para tentar de novo.`;
   }
@@ -155,9 +155,25 @@ export async function processarRecordatorioIA(pacienteId) {
 /**
  * Monta o HTML do card do recordatório calculado.
  */
-export function renderCardRecordatorio(calc) {
+export function renderCardRecordatorio(calc, refeicoes) {
   if (!calc) return '';
 
+  // ── Coluna esquerda: o que a pessoa relatou ──
+  let relato = '';
+  if (Array.isArray(refeicoes) && refeicoes.length) {
+    const linhas = refeicoes
+      .filter(r => (r[1] || '').toLowerCase() !== 'não' && r[2])
+      .map(r => `
+        <div class="rec-refeicao">
+          <div class="rec-refeicao-nome">${r[0]}${r[3] ? ` <span class="rec-refeicao-hora">${r[3]}</span>` : ''}</div>
+          <div class="rec-refeicao-desc">${r[2]}</div>
+        </div>`).join('');
+    relato = linhas || '<div class="rec-vazio">Sem refeições relatadas.</div>';
+  } else {
+    relato = '<div class="rec-vazio">Sem refeições relatadas.</div>';
+  }
+
+  // ── Coluna direita: comparação com GET ──
   let comparacao = '';
   if (calc.get_kcal) {
     const diff = Math.round(calc.kcal_total - calc.get_kcal);
@@ -166,30 +182,33 @@ export function renderCardRecordatorio(calc) {
     const rotulo = diff > 0 ? 'acima do GET (superávit)' : 'abaixo do GET (déficit)';
     comparacao = `
       <div class="rec-compara">
-        <div class="rec-compara-row">
-          <span>GET (avaliação)</span><strong>${Math.round(calc.get_kcal)} kcal</strong>
-        </div>
-        <div class="rec-compara-row">
-          <span>Recordatório</span><strong>${Math.round(calc.kcal_total)} kcal</strong>
-        </div>
-        <div class="rec-compara-diff" style="color:${cor}">
-          ${sinal}${diff} kcal · ${rotulo}
-        </div>
+        <div class="rec-compara-row"><span>GET (avaliação)</span><strong>${Math.round(calc.get_kcal)} kcal</strong></div>
+        <div class="rec-compara-row"><span>Recordatório</span><strong>${Math.round(calc.kcal_total)} kcal</strong></div>
+        <div class="rec-compara-diff" style="color:${cor}">${sinal}${diff} kcal · ${rotulo}</div>
       </div>`;
   } else {
     comparacao = `<div class="rec-sem-get">Sem avaliação física cadastrada — comparação com GET indisponível.</div>`;
   }
 
   return `
-    <div class="rec-calc-card">
-      <div class="rec-calc-title">⚛ Estimativa nutricional (IA)</div>
-      <div class="rec-calc-kcal">${Math.round(calc.kcal_total)} <span>kcal/dia</span></div>
-      <div class="rec-calc-macros">
-        <div class="rec-macro"><div class="rec-macro-v">${Math.round(calc.prot_g)}g</div><div class="rec-macro-l">Proteína</div></div>
-        <div class="rec-macro"><div class="rec-macro-v">${Math.round(calc.carb_g)}g</div><div class="rec-macro-l">Carboidrato</div></div>
-        <div class="rec-macro"><div class="rec-macro-v">${Math.round(calc.gord_g)}g</div><div class="rec-macro-l">Gordura</div></div>
+    <div class="rec-full-card">
+      <div class="rec-full-title">🍽️ Recordatório alimentar</div>
+      <div class="rec-full-grid">
+        <div class="rec-lado rec-lado-pessoa">
+          <div class="rec-lado-head">Relato da paciente</div>
+          <div class="rec-relato">${relato}</div>
+        </div>
+        <div class="rec-lado rec-lado-ia">
+          <div class="rec-lado-head">⚛ Estimativa nutricional (IA)</div>
+          <div class="rec-calc-kcal">${Math.round(calc.kcal_total)} <span>kcal/dia</span></div>
+          <div class="rec-calc-macros">
+            <div class="rec-macro"><div class="rec-macro-v">${Math.round(calc.prot_g)}g</div><div class="rec-macro-l">Proteína</div></div>
+            <div class="rec-macro"><div class="rec-macro-v">${Math.round(calc.carb_g)}g</div><div class="rec-macro-l">Carboidrato</div></div>
+            <div class="rec-macro"><div class="rec-macro-v">${Math.round(calc.gord_g)}g</div><div class="rec-macro-l">Gordura</div></div>
+          </div>
+          ${comparacao}
+          <div class="rec-calc-aviso">⚠️ Estimativa aproximada a partir de texto livre. ${calc.observacao || ''} Não substitui pesagem de alimentos.</div>
+        </div>
       </div>
-      ${comparacao}
-      <div class="rec-calc-aviso">⚠️ Estimativa aproximada a partir de texto livre. ${calc.observacao || ''} Não substitui pesagem de alimentos.</div>
     </div>`;
 }
