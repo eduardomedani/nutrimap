@@ -1011,10 +1011,11 @@ export async function gerarRelatorio(pacienteId) {
         ${metricCard('TMB', calc.tmb ? calc.tmb + ' kcal' : '—', 'Metabolismo basal', 'var(--olive)')}
         ${metricCard('GET estimado', calc.get ? calc.get + ' kcal' : '—', 'Gasto total/dia', 'var(--olive)')}
       </div>
-      <div class="rel-condutas">
-        ${cardConduta('PSQI (sono)', calc.psqiScore !== null ? calc.psqiScore + '/21' : '—', calc.psqiClass.label, calc.psqiClass.cor, CONDUTA_PSQI[calc.psqiClass.label])}
-        ${cardConduta('Cronotipo', (calc.cronotipo.emoji ? calc.cronotipo.emoji + ' ' : '') + calc.cronotipo.label, '', calc.cronotipo.cor, CONDUTA_CRONOTIPO[calc.cronotipo.label])}
-      </div>
+    </div>
+
+    <div class="rel-condutas">
+      ${cardConduta('PSQI (sono)', calc.psqiScore !== null ? calc.psqiScore + '/21' : '—', calc.psqiClass.label, calc.psqiClass.cor, CONDUTA_PSQI[calc.psqiClass.label])}
+      ${cardConduta('Cronotipo', (calc.cronotipo.emoji ? calc.cronotipo.emoji + ' ' : '') + calc.cronotipo.label, '', calc.cronotipo.cor, CONDUTA_CRONOTIPO[calc.cronotipo.label])}
     </div>
 
     ${macros ? gerarCardMacros(macros, calc.imc) : ''}
