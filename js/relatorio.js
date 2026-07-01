@@ -736,7 +736,7 @@ function gerarCardMacros(mac, imc) {
       <div class="distrib-section" data-distrib='${JSON.stringify(distribData).replace(/'/g, "&#39;")}'>
         <div class="distrib-header">
           <div>
-            <div class="distrib-titulo">Cronotipo ${mac.cronotipoLabel.toLowerCase()} · <span class="distrib-titulo-sub">Distribuição nas refeições</span></div>
+            <div class="distrib-titulo">Distribuição nas refeições · <span class="distrib-titulo-crono">Cronotipo ${mac.cronotipoLabel.toLowerCase()}</span></div>
           </div>
           <div class="distrib-seletor">
             <button class="ds-btn active" data-n="4">4</button>
@@ -745,7 +745,7 @@ function gerarCardMacros(mac, imc) {
             <span class="ds-label">refeições</span>
           </div>
         </div>
-        <div class="distrib-grid">${gerarLinhasDistrib(distribData, 4)}</div>
+        <div class="distrib-grid" style="grid-template-columns: repeat(4, 1fr);">${gerarLinhasDistrib(distribData, 4)}</div>
       </div>
     </div>
   `;
@@ -761,7 +761,7 @@ function gerarLinhasDistrib(data, n) {
     const carbRef = Math.round(data.carb * pct / 100);
     const gordRef = Math.round(data.gord * pct / 100);
     const maxG = Math.max(protRef, carbRef, gordRef, 1);
-    const barra = (g, cor) => `<div class="dl-macro-bar"><div class="dl-macro-fill" style="width:${(g/maxG*100).toFixed(0)}%; background:${cor};"></div></div>`;
+    const barra = (g, cor) => `<div class="dc-macro-bar"><div class="dc-macro-fill" style="width:${(g/maxG*100).toFixed(0)}%; background:${cor};"></div></div>`;
     return `
       <div class="distrib-card">
         <div class="dc-head">
@@ -1056,6 +1056,7 @@ export function ativarConduta(container) {
         sec.querySelectorAll('.ds-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         const n = parseInt(btn.dataset.n);
+        lista.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
         lista.innerHTML = gerarLinhasDistribGlobal(data, n);
       });
     });
