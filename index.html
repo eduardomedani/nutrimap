@@ -466,7 +466,10 @@
   .btn-editar-dados { background: var(--moss); color: var(--cream); border: none; padding: 9px 18px; border-radius: 20px; font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 13px; cursor: pointer; transition: all 0.15s; }
   .btn-editar-dados:hover { filter: brightness(1.08); }
   .btn-cancelar { background: var(--bg); color: var(--ink-soft); }
-  .dados-balao-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+  .dados-balao-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 900px) { .dados-balao-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 640px) { .dados-balao-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 420px) { .dados-balao-grid { grid-template-columns: 1fr; } }
   .dado-balao { background: #FFFFFF; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); min-width: 0; }
   .dado-balao-label { font-size: 10.5px; color: var(--ink-mute); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
   .dado-balao-valor { font-size: 15px; color: var(--ink); margin-top: 4px; font-weight: 600; overflow-wrap: anywhere; }
