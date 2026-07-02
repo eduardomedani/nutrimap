@@ -5,7 +5,7 @@
 // Avaliações plugam módulos existentes; resto "em breve".
 // ═══════════════════════════════════════════════════════════
 
-import { buscarPacientePorId } from './pacientes.js';
+import { buscarPacientePorId, atualizarPaciente } from './pacientes.js';
 import { dadosBasicosDaAnamnese } from './avaliacoes.js';
 import { buscarRespostasModulo } from './respostas.js';
 import { gerarRelatorio, ativarConduta } from './relatorio.js';
@@ -110,37 +110,12 @@ async function renderAba(abaId) {
   // Abas prontas
   if (abaId === 'dados') {
     cont.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando dados...</div>`;
-    // Busca o M1 (dados pessoais) da anamnese
     let m1 = {};
     try {
       const resp = await buscarRespostasModulo(p.id, 'm1');
       m1 = resp || {};
-    } catch (e) { /* segue com o que tiver */ }
-
-    const sexoRaw = m1.q1_5 || _dados.sexo;
-    const sexoLabel = (sexoRaw === 'M' || sexoRaw === 'Masculino') ? 'Masculino'
-      : (sexoRaw === 'F' || sexoRaw === 'Feminino') ? 'Feminino' : '—';
-    const nascimento = m1.q1_4 || null;
-    const idadeLabel = calcularIdade(nascimento) ?? (_dados.idade != null ? _dados.idade : null);
-
-    cont.innerHTML = `
-      <div class="ficha-sec-titulo">Dados pessoais</div>
-      <div class="ficha-campos">
-        ${campo('Nome', m1.q1_1 || p.nome || '(sem nome)')}
-        ${campo('E-mail', m1.q1_2 || p.email || '—')}
-        ${campo('Telefone', m1.q1_3 || p.telefone || '—')}
-        ${campo('Nascimento', nascimento ? fmtData(nascimento) : '—')}
-        ${campo('Idade', idadeLabel != null ? idadeLabel + ' anos' : '—')}
-        ${campo('Sexo', sexoLabel)}
-        ${campo('Cidade', m1.q1_6 || '—')}
-        ${campo('Profissão', m1.q1_8 || '—')}
-      </div>
-      <div class="ficha-sec-titulo" style="margin-top:22px;">Cadastro</div>
-      <div class="ficha-campos">
-        ${campo('Código', p.codigo)}
-        ${campo('Status', p.status || 'aguardando')}
-        ${campo('Cadastrado em', fmtData(p.criado_em))}
-      </div>`;
+    } catch (e) { /* segue */ }
+    renderDadosView(cont, p, m1);
     return;
   }
 
@@ -180,6 +155,140 @@ async function renderAba(abaId) {
       <div class="feb-t">${aba.label}</div>
       <div class="feb-s">Esta funcionalidade ainda está em desenvolvimento.</div>
     </div>`;
+}
+
+// ─── Aba Dados: visualização (balões) ───
+function renderDadosView(cont, p, m1) {
+  // Prioriza dado editado (tabela pacientes) sobre o da anamnese (m1)
+  const nome = p.nome || m1.q1_1 || '(sem nome)';
+  const email = p.email || m1.q1_2 || '';
+  const nascimento = p.nascimento || m1.q1_4 || '';
+  const sexoRaw = p.sexo || m1.q1_5 || '';
+  const sexoLabel = (sexoRaw === 'M' || sexoRaw === 'Masculino') ? 'Masculino'
+    : (sexoRaw === 'F' || sexoRaw === 'Feminino') ? 'Feminino' : '';
+  const idade = calcularIdade(nascimento);
+  const cidade = p.cidade || m1.q1_6 || '';
+  const profissao = p.profissao || m1.q1_8 || '';
+
+  cont.innerHTML = `
+    <div class="dados-head">
+      <div class="ficha-sec-titulo" style="border:none; margin:0; padding:0;">Dados pessoais</div>
+      <button class="btn-editar-dados" id="btnEditarDados">✏️ Editar</button>
+    </div>
+    <div class="dados-balao-grid">
+      ${balao('Nome', nome)}
+      ${balao('E-mail', email)}
+      ${balao('Telefone', p.telefone || m1.q1_3 || '')}
+      ${balao('Instagram', p.instagram || '')}
+      ${balao('Nascimento', nascimento ? fmtData(nascimento) : '')}
+      ${balao('Idade', idade != null ? idade + ' anos' : '')}
+      ${balao('Sexo', sexoLabel)}
+      ${balao('Profissão', profissao)}
+    </div>
+
+    <div class="ficha-sec-titulo" style="margin-top:24px;">Endereço</div>
+    <div class="dados-balao-grid">
+      ${balao('País', p.pais || 'Brasil')}
+      ${balao('CEP', p.cep || '')}
+      ${balao('Endereço', p.endereco || '')}
+      ${balao('Bairro', p.bairro || '')}
+      ${balao('Cidade', cidade)}
+      ${balao('UF', p.uf || '')}
+    </div>
+
+    <div class="ficha-sec-titulo" style="margin-top:24px;">Cadastro</div>
+    <div class="dados-balao-grid">
+      ${balao('Código', p.codigo)}
+      ${balao('Status', p.status || 'aguardando')}
+      ${balao('Cadastrado em', fmtData(p.criado_em))}
+    </div>`;
+
+  document.getElementById('btnEditarDados').addEventListener('click', () => {
+    renderDadosEdit(cont, p, m1);
+  });
+}
+
+// ─── Aba Dados: edição (formulário) ───
+function renderDadosEdit(cont, p, m1) {
+  const val = (campoP, campoM1) => p[campoP] || (campoM1 ? m1[campoM1] : '') || '';
+  const sexoAtual = p.sexo || m1.q1_5 || '';
+  const sexoV = (sexoAtual === 'M' || sexoAtual === 'Masculino') ? 'M'
+    : (sexoAtual === 'F' || sexoAtual === 'Feminino') ? 'F' : '';
+
+  cont.innerHTML = `
+    <div class="dados-head">
+      <div class="ficha-sec-titulo" style="border:none; margin:0; padding:0;">Editar dados</div>
+    </div>
+    <div class="dados-form-grid">
+      ${inputD('nome', 'Nome', val('nome','q1_1'))}
+      ${inputD('email', 'E-mail', val('email','q1_2'), 'email')}
+      ${inputD('telefone', 'Telefone', val('telefone','q1_3'))}
+      ${inputD('instagram', 'Instagram', p.instagram || '')}
+      ${inputD('nascimento', 'Nascimento', (p.nascimento || m1.q1_4 || '').slice(0,10), 'date')}
+      <div class="dados-field"><label>Sexo</label>
+        <select id="d_sexo" class="np-input">
+          <option value="" ${!sexoV?'selected':''}>—</option>
+          <option value="M" ${sexoV==='M'?'selected':''}>Masculino</option>
+          <option value="F" ${sexoV==='F'?'selected':''}>Feminino</option>
+        </select></div>
+      ${inputD('profissao', 'Profissão', val('profissao','q1_8'))}
+    </div>
+
+    <div class="ficha-sec-titulo" style="margin-top:20px;">Endereço</div>
+    <div class="dados-form-grid">
+      ${inputD('pais', 'País', p.pais || 'Brasil')}
+      ${inputD('cep', 'CEP', p.cep || '')}
+      ${inputD('endereco', 'Endereço', p.endereco || '')}
+      ${inputD('bairro', 'Bairro', p.bairro || '')}
+      ${inputD('cidade', 'Cidade', val('cidade','q1_6'))}
+      ${inputD('uf', 'UF', p.uf || '')}
+    </div>
+
+    <div class="dados-form-acoes">
+      <button class="btn-editar-dados" id="btnCancelarDados" style="background:var(--bg); color:var(--ink-soft);">Cancelar</button>
+      <button class="btn-editar-dados" id="btnSalvarDados">💾 Salvar</button>
+    </div>`;
+
+  document.getElementById('btnCancelarDados').addEventListener('click', () => {
+    renderDadosView(cont, p, m1);
+  });
+
+  document.getElementById('btnSalvarDados').addEventListener('click', async () => {
+    const g = id => (document.getElementById(id)?.value || '').trim();
+    const dados = {
+      nome: g('d_nome') || null,
+      email: g('d_email') || null,
+      telefone: g('d_telefone') || null,
+      instagram: g('d_instagram') || null,
+      nascimento: g('d_nascimento') || null,
+      sexo: document.getElementById('d_sexo')?.value || null,
+      profissao: g('d_profissao') || null,
+      pais: g('d_pais') || null,
+      cep: g('d_cep') || null,
+      endereco: g('d_endereco') || null,
+      bairro: g('d_bairro') || null,
+      cidade: g('d_cidade') || null,
+      uf: g('d_uf') || null,
+    };
+    const btn = document.getElementById('btnSalvarDados');
+    btn.disabled = true; btn.textContent = 'Salvando...';
+    try {
+      const atualizado = await atualizarPaciente(p.id, dados);
+      _pacienteAtual = { ...p, ...atualizado };
+      renderDadosView(cont, _pacienteAtual, m1);
+    } catch (e) {
+      btn.disabled = false; btn.textContent = '💾 Salvar';
+      alert('Erro ao salvar: ' + e.message);
+    }
+  });
+}
+
+function balao(label, valor) {
+  const v = (valor === null || valor === undefined || valor === '') ? '—' : valor;
+  return `<div class="dado-balao"><div class="dado-balao-label">${label}</div><div class="dado-balao-valor">${esc(v)}</div></div>`;
+}
+function inputD(id, label, valor, tipo) {
+  return `<div class="dados-field"><label>${label}</label><input type="${tipo||'text'}" id="d_${id}" value="${esc(valor)}" class="np-input"></div>`;
 }
 
 // ─── Helpers ───
