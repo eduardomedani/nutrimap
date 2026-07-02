@@ -896,15 +896,19 @@ function renderModulosDetalhados(m) {
           const intLabel = (det[k].intensidade || '').toLowerCase();
           const met = mets[k] || 5.0;
           const fInt = fatorIntensidade[intLabel] || 1.0;
-          // kcal por sessão = MET × 3.5 × peso(kg) / 200 × duração(min) × fator intensidade
-          const kcalSessao = Math.round((met * 3.5 * pesoKg / 200) * DUR_SESSAO * fInt);
+          const metAjustado = met * fInt;
+          // Gasto LÍQUIDO (correção científica): subtrai 1 MET (repouso) para não
+          // contar 2x o metabolismo basal, que já está no GET. kcal = (MET-1) × 3.5 × peso / 200 × min
+          const metLiquido = Math.max(metAjustado - 1, 0);
+          const kcalSessao = Math.round((metLiquido * 3.5 * pesoKg / 200) * DUR_SESSAO);
           const kcalSemana = kcalSessao * freq;
           gastoSemanalTotal += kcalSemana;
           return `
             <div class="ativ-card">
               <div class="ativ-card-nome">${nomes[k] || k}</div>
               <div class="ativ-card-freq">${freq || '?'}x/semana · ${det[k].intensidade || 'intensidade não informada'}</div>
-              <div class="ativ-card-gasto">~${kcalSessao} kcal/sessão · <strong>~${kcalSemana} kcal/semana</strong></div>
+              <div class="ativ-card-linha">Dia: <strong>~${kcalSessao} kcal/sessão</strong></div>
+              <div class="ativ-card-linha">Semana: <strong>~${kcalSemana.toLocaleString('pt-BR')} kcal/semana</strong></div>
             </div>`;
         }).join('');
       } catch (e) {}
@@ -924,7 +928,7 @@ function renderModulosDetalhados(m) {
       </div>
       ${atividadesHtml ? `<div class="ativ-cards">${atividadesHtml}</div>` : ''}
       ${resumoGasto}
-      ${gastoSemanalTotal > 0 ? '<div class="ativ-aviso">Estimativa por METs, assumindo ~60 min por sessão. Valores aproximados — a duração real e o esforço individual variam.</div>' : ''}
+      ${gastoSemanalTotal > 0 ? '<div class="ativ-aviso">Gasto líquido estimado por METs (fórmula (MET−1)×3,5×peso÷200×min, ~60 min/sessão), descontando o metabolismo de repouso já incluído no GET. Valores aproximados — duração e esforço individual variam.</div>' : ''}
     </div>`;
   }
 
