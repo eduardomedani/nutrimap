@@ -7,6 +7,7 @@
 
 import { buscarPacientePorId } from './pacientes.js';
 import { dadosBasicosDaAnamnese } from './avaliacoes.js';
+import { buscarRespostasModulo } from './respostas.js';
 import { gerarRelatorio, ativarConduta } from './relatorio.js';
 import { processarRecordatorioIA } from './recordatorio-ia.js';
 // Fase 3 ligará as Avaliações dentro da ficha.
@@ -108,16 +109,34 @@ async function renderAba(abaId) {
 
   // Abas prontas
   if (abaId === 'dados') {
-    const sexoLabel = _dados.sexo === 'M' ? 'Masculino' : _dados.sexo === 'F' ? 'Feminino' : '—';
-    const idadeLabel = _dados.idade != null ? `${_dados.idade} anos` : '—';
+    cont.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando dados...</div>`;
+    // Busca o M1 (dados pessoais) da anamnese
+    let m1 = {};
+    try {
+      const resp = await buscarRespostasModulo(p.id, 'm1');
+      m1 = resp || {};
+    } catch (e) { /* segue com o que tiver */ }
+
+    const sexoRaw = m1.q1_5 || _dados.sexo;
+    const sexoLabel = (sexoRaw === 'M' || sexoRaw === 'Masculino') ? 'Masculino'
+      : (sexoRaw === 'F' || sexoRaw === 'Feminino') ? 'Feminino' : '—';
+    const nascimento = m1.q1_4 || null;
+    const idadeLabel = calcularIdade(nascimento) ?? (_dados.idade != null ? _dados.idade : null);
+
     cont.innerHTML = `
-      <div class="ficha-sec-titulo">Dados do paciente</div>
+      <div class="ficha-sec-titulo">Dados pessoais</div>
       <div class="ficha-campos">
-        ${campo('Nome', p.nome || '(sem nome)')}
+        ${campo('Nome', m1.q1_1 || p.nome || '(sem nome)')}
+        ${campo('E-mail', m1.q1_2 || p.email || '—')}
+        ${campo('Telefone', m1.q1_3 || p.telefone || '—')}
+        ${campo('Nascimento', nascimento ? fmtData(nascimento) : '—')}
+        ${campo('Idade', idadeLabel != null ? idadeLabel + ' anos' : '—')}
         ${campo('Sexo', sexoLabel)}
-        ${campo('Idade', idadeLabel)}
-        ${campo('Telefone', p.telefone || '—')}
-        ${campo('E-mail', p.email || '—')}
+        ${campo('Cidade', m1.q1_6 || '—')}
+        ${campo('Profissão', m1.q1_8 || '—')}
+      </div>
+      <div class="ficha-sec-titulo" style="margin-top:22px;">Cadastro</div>
+      <div class="ficha-campos">
         ${campo('Código', p.codigo)}
         ${campo('Status', p.status || 'aguardando')}
         ${campo('Cadastrado em', fmtData(p.criado_em))}
@@ -177,3 +196,13 @@ const fmtData = d => {
   if (!d) return '—';
   try { return new Date(d).toLocaleDateString('pt-BR'); } catch { return '—'; }
 };
+function calcularIdade(nascimento) {
+  if (!nascimento) return null;
+  const nasc = new Date(nascimento);
+  if (isNaN(nasc.getTime())) return null;
+  const hoje = new Date();
+  let idade = hoje.getFullYear() - nasc.getFullYear();
+  const m = hoje.getMonth() - nasc.getMonth();
+  if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) idade--;
+  return (idade >= 0 && idade < 130) ? idade : null;
+}
