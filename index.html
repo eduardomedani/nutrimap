@@ -459,6 +459,20 @@
   .ficha-campos { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
   .fc-l { font-size: 11px; color: var(--ink-mute); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
   .fc-v { font-size: 15px; color: var(--ink); margin-top: 3px; font-weight: 600; }
+
+  /* Dados do paciente: balões brancos */
+  .dados-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .btn-editar-dados { background: var(--moss); color: var(--cream); border: none; padding: 9px 18px; border-radius: 20px; font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 13px; cursor: pointer; transition: all 0.15s; }
+  .btn-editar-dados:hover { filter: brightness(1.08); }
+  .dados-balao-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+  .dado-balao { background: #FFFFFF; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); min-width: 0; }
+  .dado-balao-label { font-size: 10.5px; color: var(--ink-mute); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+  .dado-balao-valor { font-size: 15px; color: var(--ink); margin-top: 4px; font-weight: 600; overflow-wrap: break-word; word-break: break-word; }
+  /* Formulário de edição */
+  .dados-form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .dados-field { display: flex; flex-direction: column; gap: 5px; }
+  .dados-field label { font-size: 11px; color: var(--ink-mute); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+  .dados-form-acoes { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
   .ficha-em-breve { text-align: center; padding: 50px 20px; }
   .feb-ico { font-size: 44px; margin-bottom: 12px; }
   .feb-t { font-size: 18px; font-weight: 800; color: var(--moss-deep); margin-bottom: 6px; }
