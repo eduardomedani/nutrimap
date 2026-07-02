@@ -1,952 +1,291 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NutriMap · Painel do Nutricionista</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #F4F1EA;
-    --bg-card: #FDFBF7;
-    --bg-warm: #EDE7D8;
-    --ink: #1A1F1B;
-    --ink-soft: #4A524C;
-    --ink-mute: #8A8F89;
-    --moss: #3D4D3F;
-    --moss-deep: #2A3A2C;
-    --moss-light: #5C6E5E;
-    --olive: #5C6B47;
-    --sage: #87A082;
-    --gold: #B8924A;
-    --gold-soft: #D4B373;
-    --terracotta: #B8674A;
-    --rose: #A8534A;
-    --cream: #F8F1DD;
-    --line: #DDD6C5;
-    --shadow: 0 4px 20px rgba(60,80,60,0.06);
-    --shadow-lg: 0 10px 30px rgba(60,80,60,0.08);
-    --sidebar-w: 260px;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); background-image: radial-gradient(circle at 15% 10%, rgba(135,160,130,0.08), transparent 45%), radial-gradient(circle at 85% 85%, rgba(184,146,74,0.06), transparent 45%); background-attachment: fixed; color: var(--ink); font-family: 'Nunito', sans-serif; font-size: 14.5px; line-height: 1.55; -webkit-font-smoothing: antialiased; min-height: 100vh; }
+// ═══════════════════════════════════════════════════════════
+// FICHA DO PACIENTE — navegação centralizada (modelo WebDiet)
+// Fase 1: esqueleto (cabeçalho + menu lateral 9 abas).
+// "Dados do Paciente" funcional; demais abas: Anamnese e
+// Avaliações plugam módulos existentes; resto "em breve".
+// ═══════════════════════════════════════════════════════════
 
-  /* LOGIN */
-  .auth-wrapper { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
-  .auth-card { background: var(--bg-card); border-radius: 24px; padding: 40px; width: 100%; max-width: 440px; box-shadow: var(--shadow-lg); }
-  .auth-brand { display: flex; align-items: center; gap: 14px; margin-bottom: 32px; justify-content: center; }
-  .brand-mark { width: 48px; height: 48px; background: linear-gradient(135deg, var(--moss), var(--olive)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--cream); font-family: 'Nunito', sans-serif; font-size: 22px; font-weight: 600; font-style: italic; }
-  .brand-name-large { font-family: 'Nunito', sans-serif; font-size: 32px; color: var(--ink); font-weight: 500; }
-  .brand-name-large em { color: var(--moss); font-style: italic; font-weight: 400; }
-  .auth-title { font-family: 'Nunito', sans-serif; font-size: 24px; color: var(--moss-deep); text-align: center; margin-bottom: 8px; font-weight: 500; }
-  .auth-sub { text-align: center; color: var(--ink-mute); margin-bottom: 28px; font-size: 13.5px; }
-  .auth-tabs { display: flex; background: var(--bg); border-radius: 100px; padding: 4px; margin-bottom: 24px; }
-  .auth-tab { flex: 1; padding: 10px 18px; border-radius: 100px; text-align: center; cursor: pointer; font-size: 13.5px; font-weight: 500; color: var(--ink-soft); transition: all 0.2s; }
-  .auth-tab.active { background: var(--moss); color: var(--cream); }
-  .form-group { margin-bottom: 16px; }
-  .form-label { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); margin-bottom: 6px; font-family: 'Nunito', sans-serif; text-transform: uppercase; letter-spacing: 0.04em; }
-  .form-input { width: 100%; padding: 13px 16px; background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; font-family: 'Nunito', sans-serif; font-size: 15px; color: var(--ink); transition: border-color 0.2s; }
-  .form-input:focus { outline: none; border-color: var(--moss); }
-  .form-btn { width: 100%; padding: 14px; background: var(--moss); color: var(--cream); border: none; border-radius: 12px; font-family: 'Nunito', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; margin-top: 8px; }
-  .form-btn:hover:not(:disabled) { background: var(--moss-deep); transform: translateY(-1px); }
-  .form-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .form-error { background: rgba(168,83,74,0.1); border-left: 3px solid var(--rose); color: var(--rose); padding: 12px 14px; border-radius: 10px; font-size: 13px; margin-top: 12px; display: none; }
-  .form-success { background: rgba(135,160,130,0.15); border-left: 3px solid var(--sage); color: var(--moss-deep); padding: 12px 14px; border-radius: 10px; font-size: 13px; margin-top: 12px; display: none; }
-  .auth-footer { text-align: center; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-mute); }
+import { buscarPacientePorId, atualizarPaciente } from './pacientes.js';
+import { dadosBasicosDaAnamnese } from './avaliacoes.js';
+import { buscarRespostasModulo } from './respostas.js';
+import { gerarRelatorio, ativarConduta } from './relatorio.js';
+import { processarRecordatorioIA } from './recordatorio-ia.js';
+// Fase 3 ligará as Avaliações dentro da ficha.
 
-  /* APP */
-  .app { display: none; }
-  .app.active { display: flex; min-height: 100vh; }
+let _pacienteAtual = null;
+let _nutriId = null;
+let _dados = { sexo: null, idade: null };
 
-  .sidebar { width: var(--sidebar-w); background: var(--bg-card); border-right: 1px solid var(--line); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; flex-shrink: 0; }
-  .sidebar-header { padding: 22px 22px 18px; border-bottom: 1px solid var(--line); }
-  .sidebar-brand { display: flex; align-items: center; gap: 12px; }
-  .sidebar-brand-mark { width: 36px; height: 36px; background: linear-gradient(135deg, var(--moss), var(--olive)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--cream); font-family: 'Nunito', sans-serif; font-size: 17px; font-weight: 600; font-style: italic; }
-  .sidebar-brand-text { font-family: 'Nunito', sans-serif; font-size: 22px; color: var(--ink); font-weight: 500; line-height: 1; }
-  .sidebar-brand-text em { color: var(--moss); font-style: italic; font-weight: 400; }
-  .sidebar-brand-sub { font-family: 'Nunito', sans-serif; font-size: 9.5px; color: var(--moss); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; font-weight: 600; }
-  .sidebar-nav { flex: 1; overflow-y: auto; padding: 16px 12px; }
-  .nav-group { margin-bottom: 18px; }
-  .nav-group-title { font-family: 'Nunito', sans-serif; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-mute); padding: 0 12px 8px; font-weight: 600; }
-  .nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; color: var(--ink-soft); font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.15s; margin-bottom: 2px; }
-  .nav-item:hover { background: var(--bg); color: var(--ink); }
-  .nav-item.active { background: var(--moss); color: var(--cream); }
-  .nav-item.disabled { cursor: not-allowed; color: var(--ink-mute); }
-  .nav-item.disabled:hover { background: var(--bg); }
-  .nav-icon { width: 20px; text-align: center; flex-shrink: 0; }
-  .nav-soon { margin-left: auto; font-family: 'Nunito', sans-serif; font-size: 9.5px; background: var(--cream); color: var(--gold); padding: 2px 7px; border-radius: 100px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
-  .nav-item.active .nav-soon { background: rgba(255,255,255,0.2); color: var(--cream); }
+// Definição das abas (id, ícone, label, estado)
+const ABAS = [
+  { id: 'dados',        icone: '👤', label: 'Dados do Paciente', pronta: true },
+  { id: 'evolucao',     icone: '📈', label: 'Evolução',          pronta: false },
+  { id: 'anamnese',     icone: '📋', label: 'Anamnese geral',    pronta: true },
+  { id: 'exames',       icone: '🧪', label: 'Exames laboratoriais', pronta: false },
+  { id: 'avaliacoes',   icone: '📐', label: 'Avaliações Físicas', pronta: true },
+  { id: 'planejamento', icone: '🥗', label: 'Planejamento Alimentar', pronta: false },
+  { id: 'metas',        icone: '🎯', label: 'Prescrição de Metas', pronta: false },
+  { id: 'manipulados',  icone: '💊', label: 'Prescrição de Manipulados', pronta: false },
+  { id: 'orientacoes',  icone: '📝', label: 'Orientações Nutricionais', pronta: false },
+];
 
-  .sidebar-footer { padding: 16px; border-top: 1px solid var(--line); }
-  .user-box { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 12px; background: var(--bg); margin-bottom: 8px; }
-  .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--sage), var(--moss-light)); color: var(--cream); display: flex; align-items: center; justify-content: center; font-family: 'Nunito', sans-serif; font-size: 15px; font-weight: 600; flex-shrink: 0; }
-  .user-text { flex: 1; min-width: 0; }
-  .user-name { font-size: 13.5px; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .user-email { font-size: 11px; color: var(--ink-mute); font-family: 'Nunito', sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .logout-btn { width: 100%; padding: 10px; background: transparent; color: var(--ink-mute); border: none; font-family: 'Nunito', sans-serif; font-size: 13px; cursor: pointer; border-radius: 10px; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 8px; }
-  .logout-btn:hover { background: rgba(168,83,74,0.1); color: var(--rose); }
+/**
+ * Abre a ficha de um paciente. Chamado ao clicar "Ver" na lista.
+ * @param {string} pacienteId
+ * @param {string} nutriId
+ * @param {function} onVoltar - callback pra voltar à lista
+ */
+export async function abrirFichaPaciente(pacienteId, nutriId, onVoltar) {
+  _nutriId = nutriId;
+  const page = document.getElementById('page-ficha');
+  if (!page) { console.error('page-ficha não existe'); return; }
 
-  .main { flex: 1; padding: 28px 36px; overflow-x: hidden; max-width: 100%; }
-  .page-header { margin-bottom: 24px; }
-  .page-title { font-family: 'Nunito', sans-serif; font-size: 32px; color: var(--ink); font-weight: 500; line-height: 1.1; }
-  .page-title em { color: var(--moss); font-style: italic; }
-  .page-sub { color: var(--ink-mute); font-size: 14px; margin-top: 6px; }
+  page.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando ficha...</div>`;
 
-  .module-page { display: none; animation: fadeIn 0.3s; }
-  .module-page.active { display: block; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-
-  .em-breve-card { background: var(--bg-card); border-radius: 20px; padding: 64px 32px; text-align: center; box-shadow: var(--shadow); }
-  .em-breve-icon { font-size: 56px; margin-bottom: 18px; opacity: 0.6; }
-  .em-breve-titulo { font-family: 'Nunito', sans-serif; font-size: 28px; color: var(--moss-deep); font-weight: 500; margin-bottom: 8px; }
-  .em-breve-sub { color: var(--ink-mute); font-size: 15px; max-width: 480px; margin: 0 auto; line-height: 1.6; }
-  .em-breve-tag { display: inline-block; margin-top: 18px; background: var(--cream); color: var(--gold); font-family: 'Nunito', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; padding: 6px 14px; border-radius: 100px; }
-
-  .btn { background: var(--bg-warm); border: none; color: var(--ink); padding: 10px 20px; border-radius: 100px; font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
-  .btn:hover { background: var(--line); transform: translateY(-1px); }
-  .btn.primary { background: var(--moss); color: var(--cream); }
-  .btn.primary:hover { background: var(--moss-deep); }
-
-  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
-  .stat-card { background: var(--bg-card); border-radius: 16px; padding: 18px 20px; box-shadow: var(--shadow); }
-  .stat-value { font-family: 'Nunito', sans-serif; font-size: 32px; color: var(--moss-deep); font-weight: 600; line-height: 1; }
-  .stat-label { font-size: 12px; color: var(--ink-mute); margin-top: 6px; font-family: 'Nunito', sans-serif; text-transform: uppercase; letter-spacing: 0.05em; }
-
-  .novo-paciente-card { background: var(--bg-card); border-radius: 18px; padding: 24px; box-shadow: var(--shadow); margin-bottom: 24px; border-left: 4px solid var(--moss); }
-  .novo-paciente-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
-  .novo-paciente-icon { width: 42px; height: 42px; border-radius: 50%; background: var(--cream); color: var(--moss); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 600; }
-  .novo-paciente-title { font-family: 'Nunito', sans-serif; font-size: 20px; color: var(--ink); font-weight: 500; }
-  .novo-paciente-title em { color: var(--moss); font-style: italic; }
-  .novo-paciente-sub { font-size: 13px; color: var(--ink-mute); margin-top: 2px; }
-  .novo-paciente-form { display: flex; gap: 10px; align-items: stretch; }
-  .np-input { flex: 1; padding: 13px 18px; background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; font-family: 'Nunito', sans-serif; font-size: 15px; color: var(--ink); transition: border-color 0.2s; }
-  .np-input:focus { outline: none; border-color: var(--moss); }
-  @media (max-width: 600px) { .novo-paciente-form { flex-direction: column; } }
-  .novo-paciente-result { margin-top: 18px; padding: 18px; background: linear-gradient(135deg, var(--cream), rgba(184,146,74,0.12)); border-radius: 14px; border: 1px solid var(--gold-soft); animation: slideDown 0.3s; }
-  @keyframes slideDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
-  .np-result-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
-  .np-result-label { font-family: 'Nunito', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--moss); font-weight: 600; }
-  .np-result-code { font-family: 'Nunito', sans-serif; font-size: 26px; font-weight: 600; color: var(--moss-deep); letter-spacing: 0.1em; }
-  .np-result-link { background: var(--bg-card); padding: 10px 14px; border-radius: 10px; font-family: 'Nunito', sans-serif; font-size: 11.5px; color: var(--ink); word-break: break-all; margin-bottom: 12px; }
-  .np-result-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-  .btn-sm { background: var(--moss); color: var(--cream); border: none; padding: 8px 14px; border-radius: 100px; font-family: 'Nunito', sans-serif; font-size: 12.5px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
-  .btn-sm:hover { background: var(--moss-deep); transform: translateY(-1px); }
-  .btn-sm-secondary { background: var(--bg-warm); color: var(--ink); }
-
-  .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 14px; }
-  .list-title { font-family: 'Nunito', sans-serif; font-size: 22px; color: var(--ink); font-weight: 500; }
-  .list-title em { color: var(--moss); font-style: italic; }
-  .search-box { background: var(--bg-card); border: 1.5px solid var(--line); border-radius: 100px; padding: 10px 18px; display: flex; align-items: center; gap: 10px; width: 320px; max-width: 100%; }
-  .search-box input { border: none; background: none; outline: none; font-family: 'Nunito', sans-serif; font-size: 14px; color: var(--ink); width: 100%; }
-
-  .patients-grid { display: flex; flex-direction: column; gap: 10px; }
-  .patient-row { background: var(--bg-card); border-radius: 14px; padding: 18px 22px; display: flex; align-items: center; gap: 18px; box-shadow: var(--shadow); transition: all 0.2s; border: 1.5px solid transparent; flex-wrap: wrap; }
-  .patient-row:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); border-color: var(--sage); }
-  .patient-avatar { width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(135deg, var(--sage), var(--moss-light)); color: var(--cream); display: flex; align-items: center; justify-content: center; font-family: 'Nunito', sans-serif; font-size: 18px; font-weight: 600; flex-shrink: 0; }
-  .patient-info { flex: 1; min-width: 120px; }
-  .patient-name { font-size: 16px; font-weight: 600; color: var(--ink); }
-  .patient-meta { font-size: 12.5px; color: var(--ink-mute); font-family: 'Nunito', sans-serif; margin-top: 2px; }
-  .patient-code { font-family: 'Nunito', sans-serif; font-size: 12px; color: var(--moss); background: var(--cream); padding: 4px 10px; border-radius: 8px; }
-  .status-tag { font-size: 11px; padding: 4px 12px; border-radius: 100px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; font-family: 'Nunito', sans-serif; }
-  .status-completo { background: rgba(135,160,130,0.2); color: var(--moss-deep); }
-  .status-aguardando { background: rgba(184,146,74,0.15); color: var(--gold); }
-  .patient-action { background: var(--bg-warm); border: none; padding: 8px 14px; border-radius: 100px; font-family: 'Nunito', sans-serif; font-size: 12.5px; font-weight: 500; color: var(--ink); cursor: pointer; transition: all 0.2s; margin-left: 6px; }
-  .patient-action:hover { background: var(--line); }
-  .patient-action.primary { background: var(--moss); color: var(--cream); }
-  .patient-action.primary:hover { background: var(--moss-deep); }
-  .patient-action-danger { background: rgba(168,83,74,0.12); color: var(--rose); padding: 8px 10px; font-size: 14px; }
-  .patient-action-danger:hover { background: var(--rose); color: var(--cream); }
-
-  .empty-state { text-align: center; padding: 60px 20px; color: var(--ink-mute); background: var(--bg-card); border-radius: 16px; }
-  .empty-state-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
-  .loading { text-align: center; padding: 60px 20px; color: var(--ink-mute); }
-  .spinner { width: 36px; height: 36px; border: 3px solid var(--line); border-top-color: var(--moss); border-radius: 50%; margin: 0 auto 16px; animation: spin 0.8s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .menu-toggle { display: none; position: fixed; top: 16px; left: 16px; z-index: 100; background: var(--moss); color: var(--cream); border: none; width: 44px; height: 44px; border-radius: 12px; font-size: 20px; cursor: pointer; box-shadow: var(--shadow); }
-  .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 50; }
-
-  @media (max-width: 900px) {
-    .menu-toggle { display: flex; align-items: center; justify-content: center; }
-    .sidebar { position: fixed; left: -280px; top: 0; bottom: 0; z-index: 60; transition: left 0.3s; box-shadow: var(--shadow-lg); }
-    .sidebar.open { left: 0; }
-    .sidebar-overlay.show { display: block; }
-    .main { padding: 70px 20px 24px; width: 100%; }
-    .stats-row { grid-template-columns: repeat(2, 1fr); }
-    .page-title { font-size: 24px; }
-    .search-box { width: 100%; }
-    .patient-row { padding: 14px 16px; gap: 12px; }
-    .patient-info { width: calc(100% - 52px); }
-    .patient-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  }
-  @media (max-width: 420px) {
-    .stats-row { grid-template-columns: 1fr 1fr; gap: 8px; }
-    .stat-value { font-size: 24px; }
-    .main { padding: 70px 14px 24px; }
+  try {
+    _pacienteAtual = await buscarPacientePorId(pacienteId);
+    _dados = await dadosBasicosDaAnamnese(pacienteId);
+  } catch (e) {
+    page.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div>Erro ao carregar: ${e.message}</div>`;
+    return;
   }
 
-  /* ═══════════ RELATÓRIO ═══════════ */
-  .rel-topbar { display: flex; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
-  .rel-hero { background: var(--bg-card); border-radius: 20px; padding: 28px; display: flex; align-items: center; gap: 22px; box-shadow: var(--shadow); margin-bottom: 20px; flex-wrap: wrap; }
-  .rel-avatar { width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg, var(--moss), var(--olive)); color: var(--cream); display: flex; align-items: center; justify-content: center; font-family: 'Nunito', sans-serif; font-size: 28px; font-weight: 600; flex-shrink: 0; }
-  .rel-hero-info { flex: 1; min-width: 200px; }
-  .rel-name { font-family: 'Nunito', sans-serif; font-size: 24px; color: var(--ink); font-weight: 700; line-height: 1.1; }
-  .rel-meta { font-family: 'Nunito', sans-serif; font-size: 13px; color: var(--ink-soft); margin-top: 6px; }
-  .rel-code-badge { display: inline-block; margin-top: 10px; font-family: 'Nunito', sans-serif; font-size: 12px; background: var(--cream); color: var(--moss); padding: 5px 12px; border-radius: 8px; }
-  .rel-objetivo { background: linear-gradient(135deg, var(--cream), rgba(184,146,74,0.12)); border-radius: 14px; padding: 16px 20px; border: 1px solid var(--gold-soft); min-width: 200px; }
-  .rel-objetivo-label { font-family: 'Nunito', sans-serif; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--moss); font-weight: 600; }
-  .rel-objetivo-value { font-family: 'Nunito', sans-serif; font-size: 18px; color: var(--moss-deep); margin-top: 4px; }
+  const p = _pacienteAtual;
+  const sexoLabel = _dados.sexo === 'M' ? 'Masculino' : _dados.sexo === 'F' ? 'Feminino' : '—';
+  const idadeLabel = _dados.idade != null ? `${_dados.idade} anos` : '—';
+  const statusLabel = (p.status || 'aguardando');
 
-  /* RADAR */
-  .radar-card { background: var(--bg-card); border-radius: 18px; padding: 24px; box-shadow: var(--shadow); margin-bottom: 24px; }
-  .radar-title { font-family: 'Nunito', sans-serif; font-size: 20px; color: var(--moss-deep); font-weight: 500; margin-bottom: 18px; text-align: center; }
-  .radar-layout { display: grid; grid-template-columns: 300px 480px; gap: 48px; align-items: center; justify-content: center; padding: 0 20px; }
-  @media (max-width: 820px) { .radar-layout { grid-template-columns: 1fr; gap: 24px; padding: 0; justify-items: center; } }
-  .radar-svg { width: 100%; max-width: 300px; margin: 0 auto; display: block; overflow: visible; }
-  .radar-legend { display: flex; flex-direction: column; gap: 11px; width: 100%; max-width: 480px; }
-  .radar-legend-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
-  .radar-legend-label { font-size: 13.5px; color: var(--ink); font-weight: 500; }
-  .radar-legend-value { font-family: 'Nunito', sans-serif; font-size: 18px; color: var(--moss-deep); font-weight: 600; }
-  .radar-legend-bar { height: 6px; background: var(--bg-warm); border-radius: 100px; overflow: hidden; }
-  .radar-legend-fill { height: 100%; border-radius: 100px; transition: width 0.6s; }
-  .radar-legend-fill.good { background: var(--sage); }
-  .radar-legend-fill.mid { background: var(--gold-soft); }
-  .radar-legend-fill.bad { background: var(--terracotta); }
+  page.innerHTML = `
+    <span class="ficha-voltar" id="fichaVoltar">← Voltar para a lista de pacientes</span>
 
-  /* MACROS */
-  .macros-card { background: var(--bg-card); border-radius: 18px; padding: 22px; box-shadow: var(--shadow); margin-bottom: 24px; }
-  .prescricao-intro { font-size: 13.5px; color: var(--ink-soft); line-height: 1.55; background: var(--bg); border-left: 3px solid var(--sage); padding: 12px 14px; border-radius: 10px; margin-bottom: 16px; }
-  .prescricao-intro strong { color: var(--moss-deep); }
-
-  /* Novo layout da prescrição: kcal lateral + macros em barras */
-  .presc-layout { display: grid; grid-template-columns: 130px 1fr; gap: 16px; align-items: stretch; }
-  .presc-kcal { background: linear-gradient(135deg, var(--moss), var(--moss-deep)); border-radius: 14px; padding: 16px 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--cream); }
-  .presc-kcal-value { font-family: 'Nunito', sans-serif; font-size: 30px; font-weight: 800; line-height: 1; }
-  .presc-kcal-label { font-size: 12px; font-weight: 700; margin-top: 4px; opacity: 0.95; }
-  .presc-kcal-sub { font-size: 10.5px; opacity: 0.8; margin-top: 2px; }
-  .presc-macros { display: flex; flex-direction: column; gap: 12px; justify-content: center; }
-  .presc-macro { }
-  .presc-macro-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
-  .presc-macro-nome { font-size: 13px; font-weight: 700; color: var(--ink); }
-  .presc-macro-g { font-family: 'Nunito', sans-serif; font-size: 18px; font-weight: 800; color: var(--moss-deep); }
-  .presc-bar { height: 8px; background: var(--bg); border-radius: 6px; overflow: hidden; }
-  .presc-bar-fill { height: 100%; border-radius: 6px; transition: width 0.4s; }
-
-  /* Distribuição nas refeições com seletor 4/5/6 */
-  .distrib-section { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); }
-  .distrib-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
-  .distrib-titulo { font-size: 14px; font-weight: 800; color: var(--ink); }
-  .distrib-titulo-crono { color: var(--terracotta); font-weight: 800; }
-  .distrib-seletor { display: flex; align-items: center; gap: 4px; }
-  .ds-btn { width: 32px; height: 32px; border-radius: 8px; border: 1.5px solid var(--line); background: var(--bg-card); color: var(--ink-soft); font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 14px; cursor: pointer; transition: all 0.15s; }
-  .ds-btn:hover { border-color: var(--sage); }
-  .ds-btn.active { background: var(--moss); color: var(--cream); border-color: var(--moss); }
-  .ds-label { font-size: 11px; color: var(--ink-mute); font-weight: 600; margin-left: 4px; }
-  /* Grid auto-ajustável: refeições lado a lado, quebrando conforme couber */
-  .distrib-grid { display: grid; gap: 8px; }
-  @media (max-width: 640px) { .distrib-grid { grid-template-columns: repeat(2, 1fr) !important; } }
-  .distrib-card { background: var(--bg); border-radius: 12px; padding: 11px; }
-  .dc-head { display: flex; flex-direction: column; margin-bottom: 10px; }
-  .dc-ref { font-size: 13px; font-weight: 700; color: var(--ink); line-height: 1.2; }
-  .dc-kcal { font-size: 15px; font-weight: 800; color: var(--moss-deep); }
-  .dc-macros { display: flex; flex-direction: column; gap: 6px; }
-  .dc-macro { display: grid; grid-template-columns: 62px 1fr 32px; align-items: center; gap: 6px; }
-  .dc-macro-nome { font-size: 10px; color: var(--ink-soft); font-weight: 600; }
-  .dc-macro-bar { height: 6px; background: var(--bg-card); border-radius: 5px; overflow: hidden; }
-  .dc-macro-fill { height: 100%; border-radius: 5px; transition: width 0.4s; }
-  .dc-macro-g { font-size: 10.5px; font-weight: 700; color: var(--ink); text-align: right; }
-
-  /* Cards de conduta (PSQI, Cronotipo) — largura total, um sob o outro */
-  .rel-condutas { display: flex; flex-direction: column; gap: 12px; }
-  .conduta-card { background: var(--bg-card); border-radius: 16px; padding: 16px 18px; box-shadow: var(--shadow-lg); border: 1px solid var(--line); border-left: 3px solid var(--sage); }
-  .conduta-card-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
-  .conduta-card-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-mute); font-weight: 700; }
-  .conduta-card-valor { font-family: 'Nunito', sans-serif; font-size: 22px; font-weight: 800; line-height: 1; }
-  .conduta-card-sub { font-size: 12px; font-weight: 600; color: var(--ink-mute); }
-  .conduta-card-titulo { font-size: 13.5px; font-weight: 800; color: var(--moss-deep); margin-bottom: 4px; }
-  .conduta-card-texto { font-size: 12.5px; line-height: 1.55; color: var(--ink-soft); }
-  .presc-macro-det { font-size: 11px; color: var(--ink-mute); margin-top: 3px; }
-  @media (max-width: 560px) { .presc-layout { grid-template-columns: 1fr; } .presc-kcal { flex-direction: row; gap: 10px; padding: 12px; } .presc-kcal-value { font-size: 26px; } }
-
-  /* Cards-botão (PSQI, Cronotipo) */
-  .metric-card-btn { cursor: pointer; position: relative; transition: all 0.15s; border: 1.5px solid transparent; }
-  .metric-card-btn:hover { border-color: var(--sage); transform: translateY(-2px); box-shadow: var(--shadow-lg, 0 4px 12px rgba(0,0,0,0.1)); }
-  .metric-info { font-size: 11px; color: var(--sage); }
-  .metric-cta { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--moss); font-weight: 700; margin-top: 6px; }
-
-  /* Modal de conduta */
-  .conduta-overlay { position: fixed; inset: 0; background: rgba(42,46,38,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; animation: fadeIn 0.2s; }
-  .conduta-modal { background: var(--bg-card); border-radius: 18px; padding: 26px; max-width: 460px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.2); position: relative; animation: slideUp 0.25s; }
-  @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
-  .conduta-fechar { position: absolute; top: 14px; right: 14px; background: var(--bg); border: none; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 14px; color: var(--ink-soft); }
-  .conduta-fechar:hover { background: var(--line); }
-  .conduta-titulo { font-size: 18px; font-weight: 800; color: var(--moss-deep); margin-bottom: 12px; padding-right: 30px; }
-  .conduta-texto { font-size: 14px; line-height: 1.65; color: var(--ink-soft); }
-  .conduta-aviso { font-size: 11.5px; color: var(--ink-mute); font-style: italic; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
-  .macros-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 8px; }
-  .macros-title { font-family: 'Nunito', sans-serif; font-size: 20px; color: var(--moss-deep); font-weight: 500; }
-  .macros-badge { font-family: 'Nunito', sans-serif; font-size: 11px; background: var(--moss); color: var(--cream); padding: 6px 14px; border-radius: 100px; font-weight: 500; }
-  .macros-kcal { text-align: center; padding: 12px; background: linear-gradient(135deg, var(--cream), rgba(184,146,74,0.12)); border-radius: 14px; margin-bottom: 20px; }
-  .macros-kcal-value { font-family: 'Nunito', sans-serif; font-size: 34px; color: var(--moss-deep); font-weight: 700; line-height: 1; }
-  .macros-kcal-label { font-family: 'Nunito', sans-serif; font-size: 12px; color: var(--ink-soft); margin-top: 6px; }
-  .macros-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-  @media (max-width: 600px) { .macros-grid { grid-template-columns: repeat(3, 1fr); } }
-  .macro-item { background: var(--bg); border-radius: 12px; padding: 12px 10px; text-align: center; border-top: 3px solid var(--line); }
-  .macro-prot { border-top-color: var(--terracotta); }
-  .macro-carb { border-top-color: var(--gold); }
-  .macro-gord { border-top-color: var(--sage); }
-  .macro-icon { font-size: 20px; margin-bottom: 3px; }
-  .macro-nome { font-family: 'Nunito', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute); font-weight: 600; }
-  .macro-g { font-family: 'Nunito', sans-serif; font-size: 24px; color: var(--moss-deep); font-weight: 700; margin: 3px 0; }
-  .macro-detalhe { font-size: 12.5px; color: var(--ink-soft); }
-  .macro-ajustes { margin-top: 18px; padding: 14px 16px; background: var(--bg-warm); border-radius: 12px; }
-  .macro-ajustes-label { font-size: 12px; color: var(--ink-soft); font-weight: 600; margin-bottom: 8px; }
-  .macro-ajuste-tag { display: inline-block; background: var(--cream); color: var(--moss-deep); padding: 4px 12px; border-radius: 100px; font-size: 12px; margin: 3px; }
-  .macro-alerta { margin-top: 14px; padding: 12px 16px; background: rgba(184,103,74,0.1); border-left: 3px solid var(--terracotta); border-radius: 10px; font-size: 12.5px; color: var(--ink-soft); }
-
-  .distrib-section { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); }
-  .distrib-titulo { font-size: 13px; color: var(--ink-soft); font-weight: 600; margin-bottom: 14px; }
-  .distrib-crono { font-family: 'Nunito', sans-serif; font-size: 11px; color: var(--moss); background: var(--cream); padding: 3px 10px; border-radius: 100px; margin-left: 6px; font-weight: 400; }
-  .distrib-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-  @media (max-width: 600px) { .distrib-grid { grid-template-columns: repeat(2, 1fr); } }
-  .distrib-item { background: var(--bg); border-radius: 12px; padding: 14px; text-align: center; }
-  .distrib-ref { font-size: 13px; font-weight: 600; color: var(--ink); }
-  .distrib-pct { font-family: 'Nunito', sans-serif; font-size: 24px; color: var(--moss); font-weight: 600; margin: 4px 0; }
-  .distrib-kcal { font-size: 11.5px; color: var(--ink-mute); font-family: 'Nunito', sans-serif; }
-  .distrib-macros { display: flex; justify-content: center; gap: 5px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); flex-wrap: wrap; }
-  .dm { font-family: 'Nunito', sans-serif; font-size: 10.5px; font-weight: 500; padding: 2px 7px; border-radius: 100px; }
-  .dm-p { background: rgba(184,103,74,0.15); color: var(--terracotta); }
-  .dm-c { background: rgba(184,146,74,0.15); color: var(--gold); }
-  .dm-g { background: rgba(135,160,130,0.2); color: var(--moss); }
-
-  /* RED FLAGS */
-  .rel-flags { background: var(--bg-card); border-radius: 18px; padding: 22px; box-shadow: var(--shadow); margin-bottom: 20px; border-left: 4px solid var(--terracotta); }
-  .rel-flags-title { font-family: 'Nunito', sans-serif; font-size: 18px; color: var(--terracotta); margin-bottom: 14px; font-weight: 800; }
-  .rel-flags-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-  .flag-card { padding: 14px 16px; border-radius: 12px; background: var(--bg-warm); }
-  .flag-alto { border-left: 3px solid var(--rose); }
-  .flag-medio { border-left: 3px solid var(--gold); }
-  .flag-tipo { font-weight: 600; font-size: 14px; color: var(--ink); }
-  .flag-detalhe { font-size: 12.5px; color: var(--ink-soft); margin-top: 3px; }
-
-  /* METRICS */
-  .rel-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 24px; }
-  /* Mapa nutricional + métricas lado a lado */
-  .rel-mapa-metrics { display: grid; grid-template-columns: minmax(300px, 1.1fr) 1fr; gap: 20px; align-items: start; margin-bottom: 24px; }
-  .rel-mapa-metrics .radar-card { margin-bottom: 0; height: 100%; }
-  /* Dentro do layout lado-a-lado, o radar empilha (SVG em cima, legendas embaixo) */
-  .rel-mapa-metrics .radar-layout { grid-template-columns: 1fr; gap: 20px; padding: 0; justify-items: center; }
-  .rel-mapa-metrics .radar-legend { max-width: 100%; }
-  .rel-metrics-col { display: flex; flex-direction: column; gap: 12px; }
-  .rel-mapa-metrics .rel-metrics { grid-template-columns: repeat(2, 1fr); margin-bottom: 0; }
-  @media (max-width: 780px) { .rel-mapa-metrics { grid-template-columns: 1fr; } .rel-mapa-metrics .rel-metrics { grid-template-columns: repeat(3, 1fr); } }
-  @media (max-width: 480px) { .rel-mapa-metrics .rel-metrics { grid-template-columns: repeat(2, 1fr); } }
-  .metric-card { background: var(--bg-card); border-radius: 16px; padding: 20px; box-shadow: var(--shadow-lg); border: 1px solid var(--line); text-align: center; }
-  .metric-label { font-family: 'Nunito', sans-serif; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-mute); font-weight: 600; }
-  .metric-value { font-family: 'Nunito', sans-serif; font-size: 34px; font-weight: 600; margin: 8px 0 4px; line-height: 1; }
-  .metric-sub { font-size: 12px; color: var(--ink-soft); }
-
-  /* SECTIONS */
-  .rel-sections { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
-  .secao-card { background: var(--bg-card); border-radius: 16px; padding: 22px; box-shadow: var(--shadow); }
-  .secao-title { font-family: 'Nunito', sans-serif; font-size: 18px; color: var(--moss-deep); font-weight: 800; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
-  .secao-rows { display: flex; flex-direction: column; gap: 10px; }
-  .secao-row { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
-  .secao-key { font-size: 13px; color: var(--ink-mute); flex-shrink: 0; font-family: 'Nunito', sans-serif; }
-  .secao-val { font-size: 14px; color: var(--ink); text-align: right; font-weight: 500; }
-
-  .recordatorio-list { display: flex; flex-direction: column; gap: 12px; }
-  .refeicao-item { background: var(--bg); border-radius: 10px; padding: 12px 14px; }
-  .refeicao-head { display: flex; justify-content: space-between; font-weight: 600; font-size: 14px; color: var(--moss-deep); margin-bottom: 5px; }
-  .refeicao-hora { font-family: 'Nunito', sans-serif; font-size: 12px; color: var(--ink-mute); font-weight: 400; }
-  .refeicao-desc { font-size: 13px; color: var(--ink-soft); }
-  .ia-hint { margin-top: 14px; padding: 10px 14px; background: var(--cream); border-radius: 10px; font-size: 12px; color: var(--moss); font-family: 'Nunito', sans-serif; }
-
-  .ativ-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-  .ativ-tag { background: var(--cream); color: var(--moss-deep); padding: 6px 12px; border-radius: 100px; font-size: 12.5px; font-weight: 500; }
-  .ativ-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 14px; }
-  .ativ-card { background: var(--bg); border-radius: 12px; padding: 12px 14px; border-left: 3px solid var(--sage); }
-  .ativ-card-nome { font-size: 14px; font-weight: 700; color: var(--ink); }
-  .ativ-card-freq { font-size: 12px; color: var(--ink-mute); font-weight: 600; margin: 3px 0 6px; }
-  .ativ-card-gasto { font-size: 12.5px; color: var(--ink-soft); }
-  .ativ-card-gasto strong { color: var(--moss-deep); font-weight: 800; }
-  .ativ-card-linha { font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; }
-  .ativ-card-linha strong { color: var(--moss-deep); font-weight: 800; }
-  .ativ-total { background: linear-gradient(135deg, var(--cream), rgba(184,146,74,0.12)); border-radius: 12px; padding: 14px 16px; margin-top: 14px; }
-  .ativ-total-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--moss); font-weight: 700; }
-  .ativ-total-val { font-family: 'Nunito', sans-serif; font-size: 22px; font-weight: 800; color: var(--moss-deep); margin-top: 4px; }
-  .ativ-total-val span { font-size: 14px; color: var(--ink-mute); font-weight: 600; }
-  .ativ-aviso { font-size: 11px; color: var(--ink-mute); font-style: italic; margin-top: 10px; line-height: 1.5; }
-
-  .rel-disclaimer { margin-top: 24px; padding: 18px 22px; background: var(--bg-warm); border-radius: 14px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; border-left: 4px solid var(--sage); }
-
-  @media print {
-    .sidebar, .menu-toggle, .rel-topbar { display: none !important; }
-    .main { padding: 0 !important; }
-    body { background: white; }
-  }
-
-  /* ===== AVALIAÇÕES ===== */
-  .av-form-card { background: var(--bg-card); border: 1px solid var(--line); border-radius: 18px; padding: 24px; margin-top: 18px; box-shadow: var(--shadow); }
-  .av-form-title { font-family: 'Nunito', sans-serif; font-size: 20px; color: var(--moss-deep); margin-bottom: 6px; }
-  .av-form-title em { color: var(--moss); font-style: italic; }
-  .av-section { font-family: 'Nunito', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--moss); font-weight: 600; margin: 22px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
-  .av-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-  .av-field { display: flex; flex-direction: column; gap: 4px; }
-  .av-field label { font-size: 11.5px; font-weight: 600; color: var(--ink-soft); font-family: 'Nunito', sans-serif; }
-  .av-in { padding: 9px 11px !important; font-size: 14px !important; }
-  .av-preview { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
-  .av-res { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
-  .av-res-lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-mute); font-family: 'Nunito', sans-serif; margin-bottom: 3px; }
-  .av-res-val { font-family: 'Nunito', sans-serif; font-size: 21px; color: var(--moss-deep); font-weight: 500; }
-  .av-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 22px; }
-  .form-warn { background: rgba(184,103,74,0.1); border-left: 3px solid var(--terracotta); color: var(--terracotta); padding: 11px 14px; border-radius: 10px; font-size: 13px; margin: 12px 0; }
-  .form-ok { background: rgba(135,160,130,0.15); border-left: 3px solid var(--sage); color: var(--moss-deep); padding: 11px 14px; border-radius: 10px; font-size: 13px; margin: 12px 0; }
-
-  /* ===== RECORDATÓRIO CALCULADO (IA) ===== */
-  /* Card largo do recordatório: relato da pessoa | estimativa IA */
-  .rec-full-card { background: var(--bg-card); border: 1px solid var(--line); border-radius: 18px; padding: 22px; margin-bottom: 24px; box-shadow: var(--shadow-lg); }
-  .rec-full-title { font-size: 16px; font-weight: 800; color: var(--moss-deep); margin-bottom: 16px; }
-  .rec-full-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
-  .rec-lado { }
-  .rec-lado-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--moss); font-weight: 700; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
-  .rec-lado-pessoa { }
-  .rec-lado-ia { background: var(--bg); border-radius: 14px; padding: 16px; }
-  .rec-lado-ia .rec-lado-head { color: var(--terracotta); }
-  .rec-relato { display: flex; flex-direction: column; gap: 10px; }
-  .rec-refeicao { background: var(--bg); border-radius: 10px; padding: 11px 13px; }
-  .rec-refeicao-nome { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 3px; }
-  .rec-refeicao-hora { font-size: 11px; color: var(--ink-mute); font-weight: 600; }
-  .rec-refeicao-desc { font-size: 13px; color: var(--ink-soft); line-height: 1.45; }
-  .rec-vazio { font-size: 13px; color: var(--ink-mute); font-style: italic; }
-  @media (max-width: 680px) { .rec-full-grid { grid-template-columns: 1fr; } }
-
-  .rec-calc-card { background: var(--bg-card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; margin-top: 14px; box-shadow: var(--shadow); }  .rec-calc-title { font-family: 'Nunito', sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--moss); font-weight: 600; margin-bottom: 10px; }
-  .rec-calc-kcal { font-family: 'Nunito', sans-serif; font-size: 34px; color: var(--moss-deep); font-weight: 500; line-height: 1; }
-  .rec-calc-kcal span { font-size: 15px; color: var(--ink-mute); font-family: 'Nunito', sans-serif; }
-  .rec-calc-macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0; }
-  .rec-macro { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px; text-align: center; }
-  .rec-macro-v { font-family: 'Nunito', sans-serif; font-size: 20px; color: var(--moss-deep); }
-  .rec-macro-l { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-mute); font-family: 'Nunito', sans-serif; margin-top: 2px; }
-  .rec-compara { background: var(--bg); border-radius: 12px; padding: 14px; margin-top: 10px; }
-  .rec-compara-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-soft); padding: 3px 0; }
-  .rec-compara-diff { text-align: center; font-family: 'Nunito', sans-serif; font-size: 17px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
-  .rec-sem-get { font-size: 12.5px; color: var(--ink-mute); font-style: italic; margin-top: 8px; }
-  .rec-calc-aviso { font-size: 11.5px; color: var(--ink-mute); margin-top: 12px; line-height: 1.5; background: rgba(184,103,74,0.07); padding: 9px 11px; border-radius: 9px; }
-
-  /* ===== FICHA DO PACIENTE ===== */
-  .ficha-voltar { font-size: 13px; color: var(--moss); cursor: pointer; font-weight: 700; margin-bottom: 14px; display: inline-block; }
-  .ficha-voltar:hover { text-decoration: underline; }
-  .ficha-head { background: var(--bg-card); border: 1px solid var(--line); border-radius: 16px; padding: 16px 20px; display: flex; align-items: center; gap: 14px; box-shadow: var(--shadow); margin-bottom: 16px; }
-  .ficha-avatar { width: 50px; height: 50px; border-radius: 50%; background: var(--moss); color: var(--cream); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; flex-shrink: 0; }
-  .ficha-nome { font-size: 20px; font-weight: 800; color: var(--moss-deep); }
-  .ficha-meta { font-size: 12.5px; color: var(--ink-mute); margin-top: 2px; }
-  .ficha-badges { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
-  .ficha-badge { padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
-  .ficha-badge.badge-ok { background: rgba(135,160,130,0.2); color: var(--moss-deep); }
-  .ficha-badge.badge-wait { background: rgba(201,164,92,0.2); color: #8A6D2A; }
-  .ficha-badge.badge-cod { background: var(--bg); color: var(--ink-soft); border: 1px solid var(--line); }
-  .ficha-body { display: grid; grid-template-columns: 230px 1fr; gap: 16px; align-items: start; }
-  .ficha-menu { background: var(--bg-card); border: 1px solid var(--line); border-radius: 16px; padding: 8px; box-shadow: var(--shadow); }
-  .fm-item { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border-radius: 10px; font-size: 13.5px; font-weight: 600; color: var(--ink-soft); cursor: pointer; transition: all 0.15s; margin-bottom: 2px; }
-  .fm-item:hover { background: var(--bg); color: var(--ink); }
-  .fm-item.active { background: var(--moss); color: var(--cream); }
-  .fm-item.soon { color: var(--ink-mute); }
-  .fm-soon { margin-left: auto; font-size: 9px; background: var(--bg); color: var(--ink-mute); padding: 2px 6px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700; }
-  .fm-item.active .fm-soon { background: rgba(255,255,255,0.2); color: var(--cream); }
-  .ficha-conteudo { background: var(--bg-card); border: 1px solid var(--line); border-radius: 16px; padding: 24px; box-shadow: var(--shadow); min-height: 420px; }
-  .ficha-sec-titulo { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--moss); font-weight: 700; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
-  .ficha-campos { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
-  .fc-l { font-size: 11px; color: var(--ink-mute); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
-  .fc-v { font-size: 15px; color: var(--ink); margin-top: 3px; font-weight: 600; }
-
-  /* Dados do paciente: balões brancos */
-  .dados-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-  .dados-head-btns { display: flex; gap: 8px; }
-  .btn-editar-dados { background: var(--moss); color: var(--cream); border: none; padding: 9px 18px; border-radius: 20px; font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 13px; cursor: pointer; transition: all 0.15s; }
-  .btn-editar-dados:hover { filter: brightness(1.08); }
-  .btn-cancelar { background: var(--bg); color: var(--ink-soft); }
-  .dados-balao-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
-  .dado-balao { background: #FFFFFF; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); min-width: 0; }
-  .dado-balao-label { font-size: 10.5px; color: var(--ink-mute); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
-  .dado-balao-valor { font-size: 15px; color: var(--ink); margin-top: 4px; font-weight: 600; overflow-wrap: break-word; word-break: break-word; }
-  /* Modo edição: balão ganha fundo colorido; input mantém o layout */
-  .dado-balao.editando { background: var(--cream); border-color: var(--gold); }
-  .dado-balao-input { width: 100%; margin-top: 4px; border: 1px solid var(--gold); border-radius: 8px; padding: 6px 8px; font-family: 'Nunito', sans-serif; font-size: 15px; font-weight: 600; color: var(--ink); background: #FFFFFF; }
-  .dado-balao-input:focus { outline: none; border-color: var(--moss); }
-  .ficha-em-breve { text-align: center; padding: 50px 20px; }
-  .feb-ico { font-size: 44px; margin-bottom: 12px; }
-  .feb-t { font-size: 18px; font-weight: 800; color: var(--moss-deep); margin-bottom: 6px; }
-  .feb-s { font-size: 13.5px; color: var(--ink-mute); max-width: 380px; margin: 0 auto; line-height: 1.5; }
-  @media (max-width: 720px) { .ficha-body { grid-template-columns: 1fr; } }
-</style>
-</head>
-<body>
-
-<!-- LOGIN -->
-<div class="auth-wrapper" id="authWrapper">
-  <div class="auth-card">
-    <div class="auth-brand">
-      <div class="brand-mark">N</div>
-      <div class="brand-name-large">Nutri<em>Map</em></div>
-    </div>
-    <div class="auth-title" id="authTitle">Acesse sua conta</div>
-    <div class="auth-sub" id="authSub">Entre para gerenciar seus pacientes</div>
-    <div class="auth-tabs">
-      <div class="auth-tab active" id="tabLogin">Entrar</div>
-      <div class="auth-tab" id="tabSignup">Criar conta</div>
-    </div>
-    <form id="formLogin">
-      <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="loginEmail" required placeholder="seu@email.com"></div>
-      <div class="form-group"><label class="form-label">Senha</label><input type="password" class="form-input" id="loginSenha" required placeholder="••••••••"></div>
-      <button type="submit" class="form-btn" id="btnLogin">Entrar</button>
-      <div class="form-error" id="errorLogin"></div>
-    </form>
-    <form id="formSignup" style="display: none;">
-      <div class="form-group"><label class="form-label">Código de convite</label><input type="text" class="form-input" id="signupCodigo" required placeholder="Ex: EDUARDO2026" style="text-transform: uppercase; letter-spacing: 0.05em;"></div>
-      <div class="form-group"><label class="form-label">Nome completo</label><input type="text" class="form-input" id="signupNome" required placeholder="Dr. Eduardo Medani"></div>
-      <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="signupEmail" required placeholder="seu@email.com"></div>
-      <div class="form-group"><label class="form-label">Senha</label><input type="password" class="form-input" id="signupSenha" required minlength="6" placeholder="Mínimo 6 caracteres"></div>
-      <button type="submit" class="form-btn" id="btnSignup">Criar conta</button>
-      <div class="form-error" id="errorSignup"></div>
-      <div class="form-success" id="successSignup"></div>
-    </form>
-    <div class="auth-footer">🔒 Seus dados ficam isolados — só você acessa seus pacientes</div>
-  </div>
-</div>
-
-<!-- APP -->
-<div class="app" id="app">
-  <button class="menu-toggle" id="menuToggle">☰</button>
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-      <div class="sidebar-brand">
-        <div class="sidebar-brand-mark">N</div>
-        <div>
-          <div class="sidebar-brand-text">Nutri<em>Map</em></div>
-          <div class="sidebar-brand-sub">Painel do Nutri</div>
-        </div>
+    <div class="ficha-head">
+      <div class="ficha-avatar">${iniciais(p.nome)}</div>
+      <div>
+        <div class="ficha-nome">${esc(p.nome || '(sem nome)')}</div>
+        <div class="ficha-meta">${sexoLabel} · ${idadeLabel} · Cadastrado em ${fmtData(p.criado_em)}</div>
+      </div>
+      <div class="ficha-badges">
+        <span class="ficha-badge badge-cod">${p.codigo}</span>
+        <span class="ficha-badge badge-${statusLabel === 'completo' ? 'ok' : 'wait'}">${statusLabel}</span>
       </div>
     </div>
 
-    <nav class="sidebar-nav">
-      <div class="nav-group">
-        <div class="nav-group-title">Início</div>
-        <div class="nav-item active" data-page="inicio"><span class="nav-icon">🏠</span><span>Início</span></div>
-        <div class="nav-item" data-page="pacientes"><span class="nav-icon">👥</span><span>Pacientes</span></div>
+    <div class="ficha-body">
+      <div class="ficha-menu" id="fichaMenu">
+        ${ABAS.map(a => `
+          <div class="fm-item ${a.id === 'dados' ? 'active' : ''} ${a.pronta ? '' : 'soon'}" data-aba="${a.id}">
+            <span>${a.icone}</span><span>${a.label}</span>
+            ${a.pronta ? '' : '<span class="fm-soon">breve</span>'}
+          </div>`).join('')}
       </div>
-      <div class="nav-group">
-        <div class="nav-group-title">Análise</div>
-        <div class="nav-item disabled" data-page="evolucao"><span class="nav-icon">📊</span><span>Evolução</span><span class="nav-soon">Em breve</span></div>
-        <div class="nav-item disabled" data-page="documentos"><span class="nav-icon">📎</span><span>Documentos</span><span class="nav-soon">Em breve</span></div>
-        <div class="nav-item disabled" data-page="ia"><span class="nav-icon">🤖</span><span>IA Nutricional</span><span class="nav-soon">Em breve</span></div>
-      </div>
-      <div class="nav-group">
-        <div class="nav-group-title">Gestão</div>
-        <div class="nav-item disabled" data-page="agendamentos"><span class="nav-icon">📅</span><span>Agendamentos</span><span class="nav-soon">Em breve</span></div>
-        <div class="nav-item disabled" data-page="financeiro"><span class="nav-icon">💰</span><span>Financeiro</span><span class="nav-soon">Em breve</span></div>
-        <div class="nav-item disabled" data-page="materiais"><span class="nav-icon">📚</span><span>Materiais</span><span class="nav-soon">Em breve</span></div>
-      </div>
-    </nav>
+      <div class="ficha-conteudo" id="fichaConteudo"></div>
+    </div>
+  `;
 
-    <div class="sidebar-footer">
-      <div class="user-box">
-        <div class="user-avatar" id="userAvatar">?</div>
-        <div class="user-text">
-          <div class="user-name" id="userName">—</div>
-          <div class="user-email" id="userEmail">—</div>
-        </div>
-      </div>
-      <button class="logout-btn" id="btnLogout">↗ Sair</button>
-    </div>
-  </aside>
+  // Voltar
+  document.getElementById('fichaVoltar').addEventListener('click', () => {
+    if (typeof onVoltar === 'function') onVoltar();
+  });
 
-  <main class="main">
-    <!-- INÍCIO -->
-    <div class="module-page active" id="page-inicio">
-      <div class="page-header">
-        <h1 class="page-title">Olá, <em><span id="userFirstName">Dr.</span></em> 👋</h1>
-        <div class="page-sub">Visão geral do seu consultório no NutriMap</div>
-      </div>
-      <div class="stats-row">
-        <div class="stat-card"><div class="stat-value" id="stat-total">—</div><div class="stat-label">Total pacientes</div></div>
-        <div class="stat-card"><div class="stat-value" id="stat-completos">—</div><div class="stat-label">Completos</div></div>
-        <div class="stat-card"><div class="stat-value" id="stat-aguardando">—</div><div class="stat-label">Aguardando</div></div>
-        <div class="stat-card"><div class="stat-value" id="stat-taxa">—</div><div class="stat-label">Taxa conclusão</div></div>
-      </div>
-    </div>
-
-    <!-- ANAMNESE -->
-    <div class="module-page" id="page-pacientes">
-      <div class="page-header">
-        <h1 class="page-title">👥 <em>Pacientes</em></h1>
-        <div class="page-sub">Selecione um paciente para abrir a ficha completa</div>
-      </div>
-
-      <div class="novo-paciente-card">
-        <div class="novo-paciente-header">
-          <div class="novo-paciente-icon">➕</div>
-          <div>
-            <div class="novo-paciente-title">Cadastrar <em>novo paciente</em></div>
-            <div class="novo-paciente-sub">Gere um código único e envie o link da anamnese</div>
-          </div>
-        </div>
-        <div class="novo-paciente-form">
-          <input type="text" id="novoPacienteNome" placeholder="Nome do paciente (opcional)" class="np-input" />
-          <button class="btn primary" id="btnGerar">Gerar código →</button>
-        </div>
-        <div class="novo-paciente-result" id="resultGerado" style="display: none;">
-          <div class="np-result-header"><span class="np-result-label">✓ Código gerado</span><span class="np-result-code" id="resultCode">—</span></div>
-          <div class="np-result-link" id="resultLink">—</div>
-          <div class="np-result-actions">
-            <button class="btn-sm" id="btnCopiar">📋 Copiar link</button>
-            <button class="btn-sm" id="btnWhatsapp">💬 WhatsApp</button>
-            <button class="btn-sm btn-sm-secondary" id="btnPreview">👁 Pré-visualizar</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="list-header">
-        <div class="list-title">Seus <em>pacientes</em></div>
-        <div class="search-box">🔍 <input type="text" id="searchInput" placeholder="Buscar por nome ou código..." /></div>
-      </div>
-      <div id="patientsContainer"><div class="loading"><div class="spinner"></div>Carregando pacientes...</div></div>
-    </div>
-
-    <!-- EM BREVE -->
-    <div class="module-page" id="page-plano-alimentar">
-      <div class="em-breve-card"><div class="em-breve-icon">🥗</div><div class="em-breve-titulo">Plano Alimentar</div><div class="em-breve-sub">Monte planos alimentares personalizados, com cálculo de macros, lista de substituições e exportação em PDF para entregar ao paciente.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
-    </div>
-    <div class="module-page" id="page-plano-ia">
-      <div class="em-breve-card"><div class="em-breve-icon">✨</div><div class="em-breve-titulo">Plano Alimentar com IA</div><div class="em-breve-sub">Gere automaticamente um plano alimentar com base nas respostas do paciente, patologias, cronotipo e objetivos — pronto para você revisar e ajustar.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
-    </div>
-    <div class="module-page" id="page-avaliacoes">
-      <div class="loading"><div class="spinner"></div>Carregando...</div>
-    </div>
-    <div class="module-page" id="page-evolucao">
-      <div class="em-breve-card"><div class="em-breve-icon">📊</div><div class="em-breve-titulo">Evolução</div><div class="em-breve-sub">Acompanhe a evolução de cada paciente ao longo do tempo: peso, medidas, exames e adesão ao plano.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
-    </div>
-    <div class="module-page" id="page-documentos">
-      <div class="em-breve-card"><div class="em-breve-icon">📎</div><div class="em-breve-titulo">Documentos</div><div class="em-breve-sub">Armazene exames, laudos, atestados e prescrições. Tudo seguro, organizado por paciente e acessível de qualquer lugar.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
-    </div>
-    <div class="module-page" id="page-ia">
-      <div class="em-breve-card"><div class="em-breve-icon">🤖</div><div class="em-breve-titulo">IA Nutricional</div><div class="em-breve-sub">Análise automática de recordatórios alimentares, sugestão de planos baseados em cronotipo e patologias, e relatórios inteligentes.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
-    </div>
-    <div class="module-page" id="page-agendamentos">
-      <div class="em-breve-card"><div class="em-breve-icon">📅</div><div class="em-breve-titulo">Agendamentos</div><div class="em-breve-sub">Gerencie suas consultas, agende retornos e envie lembretes automáticos pelo WhatsApp para reduzir faltas.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
-    </div>
-    <div class="module-page" id="page-financeiro">
-      <div class="em-breve-card"><div class="em-breve-icon">💰</div><div class="em-breve-titulo">Financeiro</div><div class="em-breve-sub">Controle suas cobranças, recebimentos e relatórios financeiros. Integração com Pix e cartão.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
-    </div>
-    <div class="module-page" id="page-materiais">
-      <div class="em-breve-card"><div class="em-breve-icon">📚</div><div class="em-breve-titulo">Materiais</div><div class="em-breve-sub">Biblioteca de materiais educativos, e-books, vídeos e receitas para compartilhar com seus pacientes.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
-    </div>
-    <div class="module-page" id="page-configuracoes">
-      <div class="em-breve-card"><div class="em-breve-icon">⚙️</div><div class="em-breve-titulo">Configurações</div><div class="em-breve-sub">Configure seus dados profissionais, foto, especialidades, mensagens automáticas e preferências do sistema.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
-    </div>
-
-    <!-- RELATÓRIO (não tem item no menu — só acessado via "Ver" no paciente) -->
-    <div class="module-page" id="page-relatorio">
-      <div class="loading"><div class="spinner"></div>Carregando relatório...</div>
-    </div>
-    <div class="module-page" id="page-ficha">
-      <div class="loading"><div class="spinner"></div>Carregando ficha...</div>
-    </div>
-  </main>
-</div>
-
-<script type="module">
-  import { QUESTIONARIO_URL } from './js/supabase.js';
-  import { fazerLogin, criarConta, fazerLogout, obterSessao, obterPerfilNutri, traduzirErroAuth, validarCodigoConvite, registrarUsoCodigo } from './js/auth.js';
-  import { listarPacientes, criarPaciente, excluirPaciente, calcularEstatisticas } from './js/pacientes.js';
-  import { formatarData, iniciaisDoNome, copiarParaClipboard, mostrarToast, gerarLinkWhatsapp, montarMensagemQuestionario } from './js/utils.js';
-  import { gerarRelatorio } from './js/relatorio.js';
-  import { processarRecordatorioIA } from './js/recordatorio-ia.js';
-  import { abrirFichaPaciente } from './js/ficha.js';
-  import { initAvaliacoesUI } from './js/avaliacoes-ui.js';
-
-  let todosPacientes = [];
-  let ultimoCodigoGerado = null;
-
-  function navegar(pagina) {
-    document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.page === pagina));
-    document.querySelectorAll('.module-page').forEach(el => el.classList.toggle('active', el.id === 'page-' + pagina));
-    document.getElementById('sidebar').classList.remove('open');
-    document.getElementById('sidebarOverlay').classList.remove('show');
-    if (pagina === 'pacientes') {
-      carregarPacientes().catch(console.error);
-    }
-  }
-
-  document.querySelectorAll('.nav-item').forEach(item => {
+  // Navegação entre abas
+  document.querySelectorAll('#fichaMenu .fm-item').forEach(item => {
     item.addEventListener('click', () => {
-      if (item.classList.contains('disabled')) {
-        mostrarToast('🚧 Módulo em desenvolvimento');
-        return;
-      }
-      navegar(item.dataset.page);
+      document.querySelectorAll('#fichaMenu .fm-item').forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      renderAba(item.dataset.aba);
     });
   });
 
-  document.getElementById('menuToggle').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.add('open');
-    document.getElementById('sidebarOverlay').classList.add('show');
-  });
-  document.getElementById('sidebarOverlay').addEventListener('click', () => {
-    document.getElementById('sidebar').classList.remove('open');
-    document.getElementById('sidebarOverlay').classList.remove('show');
-  });
+  // Abre a primeira aba
+  renderAba('dados');
+}
 
-  function trocarAba(aba) {
-    document.getElementById('tabLogin').classList.toggle('active', aba === 'login');
-    document.getElementById('tabSignup').classList.toggle('active', aba === 'signup');
-    document.getElementById('formLogin').style.display = aba === 'login' ? 'block' : 'none';
-    document.getElementById('formSignup').style.display = aba === 'signup' ? 'block' : 'none';
-    document.getElementById('authTitle').textContent = aba === 'login' ? 'Acesse sua conta' : 'Crie sua conta';
-    document.getElementById('authSub').textContent = aba === 'login' ? 'Entre para gerenciar seus pacientes' : 'Comece a usar o NutriMap';
-  }
-  document.getElementById('tabLogin').addEventListener('click', () => trocarAba('login'));
-  document.getElementById('tabSignup').addEventListener('click', () => trocarAba('signup'));
+/**
+ * Renderiza o conteúdo de uma aba.
+ */
+async function renderAba(abaId) {
+  const cont = document.getElementById('fichaConteudo');
+  const p = _pacienteAtual;
 
-  document.getElementById('formLogin').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn = document.getElementById('btnLogin');
-    const error = document.getElementById('errorLogin');
-    error.style.display = 'none';
-    btn.disabled = true; btn.textContent = 'Entrando...';
+  // Abas prontas
+  if (abaId === 'dados') {
+    cont.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando dados...</div>`;
+    let m1 = {};
     try {
-      await fazerLogin(document.getElementById('loginEmail').value, document.getElementById('loginSenha').value);
-      await iniciarApp();
-    } catch (err) {
-      error.textContent = traduzirErroAuth(err.message);
-      error.style.display = 'block';
-    } finally {
-      btn.disabled = false; btn.textContent = 'Entrar';
-    }
-  });
-
-  document.getElementById('formSignup').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn = document.getElementById('btnSignup');
-    const error = document.getElementById('errorSignup');
-    const success = document.getElementById('successSignup');
-    error.style.display = 'none'; success.style.display = 'none';
-    btn.disabled = true; btn.textContent = 'Validando...';
-
-    const codigo = document.getElementById('signupCodigo').value.trim().toUpperCase();
-    const email = document.getElementById('signupEmail').value;
-    const nome = document.getElementById('signupNome').value;
-    const senha = document.getElementById('signupSenha').value;
-
-    try {
-      // 1. Valida o código de convite ANTES de criar a conta
-      const validacao = await validarCodigoConvite(codigo);
-      if (!validacao.valido) {
-        throw new Error(validacao.erro || 'Código inválido');
-      }
-
-      // 2. Cria a conta
-      btn.textContent = 'Criando conta...';
-      const data = await criarConta({ nome, email, senha });
-
-      // 3. Registra o uso do código (best-effort, não bloqueia se falhar)
-      if (data.user) {
-        try {
-          await registrarUsoCodigo(codigo, data.user.id, email);
-        } catch (e) {
-          console.warn('Não foi possível registrar uso do código:', e);
-        }
-      }
-
-      if (data.session) {
-        await iniciarApp();
-      } else {
-        success.textContent = '✓ Conta criada! Verifique seu email para confirmar.';
-        success.style.display = 'block';
-      }
-    } catch (err) {
-      error.textContent = traduzirErroAuth(err.message);
-      error.style.display = 'block';
-    } finally {
-      btn.disabled = false; btn.textContent = 'Criar conta';
-    }
-  });
-
-  document.getElementById('btnLogout').addEventListener('click', async () => {
-    if (!confirm('Tem certeza que quer sair?')) return;
-    await fazerLogout();
-    location.reload();
-  });
-
-  async function iniciarApp() {
-    document.getElementById('authWrapper').style.display = 'none';
-    document.getElementById('app').classList.add('active');
-    try {
-      const perfil = await obterPerfilNutri();
-      if (perfil) {
-        const nome = perfil.nome || perfil.email;
-        const primeiroNome = nome.split(' ')[0];
-        document.getElementById('userName').textContent = nome;
-        document.getElementById('userEmail').textContent = perfil.email;
-        document.getElementById('userAvatar').textContent = nome.substring(0, 1).toUpperCase();
-        document.getElementById('userFirstName').textContent = primeiroNome;
-      }
-    } catch (e) { console.warn('Não conseguiu carregar perfil:', e); }
-    await carregarPacientes();
+      const resp = await buscarRespostasModulo(p.id, 'm1');
+      m1 = resp || {};
+    } catch (e) { /* segue */ }
+    renderDadosView(cont, p, m1, false);
+    return;
   }
 
-  async function carregarPacientes() {
-    const container = document.getElementById('patientsContainer');
-    if (container) container.innerHTML = '<div class="loading"><div class="spinner"></div>Carregando pacientes...</div>';
+  if (abaId === 'anamnese') {
+    cont.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando relatório...</div>`;
     try {
-      todosPacientes = await listarPacientes();
-      renderizarEstatisticas();
-      renderizarPacientes(todosPacientes);
+      const html = await gerarRelatorio(p.id);
+      cont.innerHTML = html;
+      // Dispara o cálculo do recordatório por IA (com cache)
+      processarRecordatorioIA(p.id).catch(e => console.warn('recordatorio ia:', e));
+      // Liga os cards clicáveis de PSQI e Cronotipo
+      ativarConduta(cont);
+      // Remove o botão "voltar" interno do relatório (a ficha já tem o seu)
+      cont.querySelectorAll('[data-relatorio-action="voltar"]').forEach(b => b.remove());
     } catch (e) {
-      console.error(e);
-      if (container) container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div>Erro: ' + e.message + '</div>';
+      cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div>Erro no relatório: ${e.message}</div>`;
     }
+    return;
   }
 
-  function renderizarEstatisticas() {
-    const s = calcularEstatisticas(todosPacientes);
-    document.getElementById('stat-total').textContent = s.total;
-    document.getElementById('stat-completos').textContent = s.completos;
-    document.getElementById('stat-aguardando').textContent = s.aguardando;
-    document.getElementById('stat-taxa').textContent = s.taxa + '%';
+  if (abaId === 'avaliacoes') {
+    cont.innerHTML = `<div id="avaliacoesFichaMount"><div class="loading"><div class="spinner"></div>Carregando avaliações...</div></div>`;
+    try {
+      const { initAvaliacoesUIParaPaciente } = await import('./avaliacoes-ui.js');
+      await initAvaliacoesUIParaPaciente(_nutriId, p, 'avaliacoesFichaMount');
+    } catch (e) {
+      cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div>Erro nas avaliações: ${e.message}</div>`;
+    }
+    return;
   }
 
-  function renderizarPacientes(lista) {
-    const container = document.getElementById('patientsContainer');
-    if (!container) return;
-    if (lista.length === 0) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div>Você ainda não tem pacientes. Cadastre o primeiro no Início!</div>';
-      return;
-    }
-    container.innerHTML = '<div class="patients-grid">' + lista.map(p => {
-      const status = p.status || 'aguardando';
-      const podeAbrir = status === 'completo';
-      const acaoPrincipal = podeAbrir
-        ? `<button class="patient-action primary" data-action="ver" data-id="${p.id}">👁 Ver</button>`
-        : `<button class="patient-action" data-action="link" data-codigo="${p.codigo}">📋 Link</button>`;
-      return `<div class="patient-row"><div class="patient-avatar">${iniciaisDoNome(p.nome)}</div><div class="patient-info"><div class="patient-name">${p.nome || '(sem nome)'}</div><div class="patient-meta">Criado em ${formatarData(p.criado_em)}</div></div><span class="patient-code">${p.codigo}</span><span class="status-tag status-${status}">${status}</span>${acaoPrincipal}<button class="patient-action patient-action-danger" data-action="excluir" data-id="${p.id}" data-nome="${(p.nome || p.codigo).replace(/"/g, '&quot;')}">🗑</button></div>`;
-    }).join('') + '</div>';
+  // Abas futuras
+  const aba = ABAS.find(a => a.id === abaId);
+  cont.innerHTML = `
+    <div class="ficha-em-breve">
+      <div class="feb-ico">${aba.icone}</div>
+      <div class="feb-t">${aba.label}</div>
+      <div class="feb-s">Esta funcionalidade ainda está em desenvolvimento.</div>
+    </div>`;
+}
 
-    container.querySelectorAll('[data-action]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const action = btn.dataset.action;
-        if (action === 'ver') abrirRelatorio(btn.dataset.id);
-        else if (action === 'link') copiarLinkPaciente(btn.dataset.codigo);
-        else if (action === 'excluir') confirmarExclusao(btn.dataset.id, btn.dataset.nome);
-      });
+// ─── Aba Dados: um só layout; editar muda os balões in-place ───
+function renderDadosView(cont, p, m1, editando) {
+  const nome = p.nome || m1.q1_1 || '';
+  const email = p.email || m1.q1_2 || '';
+  const telefone = p.telefone || m1.q1_3 || '';
+  const nascimento = (p.nascimento || m1.q1_4 || '').slice(0,10);
+  const sexoRaw = p.sexo || m1.q1_5 || '';
+  const sexoV = (sexoRaw === 'M' || sexoRaw === 'Masculino') ? 'M'
+    : (sexoRaw === 'F' || sexoRaw === 'Feminino') ? 'F' : '';
+  const sexoLabel = sexoV === 'M' ? 'Masculino' : sexoV === 'F' ? 'Feminino' : '';
+  const idade = calcularIdade(nascimento);
+  const cidade = p.cidade || m1.q1_6 || '';
+  const profissao = p.profissao || m1.q1_8 || '';
+
+  // cada balão: modo view mostra valor; modo edit mostra input com mesmo layout
+  const b = (id, label, valor, tipo, editavel = true) => {
+    if (editando && editavel) {
+      if (id === 'sexo') {
+        return `<div class="dado-balao editando"><div class="dado-balao-label">${label}</div>
+          <select id="d_sexo" class="dado-balao-input">
+            <option value="" ${!sexoV?'selected':''}>—</option>
+            <option value="M" ${sexoV==='M'?'selected':''}>Masculino</option>
+            <option value="F" ${sexoV==='F'?'selected':''}>Feminino</option>
+          </select></div>`;
+      }
+      return `<div class="dado-balao editando"><div class="dado-balao-label">${label}</div>
+        <input type="${tipo||'text'}" id="d_${id}" value="${esc(valor)}" class="dado-balao-input"></div>`;
+    }
+    // modo view (ou campo não-editável como Idade)
+    const vShow = (valor === null || valor === undefined || valor === '') ? '—' : valor;
+    return `<div class="dado-balao"><div class="dado-balao-label">${label}</div><div class="dado-balao-valor">${esc(vShow)}</div></div>`;
+  };
+
+  const botao = editando
+    ? `<div class="dados-head-btns">
+         <button class="btn-editar-dados btn-cancelar" id="btnCancelarDados">Cancelar</button>
+         <button class="btn-editar-dados" id="btnSalvarDados">💾 Salvar</button>
+       </div>`
+    : `<button class="btn-editar-dados" id="btnEditarDados">✏️ Editar</button>`;
+
+  cont.innerHTML = `
+    <div class="dados-head">
+      <div class="ficha-sec-titulo" style="border:none; margin:0; padding:0;">Dados pessoais</div>
+      ${botao}
+    </div>
+    <div class="dados-balao-grid">
+      ${b('nome', 'Nome', nome)}
+      ${b('nascimento', 'Nascimento', editando ? nascimento : (nascimento ? fmtData(nascimento) : ''), 'date')}
+      ${b('idade', 'Idade', idade != null ? idade + ' anos' : '', 'text', false)}
+      ${b('sexo', 'Sexo', sexoLabel)}
+      ${b('profissao', 'Profissão', profissao)}
+      ${b('instagram', 'Instagram', p.instagram || '')}
+      ${b('telefone', 'Telefone', telefone)}
+      ${b('email', 'E-mail', email, 'email')}
+    </div>
+
+    <div class="ficha-sec-titulo" style="margin-top:24px;">Endereço</div>
+    <div class="dados-balao-grid">
+      ${b('pais', 'País', p.pais || 'Brasil')}
+      ${b('cep', 'CEP', p.cep || '')}
+      ${b('endereco', 'Endereço', p.endereco || '')}
+      ${b('bairro', 'Bairro', p.bairro || '')}
+      ${b('cidade', 'Cidade', cidade)}
+      ${b('uf', 'UF', p.uf || '')}
+    </div>
+
+    <div class="ficha-sec-titulo" style="margin-top:24px;">Cadastro</div>
+    <div class="dados-balao-grid">
+      ${b('codigo', 'Código', p.codigo, 'text', false)}
+      ${b('status', 'Status', p.status || 'aguardando', 'text', false)}
+      ${b('criado', 'Cadastrado em', fmtData(p.criado_em), 'text', false)}
+    </div>`;
+
+  if (editando) {
+    document.getElementById('btnCancelarDados').addEventListener('click', () => renderDadosView(cont, p, m1, false));
+    document.getElementById('btnSalvarDados').addEventListener('click', async () => {
+      const g = id => (document.getElementById(id)?.value || '').trim();
+      const dados = {
+        nome: g('d_nome') || null,
+        nascimento: g('d_nascimento') || null,
+        sexo: document.getElementById('d_sexo')?.value || null,
+        profissao: g('d_profissao') || null,
+        instagram: g('d_instagram') || null,
+        telefone: g('d_telefone') || null,
+        email: g('d_email') || null,
+        pais: g('d_pais') || null,
+        cep: g('d_cep') || null,
+        endereco: g('d_endereco') || null,
+        bairro: g('d_bairro') || null,
+        cidade: g('d_cidade') || null,
+        uf: g('d_uf') || null,
+      };
+      const btn = document.getElementById('btnSalvarDados');
+      btn.disabled = true; btn.textContent = 'Salvando...';
+      try {
+        const atualizado = await atualizarPaciente(p.id, dados);
+        _pacienteAtual = { ...p, ...atualizado };
+        renderDadosView(cont, _pacienteAtual, m1, false);
+      } catch (e) {
+        btn.disabled = false; btn.textContent = '💾 Salvar';
+        alert('Erro ao salvar: ' + e.message);
+      }
     });
+  } else {
+    document.getElementById('btnEditarDados').addEventListener('click', () => renderDadosView(cont, p, m1, true));
   }
+}
 
-  document.getElementById('searchInput').addEventListener('input', (e) => {
-    const termo = e.target.value.toLowerCase();
-    const filtrados = todosPacientes.filter(p =>
-      (p.nome || '').toLowerCase().includes(termo) ||
-      (p.codigo || '').toLowerCase().includes(termo)
-    );
-    renderizarPacientes(filtrados);
-  });
-
-  document.getElementById('btnGerar').addEventListener('click', async () => {
-    const btn = document.getElementById('btnGerar');
-    const nomeInput = document.getElementById('novoPacienteNome');
-    const nome = nomeInput.value.trim();
-    btn.disabled = true; btn.textContent = 'Gerando...';
-    try {
-      const paciente = await criarPaciente({ nome });
-      const linkCompleto = QUESTIONARIO_URL + 'anamnese.html?p=' + paciente.codigo;
-      ultimoCodigoGerado = { codigo: paciente.codigo, link: linkCompleto, nome };
-      document.getElementById('resultCode').textContent = paciente.codigo;
-      document.getElementById('resultLink').textContent = linkCompleto;
-      document.getElementById('resultGerado').style.display = 'block';
-      nomeInput.value = '';
-      setTimeout(carregarPacientes, 300);
-    } catch (e) {
-      console.error(e);
-      alert('Erro ao gerar código: ' + e.message);
-    } finally {
-      btn.disabled = false; btn.textContent = 'Gerar código →';
-    }
-  });
-
-  document.getElementById('btnCopiar').addEventListener('click', () => {
-    if (ultimoCodigoGerado) copiarParaClipboard(ultimoCodigoGerado.link, '✓ Link copiado!');
-  });
-  document.getElementById('btnWhatsapp').addEventListener('click', () => {
-    if (!ultimoCodigoGerado) return;
-    const msg = montarMensagemQuestionario(ultimoCodigoGerado.nome, ultimoCodigoGerado.link);
-    window.open(gerarLinkWhatsapp(msg), '_blank');
-  });
-  document.getElementById('btnPreview').addEventListener('click', () => {
-    if (ultimoCodigoGerado) window.open(ultimoCodigoGerado.link, '_blank');
-  });
-
-  function copiarLinkPaciente(codigo) {
-    const link = QUESTIONARIO_URL + 'anamnese.html?p=' + codigo;
-    copiarParaClipboard(link, '✓ Link copiado: ' + codigo);
-  }
-
-  async function confirmarExclusao(id, nome) {
-    if (!confirm(`⚠️ Excluir o paciente "${nome}"?\n\nTodos os dados serão apagados permanentemente.`)) return;
-    try {
-      await excluirPaciente(id);
-      mostrarToast('✓ Paciente excluído');
-      await carregarPacientes();
-    } catch (e) { alert('Erro: ' + e.message); }
-  }
-
-  async function abrirRelatorio(id) {
-    // Abre a FICHA do paciente (modelo WebDiet). A ficha renderiza
-    // internamente o relatório na aba "Anamnese geral".
-    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.module-page').forEach(el => el.classList.remove('active'));
-    document.getElementById('page-ficha').classList.add('active');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-
-    const sessao = await obterSessao();
-    abrirFichaPaciente(id, sessao?.user?.id, () => navegar('pacientes'));
-  }
-
-  // Mantida para compatibilidade: relatório "puro" (não usado na ficha)
-  async function abrirRelatorioLegado(id) {
-    const pageEl = document.getElementById('page-relatorio');
-    pageEl.classList.add('active');
-    pageEl.innerHTML = '<div class="loading"><div class="spinner"></div>Carregando relatório...</div>';
-    try {
-      const html = await gerarRelatorio(id);
-      pageEl.innerHTML = html;
-      processarRecordatorioIA(id).catch(e => console.warn('recordatorio ia:', e));
-      pageEl.querySelectorAll('[data-relatorio-action="voltar"]').forEach(btn => {
-        btn.addEventListener('click', () => navegar('pacientes'));
-      });
-    } catch (e) {
-      console.error('Erro ao gerar relatório:', e);
-      pageEl.innerHTML = `
-        <div style="text-align:center; padding: 40px 20px;">
-          <div style="font-size:48px; margin-bottom: 12px;">⚠️</div>
-          <div style="font-family:'Nunito',sans-serif; font-size:22px; color:var(--moss-deep); margin-bottom: 10px;">Erro ao carregar relatório</div>
-          <div style="font-family:monospace; font-size:12px; color:var(--rose); background:var(--bg-warm); padding:14px; border-radius:10px; max-width:600px; margin:14px auto; text-align:left;">${e.message}<br><br>${(e.stack||'').split('\\n').slice(0,3).join('<br>')}</div>
-          <button class="btn" data-relatorio-action="voltar" style="margin-top: 16px;">← Voltar</button>
-        </div>
-      `;
-      pageEl.querySelectorAll('[data-relatorio-action="voltar"]').forEach(btn => {
-        btn.addEventListener('click', () => navegar('pacientes'));
-      });
-    }
-  }
-
-  (async () => {
-    const sessao = await obterSessao();
-    if (sessao) await iniciarApp();
-  })();
-</script>
-
-</body>
-</html>
+// ─── Helpers ───
+function campo(label, valor) {
+  return `<div class="ficha-campo"><div class="fc-l">${label}</div><div class="fc-v">${esc(valor)}</div></div>`;
+}
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const iniciais = nome => {
+  if (!nome) return '?';
+  const parts = nome.trim().split(/\s+/);
+  return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '?';
+};
+const fmtData = d => {
+  if (!d) return '—';
+  try { return new Date(d).toLocaleDateString('pt-BR'); } catch { return '—'; }
+};
+function calcularIdade(nascimento) {
+  if (!nascimento) return null;
+  const nasc = new Date(nascimento);
+  if (isNaN(nasc.getTime())) return null;
+  const hoje = new Date();
+  let idade = hoje.getFullYear() - nasc.getFullYear();
+  const m = hoje.getMonth() - nasc.getMonth();
+  if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) idade--;
+  return (idade >= 0 && idade < 130) ? idade : null;
+}
