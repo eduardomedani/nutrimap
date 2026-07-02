@@ -172,22 +172,23 @@ function renderDadosView(cont, p, m1, editando) {
   const profissao = p.profissao || m1.q1_8 || '';
 
   // cada balão: modo view mostra valor; modo edit mostra input com mesmo layout
-  const b = (id, label, valor, tipo, editavel = true) => {
+  const b = (id, label, valor, tipo, editavel = true, largo = false) => {
+    const clsLargo = largo ? ' dado-balao-largo' : '';
     if (editando && editavel) {
       if (id === 'sexo') {
-        return `<div class="dado-balao editando"><div class="dado-balao-label">${label}</div>
+        return `<div class="dado-balao editando${clsLargo}"><div class="dado-balao-label">${label}</div>
           <select id="d_sexo" class="dado-balao-input">
             <option value="" ${!sexoV?'selected':''}>—</option>
             <option value="M" ${sexoV==='M'?'selected':''}>Masculino</option>
             <option value="F" ${sexoV==='F'?'selected':''}>Feminino</option>
           </select></div>`;
       }
-      return `<div class="dado-balao editando"><div class="dado-balao-label">${label}</div>
+      return `<div class="dado-balao editando${clsLargo}"><div class="dado-balao-label">${label}</div>
         <input type="${tipo||'text'}" id="d_${id}" value="${esc(valor)}" class="dado-balao-input"></div>`;
     }
     // modo view (ou campo não-editável como Idade)
     const vShow = (valor === null || valor === undefined || valor === '') ? '—' : valor;
-    return `<div class="dado-balao"><div class="dado-balao-label">${label}</div><div class="dado-balao-valor">${esc(vShow)}</div></div>`;
+    return `<div class="dado-balao${clsLargo}"><div class="dado-balao-label">${label}</div><div class="dado-balao-valor">${esc(vShow)}</div></div>`;
   };
 
   const botao = editando
@@ -210,14 +211,14 @@ function renderDadosView(cont, p, m1, editando) {
       ${b('profissao', 'Profissão', profissao)}
       ${b('instagram', 'Instagram', p.instagram || '')}
       ${b('telefone', 'Telefone', telefone)}
-      ${b('email', 'E-mail', email, 'email')}
+      ${b('email', 'E-mail', email, 'email', true, true)}
     </div>
 
     <div class="ficha-sec-titulo" style="margin-top:24px;">Endereço</div>
     <div class="dados-balao-grid">
       ${b('pais', 'País', p.pais || 'Brasil')}
       ${b('cep', 'CEP', p.cep || '')}
-      ${b('endereco', 'Endereço', p.endereco || '')}
+      ${b('endereco', 'Endereço', p.endereco || '', 'text', true, true)}
       ${b('bairro', 'Bairro', p.bairro || '')}
       ${b('cidade', 'Cidade', cidade)}
       ${b('uf', 'UF', p.uf || '')}
