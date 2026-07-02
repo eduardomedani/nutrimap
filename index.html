@@ -349,7 +349,7 @@
   /* SECTIONS */
   .rel-sections { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
   .secao-card { background: var(--bg-card); border-radius: 16px; padding: 22px; box-shadow: var(--shadow); }
-  .secao-title { font-family: 'Nunito', sans-serif; font-size: 18px; color: var(--moss-deep); font-weight: 500; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .secao-title { font-family: 'Nunito', sans-serif; font-size: 18px; color: var(--moss-deep); font-weight: 800; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
   .secao-rows { display: flex; flex-direction: column; gap: 10px; }
   .secao-row { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
   .secao-key { font-size: 13px; color: var(--ink-mute); flex-shrink: 0; font-family: 'Nunito', sans-serif; }
@@ -364,6 +364,17 @@
 
   .ativ-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
   .ativ-tag { background: var(--cream); color: var(--moss-deep); padding: 6px 12px; border-radius: 100px; font-size: 12.5px; font-weight: 500; }
+  .ativ-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 14px; }
+  .ativ-card { background: var(--bg); border-radius: 12px; padding: 12px 14px; border-left: 3px solid var(--sage); }
+  .ativ-card-nome { font-size: 14px; font-weight: 700; color: var(--ink); }
+  .ativ-card-freq { font-size: 12px; color: var(--ink-mute); font-weight: 600; margin: 3px 0 6px; }
+  .ativ-card-gasto { font-size: 12.5px; color: var(--ink-soft); }
+  .ativ-card-gasto strong { color: var(--moss-deep); font-weight: 800; }
+  .ativ-total { background: linear-gradient(135deg, var(--cream), rgba(184,146,74,0.12)); border-radius: 12px; padding: 14px 16px; margin-top: 14px; }
+  .ativ-total-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--moss); font-weight: 700; }
+  .ativ-total-val { font-family: 'Nunito', sans-serif; font-size: 22px; font-weight: 800; color: var(--moss-deep); margin-top: 4px; }
+  .ativ-total-val span { font-size: 14px; color: var(--ink-mute); font-weight: 600; }
+  .ativ-aviso { font-size: 11px; color: var(--ink-mute); font-style: italic; margin-top: 10px; line-height: 1.5; }
 
   .rel-disclaimer { margin-top: 24px; padding: 18px 22px; background: var(--bg-warm); border-radius: 14px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; border-left: 4px solid var(--sage); }
 
