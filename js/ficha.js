@@ -143,14 +143,13 @@ async function renderAba(abaId) {
   }
 
   if (abaId === 'avaliacoes') {
-    // Fase 3 pluga o módulo de avaliações aqui. Por ora, atalho para a aba antiga.
-    cont.innerHTML = `
-      <div class="ficha-em-breve">
-        <div class="feb-ico">📐</div>
-        <div class="feb-t">Avaliações Físicas</div>
-        <div class="feb-s">Por enquanto, use a aba <strong>Avaliações</strong> no menu principal.
-        Em breve as avaliações deste paciente aparecem direto aqui.</div>
-      </div>`;
+    cont.innerHTML = `<div id="avaliacoesFichaMount"><div class="loading"><div class="spinner"></div>Carregando avaliações...</div></div>`;
+    try {
+      const { initAvaliacoesUIParaPaciente } = await import('./avaliacoes-ui.js');
+      await initAvaliacoesUIParaPaciente(_nutriId, p, 'avaliacoesFichaMount');
+    } catch (e) {
+      cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div>Erro nas avaliações: ${e.message}</div>`;
+    }
     return;
   }
 
