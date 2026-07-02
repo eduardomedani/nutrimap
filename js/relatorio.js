@@ -878,16 +878,43 @@ function renderModulosDetalhados(m) {
 
   if (m.m10) {
     let atividadesHtml = '';
+    let gastoSemanalTotal = 0;
     if (m.m10.detalhes_atividades_json) {
       try {
         const det = typeof m.m10.detalhes_atividades_json === 'string'
           ? JSON.parse(m.m10.detalhes_atividades_json) : m.m10.detalhes_atividades_json;
         const nomes = { q10_caminhada:'🚶 Caminhada', q10_corrida:'🏃 Corrida', q10_musc:'🏋 Musculação', q10_crossfit:'🔥 CrossFit', q10_bike:'🚴 Ciclismo', q10_natacao:'🏊 Natação', q10_pilates:'🧘 Pilates', q10_danca:'💃 Dança', q10_futebol:'⚽ Futebol', q10_basquete:'🏀 Basquete', q10_volei:'🏐 Vôlei', q10_tenis:'🎾 Tênis', q10_tmesa:'🏓 Tênis mesa', q10_boxe:'🥊 Boxe', q10_artes:'🥋 Artes Marciais' };
-        atividadesHtml = Object.keys(det).map(k =>
-          `<div class="ativ-tag">${nomes[k] || k}: ${det[k].frequencia || '?'}x/sem · ${det[k].intensidade || '?'}</div>`
-        ).join('');
+        // MET médio por atividade (compêndio de atividades físicas)
+        const mets = { q10_caminhada:3.5, q10_corrida:9.0, q10_musc:5.0, q10_crossfit:8.0, q10_bike:7.5, q10_natacao:7.0, q10_pilates:3.0, q10_danca:5.0, q10_futebol:7.0, q10_basquete:6.5, q10_volei:4.0, q10_tenis:7.0, q10_tmesa:4.0, q10_boxe:9.0, q10_artes:6.0 };
+        const pesoKg = parseFloat(m.m4 ? m.m4.q4_1_peso_atual : null) || 70;
+        // Multiplicador de intensidade e duração típica (min) por sessão
+        const fatorIntensidade = { leve:0.8, moderada:1.0, moderado:1.0, intensa:1.2, intenso:1.2, alta:1.2 };
+        const DUR_SESSAO = 60; // min por sessão (estimativa padrão)
+
+        atividadesHtml = Object.keys(det).map(k => {
+          const freq = parseFloat(det[k].frequencia) || 0;
+          const intLabel = (det[k].intensidade || '').toLowerCase();
+          const met = mets[k] || 5.0;
+          const fInt = fatorIntensidade[intLabel] || 1.0;
+          // kcal por sessão = MET × 3.5 × peso(kg) / 200 × duração(min) × fator intensidade
+          const kcalSessao = Math.round((met * 3.5 * pesoKg / 200) * DUR_SESSAO * fInt);
+          const kcalSemana = kcalSessao * freq;
+          gastoSemanalTotal += kcalSemana;
+          return `
+            <div class="ativ-card">
+              <div class="ativ-card-nome">${nomes[k] || k}</div>
+              <div class="ativ-card-freq">${freq || '?'}x/semana · ${det[k].intensidade || 'intensidade não informada'}</div>
+              <div class="ativ-card-gasto">~${kcalSessao} kcal/sessão · <strong>~${kcalSemana} kcal/semana</strong></div>
+            </div>`;
+        }).join('');
       } catch (e) {}
     }
+    const resumoGasto = gastoSemanalTotal > 0
+      ? `<div class="ativ-total">
+           <div class="ativ-total-label">Gasto energético estimado com exercício</div>
+           <div class="ativ-total-val">~${gastoSemanalTotal.toLocaleString('pt-BR')} kcal/semana <span>(~${Math.round(gastoSemanalTotal/7).toLocaleString('pt-BR')} kcal/dia)</span></div>
+         </div>`
+      : '';
     html += `<div class="secao-card">
       <div class="secao-title">🏃 Atividade Física</div>
       <div class="secao-rows">
@@ -895,7 +922,9 @@ function renderModulosDetalhados(m) {
         <div class="secao-row"><span class="secao-key">Nível diário (NEAT)</span><span class="secao-val">${m.m10.nivel_neat || '—'}</span></div>
         <div class="secao-row"><span class="secao-key">Passos/dia</span><span class="secao-val">${m.m10.passos_dia || '—'}</span></div>
       </div>
-      ${atividadesHtml ? `<div class="ativ-tags">${atividadesHtml}</div>` : ''}
+      ${atividadesHtml ? `<div class="ativ-cards">${atividadesHtml}</div>` : ''}
+      ${resumoGasto}
+      ${gastoSemanalTotal > 0 ? '<div class="ativ-aviso">Estimativa por METs, assumindo ~60 min por sessão. Valores aproximados — a duração real e o esforço individual variam.</div>' : ''}
     </div>`;
   }
 
