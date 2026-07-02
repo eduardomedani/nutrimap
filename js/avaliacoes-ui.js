@@ -62,6 +62,28 @@ export async function initAvaliacoesUI(nutriId) {
   }
 }
 
+/**
+ * Versão para uso DENTRO da ficha do paciente: o paciente já está
+ * escolhido, então pula a seleção e abre direto o painel de avaliações.
+ * @param {string} nutriId
+ * @param {object} paciente - objeto do paciente (id, nome, codigo)
+ * @param {string} mountId - id do container onde renderizar
+ */
+export async function initAvaliacoesUIParaPaciente(nutriId, paciente, mountId) {
+  _nutriId = nutriId;
+  _pacienteSel = paciente;
+  const mount = document.getElementById(mountId);
+  if (!mount) return;
+  // Cria a estrutura que abrirPainelPaciente() espera (#avPainel)
+  mount.innerHTML = `<div id="avPainel"><div class="loading"><div class="spinner"></div>Carregando avaliações...</div></div>`;
+  try {
+    await abrirPainelPaciente();
+  } catch (e) {
+    document.getElementById('avPainel').innerHTML =
+      `<div class="empty-state"><div class="empty-state-icon">⚠️</div>Erro: ${e.message}</div>`;
+  }
+}
+
 // ───────────────────────────────────────────────────────────
 // PASSO 1 — escolher paciente
 // ───────────────────────────────────────────────────────────
