@@ -469,9 +469,11 @@
   .dados-balao-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
   .dado-balao { background: #FFFFFF; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow); min-width: 0; }
   .dado-balao-label { font-size: 10.5px; color: var(--ink-mute); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
-  .dado-balao-valor { font-size: 15px; color: var(--ink); margin-top: 4px; font-weight: 600; overflow-wrap: break-word; word-break: break-word; }
+  .dado-balao-valor { font-size: 15px; color: var(--ink); margin-top: 4px; font-weight: 600; overflow-wrap: anywhere; }
+  .dado-balao-largo { grid-column: 1 / -1; }
   /* Modo edição: balão ganha fundo colorido; input mantém o layout */
   .dado-balao.editando { background: var(--cream); border-color: var(--gold); }
+  @media (max-width: 480px) { .dado-balao-largo { grid-column: 1 / -1; } }
   .dado-balao-input { width: 100%; margin-top: 4px; border: 1px solid var(--gold); border-radius: 8px; padding: 6px 8px; font-family: 'Nunito', sans-serif; font-size: 15px; font-weight: 600; color: var(--ink); background: #FFFFFF; }
   .dado-balao-input:focus { outline: none; border-color: var(--moss); }
   .ficha-em-breve { text-align: center; padding: 50px 20px; }
