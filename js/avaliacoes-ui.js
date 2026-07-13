@@ -48,7 +48,7 @@ export async function initAvaliacoesUI(nutriId) {
   if (!page) return;
   page.innerHTML = `
     <div class="page-header">
-      <h1 class="page-title">📐 <em>Avaliações</em></h1>
+      <h1 class="page-title"><i data-lucide="ruler"></i> <em>Avaliações</em></h1>
       <div class="page-sub">Antropometria, dobras cutâneas e composição corporal</div>
     </div>
     <div id="avMain"><div class="loading"><div class="spinner"></div>Carregando pacientes...</div></div>
@@ -58,7 +58,7 @@ export async function initAvaliacoesUI(nutriId) {
     renderSelecaoPaciente();
   } catch (e) {
     document.getElementById('avMain').innerHTML =
-      `<div class="empty-state"><div class="empty-state-icon">⚠️</div>Erro: ${e.message}</div>`;
+      `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro: ${e.message}</div>`;
   }
 }
 
@@ -80,7 +80,7 @@ export async function initAvaliacoesUIParaPaciente(nutriId, paciente, mountId) {
     await abrirPainelPaciente();
   } catch (e) {
     document.getElementById('avPainel').innerHTML =
-      `<div class="empty-state"><div class="empty-state-icon">⚠️</div>Erro: ${e.message}</div>`;
+      `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro: ${e.message}</div>`;
   }
 }
 
@@ -90,7 +90,7 @@ export async function initAvaliacoesUIParaPaciente(nutriId, paciente, mountId) {
 function renderSelecaoPaciente() {
   const main = document.getElementById('avMain');
   if (!_pacientes.length) {
-    main.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📭</div>
+    main.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="inbox"></i></div>
       Cadastre um paciente na aba Início antes de criar avaliações.</div>`;
     return;
   }
@@ -100,7 +100,7 @@ function renderSelecaoPaciente() {
   main.innerHTML = `
     <div class="novo-paciente-card">
       <div class="novo-paciente-header">
-        <div class="novo-paciente-icon">🧍</div>
+        <div class="novo-paciente-icon"><i data-lucide="user"></i></div>
         <div>
           <div class="novo-paciente-title">Selecione o <em>paciente</em></div>
           <div class="novo-paciente-sub">A avaliação será vinculada a este paciente</div>
@@ -110,7 +110,7 @@ function renderSelecaoPaciente() {
         <select id="avPacienteSelect" class="np-input">
           <option value="">— escolha —</option>${opcoes}
         </select>
-        <button class="btn primary" id="avBtnAbrir">Abrir avaliações →</button>
+        <button class="btn primary" id="avBtnAbrir">Abrir avaliações <i data-lucide="arrow-right"></i></button>
       </div>
     </div>
     <div id="avPainel"></div>
@@ -134,9 +134,9 @@ async function abrirPainelPaciente() {
   const semDados = !_dadosBasicos.sexo || !_dadosBasicos.idade;
 
   const aviso = semDados
-    ? `<div class="form-warn">⚠️ Sexo/idade não encontrados na anamnese deste paciente.
+    ? `<div class="form-warn"><i data-lucide="triangle-alert"></i> Sexo/idade não encontrados na anamnese deste paciente.
         Preencha manualmente no formulário (campos editáveis).</div>`
-    : `<div class="form-ok">✓ Anamnese: ${_dadosBasicos.sexo === 'M' ? 'Masculino' : 'Feminino'},
+    : `<div class="form-ok"><i data-lucide="check"></i> Anamnese: ${_dadosBasicos.sexo === 'M' ? 'Masculino' : 'Feminino'},
         ${_dadosBasicos.idade} anos</div>`;
 
   const linhas = avals.length
@@ -149,15 +149,15 @@ async function abrirPainelPaciente() {
               ${a.pct_gordura != null ? (a.pct_gordura*100).toFixed(1)+'% G' : '—'} ·
               IMC ${a.imc ?? '—'}</div>
           </div>
-          <button class="patient-action primary" data-av-edit="${a.id}">✏️ Editar</button>
-          <button class="patient-action patient-action-danger" data-av-del="${a.id}" data-av-num="${a.numero}">🗑</button>
+          <button class="patient-action primary" data-av-edit="${a.id}"><i data-lucide="pencil"></i> Editar</button>
+          <button class="patient-action patient-action-danger" data-av-del="${a.id}" data-av-num="${a.numero}"><i data-lucide="trash-2"></i></button>
         </div>`).join('')
-    : `<div class="empty-state"><div class="empty-state-icon">📭</div>Nenhuma avaliação ainda.</div>`;
+    : `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="inbox"></i></div>Nenhuma avaliação ainda.</div>`;
 
   painel.innerHTML = `
     <div class="list-header">
       <div class="list-title">Avaliações de <em>${esc(_pacienteSel.nome || _pacienteSel.codigo)}</em></div>
-      <button class="btn primary" id="avBtnNova">➕ Nova avaliação</button>
+      <button class="btn primary" id="avBtnNova"><i data-lucide="plus"></i> Nova avaliação</button>
     </div>
     ${aviso}
     <div class="patients-grid">${linhas}</div>
@@ -232,7 +232,7 @@ async function abrirFormulario(aval) {
 
       <div class="av-actions">
         <button class="btn" id="avCancelar">Cancelar</button>
-        <button class="btn primary" id="avSalvar">${aval ? '💾 Atualizar' : '💾 Salvar avaliação'}</button>
+        <button class="btn primary" id="avSalvar"><i data-lucide="save"></i> ${aval ? 'Atualizar' : 'Salvar avaliação'}</button>
       </div>
     </div>
   `;
@@ -317,7 +317,7 @@ async function salvar() {
     await abrirPainelPaciente();
   } catch (e) {
     alert('Erro ao salvar: ' + e.message);
-    btn.disabled = false; btn.textContent = '💾 Salvar avaliação';
+    btn.disabled = false; btn.innerHTML = '<i data-lucide="save"></i> Salvar avaliação';
   }
 }
 

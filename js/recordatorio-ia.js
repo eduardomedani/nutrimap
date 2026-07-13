@@ -148,7 +148,7 @@ export async function processarRecordatorioIA(pacienteId) {
     // Substitui o container inteiro pelo card final (com relato + estimativa)
     cont.outerHTML = renderCardRecordatorio(calc, refeicoes);
   } catch (e) {
-    cont.innerHTML = `⚠️ Não foi possível calcular agora (${e.message}). Reabra o relatório para tentar de novo.`;
+    cont.innerHTML = `<i data-lucide="triangle-alert"></i> Não foi possível calcular agora (${e.message}). Reabra o relatório para tentar de novo.`;
   }
 }
 
@@ -192,14 +192,14 @@ export function renderCardRecordatorio(calc, refeicoes) {
 
   return `
     <div class="rec-full-card">
-      <div class="rec-full-title">🍽️ Recordatório alimentar</div>
+      <div class="rec-full-title"><i data-lucide="utensils"></i> Recordatório alimentar</div>
       <div class="rec-full-grid">
         <div class="rec-lado rec-lado-pessoa">
           <div class="rec-lado-head">Relato da paciente</div>
           <div class="rec-relato">${relato}</div>
         </div>
         <div class="rec-lado rec-lado-ia">
-          <div class="rec-lado-head">⚛ Estimativa nutricional (IA)</div>
+          <div class="rec-lado-head"><i data-lucide="atom"></i> Estimativa nutricional (IA)</div>
           <div class="rec-calc-kcal">${Math.round(calc.kcal_total)} <span>kcal/dia</span></div>
           <div class="rec-calc-macros">
             <div class="rec-macro"><div class="rec-macro-v">${Math.round(calc.prot_g)}g</div><div class="rec-macro-l">Proteína</div></div>
@@ -207,7 +207,7 @@ export function renderCardRecordatorio(calc, refeicoes) {
             <div class="rec-macro"><div class="rec-macro-v">${Math.round(calc.gord_g)}g</div><div class="rec-macro-l">Gordura</div></div>
           </div>
           ${comparacao}
-          <div class="rec-calc-aviso">⚠️ Estimativa aproximada a partir de texto livre. ${calc.observacao || ''} Não substitui pesagem de alimentos.</div>
+          <div class="rec-calc-aviso"><i data-lucide="triangle-alert"></i> Estimativa aproximada a partir de texto livre. ${calc.observacao || ''} Não substitui pesagem de alimentos.</div>
         </div>
       </div>
     </div>`;

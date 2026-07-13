@@ -243,10 +243,10 @@ const CALC = {
 
   classificarCronotipo(score) {
     if (score === null) return { label: '—', emoji: '', cor: 'var(--ink-mute)' };
-    if (score >= 24) return { label: 'Matutino', emoji: '🌅', cor: 'var(--gold)' };
-    if (score >= 18) return { label: 'Intermediário-matutino', emoji: '🌤️', cor: 'var(--sage)' };
-    if (score >= 12) return { label: 'Intermediário-vespertino', emoji: '🌆', cor: 'var(--moss-light)' };
-    return { label: 'Vespertino', emoji: '🌙', cor: 'var(--moss)' };
+    if (score >= 24) return { label: 'Matutino', emoji: '<i data-lucide="sunrise"></i>', cor: 'var(--gold)' };
+    if (score >= 18) return { label: 'Intermediário-matutino', emoji: '<i data-lucide="cloud-sun"></i>', cor: 'var(--sage)' };
+    if (score >= 12) return { label: 'Intermediário-vespertino', emoji: '<i data-lucide="sunset"></i>', cor: 'var(--moss-light)' };
+    return { label: 'Vespertino', emoji: '<i data-lucide="moon"></i>', cor: 'var(--moss)' };
   },
 
   tmb(peso, altura, idade, sexo) {
@@ -523,19 +523,19 @@ function metricCardBotao(label, valor, sub, cor, tipoModal, chave) {
 // Condutas por cronotipo
 const CONDUTA_CRONOTIPO = {
   'Matutino': {
-    titulo: '🌅 Cronotipo Matutino',
+    titulo: '<i data-lucide="sunrise"></i> Cronotipo Matutino',
     texto: 'Pico de energia e apetite pela manhã. Conduta recomendada: concentrar as refeições maiores no café e almoço, reduzindo o volume no jantar. Treinos rendem melhor no início do dia. Evitar refeições pesadas à noite, que prejudicam o sono. Café da manhã reforçado favorece a adesão.'
   },
   'Intermediário-matutino': {
-    titulo: '🌤️ Intermediário-matutino',
+    titulo: '<i data-lucide="cloud-sun"></i> Intermediário-matutino',
     texto: 'Tendência a funcionar melhor de manhã, com flexibilidade. Conduta: distribuir as calorias de forma equilibrada ao longo do dia, com leve ênfase no período da manhã/almoço. Treinos no fim da manhã ou início da tarde tendem a render bem.'
   },
   'Intermediário-vespertino': {
-    titulo: '🌆 Intermediário-vespertino',
+    titulo: '<i data-lucide="sunset"></i> Intermediário-vespertino',
     texto: 'Energia cresce ao longo do dia. Conduta: café da manhã mais leve é aceitável, com refeições maiores concentradas no almoço e fim de tarde. Treinos no fim da tarde tendem a render melhor. Cuidar para o jantar não ser excessivamente tardio.'
   },
   'Vespertino': {
-    titulo: '🌙 Cronotipo Vespertino',
+    titulo: '<i data-lucide="moon"></i> Cronotipo Vespertino',
     texto: 'Pico de energia e apetite à tarde/noite. Conduta: respeitar o apetite reduzido pela manhã (café mais leve), distribuindo calorias para almoço e jantar. Atenção ao risco de comer tarde demais — estabelecer um horário-limite para a última refeição ajuda o sono e o controle de peso. Treinos rendem melhor no fim do dia.'
   }
 };
@@ -543,15 +543,15 @@ const CONDUTA_CRONOTIPO = {
 // Condutas por classificação de PSQI (qualidade do sono)
 const CONDUTA_PSQI = {
   'Bom': {
-    titulo: '😴 Sono de boa qualidade (PSQI ≤ 5)',
+    titulo: '<i data-lucide="bed"></i> Sono de boa qualidade (PSQI ≤ 5)',
     texto: 'Qualidade de sono adequada. Conduta: manter a higiene do sono atual. O sono preservado favorece a regulação hormonal (leptina/grelina), a recuperação e a adesão ao plano alimentar. Reforçar positivamente esse hábito com a paciente.'
   },
   'Ruim': {
-    titulo: '⚠️ Sono comprometido (PSQI 6–10)',
+    titulo: '<i data-lucide="triangle-alert"></i> Sono comprometido (PSQI 6–10)',
     texto: 'Qualidade de sono prejudicada. Conduta: investigar higiene do sono (telas à noite, cafeína tardia, horários irregulares). Sono ruim aumenta a fome e a preferência por alimentos calóricos, dificultando o emagrecimento. Considerar orientações de sono como parte do plano e reavaliar em consulta.'
   },
   'Muito ruim': {
-    titulo: '🚨 Sono muito comprometido (PSQI > 10)',
+    titulo: '<i data-lucide="siren"></i> Sono muito comprometido (PSQI > 10)',
     texto: 'Qualidade de sono severamente prejudicada — ponto de atenção clínico. Conduta: priorizar a abordagem do sono, pois ele pode ser o principal limitante do resultado. Investigar causas (estresse, ansiedade, apneia). O impacto hormonal do sono ruim compromete diretamente a perda de peso. Avaliar encaminhamento se persistir.'
   }
 };
@@ -675,21 +675,21 @@ function gerarIntroPrescricao(mac) {
 function gerarContainerRecordatorio(m) {
   if (!m.m8) return '';
   const refeicoes = [
-    ['☕ Café da manhã', m.m8.cafe_faz, m.m8.cafe_descricao, m.m8.cafe_horario],
-    ['🥪 Lanche da manhã', m.m8.lanche_manha_faz, m.m8.lanche_manha_descricao, m.m8.lanche_manha_horario],
-    ['🍽️ Almoço', m.m8.almoco_faz, m.m8.almoco_descricao, m.m8.almoco_horario],
-    ['🍎 Lanche da tarde', m.m8.lanche_tarde_faz, m.m8.lanche_tarde_descricao, m.m8.lanche_tarde_horario],
-    ['🍲 Jantar', m.m8.jantar_faz, m.m8.jantar_descricao, m.m8.jantar_horario],
-    ['🌌 Ceia', m.m8.ceia_faz, m.m8.ceia_descricao, m.m8.ceia_horario]
+    ['<i data-lucide="coffee"></i> Café da manhã', m.m8.cafe_faz, m.m8.cafe_descricao, m.m8.cafe_horario],
+    ['<i data-lucide="sandwich"></i> Lanche da manhã', m.m8.lanche_manha_faz, m.m8.lanche_manha_descricao, m.m8.lanche_manha_horario],
+    ['<i data-lucide="utensils"></i> Almoço', m.m8.almoco_faz, m.m8.almoco_descricao, m.m8.almoco_horario],
+    ['<i data-lucide="apple"></i> Lanche da tarde', m.m8.lanche_tarde_faz, m.m8.lanche_tarde_descricao, m.m8.lanche_tarde_horario],
+    ['<i data-lucide="soup"></i> Jantar', m.m8.jantar_faz, m.m8.jantar_descricao, m.m8.jantar_horario],
+    ['<i data-lucide="moon"></i> Ceia', m.m8.ceia_faz, m.m8.ceia_descricao, m.m8.ceia_horario]
   ];
   const refeicoesValidas = refeicoes.filter(r => (r[1]||'').toLowerCase() !== 'não' && (r[2] || r[3]));
   if (refeicoesValidas.length === 0) return '';
-  return `<div class="ia-hint" id="rec-calc-container" data-refeicoes='${encodeURIComponent(JSON.stringify(refeicoesValidas))}'>⚛ Calculando o recordatório por IA...</div>`;
+  return `<div class="ia-hint" id="rec-calc-container" data-refeicoes='${encodeURIComponent(JSON.stringify(refeicoesValidas))}'><i data-lucide="atom"></i> Calculando o recordatório por IA...</div>`;
 }
 
 function gerarCardMacros(mac, imc) {
   const alertaPesoAjustado = (imc !== null && imc >= 30)
-    ? `<div class="macro-alerta">⚠️ IMC elevado (${imc}) — proteína calculada sobre peso ajustado (${mac.pesoAjustado} kg). Considere revisar conforme composição corporal.</div>`
+    ? `<div class="macro-alerta"><i data-lucide="triangle-alert"></i> IMC elevado (${imc}) — proteína calculada sobre peso ajustado (${mac.pesoAjustado} kg). Considere revisar conforme composição corporal.</div>`
     : '';
 
   const ajustesPat = mac.ajustesPatologia.length > 0
@@ -723,7 +723,7 @@ function gerarCardMacros(mac, imc) {
         <div class="presc-macros">
           <div class="presc-macro">
             <div class="presc-macro-top">
-              <span class="presc-macro-nome">🥩 Proteína</span>
+              <span class="presc-macro-nome"><i data-lucide="beef"></i> Proteína</span>
               <span class="presc-macro-g">${mac.proteina.g}g</span>
             </div>
             <div class="presc-bar"><div class="presc-bar-fill" style="width:${mac.proteina.pct}%; background:var(--terracotta);"></div></div>
@@ -731,7 +731,7 @@ function gerarCardMacros(mac, imc) {
           </div>
           <div class="presc-macro">
             <div class="presc-macro-top">
-              <span class="presc-macro-nome">🍚 Carboidrato</span>
+              <span class="presc-macro-nome"><i data-lucide="wheat"></i> Carboidrato</span>
               <span class="presc-macro-g">${mac.carbo.g}g</span>
             </div>
             <div class="presc-bar"><div class="presc-bar-fill" style="width:${mac.carbo.pct}%; background:var(--gold);"></div></div>
@@ -739,7 +739,7 @@ function gerarCardMacros(mac, imc) {
           </div>
           <div class="presc-macro">
             <div class="presc-macro-top">
-              <span class="presc-macro-nome">🥑 Gordura</span>
+              <span class="presc-macro-nome"><i data-lucide="droplet"></i> Gordura</span>
               <span class="presc-macro-g">${mac.gordura.g}g</span>
             </div>
             <div class="presc-bar"><div class="presc-bar-fill" style="width:${mac.gordura.pct}%; background:var(--sage);"></div></div>
@@ -817,7 +817,7 @@ function renderModulosDetalhados(m) {
   let html = '<div class="rel-sections">';
 
   if (m.m2) {
-    html += secaoCard('🎯 Objetivo & Motivação', [
+    html += secaoCard('<i data-lucide="target"></i> Objetivo & Motivação', [
       ['Objetivo principal', m.m2.q2_1_objetivo_principal],
       ['Objetivo secundário', m.m2.q2_2_objetivo_secundario],
       ['Por quê agora', m.m2.q2_3_por_que],
@@ -830,7 +830,7 @@ function renderModulosDetalhados(m) {
     const cirurgiaDisplay = m.m3.q3_2_cirurgia === 'Sim'
       ? `Sim — ${m.m3.q3_2_detalhe || '(sem detalhes)'}`
       : (m.m3.q3_2_cirurgia || null);
-    html += secaoCard('🩺 Histórico Clínico', [
+    html += secaoCard('<i data-lucide="stethoscope"></i> Histórico Clínico', [
       ['Patologias', m.m3.q3_1_patologias],
       ['Cirurgia prévia', cirurgiaDisplay],
       ['Medicamentos', m.m3.q3_3_medicamentos],
@@ -840,7 +840,7 @@ function renderModulosDetalhados(m) {
   }
 
   if (m.m5) {
-    html += secaoCard('🏠 Estilo de Vida', [
+    html += secaoCard('<i data-lucide="house"></i> Estilo de Vida', [
       ['Quem cozinha', m.m5.q5_4_quem_cozinha],
       ['Horário de trabalho', m.m5.q5_7_horario_trabalho],
       ['Rotina refeições no trabalho', m.m5.q5_7b_rotina_trabalho],
@@ -852,7 +852,7 @@ function renderModulosDetalhados(m) {
   }
 
   if (m.m7) {
-    html += secaoCard('🍽️ Comportamento Alimentar', [
+    html += secaoCard('<i data-lucide="utensils"></i> Comportamento Alimentar', [
       ['Apetite', m.m7.q7_1_apetite],
       ['Preferência de sabor', m.m7.q7_2_sabor],
       ['Maior fome', m.m7.q7_3_maior_fome],
@@ -864,12 +864,12 @@ function renderModulosDetalhados(m) {
 
   if (m.m8) {
     const refeicoes = [
-      ['☀️ Café da manhã', m.m8.cafe_faz, m.m8.cafe_descricao, m.m8.cafe_horario],
-      ['🍎 Lanche manhã', m.m8.lanche_manha_faz, m.m8.lanche_manha_descricao, m.m8.lanche_manha_horario],
-      ['🍽️ Almoço', m.m8.almoco_faz, m.m8.almoco_descricao, m.m8.almoco_horario],
-      ['🥪 Lanche tarde', m.m8.lanche_tarde_faz, m.m8.lanche_tarde_descricao, m.m8.lanche_tarde_horario],
-      ['🌙 Jantar', m.m8.jantar_faz, m.m8.jantar_descricao, m.m8.jantar_horario],
-      ['🌌 Ceia', m.m8.ceia_faz, m.m8.ceia_descricao, m.m8.ceia_horario]
+      ['<i data-lucide="sun"></i> Café da manhã', m.m8.cafe_faz, m.m8.cafe_descricao, m.m8.cafe_horario],
+      ['<i data-lucide="apple"></i> Lanche manhã', m.m8.lanche_manha_faz, m.m8.lanche_manha_descricao, m.m8.lanche_manha_horario],
+      ['<i data-lucide="utensils"></i> Almoço', m.m8.almoco_faz, m.m8.almoco_descricao, m.m8.almoco_horario],
+      ['<i data-lucide="sandwich"></i> Lanche tarde', m.m8.lanche_tarde_faz, m.m8.lanche_tarde_descricao, m.m8.lanche_tarde_horario],
+      ['<i data-lucide="moon"></i> Jantar', m.m8.jantar_faz, m.m8.jantar_descricao, m.m8.jantar_horario],
+      ['<i data-lucide="moon"></i> Ceia', m.m8.ceia_faz, m.m8.ceia_descricao, m.m8.ceia_horario]
     ];
     const refeicoesValidas = refeicoes.filter(r => (r[1]||'').toLowerCase() !== 'não' && (r[2] || r[3]));
     // Recordatório agora é renderizado como card largo após a Prescrição (gerarContainerRecordatorio).
@@ -920,7 +920,7 @@ function renderModulosDetalhados(m) {
          </div>`
       : '';
     html += `<div class="secao-card">
-      <div class="secao-title">🏃 Atividade Física</div>
+      <div class="secao-title"><i data-lucide="activity"></i> Atividade Física</div>
       <div class="secao-rows">
         <div class="secao-row"><span class="secao-key">Pratica</span><span class="secao-val">${m.m10.pratica || '—'}</span></div>
         <div class="secao-row"><span class="secao-key">Nível diário (NEAT)</span><span class="secao-val">${m.m10.nivel_neat || '—'}</span></div>
@@ -933,7 +933,7 @@ function renderModulosDetalhados(m) {
   }
 
   if (m.m13) {
-    html += secaoCard('🧠 Mindset & Adesão', [
+    html += secaoCard('<i data-lucide="brain"></i> Mindset & Adesão', [
       ['Hábitos atuais', m.m13.q13_1_habitos_atuais ? m.m13.q13_1_habitos_atuais + '/10' : null],
       ['Capacidade de mudar', m.m13.q13_2_capacidade_mudar ? m.m13.q13_2_capacidade_mudar + '/10' : null],
       ['Suporte do ambiente', m.m13.q13_3_suporte],
@@ -1006,8 +1006,8 @@ export async function gerarRelatorio(pacienteId) {
 
   return `
     <div class="rel-topbar">
-      <button class="btn" data-relatorio-action="voltar">← Voltar</button>
-      <button class="btn primary" onclick="window.print()">🖨️ Imprimir / PDF</button>
+      <button class="btn" data-relatorio-action="voltar"><i data-lucide="arrow-left"></i> Voltar</button>
+      <button class="btn primary" onclick="window.print()"><i data-lucide="printer"></i> Imprimir / PDF</button>
     </div>
 
     <div class="rel-hero">
@@ -1028,7 +1028,7 @@ export async function gerarRelatorio(pacienteId) {
 
     ${redFlags.length > 0 ? `
     <div class="rel-flags">
-      <div class="rel-flags-title">⚠️ ${redFlags.length} ${redFlags.length === 1 ? 'ponto de atenção' : 'pontos de atenção'}</div>
+      <div class="rel-flags-title"><i data-lucide="triangle-alert"></i> ${redFlags.length} ${redFlags.length === 1 ? 'ponto de atenção' : 'pontos de atenção'}</div>
       <div class="rel-flags-grid">
         ${redFlags.map(f => `
           <div class="flag-card flag-${f.nivel}">
@@ -1064,7 +1064,7 @@ export async function gerarRelatorio(pacienteId) {
     ${renderModulosDetalhados(m)}
 
     <div class="rel-disclaimer">
-      ⚕️ Este relatório é uma <strong>estimativa preliminar gerada automaticamente</strong> a partir das respostas do paciente. Todos os dados, cálculos e estimativas devem ser <strong>validados pelo nutricionista</strong> antes de qualquer conduta clínica. Não constitui diagnóstico.
+      <i data-lucide="heart-pulse"></i> Este relatório é uma <strong>estimativa preliminar gerada automaticamente</strong> a partir das respostas do paciente. Todos os dados, cálculos e estimativas devem ser <strong>validados pelo nutricionista</strong> antes de qualquer conduta clínica. Não constitui diagnóstico.
     </div>
   `;
 }
@@ -1118,7 +1118,7 @@ function mostrarModalConduta(titulo, texto) {
   overlay.className = 'conduta-overlay';
   overlay.innerHTML = `
     <div class="conduta-modal" role="dialog" aria-modal="true">
-      <button class="conduta-fechar" aria-label="Fechar">✕</button>
+      <button class="conduta-fechar" aria-label="Fechar"><i data-lucide="x"></i></button>
       <div class="conduta-titulo">${titulo}</div>
       <div class="conduta-texto">${texto}</div>
       <div class="conduta-aviso">Sugestão de conduta baseada na classificação. Sempre valide clinicamente.</div>

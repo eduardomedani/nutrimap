@@ -18,15 +18,16 @@ let _dados = { sexo: null, idade: null };
 
 // Definição das abas (id, ícone, label, estado)
 const ABAS = [
-  { id: 'dados',        icone: '👤', label: 'Dados do Paciente', pronta: true },
-  { id: 'evolucao',     icone: '📈', label: 'Evolução',          pronta: false },
-  { id: 'anamnese',     icone: '📋', label: 'Anamnese geral',    pronta: true },
-  { id: 'exames',       icone: '🧪', label: 'Exames laboratoriais', pronta: false },
-  { id: 'avaliacoes',   icone: '📐', label: 'Avaliações Físicas', pronta: true },
-  { id: 'planejamento', icone: '🥗', label: 'Planejamento Alimentar', pronta: false },
-  { id: 'metas',        icone: '🎯', label: 'Prescrição de Metas', pronta: false },
-  { id: 'manipulados',  icone: '💊', label: 'Prescrição de Manipulados', pronta: false },
-  { id: 'orientacoes',  icone: '📝', label: 'Orientações Nutricionais', pronta: false },
+  { id: 'dados',        icone: '<i data-lucide="user"></i>',          label: 'Dados do Paciente', pronta: true },
+  { id: 'evolucao',     icone: '<i data-lucide="trending-up"></i>',   label: 'Evolução',          pronta: false },
+  { id: 'anamnese',     icone: '<i data-lucide="clipboard-list"></i>', label: 'Anamnese geral',    pronta: true },
+  { id: 'exames',       icone: '<i data-lucide="flask-conical"></i>', label: 'Exames laboratoriais', pronta: false },
+  { id: 'avaliacoes',   icone: '<i data-lucide="ruler"></i>',         label: 'Avaliações Físicas', pronta: true },
+  { id: 'treinos',      icone: '<i data-lucide="dumbbell"></i>',      label: 'Treinos',            pronta: true },
+  { id: 'planejamento', icone: '<i data-lucide="salad"></i>',         label: 'Planejamento Alimentar', pronta: false },
+  { id: 'metas',        icone: '<i data-lucide="target"></i>',        label: 'Prescrição de Metas', pronta: false },
+  { id: 'manipulados',  icone: '<i data-lucide="pill"></i>',          label: 'Prescrição de Manipulados', pronta: false },
+  { id: 'orientacoes',  icone: '<i data-lucide="file-pen"></i>',      label: 'Orientações Nutricionais', pronta: false },
 ];
 
 /**
@@ -46,7 +47,7 @@ export async function abrirFichaPaciente(pacienteId, nutriId, onVoltar) {
     _pacienteAtual = await buscarPacientePorId(pacienteId);
     _dados = await dadosBasicosDaAnamnese(pacienteId);
   } catch (e) {
-    page.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div>Erro ao carregar: ${e.message}</div>`;
+    page.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro ao carregar: ${e.message}</div>`;
     return;
   }
 
@@ -56,7 +57,7 @@ export async function abrirFichaPaciente(pacienteId, nutriId, onVoltar) {
   const statusLabel = (p.status || 'aguardando');
 
   page.innerHTML = `
-    <span class="ficha-voltar" id="fichaVoltar">← Voltar para a lista de pacientes</span>
+    <span class="ficha-voltar" id="fichaVoltar"><i data-lucide="arrow-left"></i> Voltar para a lista de pacientes</span>
 
     <div class="ficha-head">
       <div class="ficha-avatar">${iniciais(p.nome)}</div>
@@ -75,7 +76,6 @@ export async function abrirFichaPaciente(pacienteId, nutriId, onVoltar) {
         ${ABAS.map(a => `
           <div class="fm-item ${a.id === 'dados' ? 'active' : ''} ${a.pronta ? '' : 'soon'}" data-aba="${a.id}">
             <span>${a.icone}</span><span>${a.label}</span>
-            ${a.pronta ? '' : '<span class="fm-soon">breve</span>'}
           </div>`).join('')}
       </div>
       <div class="ficha-conteudo" id="fichaConteudo"></div>
@@ -90,6 +90,7 @@ export async function abrirFichaPaciente(pacienteId, nutriId, onVoltar) {
   // Navegação entre abas
   document.querySelectorAll('#fichaMenu .fm-item').forEach(item => {
     item.addEventListener('click', () => {
+      if (item.classList.contains('soon')) return;   // abas não prontas: sem funcionalidade
       document.querySelectorAll('#fichaMenu .fm-item').forEach(i => i.classList.remove('active'));
       item.classList.add('active');
       renderAba(item.dataset.aba);
@@ -131,7 +132,7 @@ async function renderAba(abaId) {
       // Remove o botão "voltar" interno do relatório (a ficha já tem o seu)
       cont.querySelectorAll('[data-relatorio-action="voltar"]').forEach(b => b.remove());
     } catch (e) {
-      cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div>Erro no relatório: ${e.message}</div>`;
+      cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro no relatório: ${e.message}</div>`;
     }
     return;
   }
@@ -142,7 +143,18 @@ async function renderAba(abaId) {
       const { initAvaliacoesUIParaPaciente } = await import('./avaliacoes-ui.js');
       await initAvaliacoesUIParaPaciente(_nutriId, p, 'avaliacoesFichaMount');
     } catch (e) {
-      cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div>Erro nas avaliações: ${e.message}</div>`;
+      cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro nas avaliações: ${e.message}</div>`;
+    }
+    return;
+  }
+
+  if (abaId === 'treinos') {
+    cont.innerHTML = `<div id="treinosFichaMount"><div class="loading"><div class="spinner"></div>Carregando treinos...</div></div>`;
+    try {
+      const { initTreinosUIParaPaciente } = await import('./treinos-ui.js');
+      await initTreinosUIParaPaciente(_nutriId, p, 'treinosFichaMount');
+    } catch (e) {
+      cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro nos treinos: ${e.message}</div>`;
     }
     return;
   }
@@ -194,9 +206,9 @@ function renderDadosView(cont, p, m1, editando) {
   const botao = editando
     ? `<div class="dados-head-btns">
          <button class="btn-editar-dados btn-cancelar" id="btnCancelarDados">Cancelar</button>
-         <button class="btn-editar-dados" id="btnSalvarDados">💾 Salvar</button>
+         <button class="btn-editar-dados" id="btnSalvarDados"><i data-lucide="save"></i> Salvar</button>
        </div>`
-    : `<button class="btn-editar-dados" id="btnEditarDados">✏️ Editar</button>`;
+    : `<button class="btn-editar-dados" id="btnEditarDados"><i data-lucide="pencil"></i> Editar</button>`;
 
   cont.innerHTML = `
     <div class="dados-head">
@@ -257,7 +269,7 @@ function renderDadosView(cont, p, m1, editando) {
         _pacienteAtual = { ...p, ...atualizado };
         renderDadosView(cont, _pacienteAtual, m1, false);
       } catch (e) {
-        btn.disabled = false; btn.textContent = '💾 Salvar';
+        btn.disabled = false; btn.innerHTML = '<i data-lucide="save"></i> Salvar';
         alert('Erro ao salvar: ' + e.message);
       }
     });
