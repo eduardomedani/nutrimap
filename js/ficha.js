@@ -10,6 +10,8 @@ import { dadosBasicosDaAnamnese } from './avaliacoes.js';
 import { buscarRespostasModulo } from './respostas.js';
 import { gerarRelatorio, ativarConduta } from './relatorio.js';
 import { processarRecordatorioIA } from './recordatorio-ia.js';
+import { QUESTIONARIO_URL } from './supabase.js';
+import { copiarParaClipboard, gerarLinkWhatsapp, montarMensagemQuestionario } from './utils.js';
 // Fase 3 ligará as Avaliações dentro da ficha.
 
 let _pacienteAtual = null;
@@ -18,7 +20,7 @@ let _dados = { sexo: null, idade: null };
 
 // Definição das abas (id, ícone, label, estado)
 const ABAS = [
-  { id: 'dados',        icone: '<i data-lucide="user"></i>',          label: 'Dados do Paciente', pronta: true },
+  { id: 'dados',        icone: '<i data-lucide="user"></i>',          label: 'Dados do Cliente', pronta: true },
   { id: 'evolucao',     icone: '<i data-lucide="trending-up"></i>',   label: 'Evolução',          pronta: false },
   { id: 'anamnese',     icone: '<i data-lucide="clipboard-list"></i>', label: 'Anamnese geral',    pronta: true },
   { id: 'exames',       icone: '<i data-lucide="flask-conical"></i>', label: 'Exames laboratoriais', pronta: false },
@@ -57,7 +59,7 @@ export async function abrirFichaPaciente(pacienteId, nutriId, onVoltar) {
   const statusLabel = (p.status || 'aguardando');
 
   page.innerHTML = `
-    <span class="ficha-voltar" id="fichaVoltar"><i data-lucide="arrow-left"></i> Voltar para a lista de pacientes</span>
+    <span class="ficha-voltar" id="fichaVoltar"><i data-lucide="arrow-left"></i> Voltar para a lista de clientes</span>
 
     <div class="ficha-head">
       <div class="ficha-avatar">${iniciais(p.nome)}</div>
@@ -70,6 +72,8 @@ export async function abrirFichaPaciente(pacienteId, nutriId, onVoltar) {
         <span class="ficha-badge badge-${statusLabel === 'completo' ? 'ok' : 'wait'}">${statusLabel}</span>
       </div>
     </div>
+
+    ${cardLinks(p)}
 
     <div class="ficha-body">
       <div class="ficha-menu" id="fichaMenu">
@@ -86,6 +90,9 @@ export async function abrirFichaPaciente(pacienteId, nutriId, onVoltar) {
   document.getElementById('fichaVoltar').addEventListener('click', () => {
     if (typeof onVoltar === 'function') onVoltar();
   });
+
+  // Links de acesso (copiar / WhatsApp)
+  ligarLinksAcesso(page, p);
 
   // Navegação entre abas
   document.querySelectorAll('#fichaMenu .fm-item').forEach(item => {
@@ -292,6 +299,60 @@ const fmtData = d => {
   if (!d) return '—';
   try { return new Date(d).toLocaleDateString('pt-BR'); } catch { return '—'; }
 };
+
+// ───────────────────────────────────────────────────────────
+// LINKS DE ACESSO (anamnese + app do aluno) — home fixa na ficha
+// Os links derivam do código do paciente, então ficam sempre disponíveis.
+// ───────────────────────────────────────────────────────────
+function linksDoPaciente(p) {
+  return {
+    anamnese: `${QUESTIONARIO_URL}anamnese.html?p=${p.codigo}`,
+    app:      `${QUESTIONARIO_URL}app.html?codigo=${p.codigo}`,
+  };
+}
+
+function cardLinks(p) {
+  const l = linksDoPaciente(p);
+  return `
+    <div class="ficha-links">
+      <div class="fl-head"><i data-lucide="link"></i> Links de acesso</div>
+      ${linkRow('Anamnese', 'Questionário pré-consulta', l.anamnese, 'anamnese')}
+      ${linkRow('App do aluno', 'Treino + registro de carga', l.app, 'app')}
+    </div>`;
+}
+
+function linkRow(titulo, sub, url, key) {
+  return `
+    <div class="fl-row">
+      <div class="fl-info">
+        <div class="fl-titulo">${titulo} <span class="fl-sub">· ${sub}</span></div>
+        <div class="fl-url">${esc(url)}</div>
+      </div>
+      <div class="fl-acoes">
+        <button class="btn-sm" data-flcopy="${key}"><i data-lucide="copy"></i> Copiar</button>
+        <button class="btn-sm btn-sm-secondary" data-flwa="${key}"><i data-lucide="message-circle"></i> WhatsApp</button>
+      </div>
+    </div>`;
+}
+
+function ligarLinksAcesso(page, p) {
+  const l = linksDoPaciente(p);
+  page.querySelectorAll('[data-flcopy]').forEach(b =>
+    b.addEventListener('click', () => copiarParaClipboard(l[b.dataset.flcopy], '✓ Link copiado')));
+  page.querySelectorAll('[data-flwa]').forEach(b =>
+    b.addEventListener('click', () => {
+      const key = b.dataset.flwa;
+      const msg = key === 'app'
+        ? montarMensagemApp(p.nome, l.app)
+        : montarMensagemQuestionario(p.nome, l.anamnese);
+      window.open(gerarLinkWhatsapp(msg, p.telefone || ''), '_blank');
+    }));
+}
+
+function montarMensagemApp(nome, link) {
+  const primeiro = nome ? nome.split(' ')[0] + ', ' : '';
+  return `Oi ${primeiro}seu treino está no app 💪\n\nAcesse por aqui:\n${link}\n\nÉ só criar sua conta (email e senha) — seu treino já aparece. Dá pra instalar na tela inicial do celular. 🌿`;
+}
 function calcularIdade(nascimento) {
   if (!nascimento) return null;
   const nasc = new Date(nascimento);

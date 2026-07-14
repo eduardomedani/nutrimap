@@ -1,0 +1,20 @@
+{
+  "name": "NutriMap — Aluno",
+  "short_name": "NutriMap",
+  "description": "Seu treino e sua progressão de carga.",
+  "start_url": "/app.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4F1EA",
+  "theme_color": "#2A3A2C",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

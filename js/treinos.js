@@ -14,14 +14,52 @@ import { sb } from './supabase.js';
 // BIBLIOTECA DE EXERCÍCIOS  (exercicios)
 // ───────────────────────────────────────────────────────────
 
-/** Lista todos os exercícios do nutri (alfabético). */
-export async function listarExercicios() {
-  const { data, error } = await sb
+/**
+ * Lista exercícios do nutri (alfabético), com busca e paginação no banco.
+ * Em vez de trazer os 740 e filtrar no navegador, filtra via ilike direto no
+ * Supabase e devolve só a fatia pedida.
+ *
+ *   { termo, limite, offset }
+ *     · termo  — busca por nome OU grupo muscular (ilike, case-insensitive)
+ *     · limite — quantos trazer (default 40)
+ *     · offset — a partir de qual registro (paginação "carregar mais")
+ */
+export async function listarExercicios({ termo = '', limite = 40, offset = 0 } = {}) {
+  let q = sb
     .from('exercicios')
     .select('*')
     .order('nome', { ascending: true });
+
+  const t = String(termo || '').trim();
+  if (t) {
+    // Sanitiza: vírgulas/parênteses/pontos quebram a sintaxe do filtro .or() do PostgREST.
+    const alvo = t.replace(/[,()*.]/g, ' ').trim();
+    const like = `%${alvo}%`;
+    q = q.or(`nome.ilike.${like},grupo_muscular.ilike.${like}`);
+  }
+
+  q = q.range(offset, offset + limite - 1);
+
+  const { data, error } = await q;
   if (error) throw error;
   return data || [];
+}
+
+/**
+ * Resolve um nome digitado/escolhido para o exercício da biblioteca (match
+ * exato case-insensitive). Usado ao adicionar exercício ao treino, já que a
+ * biblioteca inteira não fica mais carregada em memória.
+ */
+export async function buscarExercicioPorNome(nome) {
+  const n = String(nome || '').trim();
+  if (!n) return null;
+  const { data, error } = await sb
+    .from('exercicios')
+    .select('*')
+    .ilike('nome', n)          // sem curingas => casa o nome inteiro, ignorando maiúsc./minúsc.
+    .limit(1);
+  if (error) throw error;
+  return (data && data[0]) || null;
 }
 
 export async function buscarExercicio(id) {

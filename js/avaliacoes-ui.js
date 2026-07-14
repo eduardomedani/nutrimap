@@ -51,7 +51,7 @@ export async function initAvaliacoesUI(nutriId) {
       <h1 class="page-title"><i data-lucide="ruler"></i> <em>Avaliações</em></h1>
       <div class="page-sub">Antropometria, dobras cutâneas e composição corporal</div>
     </div>
-    <div id="avMain"><div class="loading"><div class="spinner"></div>Carregando pacientes...</div></div>
+    <div id="avMain"><div class="loading"><div class="spinner"></div>Carregando clientes...</div></div>
   `;
   try {
     _pacientes = await listarPacientes();
@@ -91,7 +91,7 @@ function renderSelecaoPaciente() {
   const main = document.getElementById('avMain');
   if (!_pacientes.length) {
     main.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="inbox"></i></div>
-      Cadastre um paciente na aba Início antes de criar avaliações.</div>`;
+      Cadastre um cliente na aba Início antes de criar avaliações.</div>`;
     return;
   }
   const opcoes = _pacientes.map(p =>
@@ -102,8 +102,8 @@ function renderSelecaoPaciente() {
       <div class="novo-paciente-header">
         <div class="novo-paciente-icon"><i data-lucide="user"></i></div>
         <div>
-          <div class="novo-paciente-title">Selecione o <em>paciente</em></div>
-          <div class="novo-paciente-sub">A avaliação será vinculada a este paciente</div>
+          <div class="novo-paciente-title">Selecione o <em>cliente</em></div>
+          <div class="novo-paciente-sub">A avaliação será vinculada a este cliente</div>
         </div>
       </div>
       <div class="novo-paciente-form">
@@ -117,7 +117,7 @@ function renderSelecaoPaciente() {
   `;
   document.getElementById('avBtnAbrir').addEventListener('click', async () => {
     const id = document.getElementById('avPacienteSelect').value;
-    if (!id) { mostrarToast('Selecione um paciente'); return; }
+    if (!id) { mostrarToast('Selecione um cliente'); return; }
     _pacienteSel = _pacientes.find(p => p.id === id);
     await abrirPainelPaciente();
   });
@@ -134,7 +134,7 @@ async function abrirPainelPaciente() {
   const semDados = !_dadosBasicos.sexo || !_dadosBasicos.idade;
 
   const aviso = semDados
-    ? `<div class="form-warn"><i data-lucide="triangle-alert"></i> Sexo/idade não encontrados na anamnese deste paciente.
+    ? `<div class="form-warn"><i data-lucide="triangle-alert"></i> Sexo/idade não encontrados na anamnese deste cliente.
         Preencha manualmente no formulário (campos editáveis).</div>`
     : `<div class="form-ok"><i data-lucide="check"></i> Anamnese: ${_dadosBasicos.sexo === 'M' ? 'Masculino' : 'Feminino'},
         ${_dadosBasicos.idade} anos</div>`;

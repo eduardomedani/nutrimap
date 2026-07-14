@@ -135,7 +135,9 @@
   .novo-paciente-title { font-family: 'Nunito', sans-serif; font-size: 20px; color: var(--ink); font-weight: 500; }
   .novo-paciente-title em { color: var(--moss); font-style: italic; }
   .novo-paciente-sub { font-size: 13px; color: var(--ink-mute); margin-top: 2px; }
-  .novo-paciente-form { display: flex; gap: 10px; align-items: stretch; }
+  .novo-paciente-form { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
+  .novo-paciente-form .np-input { min-width: 180px; }
+  .novo-paciente-form .btn { flex: 0 0 auto; white-space: nowrap; }
   .np-input { flex: 1; padding: 13px 18px; background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; font-family: 'Nunito', sans-serif; font-size: 15px; color: var(--ink); transition: border-color 0.2s; }
   .np-input:focus { outline: none; border-color: var(--moss); }
   @media (max-width: 600px) { .novo-paciente-form { flex-direction: column; } }
@@ -164,6 +166,9 @@
   .patient-name { font-size: 16px; font-weight: 600; color: var(--ink); }
   .patient-meta { font-size: 12.5px; color: var(--ink-mute); font-family: 'Nunito', sans-serif; margin-top: 2px; }
   .patient-code { font-family: 'Nunito', sans-serif; font-size: 12px; color: var(--moss); background: var(--cream); padding: 4px 10px; border-radius: 8px; }
+  .patient-code-link { border: 1px solid transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font-weight: 700; letter-spacing: 0.03em; transition: all 0.15s; }
+  .patient-code-link svg { width: 13px; height: 13px; }
+  .patient-code-link:hover { background: var(--moss); color: var(--cream); border-color: var(--moss); }
   .status-tag { font-size: 11px; padding: 4px 12px; border-radius: 100px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; font-family: 'Nunito', sans-serif; }
   .status-completo { background: rgba(135,160,130,0.2); color: var(--moss-deep); }
   .status-aguardando { background: rgba(184,146,74,0.15); color: var(--gold); }
@@ -420,6 +425,17 @@
   .tr-dia-head em { color: var(--moss); font-style: italic; font-weight: 700; }
   .tr-add-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
   .tr-add-row .np-input { flex: 1; min-width: 220px; }
+  /* Autocomplete customizado da biblioteca (substitui o <datalist> nativo, que não é estilizável) */
+  .tr-ac { position: relative; flex: 1; min-width: 220px; }
+  .tr-ac .np-input { width: 100%; }
+  .tr-ac-list { position: absolute; z-index: 60; top: calc(100% + 6px); left: 0; right: 0; background: var(--bg-card); border: 1.5px solid var(--line); border-radius: 14px; box-shadow: 0 12px 34px rgba(60,80,60,0.16); max-height: 288px; overflow-y: auto; padding: 6px; }
+  .tr-ac-list[hidden] { display: none; }
+  .tr-ac-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 10px; cursor: pointer; color: var(--ink); transition: background 0.12s; }
+  .tr-ac-item.active { background: var(--bg-warm); }
+  .tr-ac-nome { font-size: 14px; font-weight: 600; }
+  .tr-ac-nome mark { background: rgba(184,146,74,0.28); color: inherit; border-radius: 3px; padding: 0 1px; }
+  .tr-ac-grupo { font-size: 11.5px; color: var(--ink-mute); white-space: nowrap; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+  .tr-ac-empty { padding: 14px 12px; text-align: center; color: var(--ink-mute); font-size: 13px; }
   .tr-ex-list { display: flex; flex-direction: column; gap: 12px; }
   .tr-ex-card { margin-top: 0; padding: 16px 18px; box-shadow: none; border: 1px solid var(--line); border-radius: 14px; transition: border-color 0.15s; }
   .tr-ex-card:hover { border-color: var(--sage); }
@@ -537,6 +553,16 @@
   .ficha-badge.badge-ok { background: rgba(135,160,130,0.2); color: var(--moss-deep); }
   .ficha-badge.badge-wait { background: rgba(201,164,92,0.2); color: #8A6D2A; }
   .ficha-badge.badge-cod { background: var(--bg); color: var(--ink-soft); border: 1px solid var(--line); }
+  /* Card "Links de acesso" da ficha */
+  .ficha-links { background: var(--bg-card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 18px; box-shadow: var(--shadow); margin-bottom: 16px; }
+  .ficha-links .fl-head { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--moss-deep); margin-bottom: 6px; }
+  .ficha-links .fl-head svg { width: 16px; height: 16px; color: var(--moss); }
+  .fl-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--line); }
+  .fl-info { flex: 1; min-width: 220px; }
+  .fl-titulo { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+  .fl-sub { font-weight: 500; color: var(--ink-mute); }
+  .fl-url { font-size: 12.5px; color: var(--ink-soft); word-break: break-all; margin-top: 2px; }
+  .fl-acoes { display: flex; gap: 8px; flex-shrink: 0; }
   .ficha-body { display: grid; grid-template-columns: 230px 1fr; gap: 16px; align-items: start; }
   .ficha-menu { background: var(--bg-card); border: 1px solid var(--line); border-radius: 16px; padding: 8px; box-shadow: var(--shadow); }
   .fm-item { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border-radius: 10px; font-size: 13.5px; font-weight: 600; color: var(--ink-soft); cursor: pointer; transition: all 0.15s; margin-bottom: 2px; white-space: nowrap; }
@@ -588,7 +614,7 @@
       <div class="brand-name-large">Nutri<em>Map</em></div>
     </div>
     <div class="auth-title" id="authTitle">Acesse sua conta</div>
-    <div class="auth-sub" id="authSub">Entre para gerenciar seus pacientes</div>
+    <div class="auth-sub" id="authSub">Entre para gerenciar seus clientes</div>
     <div class="auth-tabs">
       <div class="auth-tab active" id="tabLogin">Entrar</div>
       <div class="auth-tab" id="tabSignup">Criar conta</div>
@@ -608,7 +634,7 @@
       <div class="form-error" id="errorSignup"></div>
       <div class="form-success" id="successSignup"></div>
     </form>
-    <div class="auth-footer"><i data-lucide="lock"></i> Seus dados ficam isolados — só você acessa seus pacientes</div>
+    <div class="auth-footer"><i data-lucide="lock"></i> Seus dados ficam isolados — só você acessa seus clientes</div>
   </div>
 </div>
 
@@ -632,8 +658,9 @@
       <div class="nav-group">
         <div class="nav-group-title">Início</div>
         <div class="nav-item active" data-page="inicio"><span class="nav-icon"><i data-lucide="house"></i></span><span>Início</span></div>
-        <div class="nav-item" data-page="pacientes"><span class="nav-icon"><i data-lucide="users"></i></span><span>Pacientes</span></div>
+        <div class="nav-item" data-page="pacientes"><span class="nav-icon"><i data-lucide="users"></i></span><span>Clientes</span></div>
         <div class="nav-item" data-page="exercicios"><span class="nav-icon"><i data-lucide="dumbbell"></i></span><span>Exercícios</span></div>
+        <div class="nav-item" data-page="treinos"><span class="nav-icon"><i data-lucide="list-checks"></i></span><span>Treinos</span></div>
       </div>
       <div class="nav-group">
         <div class="nav-group-title">Análise</div>
@@ -669,7 +696,7 @@
         <div class="page-sub">Visão geral do seu consultório no NutriMap</div>
       </div>
       <div class="stats-row">
-        <div class="stat-card"><div class="stat-value" id="stat-total">—</div><div class="stat-label">Total pacientes</div></div>
+        <div class="stat-card"><div class="stat-value" id="stat-total">—</div><div class="stat-label">Total clientes</div></div>
         <div class="stat-card"><div class="stat-value" id="stat-completos">—</div><div class="stat-label">Completos</div></div>
         <div class="stat-card"><div class="stat-value" id="stat-aguardando">—</div><div class="stat-label">Aguardando</div></div>
         <div class="stat-card"><div class="stat-value" id="stat-taxa">—</div><div class="stat-label">Taxa conclusão</div></div>
@@ -679,21 +706,23 @@
     <!-- ANAMNESE -->
     <div class="module-page" id="page-pacientes">
       <div class="page-header">
-        <h1 class="page-title"><i data-lucide="users"></i> <em>Pacientes</em></h1>
-        <div class="page-sub">Selecione um paciente para abrir a ficha completa</div>
+        <h1 class="page-title"><i data-lucide="users"></i> <em>Clientes</em></h1>
+        <div class="page-sub">Selecione um cliente para abrir a ficha completa</div>
       </div>
 
       <div class="novo-paciente-card">
         <div class="novo-paciente-header">
           <div class="novo-paciente-icon"><i data-lucide="user-plus"></i></div>
           <div>
-            <div class="novo-paciente-title">Cadastrar <em>novo paciente</em></div>
-            <div class="novo-paciente-sub">Gere um código único e envie o link da anamnese</div>
+            <div class="novo-paciente-title">Cadastrar <em>novo cliente</em></div>
+            <div class="novo-paciente-sub">Preencha os dados e gere o código de acesso (anamnese e app)</div>
           </div>
         </div>
         <div class="novo-paciente-form">
-          <input type="text" id="novoPacienteNome" placeholder="Nome do paciente (opcional)" class="np-input" />
-          <button class="btn primary" id="btnGerar">Gerar código <i data-lucide="arrow-right"></i></button>
+          <input type="text"  id="novoPacienteNome"     placeholder="Nome do cliente" class="np-input" />
+          <input type="email" id="novoPacienteEmail"    placeholder="Email (opcional)" class="np-input" autocomplete="off" />
+          <input type="tel"   id="novoPacienteTelefone" placeholder="WhatsApp (opcional)" class="np-input" autocomplete="off" />
+          <button class="btn primary" id="btnGerar">Cadastrar cliente <i data-lucide="arrow-right"></i></button>
         </div>
         <div class="novo-paciente-result" id="resultGerado" style="display: none;">
           <div class="np-result-header"><span class="np-result-label"><i data-lucide="check"></i> Código gerado</span><span class="np-result-code" id="resultCode">—</span></div>
@@ -707,10 +736,10 @@
       </div>
 
       <div class="list-header">
-        <div class="list-title">Seus <em>pacientes</em></div>
+        <div class="list-title">Seus <em>clientes</em></div>
         <div class="search-box"><i data-lucide="search"></i> <input type="text" id="searchInput" placeholder="Buscar por nome ou código..." /></div>
       </div>
-      <div id="patientsContainer"><div class="loading"><div class="spinner"></div>Carregando pacientes...</div></div>
+      <div id="patientsContainer"><div class="loading"><div class="spinner"></div>Carregando clientes...</div></div>
     </div>
 
     <!-- BIBLIOTECA DE EXERCÍCIOS (montada por js/exercicios-ui.js) -->
@@ -718,21 +747,26 @@
       <div class="loading"><div class="spinner"></div>Carregando...</div>
     </div>
 
+    <!-- BIBLIOTECA DE TREINOS / MODELOS (montada por js/treinos-ui.js) -->
+    <div class="module-page" id="page-treinos">
+      <div class="loading"><div class="spinner"></div>Carregando...</div>
+    </div>
+
     <!-- EM BREVE -->
     <div class="module-page" id="page-plano-alimentar">
-      <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="salad"></i></div><div class="em-breve-titulo">Plano Alimentar</div><div class="em-breve-sub">Monte planos alimentares personalizados, com cálculo de macros, lista de substituições e exportação em PDF para entregar ao paciente.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
+      <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="salad"></i></div><div class="em-breve-titulo">Plano Alimentar</div><div class="em-breve-sub">Monte planos alimentares personalizados, com cálculo de macros, lista de substituições e exportação em PDF para entregar ao cliente.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
     </div>
     <div class="module-page" id="page-plano-ia">
-      <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="sparkles"></i></div><div class="em-breve-titulo">Plano Alimentar com IA</div><div class="em-breve-sub">Gere automaticamente um plano alimentar com base nas respostas do paciente, patologias, cronotipo e objetivos — pronto para você revisar e ajustar.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
+      <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="sparkles"></i></div><div class="em-breve-titulo">Plano Alimentar com IA</div><div class="em-breve-sub">Gere automaticamente um plano alimentar com base nas respostas do cliente, patologias, cronotipo e objetivos — pronto para você revisar e ajustar.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
     </div>
     <div class="module-page" id="page-avaliacoes">
       <div class="loading"><div class="spinner"></div>Carregando...</div>
     </div>
     <div class="module-page" id="page-evolucao">
-      <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="chart-column"></i></div><div class="em-breve-titulo">Evolução</div><div class="em-breve-sub">Acompanhe a evolução de cada paciente ao longo do tempo: peso, medidas, exames e adesão ao plano.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
+      <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="chart-column"></i></div><div class="em-breve-titulo">Evolução</div><div class="em-breve-sub">Acompanhe a evolução de cada cliente ao longo do tempo: peso, medidas, exames e adesão ao plano.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
     </div>
     <div class="module-page" id="page-documentos">
-      <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="paperclip"></i></div><div class="em-breve-titulo">Documentos</div><div class="em-breve-sub">Armazene exames, laudos, atestados e prescrições. Tudo seguro, organizado por paciente e acessível de qualquer lugar.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
+      <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="paperclip"></i></div><div class="em-breve-titulo">Documentos</div><div class="em-breve-sub">Armazene exames, laudos, atestados e prescrições. Tudo seguro, organizado por cliente e acessível de qualquer lugar.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
     </div>
     <div class="module-page" id="page-ia">
       <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="bot"></i></div><div class="em-breve-titulo">IA Nutricional</div><div class="em-breve-sub">Análise automática de recordatórios alimentares, sugestão de planos baseados em cronotipo e patologias, e relatórios inteligentes.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
@@ -744,7 +778,7 @@
       <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="wallet"></i></div><div class="em-breve-titulo">Financeiro</div><div class="em-breve-sub">Controle suas cobranças, recebimentos e relatórios financeiros. Integração com Pix e cartão.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
     </div>
     <div class="module-page" id="page-materiais">
-      <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="book-open"></i></div><div class="em-breve-titulo">Materiais</div><div class="em-breve-sub">Biblioteca de materiais educativos, e-books, vídeos e receitas para compartilhar com seus pacientes.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
+      <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="book-open"></i></div><div class="em-breve-titulo">Materiais</div><div class="em-breve-sub">Biblioteca de materiais educativos, e-books, vídeos e receitas para compartilhar com seus clientes.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
     </div>
     <div class="module-page" id="page-configuracoes">
       <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="settings"></i></div><div class="em-breve-titulo">Configurações</div><div class="em-breve-sub">Configure seus dados profissionais, foto, especialidades, mensagens automáticas e preferências do sistema.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
@@ -785,11 +819,20 @@
     if (pagina === 'exercicios') {
       abrirExercicios().catch(console.error);
     }
+    if (pagina === 'treinos') {
+      abrirTreinosBiblioteca().catch(console.error);
+    }
   }
 
   async function abrirExercicios() {
     const sessao = await obterSessao();
     await initExerciciosUI(sessao?.user?.id);
+  }
+
+  async function abrirTreinosBiblioteca() {
+    const sessao = await obterSessao();
+    const { initBibliotecaTreinos } = await import('./js/treinos-ui.js');
+    await initBibliotecaTreinos(sessao?.user?.id, 'page-treinos');
   }
 
   document.querySelectorAll('.nav-item').forEach(item => {
@@ -814,7 +857,7 @@
     document.getElementById('formLogin').style.display = aba === 'login' ? 'block' : 'none';
     document.getElementById('formSignup').style.display = aba === 'signup' ? 'block' : 'none';
     document.getElementById('authTitle').textContent = aba === 'login' ? 'Acesse sua conta' : 'Crie sua conta';
-    document.getElementById('authSub').textContent = aba === 'login' ? 'Entre para gerenciar seus pacientes' : 'Comece a usar o NutriMap';
+    document.getElementById('authSub').textContent = aba === 'login' ? 'Entre para gerenciar seus clientes' : 'Comece a usar o NutriMap';
   }
   document.getElementById('tabLogin').addEventListener('click', () => trocarAba('login'));
   document.getElementById('tabSignup').addEventListener('click', () => trocarAba('signup'));
@@ -908,7 +951,7 @@
 
   async function carregarPacientes() {
     const container = document.getElementById('patientsContainer');
-    if (container) container.innerHTML = '<div class="loading"><div class="spinner"></div>Carregando pacientes...</div>';
+    if (container) container.innerHTML = '<div class="loading"><div class="spinner"></div>Carregando clientes...</div>';
     try {
       todosPacientes = await listarPacientes();
       renderizarEstatisticas();
@@ -931,16 +974,12 @@
     const container = document.getElementById('patientsContainer');
     if (!container) return;
     if (lista.length === 0) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i data-lucide="inbox"></i></div>Você ainda não tem pacientes. Cadastre o primeiro no Início!</div>';
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i data-lucide="inbox"></i></div>Você ainda não tem clientes. Cadastre o primeiro no Início!</div>';
       return;
     }
     container.innerHTML = '<div class="patients-grid">' + lista.map(p => {
       const status = p.status || 'aguardando';
-      const podeAbrir = status === 'completo';
-      const acaoPrincipal = podeAbrir
-        ? `<button class="patient-action primary" data-action="ver" data-id="${p.id}"><i data-lucide="eye"></i> Ver</button>`
-        : `<button class="patient-action" data-action="link" data-codigo="${p.codigo}"><i data-lucide="link"></i> Link</button>`;
-      return `<div class="patient-row"><div class="patient-avatar">${iniciaisDoNome(p.nome)}</div><div class="patient-info"><div class="patient-name">${p.nome || '(sem nome)'}</div><div class="patient-meta">Criado em ${formatarData(p.criado_em)}</div></div><span class="patient-code">${p.codigo}</span><span class="status-tag status-${status}">${status}</span>${acaoPrincipal}<button class="patient-action patient-action-danger" data-action="excluir" data-id="${p.id}" data-nome="${(p.nome || p.codigo).replace(/"/g, '&quot;')}"><i data-lucide="trash-2"></i></button></div>`;
+      return `<div class="patient-row"><div class="patient-avatar">${iniciaisDoNome(p.nome)}</div><div class="patient-info"><div class="patient-name">${p.nome || '(sem nome)'}</div><div class="patient-meta">Criado em ${formatarData(p.criado_em)}</div></div><button class="patient-code patient-code-link" data-action="link" data-codigo="${p.codigo}" title="Copiar link da anamnese"><i data-lucide="link"></i> ${p.codigo}</button><span class="status-tag status-${status}">${status}</span><button class="patient-action primary" data-action="ver" data-id="${p.id}" title="Abrir e editar o cadastro"><i data-lucide="eye"></i> Ver</button><button class="patient-action" data-action="app" data-codigo="${p.codigo}" title="Copiar link de acesso ao app do aluno"><i data-lucide="smartphone"></i> App</button><button class="patient-action patient-action-danger" data-action="excluir" data-id="${p.id}" data-nome="${(p.nome || p.codigo).replace(/"/g, '&quot;')}"><i data-lucide="trash-2"></i></button></div>`;
     }).join('') + '</div>';
 
     container.querySelectorAll('[data-action]').forEach(btn => {
@@ -949,6 +988,7 @@
         const action = btn.dataset.action;
         if (action === 'ver') abrirRelatorio(btn.dataset.id);
         else if (action === 'link') copiarLinkPaciente(btn.dataset.codigo);
+        else if (action === 'app') copiarLinkApp(btn.dataset.codigo);
         else if (action === 'excluir') confirmarExclusao(btn.dataset.id, btn.dataset.nome);
       });
     });
@@ -966,22 +1006,26 @@
   document.getElementById('btnGerar').addEventListener('click', async () => {
     const btn = document.getElementById('btnGerar');
     const nomeInput = document.getElementById('novoPacienteNome');
+    const emailInput = document.getElementById('novoPacienteEmail');
+    const telInput = document.getElementById('novoPacienteTelefone');
     const nome = nomeInput.value.trim();
-    btn.disabled = true; btn.textContent = 'Gerando...';
+    const email = emailInput.value.trim();
+    const telefone = telInput.value.trim();
+    btn.disabled = true; btn.textContent = 'Cadastrando...';
     try {
-      const paciente = await criarPaciente({ nome });
+      const paciente = await criarPaciente({ nome, email, telefone });
       const linkCompleto = QUESTIONARIO_URL + 'anamnese.html?p=' + paciente.codigo;
       ultimoCodigoGerado = { codigo: paciente.codigo, link: linkCompleto, nome };
       document.getElementById('resultCode').textContent = paciente.codigo;
       document.getElementById('resultLink').textContent = linkCompleto;
       document.getElementById('resultGerado').style.display = 'block';
-      nomeInput.value = '';
+      nomeInput.value = ''; emailInput.value = ''; telInput.value = '';
       setTimeout(carregarPacientes, 300);
     } catch (e) {
       console.error(e);
       alert('Erro ao gerar código: ' + e.message);
     } finally {
-      btn.disabled = false; btn.innerHTML = 'Gerar código <i data-lucide="arrow-right"></i>';
+      btn.disabled = false; btn.innerHTML = 'Cadastrar cliente <i data-lucide="arrow-right"></i>';
     }
   });
 
@@ -1002,11 +1046,18 @@
     copiarParaClipboard(link, '✓ Link copiado: ' + codigo);
   }
 
+  // Link de acesso ao APP do aluno. O código vai embutido: ao abrir e criar a
+  // conta, o vínculo com o cadastro do paciente acontece automaticamente.
+  function copiarLinkApp(codigo) {
+    const link = QUESTIONARIO_URL + 'app.html?codigo=' + codigo;
+    copiarParaClipboard(link, '✓ Link do app copiado: ' + codigo);
+  }
+
   async function confirmarExclusao(id, nome) {
-    if (!confirm(`⚠️ Excluir o paciente "${nome}"?\n\nTodos os dados serão apagados permanentemente.`)) return;
+    if (!confirm(`⚠️ Excluir o cliente "${nome}"?\n\nTodos os dados serão apagados permanentemente.`)) return;
     try {
       await excluirPaciente(id);
-      mostrarToast('✓ Paciente excluído');
+      mostrarToast('✓ Cliente excluído');
       await carregarPacientes();
     } catch (e) { alert('Erro: ' + e.message); }
   }

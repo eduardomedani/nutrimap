@@ -10,9 +10,23 @@ import {
 import { mostrarToast } from './utils.js';
 
 let _nutriId = null;
-let _exercicios = [];
-let _filtro = '';
-let _editandoId = null;   // id do exercício em edição (ou null = novo)
+let _exercicios = [];      // acumulado na tela (cresce a cada "carregar mais")
+let _termo = '';           // termo de busca atual
+let _offset = 0;           // próximo registro a pedir ao banco
+let _temMais = false;      // se o último lote veio cheio (pode haver mais)
+let _carregando = false;   // trava contra requisições concorrentes
+let _editandoId = null;    // id do exercício em edição (ou null = novo)
+
+const PAGINA = 40;         // itens por lote
+
+// Debounce simples: só dispara `fn` depois de `ms` sem novas chamadas.
+function debounce(fn, ms) {
+  let t = null;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), ms);
+  };
+}
 
 // Sugestões (datalist) — texto livre continua permitido
 const GRUPOS = [
@@ -30,7 +44,10 @@ const EQUIPAMENTOS = [
 // ───────────────────────────────────────────────────────────
 export async function initExerciciosUI(nutriId) {
   _nutriId = nutriId;
-  _filtro = '';
+  _termo = '';
+  _offset = 0;
+  _exercicios = [];
+  _temMais = false;
   _editandoId = null;
   const page = document.getElementById('page-exercicios');
   if (!page) return;
@@ -57,21 +74,43 @@ export async function initExerciciosUI(nutriId) {
   `;
 
   document.getElementById('exBtnNovo').addEventListener('click', () => abrirForm(null));
-  document.getElementById('exSearch').addEventListener('input', (e) => {
-    _filtro = e.target.value.trim().toLowerCase();
-    renderLista();
-  });
 
-  await carregar();
+  // Debounce: espera ~300ms sem digitar antes de consultar o banco.
+  const buscar = debounce(() => {
+    _termo = document.getElementById('exSearch').value.trim();
+    recarregar();
+  }, 300);
+  document.getElementById('exSearch').addEventListener('input', buscar);
+
+  await recarregar();
 }
 
-async function carregar() {
+// Zera a paginação e carrega o primeiro lote (usado no init, na busca e após CRUD).
+async function recarregar() {
+  _offset = 0;
+  _exercicios = [];
+  _temMais = false;
+  await carregarPagina(true);
+}
+
+// Busca um lote no banco e acrescenta ao acumulado. `primeira` = mostra spinner e substitui.
+async function carregarPagina(primeira = false) {
+  if (_carregando) return;
+  _carregando = true;
   const cont = document.getElementById('exContainer');
+  if (primeira && cont) {
+    cont.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando exercícios...</div>`;
+  }
   try {
-    _exercicios = await listarExercicios();
+    const lote = await listarExercicios({ termo: _termo, limite: PAGINA, offset: _offset });
+    _exercicios = primeira ? lote : _exercicios.concat(lote);
+    _offset += lote.length;
+    _temMais = lote.length === PAGINA;   // lote cheio => provavelmente há mais
     renderLista();
   } catch (e) {
-    cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro ao carregar: ${esc(e.message)}</div>`;
+    if (cont) cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro ao carregar: ${esc(e.message)}</div>`;
+  } finally {
+    _carregando = false;
   }
 }
 
@@ -82,24 +121,30 @@ function renderLista() {
   const cont = document.getElementById('exContainer');
   if (!cont) return;
 
+  // _exercicios já vem filtrado pelo banco — nada de filtrar no navegador aqui.
   if (!_exercicios.length) {
-    cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="inbox"></i></div>
-      Nenhum exercício cadastrado ainda. Clique em <strong>Novo exercício</strong> para começar.</div>`;
+    cont.innerHTML = _termo
+      ? `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="search-x"></i></div>
+          Nenhum exercício encontrado para "<strong>${esc(_termo)}</strong>".</div>`
+      : `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="inbox"></i></div>
+          Nenhum exercício cadastrado ainda. Clique em <strong>Novo exercício</strong> para começar.</div>`;
     return;
   }
 
-  const lista = _exercicios.filter(ex => {
-    if (!_filtro) return true;
-    return (`${ex.nome || ''} ${ex.grupo_muscular || ''}`).toLowerCase().includes(_filtro);
+  const maisBtn = _temMais
+    ? `<div style="text-align:center; margin-top:16px;">
+         <button class="btn" id="exCarregarMais"><i data-lucide="chevron-down"></i> Carregar mais</button>
+       </div>`
+    : '';
+
+  cont.innerHTML = `<div class="patients-grid">${_exercicios.map(rowHtml).join('')}</div>${maisBtn}`;
+
+  const maisEl = document.getElementById('exCarregarMais');
+  if (maisEl) maisEl.addEventListener('click', async () => {
+    maisEl.disabled = true;
+    maisEl.innerHTML = 'Carregando...';
+    await carregarPagina(false);
   });
-
-  if (!lista.length) {
-    cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="search-x"></i></div>
-      Nenhum exercício encontrado para "<strong>${esc(_filtro)}</strong>".</div>`;
-    return;
-  }
-
-  cont.innerHTML = `<div class="patients-grid">${lista.map(rowHtml).join('')}</div>`;
 
   cont.querySelectorAll('[data-ex-edit]').forEach(b =>
     b.addEventListener('click', () => abrirForm(_exercicios.find(x => x.id === b.dataset.exEdit))));
@@ -199,7 +244,7 @@ async function salvar() {
     else await criarExercicio(_nutriId, dados);
     mostrarToast('✓ Exercício salvo');
     document.getElementById('exFormWrap').innerHTML = '';
-    await carregar();
+    await recarregar();
   } catch (e) {
     alert('Erro ao salvar: ' + e.message);
     btn.disabled = false; btn.innerHTML = orig;
@@ -211,7 +256,7 @@ async function remover(id, nome) {
   try {
     await excluirExercicio(id);
     mostrarToast('✓ Exercício excluído');
-    await carregar();
+    await recarregar();
   } catch (e) {
     // FK restrict: exercício em uso por algum treino
     const emUso = /foreign key|violates|restrict/i.test(e.message || '');
