@@ -19,24 +19,42 @@
 <script src="https://unpkg.com/lucide@latest"></script>
 <script>
   // Re-renderiza os ícones Lucide sempre que o DOM muda (conteúdo dinâmico).
+  //
+  // createIcons() troca o nó do ícone e deixa o data-lucide no <svg> que criou,
+  // então ele se reprocessa sem parar — e cada troca é uma mutação que
+  // reagenda o próprio observer. Um <svg> novo por frame quebra o clique: se o
+  // nó muda entre mousedown e mouseup, o browser não dispara "click".
+  // Desconectar durante a escrita + tirar o atributo encerra o ciclo.
   let _iconRaf = null;
+  const _iconObs = new MutationObserver(renderIcons);
+  function observarIcones() {
+    _iconObs.observe(document.documentElement, { childList: true, subtree: true });
+  }
   function renderIcons() {
     if (!window.lucide) return;
     if (_iconRaf) return;
-    _iconRaf = requestAnimationFrame(() => { _iconRaf = null; try { window.lucide.createIcons(); } catch (e) {} });
+    _iconRaf = requestAnimationFrame(() => {
+      _iconRaf = null;
+      _iconObs.disconnect();
+      try {
+        window.lucide.createIcons();
+        document.querySelectorAll('svg[data-lucide]').forEach(el => el.removeAttribute('data-lucide'));
+      } catch (e) {}
+      observarIcones();
+    });
   }
   document.addEventListener('DOMContentLoaded', renderIcons);
-  new MutationObserver(renderIcons).observe(document.documentElement, { childList: true, subtree: true });
+  observarIcones();
 </script>
 
 <style>
   :root {
-    --bg: #F4F1EA; --bg-card: #FDFBF7; --bg-warm: #EDE7D8;
+    --bg: #F7F6F2; --bg-card: #FFFFFF; --bg-warm: #EDE7D8;
     --ink: #1A1F1B; --ink-soft: #4A524C; --ink-mute: #8A8F89;
     --moss: #3D4D3F; --moss-deep: #2A3A2C; --moss-light: #5C6E5E;
     --olive: #5C6B47; --sage: #87A082; --gold: #B8924A;
-    --cream: #F8F1DD; --line: #DDD6C5;
-    --shadow: 0 4px 20px rgba(60,80,60,0.07);
+    --cream: #F8F1DD; --line: #E8E8E8; --hair: rgba(26,31,27,0.07);
+    --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 6px 16px rgba(0,0,0,0.05);
     --radius: 16px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -54,6 +72,8 @@
   em { font-style: italic; }
   a { color: inherit; }
   input, select, button { font-family: inherit; }
+  /* Ícones minimalistas: traço mais fino em todo o app do aluno. */
+  svg.lucide { stroke-width: 1.6; }
 
   /* ── Boot / carregando ── */
   .pa-boot { min-height: 80vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; text-align: center; color: var(--ink-soft); padding: 24px; }
@@ -77,7 +97,7 @@
   .pa-tab.active { background: var(--moss); color: var(--cream); }
 
   .pa-label { display: block; font-size: 12px; font-weight: 600; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; margin: 14px 0 6px; }
-  .pa-input { width: 100%; padding: 13px 15px; background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; font-size: 16px; color: var(--ink); transition: border-color 0.2s; }
+  .pa-input { width: 100%; padding: 13px 15px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; font-size: 16px; color: var(--ink); transition: border-color 0.2s; }
   .pa-input:focus { outline: none; border-color: var(--moss); }
   .pa-codigo { text-transform: uppercase; letter-spacing: 0.14em; font-weight: 700; text-align: center; font-size: 20px; }
 
@@ -112,40 +132,117 @@
   .pa-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 4px 8px; background: none; border: none; cursor: pointer; color: var(--ink-mute); font-size: 11px; font-weight: 700; font-family: inherit; transition: color 0.15s; }
   .pa-nav-item svg { width: 21px; height: 21px; }
   .pa-nav-item.active { color: var(--moss); }
-  .pa-treino-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
-  .pa-treino-nome { font-size: 24px; font-weight: 600; color: var(--moss-deep); line-height: 1.15; }
-  .pa-treino-meta { font-size: 13px; color: var(--ink-mute); margin-top: 3px; }
-  .pa-select { padding: 9px 12px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--bg-card); font-size: 13.5px; color: var(--ink); max-width: 48%; }
+  .pa-select { padding: 9px 12px; border: 1px solid var(--hair); border-radius: 10px; background: var(--bg-card); font-size: 13.5px; color: var(--ink); max-width: 100%; }
 
-  .pa-dias { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 18px; -webkit-overflow-scrolling: touch; }
-  .pa-dia { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--bg-card); color: var(--ink-soft); font-size: 17px; font-weight: 700; cursor: pointer; transition: all 0.18s; }
+  /* ── Hero: tela inicial do treino do dia ── */
+  .pa-hero { background: linear-gradient(150deg, var(--bg-card) 0%, #EEF2EB 100%); border-radius: 20px; padding: 20px 20px 17px; margin-bottom: 18px; box-shadow: var(--shadow); }
+  .pa-hero-hi { font-size: 13.5px; font-weight: 600; color: var(--ink-soft); }
+  .pa-hero-title { font-size: 27px; font-weight: 800; color: var(--moss-deep); line-height: 1.08; letter-spacing: -0.015em; margin-top: 2px; }
+  .pa-hero-sel { margin-top: 11px; }
+  .pa-hero-bar { margin-top: 17px; height: 7px; border-radius: 100px; background: #E4E7E0; overflow: hidden; }
+  .pa-hero-bar > span { display: block; height: 100%; border-radius: 100px; background: linear-gradient(90deg, var(--moss), var(--sage)); transition: width 0.5s cubic-bezier(.4,0,.2,1); }
+  .pa-hero-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 11px; font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+  .pa-hero-count b { color: var(--moss-deep); font-weight: 800; }
+  .pa-hero-time { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-mute); }
+  .pa-hero-time svg { width: 14px; height: 14px; }
+
+  /* ── Indicadores de evolução (topo): sequência + recordes ── */
+  .pa-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .pa-stat { background: var(--bg-card); border: 1px solid var(--hair); border-radius: 16px; padding: 14px 15px; box-shadow: var(--shadow); }
+  .pa-stat-top { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--ink-mute); }
+  .pa-stat-ic { font-size: 15px; line-height: 1; }
+  .pa-stat-val { margin-top: 7px; font-size: 23px; font-weight: 800; color: var(--moss-deep); line-height: 1; letter-spacing: -0.01em; }
+  .pa-stat-val small { font-size: 13px; font-weight: 700; color: var(--ink-soft); margin-left: 3px; }
+
+  /* ── Tela de seleção de dia (lista) ── */
+  .pa-hero-sub { margin-top: 8px; font-size: 13.5px; font-weight: 600; color: var(--ink-soft); }
+  .pa-hero-sub b { color: var(--moss-deep); font-weight: 800; }
+  .pa-lista-sel { margin-bottom: 14px; }
+  .pa-diacards { display: flex; flex-direction: column; gap: 11px; }
+  .pa-diacard { display: flex; align-items: center; gap: 13px; width: 100%; text-align: left; background: var(--bg-card); border: 1px solid var(--hair); border-radius: 16px; padding: 13px 14px; box-shadow: var(--shadow); cursor: pointer; font-family: inherit; transition: transform 0.15s, box-shadow 0.2s, border-color 0.2s; }
+  .pa-diacard:hover { transform: translateY(-1px); }
+  .pa-diacard.prox { border-color: var(--sage); background: linear-gradient(150deg, var(--bg-card) 0%, #EEF3EC 100%); }
+
+  /* Card em destaque: o treino "PRÓXIMO" — principal ação da tela */
+  .pa-diacard.featured { display: block; padding: 16px 16px 15px; cursor: default; border: 1.5px solid var(--sage); background: linear-gradient(155deg, #FCFEFB 0%, #E9F1E6 100%); box-shadow: 0 2px 4px rgba(60,77,63,0.05), 0 12px 26px rgba(60,77,63,0.11); }
+  .pa-diacard.featured:hover { transform: none; }
+  .pa-dc-head { display: flex; align-items: center; gap: 13px; }
+  .pa-dc-headtext { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+  .pa-diacard.featured .pa-dc-nome { font-size: 18px; }
+  .pa-dc-info { margin-top: 14px; }
+  .pa-dc-grupos { font-size: 13px; font-weight: 700; color: var(--moss-deep); line-height: 1.35; }
+  .pa-dc-conta { margin-top: 3px; font-size: 12.5px; font-weight: 600; color: var(--ink-mute); }
+  .pa-dc-cta { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; margin-top: 16px; padding: 13px; border: none; border-radius: 13px; background: var(--moss); color: var(--cream); font-family: inherit; font-size: 14.5px; font-weight: 800; cursor: pointer; transition: background 0.2s, transform 0.15s; }
+  .pa-dc-cta:hover { background: var(--moss-deep); transform: translateY(-1px); }
+  .pa-dc-cta svg { width: 17px; height: 17px; }
+
+  .pa-dc-letra { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 13px; background: var(--cream); color: var(--moss-deep); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; }
+  .pa-diacard.prox .pa-dc-letra { background: var(--moss); color: var(--cream); }
+  .pa-dc-body { flex: 1 1 auto; min-width: 0; }
+  .pa-dc-top { display: flex; align-items: center; gap: 8px; }
+  .pa-dc-nome { font-size: 16px; font-weight: 800; color: var(--ink); }
+  .pa-dc-sub { display: block; margin-top: 3px; font-size: 12.5px; font-weight: 600; color: var(--ink-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pa-dc-badge { flex: 0 0 auto; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 3px 8px; border-radius: 100px; white-space: nowrap; }
+  .pa-dc-badge.prox { background: var(--moss); color: var(--cream); }
+  .pa-dc-badge.feito { background: rgba(135,160,130,0.18); color: var(--moss-deep); }
+  .pa-dc-arrow { flex: 0 0 auto; color: var(--ink-mute); display: flex; }
+  .pa-dc-arrow svg { width: 20px; height: 20px; }
+
+  /* ── Página do treino: voltar + finalizar ── */
+  .pa-back { display: inline-flex; align-items: center; gap: 3px; background: none; border: none; color: var(--ink-mute); font-size: 13.5px; font-weight: 700; font-family: inherit; cursor: pointer; padding: 4px 8px 4px 2px; margin-bottom: 10px; border-radius: 8px; }
+  .pa-back svg { width: 18px; height: 18px; }
+  .pa-back:hover { color: var(--moss); }
+  .pa-finalizar { margin-top: 18px; }
+
+  .pa-dias { display: flex; gap: 9px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 20px; -webkit-overflow-scrolling: touch; }
+  .pa-dia { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 14px; border: 1px solid var(--hair); background: var(--bg-card); color: var(--ink-soft); font-size: 17px; font-weight: 700; cursor: pointer; transition: all 0.18s; }
   .pa-dia.active { background: var(--moss); color: var(--cream); border-color: var(--moss); box-shadow: var(--shadow); }
 
-  .pa-ex { background: var(--bg-card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 14px; box-shadow: var(--shadow); }
-  .pa-ex-top { display: flex; align-items: center; gap: 12px; }
-  .pa-ex-num { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; background: var(--cream); color: var(--moss-deep); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }
-  .pa-ex-nome { font-size: 17px; font-weight: 700; color: var(--ink); line-height: 1.2; }
-  .pa-ex-grupo { font-size: 11.5px; color: var(--moss); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-top: 2px; }
+  /* ── Card de exercício ── */
+  .pa-ex { background: var(--bg-card); border: 1px solid var(--hair); border-radius: var(--radius); padding: 16px 16px; margin-bottom: 14px; box-shadow: var(--shadow); }
 
-  .pa-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
-  .pa-chip { display: inline-flex; align-items: center; gap: 5px; background: var(--bg-warm); color: var(--ink-soft); padding: 5px 11px; border-radius: 100px; font-size: 13px; font-weight: 600; }
-  .pa-chip svg { width: 14px; height: 14px; color: var(--moss); }
+  /* 1 · Cabeçalho */
+  .pa-ex-top { display: flex; align-items: flex-start; gap: 12px; }
+  .pa-ex-num { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; background: var(--cream); color: var(--moss-deep); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; margin-top: 1px; }
+  .pa-ex-nome { font-size: 17px; font-weight: 800; color: var(--ink); line-height: 1.18; letter-spacing: -0.01em; }
+  .pa-ex-grupo { font-size: 11px; color: var(--moss); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; margin-top: 3px; }
 
-  .pa-metodo { margin-top: 11px; background: rgba(184,146,74,0.10); border-left: 3px solid var(--gold); border-radius: 8px; padding: 9px 12px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.45; }
-  .pa-metodo svg { width: 14px; height: 14px; color: var(--gold); vertical-align: -2px; }
-  .pa-obs { margin-top: 10px; font-size: 13px; color: var(--ink-soft); line-height: 1.45; }
-  .pa-obs svg { width: 14px; height: 14px; color: var(--ink-mute); vertical-align: -2px; }
+  /* 2 · Linha compacta de prescrição */
+  .pa-ex-spec { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 9px; margin-top: 13px; font-size: 13.5px; color: var(--ink-soft); font-weight: 600; }
+  .pa-ex-spec b { color: var(--ink); font-weight: 800; }
+  .pa-ex-spec .sep { color: #CBCBC7; }
+  .pa-ex-tec { display: inline-flex; align-items: center; gap: 4px; background: rgba(184,146,74,0.13); color: #927023; padding: 2px 9px; border-radius: 100px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
+  .pa-ex-tec svg { width: 12px; height: 12px; }
+
+  .pa-metodo { margin-top: 12px; background: rgba(184,146,74,0.08); border-left: 2px solid var(--gold-soft, var(--gold)); border-radius: 8px; padding: 9px 12px; font-size: 12px; color: var(--ink-soft); line-height: 1.45; }
+  .pa-metodo svg { width: 13px; height: 13px; color: var(--gold); vertical-align: -2px; }
+  .pa-obs { margin-top: 11px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.45; }
+  .pa-obs svg { width: 13px; height: 13px; color: var(--ink-mute); vertical-align: -2px; }
   .pa-obs-tec { color: var(--ink-mute); }
 
-  .pa-ex-actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
-  .pa-video { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--moss); text-decoration: none; padding: 8px 12px; border-radius: 10px; background: var(--bg-warm); }
+  /* 3-4 · Último treino + evolução (painel sem contorno, só um leve tom verde) */
+  .pa-ex-last { margin-top: 15px; background: rgba(60,77,63,0.05); border-radius: 14px; padding: 11px 13px; }
+  .pa-last-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .pa-last-lab { font-size: 10px; font-weight: 800; color: var(--ink-mute); text-transform: uppercase; letter-spacing: 0.07em; }
+  .pa-last-val { margin-top: 5px; font-size: 13.5px; color: var(--ink-soft); font-weight: 600; }
+  .pa-last-val b { color: var(--moss-deep); font-weight: 800; }
+  .pa-last-date { color: var(--ink-mute); font-weight: 600; }
+  .pa-last-vazio { margin-top: 4px; font-size: 12.5px; color: var(--ink-mute); font-weight: 600; font-style: italic; }
+  .pa-evo { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+  .pa-evo svg { width: 14px; height: 14px; }
+  .pa-evo.up { color: var(--moss); }
+  .pa-evo.flat, .pa-evo.down { color: var(--ink-mute); }
+
+  /* 5 · Rodapé / ação principal */
+  .pa-ex-foot { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+  .pa-video { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--moss); text-decoration: none; padding: 8px 12px; border-radius: 10px; background: var(--bg-warm); }
   .pa-video svg { width: 15px; height: 15px; }
-  .pa-carga-btn { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 9px 15px; border: none; border-radius: 100px; background: var(--moss); color: var(--cream); font-size: 13px; font-weight: 700; cursor: pointer; transition: background 0.2s; }
-  .pa-carga-btn:hover { background: var(--moss-deep); }
-  .pa-carga-btn svg { width: 15px; height: 15px; }
+  .pa-carga-btn { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; padding: 10px 16px; border: none; border-radius: 12px; background: var(--moss); color: var(--cream); font-size: 13.5px; font-weight: 800; cursor: pointer; transition: background 0.2s, transform 0.15s; }
+  .pa-carga-btn:hover { background: var(--moss-deep); transform: translateY(-1px); }
+  .pa-carga-btn svg { width: 16px; height: 16px; }
 
   /* ── Progressão ── */
-  .pa-prog { margin-top: 14px; border-top: 1px dashed var(--line); padding-top: 14px; }
+  .pa-prog { margin-top: 16px; border-top: 1px solid var(--hair); padding-top: 16px; }
   .pa-prog-head { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 700; color: var(--moss-deep); margin-bottom: 10px; }
   .pa-prog-head svg { width: 16px; height: 16px; color: var(--moss); }
   .pa-prog-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
@@ -166,12 +263,22 @@
 
   /* Registro por série (peso + reps de cada série) */
   .pa-prog-when { font-size: 11.5px; font-weight: 600; color: var(--ink-mute); margin-left: auto; }
-  .pa-series { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-  .pa-serie { display: grid; grid-template-columns: 34px 1fr 1fr; gap: 8px; align-items: center; }
+  .pa-series { display: flex; flex-direction: column; gap: 11px; margin-bottom: 12px; }
+  .pa-serie { display: grid; grid-template-columns: 32px 1fr 1fr 40px; gap: 10px; align-items: center; }
   .pa-serie-num { font-size: 14px; font-weight: 800; color: var(--moss); text-align: center; }
   .pa-serie-lab { padding-bottom: 0; }
   .pa-serie-lab span { font-size: 11px; font-weight: 600; color: var(--ink-mute); text-transform: uppercase; letter-spacing: 0.03em; }
   .pa-serie .pa-mini { text-align: center; }
+  /* Botão de concluir cada série — círculo discreto; estado concluído preenchido */
+  .pa-serie-check { justify-self: end; width: 36px; height: 36px; padding: 0; border: 1px solid var(--hair); border-radius: 50%; background: var(--bg); color: var(--ink-mute); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
+  .pa-serie-check svg { width: 17px; height: 17px; }
+  .pa-serie-check:hover { border-color: var(--sage); color: var(--moss); }
+  .pa-serie.done .pa-serie-check { background: var(--moss); border-color: var(--moss); color: var(--cream); }
+  .pa-serie.done .pa-serie-num { color: var(--sage); }
+  .pa-serie.done .pa-mini { border-color: transparent; background: rgba(135,160,130,0.12); color: var(--moss-deep); font-weight: 700; }
+  .pa-series-prog { font-size: 12px; font-weight: 700; color: var(--ink-mute); margin: 2px 0 12px 2px; }
+  .pa-series-prog b { color: var(--moss); }
+  .pa-btn-mini.pa-btn-ready { box-shadow: 0 0 0 3px rgba(135,160,130,0.25); }
   .pa-hist-head { font-size: 12px; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; margin: 14px 0 8px; }
   .pa-hist-row { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; background: var(--bg); border-radius: 9px; padding: 8px 10px; font-size: 13px; margin-bottom: 6px; }
   .pa-hist-data { color: var(--ink-mute); font-weight: 600; }

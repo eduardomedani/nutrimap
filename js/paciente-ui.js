@@ -13,7 +13,7 @@ import {
   progressaoDoItem, progressaoDosItens, salvarSeries, excluirCarga,
   traduzirErro,
 } from './paciente-data.js';
-import { mostrarToast } from './utils.js';
+import { mostrarToast, mostrarErro, confirmar } from './utils.js';
 
 // ── Estado ──
 let _paciente = null;
@@ -25,6 +25,7 @@ let _diaSel   = 'A';
 let _progAbertas = new Set();
 let _progCache = new Map();   // id do item -> regs (progressão) já carregada
 let _secao    = 'treino';     // seção ativa: 'treino' | 'dieta'
+let _view     = 'lista';      // dentro de treino: 'lista' (escolher dia) | 'treino' (página do dia)
 let _treinosCarregados = false;
 
 const LETRAS = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
@@ -243,6 +244,7 @@ async function abrirTreino() {
     _dias = diasComExercicios(_itens);
     if (!_dias.includes(_diaSel)) _diaSel = _dias[0] || 'A';
     _progAbertas.clear();
+    _view = 'lista';                 // sempre abre na seleção de dias
     await preCarregarProgressao();   // 1 consulta: deixa o "Registrar séries" instantâneo
     renderTreino();
   } catch (e) {
@@ -250,41 +252,176 @@ async function abrirTreino() {
   }
 }
 
+// Dispatcher: tela de seleção de dias (lista) ou a página de um treino.
 function renderTreino() {
-  const t = _treinos.find(x => x.id === _treinoSel);
+  if (_view === 'treino' && _dias.includes(_diaSel)) renderTreinoDia();
+  else { _view = 'lista'; renderListaDias(); }
+}
+
+// ── TELA A: seleção do dia (A/B/C/D…) + evolução + próximo sugerido ──
+function renderListaDias() {
+  const nome = (_paciente?.nome || 'Aluno').trim().split(' ')[0];
+  const proximo = proximoDiaSugerido();
+  const treinadoHoje = diaTreinadoHoje();
 
   const seletor = _treinos.length > 1
-    ? `<select id="paTreinoSel" class="pa-select">
+    ? `<div class="pa-lista-sel"><select id="paTreinoSel" class="pa-select">
         ${_treinos.map(x => `<option value="${x.id}" ${x.id === _treinoSel ? 'selected' : ''}>${esc(x.nome || 'Treino')}</option>`).join('')}
-       </select>`
+       </select></div>`
     : '';
 
-  const tabs = _dias.map(d =>
-    `<button class="pa-dia ${d === _diaSel ? 'active' : ''}" data-dia="${d}">${d}</button>`).join('');
+  const titulo = treinadoHoje ? 'Mandou bem! 💪' : 'Vamos treinar?';
+  const sub = treinadoHoje
+    ? `Treino ${esc(treinadoHoje)} concluído hoje ✓${proximo ? ` · próximo: <b>Treino ${esc(proximo)}</b>` : ''}`
+    : (proximo ? `Seu próximo treino: <b>Treino ${esc(proximo)}</b>` : 'Escolha um treino para começar');
+
+  const cards = _dias.map(d => cardDia(d, proximo, treinadoHoje)).join('');
 
   app().innerHTML = `
     ${topo()}
     <main class="pa-main">
-      <div class="pa-treino-head">
-        <div>
-          <div class="pa-treino-nome">${esc(t?.nome || 'Meu treino')}</div>
-          <div class="pa-treino-meta">${_dias.length} ${_dias.length === 1 ? 'dia' : 'dias'} · início ${fmtData(t?.data_inicio)}</div>
-        </div>
-        ${seletor}
-      </div>
+      <section class="pa-hero">
+        <div class="pa-hero-hi">${saudacao()}, ${esc(nome)} 👋</div>
+        <div class="pa-hero-title">${titulo}</div>
+        <div class="pa-hero-sub">${sub}</div>
+      </section>
 
-      <div class="pa-dias">${tabs}</div>
-      <div id="paDiaConteudo"></div>
+      ${statsTopo()}
+      ${seletor}
+      <div class="pa-diacards">${cards}</div>
     </main>
     ${bottomNav()}`;
 
+  app().querySelectorAll('[data-abrir]').forEach(b =>
+    b.addEventListener('click', () => { _diaSel = b.dataset.abrir; _view = 'treino'; renderTreino(); }));
   const sel = document.getElementById('paTreinoSel');
-  if (sel) sel.addEventListener('change', () => { _treinoSel = sel.value; _diaSel = 'A'; abrirTreino(); });
+  if (sel) sel.addEventListener('change', () => { _treinoSel = sel.value; _diaSel = 'A'; _view = 'lista'; abrirTreino(); });
+  ligarShell();
+}
+
+// Card de um dia na lista de seleção.
+function cardDia(dia, proximo, treinadoHoje) {
+  const n = contarDia(dia);
+  const grupos = gruposDoDia(dia).slice(0, 3).join(' · ');
+  const feito = dia === treinadoHoje;
+  const isProx = dia === proximo && !feito;
+
+  // Card em destaque: o treino do dia (PRÓXIMO) — principal ponto de ação.
+  if (isProx) {
+    const min = resumoDia(dia).minutos;
+    const conta = `${n} ${n === 1 ? 'exercício' : 'exercícios'}${min ? ` · aproximadamente ${min} min` : ''}`;
+    return `
+      <div class="pa-diacard prox featured">
+        <div class="pa-dc-head">
+          <span class="pa-dc-letra">${dia}</span>
+          <div class="pa-dc-headtext">
+            <span class="pa-dc-nome">Treino ${dia}</span>
+            <span class="pa-dc-badge prox">Próximo</span>
+          </div>
+        </div>
+        <div class="pa-dc-info">
+          <div class="pa-dc-grupos">${esc(grupos || 'Exercícios variados')}</div>
+          <div class="pa-dc-conta">${conta}</div>
+        </div>
+        <button class="pa-dc-cta" data-abrir="${dia}">Começar treino <i data-lucide="arrow-right"></i></button>
+      </div>`;
+  }
+
+  // Demais cards: layout compacto com seta (inalterado).
+  const badge = feito ? `<span class="pa-dc-badge feito">✓ Feito hoje</span>` : '';
+  return `
+    <button class="pa-diacard" data-abrir="${dia}">
+      <span class="pa-dc-letra">${dia}</span>
+      <span class="pa-dc-body">
+        <span class="pa-dc-top"><span class="pa-dc-nome">Treino ${dia}</span>${badge}</span>
+        <span class="pa-dc-sub">${esc(grupos || 'Exercícios variados')} · ${n} ${n === 1 ? 'exercício' : 'exercícios'}</span>
+      </span>
+      <span class="pa-dc-arrow"><i data-lucide="chevron-right"></i></span>
+    </button>`;
+}
+
+// ── TELA B: página de um treino (voltar + seletor de dia + finalizar) ──
+function renderTreinoDia() {
+  const tabs = _dias.map(d =>
+    `<button class="pa-dia ${d === _diaSel ? 'active' : ''}" data-dia="${d}">${d}</button>`).join('');
+  const r = resumoDia(_diaSel);
+
+  app().innerHTML = `
+    ${topo()}
+    <main class="pa-main">
+      <button class="pa-back" data-voltar><i data-lucide="chevron-left"></i> Treinos</button>
+
+      <section class="pa-hero">
+        <div class="pa-hero-hi">Treino do dia</div>
+        <div class="pa-hero-title">Treino ${esc(_diaSel)}</div>
+        <div class="pa-hero-bar" data-hero-bar><span style="width:${r.pct}%"></span></div>
+        <div class="pa-hero-meta">
+          <span class="pa-hero-count" data-hero-count><b>${r.feitos}</b>/${r.total} exercícios</span>
+          ${r.minutos ? `<span class="pa-hero-time"><i data-lucide="clock"></i> ≈${r.minutos} min</span>` : ''}
+        </div>
+      </section>
+
+      <div class="pa-dias">${tabs}</div>
+      <div id="paDiaConteudo"></div>
+      <button class="pa-btn pa-finalizar" data-finalizar><i data-lucide="flag"></i> Finalizar treino</button>
+    </main>
+    ${bottomNav()}`;
+
+  document.querySelector('[data-voltar]').addEventListener('click', () => { _view = 'lista'; renderTreino(); });
+  document.querySelector('[data-finalizar]').addEventListener('click', finalizarTreino);
   app().querySelectorAll('.pa-dia').forEach(b =>
-    b.addEventListener('click', () => { _diaSel = b.dataset.dia; renderTreino(); }));
+    b.addEventListener('click', () => { _diaSel = b.dataset.dia; renderTreinoDia(); }));
   ligarShell();
 
   renderDia();
+}
+
+function finalizarTreino() {
+  mostrarToast('✓ Treino concluído! 💪');
+  _view = 'lista';
+  renderTreino();
+}
+
+// ── Regras de "próximo treino" e status por dia ─────────────
+function contarDia(dia) { return _itens.filter(it => it.dia === dia).length; }
+
+function gruposDoDia(dia) {
+  const out = [];
+  for (const it of _itens.filter(x => x.dia === dia).sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))) {
+    const g = it.exercicio?.grupo_muscular;
+    if (g && !out.includes(g)) out.push(g);
+  }
+  return out;
+}
+
+// Dia do registro mais recente (última sessão treinada), ou null.
+function ultimoDiaTreinado() {
+  let maxData = null, dia = null;
+  for (const it of _itens) {
+    for (const rg of (_progCache.get(it.id) || [])) {
+      if (rg.data && (maxData == null || rg.data > maxData)) { maxData = rg.data; dia = it.dia; }
+    }
+  }
+  return dia;
+}
+
+// Dia treinado hoje (se houver), ou null.
+function diaTreinadoHoje() {
+  const h = hoje();
+  for (const it of _itens) {
+    if ((_progCache.get(it.id) || []).some(rg => rg.data === h)) return it.dia;
+  }
+  return null;
+}
+
+// Próximo sugerido = dia seguinte ao último treinado (rotação A→B→C→A).
+function proximoDiaSugerido() {
+  if (!_dias.length) return null;
+  const ult = ultimoDiaTreinado();
+  if (!ult) return _dias[0];
+  const idx = _dias.indexOf(ult);
+  if (idx === -1) return _dias[0];
+  return _dias[(idx + 1) % _dias.length];
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -315,6 +452,7 @@ function ligarShell() {
 
 function irParaTreino() {
   _secao = 'treino';
+  _view = 'lista';   // volta para a seleção de dias
   if (_treinosCarregados) {
     if (_treinos.length) renderTreino(); else renderSemTreino();
   } else {
@@ -336,6 +474,109 @@ function renderDieta() {
     </main>
     ${bottomNav()}`;
   ligarShell();
+}
+
+// ── Indicadores de evolução (topo) ──────────────────────────
+// Datas (YYYY-MM-DD) com algum registro no treino atual, em ordem asc.
+function datasTreinadas() {
+  const set = new Set();
+  for (const regs of _progCache.values())
+    for (const r of regs) if (r.data) set.add(r.data);
+  return [...set].sort();
+}
+
+// Sequência: dias de treino encadeados, tolerando até 2 dias de folga entre eles.
+// Zera se o último treino foi há mais de 2 dias (sequência "quebrada").
+function calcSequencia() {
+  const dias = datasTreinadas();
+  if (!dias.length) return 0;
+  const TOL = 2, DIA = 86400000;
+  const ms = s => new Date(s + 'T00:00:00').getTime();
+  if ((ms(hoje()) - ms(dias[dias.length - 1])) / DIA > TOL) return 0;
+  let seq = 1;
+  for (let i = dias.length - 1; i > 0; i--) {
+    if ((ms(dias[i]) - ms(dias[i - 1])) / DIA <= TOL) seq++;
+    else break;
+  }
+  return seq;
+}
+
+// Recordes: nº de vezes que o aluno superou a própria carga máxima num exercício.
+function calcRecordes() {
+  let total = 0;
+  for (const regs of _progCache.values()) {
+    const ord = [...regs].filter(r => r.data)
+      .sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0));
+    let best = null;
+    for (const r of ord) {
+      const c = cargaSessao(r);
+      if (c == null) continue;
+      if (best == null) { best = c; continue; }   // 1ª sessão não conta como recorde
+      if (c > best) { total++; best = c; }
+    }
+  }
+  return total;
+}
+
+// Tiles de evolução: 🔥 Sequência + 🏆 Recordes.
+function statsTopo() {
+  const seq = calcSequencia();
+  const rec = calcRecordes();
+  return `
+    <div class="pa-stats">
+      <div class="pa-stat">
+        <div class="pa-stat-top"><span class="pa-stat-ic">🔥</span> Sequência</div>
+        <div class="pa-stat-val" data-stat-seq>${seq} <small>${seq === 1 ? 'dia' : 'dias'}</small></div>
+      </div>
+      <div class="pa-stat">
+        <div class="pa-stat-top"><span class="pa-stat-ic">🏆</span> Recordes</div>
+        <div class="pa-stat-val" data-stat-rec>${rec}</div>
+      </div>
+    </div>`;
+}
+
+// Atualiza os números das tiles após salvar/excluir (sem re-render da tela).
+function atualizarStats() {
+  const seqEl = document.querySelector('[data-stat-seq]');
+  const recEl = document.querySelector('[data-stat-rec]');
+  if (seqEl) { const s = calcSequencia(); seqEl.innerHTML = `${s} <small>${s === 1 ? 'dia' : 'dias'}</small>`; }
+  if (recEl) recEl.textContent = calcRecordes();
+}
+
+// Saudação conforme a hora do dia.
+function saudacao() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Bom dia';
+  if (h < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+// Resumo do dia p/ o hero: total, feitos hoje, % e tempo estimado (min).
+function resumoDia(dia) {
+  const doDia = _itens.filter(it => it.dia === dia);
+  const total = doDia.length;
+  const hojeStr = hoje();
+  let feitos = 0, seg = 0;
+  for (const it of doDia) {
+    const regs = _progCache.get(it.id) || [];
+    if (regs.some(r => r.data === hojeStr)) feitos++;
+    const series = Math.max(Number(it.series) || 3, 1);
+    const descanso = parseInt(String(it.descanso ?? '').replace(/\D/g, ''), 10) || 60;
+    seg += 30 + series * (35 + descanso);   // ~30s setup + séries (execução + descanso)
+  }
+  const pct = total ? Math.round(feitos / total * 100) : 0;
+  const minutos = total ? Math.max(5, Math.round(seg / 60 / 5) * 5) : 0;
+  return { total, feitos, pct, minutos };
+}
+
+// Atualiza barra + contador do hero sem re-renderizar a tela toda.
+function atualizarHero() {
+  const bar = document.querySelector('[data-hero-bar] > span');
+  const count = document.querySelector('[data-hero-count]');
+  if (!bar && !count) return;
+  const r = resumoDia(_diaSel);
+  if (bar) bar.style.width = r.pct + '%';
+  if (count) count.innerHTML = `<b>${r.feitos}</b>/${r.total} exercícios`;
 }
 
 function renderDia() {
@@ -368,12 +609,18 @@ function cardExercicio(it, i) {
   const grupo = ex.grupo_muscular ? esc(ex.grupo_muscular) : '';
   const mi = metodoInfo(it.metodo);
 
-  // Chips da prescrição: séries x reps · descanso · método
-  const chips = [];
-  const serieReps = [it.series != null ? `${it.series}x` : '', it.repeticoes || ''].filter(Boolean).join(' ');
-  if (serieReps)    chips.push(chip('layers', serieReps));
-  if (it.descanso)  chips.push(chip('timer', fmtDescanso(it.descanso)));
-  if (it.metodo)    chips.push(chip('zap', it.metodo));
+  // 2 · Linha compacta de prescrição — só mostra o que existe.
+  const specParts = [];
+  if (it.series != null && it.series !== '')
+    specParts.push(`<span><b>${esc(it.series)}</b> ${Number(it.series) === 1 ? 'série' : 'séries'}</span>`);
+  if (it.repeticoes) specParts.push(`<span><b>${esc(fmtReps(it.repeticoes))}</b> reps</span>`);
+  if (it.descanso)   specParts.push(`<span>${esc(fmtDescanso(it.descanso))} descanso</span>`);
+  const tec = it.metodo ? `<span class="pa-ex-tec"><i data-lucide="zap"></i> ${esc(it.metodo)}</span>` : '';
+  const specLine = (specParts.length || tec)
+    ? `<div class="pa-ex-spec">${specParts.join('<span class="sep">·</span>')}${tec}</div>` : '';
+
+  // 3-4 · Último treino + evolução (do cache já pré-carregado).
+  const regs = _progCache.get(it.id) || [];
 
   const video = ex.video_url
     ? `<a class="pa-video" href="${esc(ex.video_url)}" target="_blank" rel="noopener"><i data-lucide="play"></i> Ver vídeo</a>`
@@ -389,12 +636,14 @@ function cardExercicio(it, i) {
         </div>
       </div>
 
-      ${chips.length ? `<div class="pa-chips">${chips.join('')}</div>` : ''}
-      ${mi ? `<div class="pa-metodo"><i data-lucide="lightbulb"></i> <strong>${esc(mi.nome)}</strong> — ${esc(mi.desc)}</div>` : ''}
+      ${specLine}
+      ${mi ? `<div class="pa-metodo"><i data-lucide="lightbulb"></i> ${esc(mi.desc)}</div>` : ''}
       ${it.observacao ? `<div class="pa-obs"><i data-lucide="sticky-note"></i> ${esc(it.observacao)}</div>` : ''}
       ${ex.observacoes ? `<div class="pa-obs pa-obs-tec"><i data-lucide="info"></i> ${esc(ex.observacoes)}</div>` : ''}
 
-      <div class="pa-ex-actions">
+      <div class="pa-ex-last">${lastBlockInner(regs)}</div>
+
+      <div class="pa-ex-foot">
         ${video}
         <button class="pa-carga-btn" data-carga="${it.id}"><i data-lucide="chart-line"></i> Registrar séries</button>
       </div>
@@ -403,8 +652,60 @@ function cardExercicio(it, i) {
     </div>`;
 }
 
-function chip(icone, texto) {
-  return `<span class="pa-chip"><i data-lucide="${icone}"></i> ${esc(texto)}</span>`;
+// Conteúdo interno do bloco "Último treino" (reaproveitado ao salvar/excluir).
+function lastBlockInner(regs) {
+  const ult = ultimoResumo(regs);
+  const evo = evolucaoBadge(regs);
+  return `<div class="pa-last-top"><span class="pa-last-lab">Último treino</span>${evo}</div>` +
+    (ult
+      ? `<div class="pa-last-val"><b>${esc(ult.pesoTxt)}</b>${ult.repsTxt ? ` · ${esc(ult.repsTxt)}` : ''}${ult.dataTxt ? ` <span class="pa-last-date">· ${esc(ult.dataTxt)}</span>` : ''}</div>`
+      : `<div class="pa-last-vazio">Sem registros anteriores</div>`);
+}
+
+// Reaproveita o cache para reescrever só o bloco "Último treino" de um card.
+function atualizarUltimo(id) {
+  const last = document.querySelector(`[data-prog-box="${id}"]`)?.closest('.pa-ex')?.querySelector('.pa-ex-last');
+  if (last) last.innerHTML = lastBlockInner(_progCache.get(id) || []);
+}
+
+// Resumo da última sessão: peso representativo + reps por série + data curta.
+function ultimoResumo(regs) {
+  const u = regs && regs[0];
+  if (!u) return null;
+  const arr = u.series_realizadas || [];
+  let pesoTxt = '', repsTxt = '';
+  if (arr.length) {
+    const pesos = arr.map(s => s.peso).filter(v => v != null).map(Number);
+    if (pesos.length) {
+      const uniq = [...new Set(pesos)];
+      pesoTxt = uniq.length === 1 ? `${uniq[0]} kg` : `${Math.min(...pesos)}–${Math.max(...pesos)} kg`;
+    }
+    repsTxt = arr.map(s => (s.reps != null ? s.reps : '–')).join(' / ');
+  } else {
+    if (u.carga_realizada != null) pesoTxt = `${u.carga_realizada} kg`;
+    if (u.reps_realizadas != null) repsTxt = String(u.reps_realizadas);
+  }
+  if (!pesoTxt && !repsTxt) return null;
+  return { pesoTxt: pesoTxt || '—', repsTxt, dataTxt: fmtDataCurta(u.data) };
+}
+
+// Carga representativa de uma sessão (maior peso da sessão), p/ comparar evolução.
+function cargaSessao(r) {
+  const pesos = (r.series_realizadas || []).map(s => s.peso).filter(v => v != null).map(Number);
+  if (pesos.length) return Math.max(...pesos);
+  return r.carga_realizada != null ? Number(r.carga_realizada) : null;
+}
+
+// Indicador de evolução vs. sessão anterior. Queda = cinza neutro (nunca vermelho).
+function evolucaoBadge(regs) {
+  if (!regs || regs.length < 2) return '';
+  const atual = cargaSessao(regs[0]);
+  const ant = cargaSessao(regs[1]);
+  if (atual == null || ant == null || ant === 0) return '';
+  const pct = Math.round((atual - ant) / ant * 100);
+  if (pct > 0) return `<span class="pa-evo up" title="desde o último treino"><i data-lucide="trending-up"></i> ${pct}%</span>`;
+  if (pct < 0) return `<span class="pa-evo down" title="desde o último treino"><i data-lucide="trending-down"></i> ${Math.abs(pct)}%</span>`;
+  return `<span class="pa-evo flat" title="sem mudança desde o último treino">—</span>`;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -474,12 +775,14 @@ function renderProg(box, id, regs) {
   const linhasSeries = Array.from({ length: nSeries }, (_, i) => {
     const s = ultimaSeries[i] || {};
     return `
-      <div class="pa-serie">
+      <div class="pa-serie" data-serie="${i}">
         <span class="pa-serie-num">${i + 1}ª</span>
         <input type="number" step="0.5" inputmode="decimal" class="pa-input pa-mini"
           data-s-peso="${i}" placeholder="kg" value="${s.peso ?? ''}">
         <input type="number" inputmode="numeric" class="pa-input pa-mini"
           data-s-reps="${i}" placeholder="${esc(alvoReps || 'reps')}" value="${s.reps ?? ''}">
+        <button type="button" class="pa-serie-check" data-sdone="${i}"
+          title="Concluir série" aria-label="Concluir série ${i + 1}"><i data-lucide="check"></i></button>
       </div>`;
   }).join('');
 
@@ -500,15 +803,56 @@ function renderProg(box, id, regs) {
     <div class="pa-prog-head"><i data-lucide="chart-line"></i> Suas séries <span class="pa-prog-when">${quando}</span></div>
     ${sparkline(regs)}
     <div class="pa-series">
-      <div class="pa-serie pa-serie-lab"><span></span><span>Peso (kg)</span><span>Reps${alvoReps ? ` · alvo ${esc(alvoReps)}` : ''}</span></div>
+      <div class="pa-serie pa-serie-lab"><span></span><span>Peso (kg)</span><span>Reps${alvoReps ? ` · alvo ${esc(alvoReps)}` : ''}</span><span></span></div>
       ${linhasSeries}
     </div>
-    <button class="pa-btn pa-btn-mini" data-ssave><i data-lucide="save"></i> Salvar séries</button>
+    <div class="pa-series-prog" data-sprog><b>0</b>/${nSeries} séries concluídas</div>
+    <button class="pa-btn pa-btn-mini" data-ssave><i data-lucide="circle-check-big"></i> Concluir exercício</button>
     ${hist}`;
 
   box.querySelector('[data-ssave]').addEventListener('click', () => salvarSeriesUI(id, nSeries));
+  box.querySelectorAll('[data-sdone]').forEach(b =>
+    b.addEventListener('click', () => toggleSerie(box, Number(b.dataset.sdone), nSeries)));
+  // Enter no campo de reps conclui a série e pula para a próxima.
+  box.querySelectorAll('[data-s-reps]').forEach(inp =>
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); toggleSerie(box, Number(inp.dataset.sReps), nSeries); }
+    }));
   box.querySelectorAll('[data-pdel]').forEach(b =>
     b.addEventListener('click', () => removerCarga(b.dataset.pdel, id)));
+}
+
+// Marca/desmarca uma série como concluída e avança o foco para a próxima.
+function toggleSerie(box, i, nSeries) {
+  const row = box.querySelector(`.pa-serie[data-serie="${i}"]`);
+  if (!row) return;
+  if (row.classList.contains('done')) {   // toque de novo = desfazer
+    row.classList.remove('done');
+    atualizarSeriesProg(box, nSeries);
+    return;
+  }
+  const peso = (box.querySelector(`[data-s-peso="${i}"]`)?.value || '').trim();
+  const reps = (box.querySelector(`[data-s-reps="${i}"]`)?.value || '').trim();
+  if (!peso && !reps) { mostrarToast('Preencha o peso ou as reps desta série.'); return; }
+
+  row.classList.add('done');
+  atualizarSeriesProg(box, nSeries);
+
+  const rows = [...box.querySelectorAll('.pa-serie[data-serie]')];
+  const prox = rows.find((r, idx) => idx > i && !r.classList.contains('done'));
+  if (prox) {
+    prox.querySelector('[data-s-peso]')?.focus();
+    prox.scrollIntoView({ block: 'nearest' });
+  } else {
+    box.querySelector('[data-ssave]')?.focus();   // todas prontas → foco em "Concluir exercício"
+  }
+}
+
+function atualizarSeriesProg(box, nSeries) {
+  const done = box.querySelectorAll('.pa-serie.done').length;
+  const el = box.querySelector('[data-sprog]');
+  if (el) el.innerHTML = `<b>${done}</b>/${nSeries} séries concluídas`;
+  box.querySelector('[data-ssave]')?.classList.toggle('pa-btn-ready', done > 0 && done === nSeries);
 }
 
 // Resumo compacto de uma sessão para o histórico: "20/22/22 kg · 8/7/6 reps".
@@ -543,16 +887,26 @@ async function salvarSeriesUI(id, nSeries) {
   }
   try {
     await salvarSeries({ treinoExercicioId: id, series });
-    mostrarToast('✓ Séries salvas');
+    mostrarToast('✓ Exercício concluído');
     await carregarProg(id, true);   // atualiza o cache com o que acabou de salvar
+    atualizarUltimo(id);            // reflete no resumo "Último treino" do card
+    atualizarHero();                // atualiza progresso (feitos/total) do dia
+    atualizarStats();               // sequência + recordes podem ter mudado
   } catch (e) { mostrarToast('Erro: ' + traduzirErro(e.message)); }
 }
 
 async function removerCarga(regId, itemId) {
-  if (!confirm('Excluir este registro?')) return;
+  if (!(await confirmar({
+    titulo: 'Excluir registro',
+    mensagem: 'Excluir este registro?',
+    textoOk: 'Excluir', perigo: true,
+  }))) return;
   try {
     await excluirCarga(regId);
     await carregarProg(itemId, true);
+    atualizarUltimo(itemId);
+    atualizarHero();
+    atualizarStats();
   } catch (e) { mostrarToast('Erro: ' + traduzirErro(e.message)); }
 }
 
@@ -630,7 +984,7 @@ async function logout() {
   _paciente = null; _treinos = []; _treinoSel = null; _itens = []; _dias = []; _diaSel = 'A';
   _progAbertas.clear();
   _progCache = new Map();
-  _secao = 'treino'; _treinosCarregados = false;
+  _secao = 'treino'; _view = 'lista'; _treinosCarregados = false;
   renderAuth();
 }
 
@@ -658,4 +1012,13 @@ function fmtDescanso(v) {
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const fmtData = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+// "6-8" → "6–8" (traço tipográfico, só entre dígitos).
+const fmtReps = r => String(r ?? '').replace(/(\d)\s*-\s*(\d)/g, '$1–$2');
+// Data curta pt-BR: "10 jul.".
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+function fmtDataCurta(d) {
+  if (!d) return '';
+  const dt = new Date(d + 'T00:00:00');
+  return `${dt.getDate()} ${MESES[dt.getMonth()]}.`;
+}
 const hoje = () => new Date().toISOString().slice(0, 10);

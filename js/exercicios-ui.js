@@ -7,7 +7,7 @@
 import {
   listarExercicios, criarExercicio, atualizarExercicio, excluirExercicio
 } from './treinos.js';
-import { mostrarToast } from './utils.js';
+import { mostrarToast, mostrarErro, confirmar } from './utils.js';
 
 let _nutriId = null;
 let _exercicios = [];      // acumulado na tela (cresce a cada "carregar mais")
@@ -246,13 +246,17 @@ async function salvar() {
     document.getElementById('exFormWrap').innerHTML = '';
     await recarregar();
   } catch (e) {
-    alert('Erro ao salvar: ' + e.message);
+    mostrarErro('Erro ao salvar: ' + e.message);
     btn.disabled = false; btn.innerHTML = orig;
   }
 }
 
 async function remover(id, nome) {
-  if (!confirm(`Excluir o exercício "${nome || 'sem nome'}"?`)) return;
+  if (!(await confirmar({
+    titulo: 'Excluir exercício',
+    mensagem: `Excluir o exercício "${nome || 'sem nome'}"?`,
+    textoOk: 'Excluir', perigo: true,
+  }))) return;
   try {
     await excluirExercicio(id);
     mostrarToast('✓ Exercício excluído');
@@ -260,7 +264,7 @@ async function remover(id, nome) {
   } catch (e) {
     // FK restrict: exercício em uso por algum treino
     const emUso = /foreign key|violates|restrict/i.test(e.message || '');
-    alert(emUso
+    mostrarErro(emUso
       ? 'Não dá para excluir: este exercício está sendo usado em um ou mais treinos.'
       : 'Erro: ' + e.message);
   }

@@ -14,10 +14,10 @@ import {
   listarItensDoTreino, adicionarExercicioAoTreino, atualizarItem, excluirItem,
   listarExercicios, buscarExercicioPorNome,
   listarProgressao, registrarProgressao, excluirProgressao,
-  listarModelos, prescreverModeloParaPaciente,
+  listarModelos, prescreverModeloParaPaciente, salvarComoModelo,
 } from './treinos.js';
 import { sb } from './supabase.js';
-import { mostrarToast } from './utils.js';
+import { mostrarToast, mostrarErro, confirmar } from './utils.js';
 
 // Debounce simples: só dispara `fn` depois de `ms` sem novas chamadas.
 function debounce(fn, ms) {
@@ -133,13 +133,16 @@ async function renderLista() {
 
   const linhas = treinos.length
     ? treinos.map(t => {
+        const periodo = t.data_fim
+          ? `${fmtData(t.data_inicio)} → ${fmtData(t.data_fim)}`
+          : `início ${fmtData(t.data_inicio)}`;
         const meta = ehModelo
           ? `${esc(divisaoLabel(t.divisao))} · <span style="color:var(--ink-mute)">modelo reutilizável</span>`
           : `${esc(divisaoLabel(t.divisao))} ·
               ${t.ativo
                 ? '<span style="color:var(--moss)"><i data-lucide="circle-check"></i> Ativo</span>'
                 : '<span style="color:var(--ink-mute)"><i data-lucide="circle"></i> Inativo</span>'} ·
-              início ${fmtData(t.data_inicio)}`;
+              ${periodo}`;
         return `
         <div class="patient-row">
           <div class="patient-avatar"><i data-lucide="dumbbell"></i></div>
@@ -148,6 +151,7 @@ async function renderLista() {
             <div class="patient-meta">${meta}</div>
           </div>
           <button class="patient-action primary" data-tr-edit="${t.id}"><i data-lucide="pencil"></i> Abrir</button>
+          ${ehModelo ? '' : `<button class="patient-action" data-tr-lib="${t.id}" data-tr-nome="${esc(t.nome || '')}" title="Salvar na biblioteca como modelo"><i data-lucide="copy-plus"></i></button>`}
           <button class="patient-action patient-action-danger" data-tr-del="${t.id}" data-tr-nome="${esc(t.nome || '')}"><i data-lucide="trash-2"></i></button>
         </div>`;
       }).join('')
@@ -181,16 +185,40 @@ async function renderLista() {
     b.addEventListener('click', () => abrirEditor(treinos.find(t => t.id === b.dataset.trEdit))));
   _mountEl.querySelectorAll('[data-tr-del]').forEach(b =>
     b.addEventListener('click', () => removerTreino(b.dataset.trDel, b.dataset.trNome)));
+  _mountEl.querySelectorAll('[data-tr-lib]').forEach(b =>
+    b.addEventListener('click', () => salvarTreinoNaBiblioteca(b.dataset.trLib, b.dataset.trNome, b)));
+}
+
+// Sobe um treino do aluno para a biblioteca como modelo reutilizável.
+async function salvarTreinoNaBiblioteca(id, nome, btn) {
+  if (!(await confirmar({
+    titulo: 'Salvar como modelo',
+    mensagem: `Salvar "${nome || 'este treino'}" na biblioteca como modelo reutilizável?\nOs exercícios são copiados; a progressão do aluno não.`,
+    textoOk: 'Salvar',
+  }))) return;
+  if (btn) btn.disabled = true;
+  try {
+    await salvarComoModelo(id);
+    mostrarToast('✓ Treino salvo na biblioteca');
+  } catch (e) {
+    mostrarErro('Erro: ' + e.message);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 async function removerTreino(id, nome) {
   const termo = _modo === 'modelo' ? 'modelo' : 'treino';
-  if (!confirm(`Excluir o ${termo} "${nome || 'sem nome'}"?\nOs exercícios ${_modo === 'modelo' ? 'do modelo' : 'do treino'} também serão removidos.`)) return;
+  if (!(await confirmar({
+    titulo: `Excluir ${termo}`,
+    mensagem: `Excluir o ${termo} "${nome || 'sem nome'}"?\nOs exercícios ${_modo === 'modelo' ? 'do modelo' : 'do treino'} também serão removidos.`,
+    textoOk: 'Excluir', perigo: true,
+  }))) return;
   try {
     await excluirTreino(id);
     mostrarToast(_modo === 'modelo' ? '✓ Modelo excluído' : '✓ Treino excluído');
     await renderLista();
-  } catch (e) { alert('Erro: ' + e.message); }
+  } catch (e) { mostrarErro('Erro: ' + e.message); }
 }
 
 // ── Aplicar um MODELO da biblioteca como treino do paciente ──
@@ -243,7 +271,7 @@ async function aplicarModelo(modeloId) {
     mostrarToast('✓ Treino criado a partir do modelo');
     await abrirEditor(novo);
   } catch (e) {
-    alert('Erro ao aplicar modelo: ' + e.message);
+    mostrarErro('Erro ao aplicar modelo: ' + e.message);
     btn.disabled = false; btn.innerHTML = orig;
   }
 }
@@ -296,6 +324,10 @@ function renderEditor() {
         <div class="av-field">
           <label>Data de início</label>
           <input type="date" id="trData" value="${t?.data_inicio || ''}" class="np-input">
+        </div>
+        <div class="av-field">
+          <label>Data de término</label>
+          <input type="date" id="trDataFim" value="${t?.data_fim || ''}" class="np-input">
         </div>` : ''}
         <div class="av-field">
           <label>Divisão (nº de dias)</label>
@@ -341,11 +373,19 @@ async function salvarDados() {
   const nome = (document.getElementById('trNome').value || '').trim();
   if (!nome) { mostrarToast('Informe o nome do treino'); return; }
   const n = Number(document.getElementById('trDivisao').value);
-  const dataEl = document.getElementById('trData');    // ausente no modo modelo
-  const ativoEl = document.getElementById('trAtivo');  // ausente no modo modelo
+  const dataEl = document.getElementById('trData');       // ausente no modo modelo
+  const dataFimEl = document.getElementById('trDataFim'); // ausente no modo modelo
+  const ativoEl = document.getElementById('trAtivo');     // ausente no modo modelo
+  const dataInicio = dataEl ? (dataEl.value || null) : null;
+  const dataFim = dataFimEl ? (dataFimEl.value || null) : null;
+  if (dataInicio && dataFim && dataFim < dataInicio) {
+    mostrarToast('A data de término não pode ser antes do início');
+    return;
+  }
   const dados = {
     nome,
-    data_inicio: dataEl ? (dataEl.value || null) : null,
+    data_inicio: dataInicio,
+    data_fim: dataFim,
     divisao: LETRAS.slice(0, n).join(''),      // ex.: "ABC"
     ativo: ativoEl ? (ativoEl.value === '1') : true,
   };
@@ -358,8 +398,11 @@ async function salvarDados() {
       // Aviso se reduziu dias e há exercícios em dias que somem
       const diasNovos = LETRAS.slice(0, n);
       const orfaos = _itens.filter(it => !diasNovos.includes(it.dia));
-      if (orfaos.length && !confirm(
-        `Reduzir para ${n} dias deixará ${orfaos.length} exercício(s) em dia(s) removido(s) — eles ficarão ocultos, mas não serão apagados. Continuar?`)) {
+      if (orfaos.length && !(await confirmar({
+        titulo: 'Reduzir dias do treino',
+        mensagem: `Reduzir para ${n} dias deixará ${orfaos.length} exercício(s) em dia(s) removido(s) — eles ficarão ocultos, mas não serão apagados. Continuar?`,
+        textoOk: 'Continuar',
+      }))) {
         btn.disabled = false; btn.innerHTML = orig; return;
       }
       const atualizado = await atualizarTreino(_treino.id, dados);
@@ -374,7 +417,7 @@ async function salvarDados() {
       await abrirEditor(criado);
     }
   } catch (e) {
-    alert('Erro ao salvar: ' + e.message);
+    mostrarErro('Erro ao salvar: ' + e.message);
     btn.disabled = false; btn.innerHTML = orig;
   }
 }
@@ -596,7 +639,7 @@ async function adicionarExercicio() {
     });
     _itens = await listarItensDoTreino(_treino.id);
     renderDia();
-  } catch (e) { alert('Erro ao adicionar: ' + e.message); }
+  } catch (e) { mostrarErro('Erro ao adicionar: ' + e.message); }
 }
 
 async function salvarCampoItem(el) {
@@ -616,7 +659,7 @@ async function salvarCampoItem(el) {
     if (it) Object.assign(it, payload);
     if (campo === 'metodo') atualizarDescMetodo(el);
     mostrarToast('✓ Salvo');
-  } catch (e) { alert('Erro ao salvar: ' + e.message); }
+  } catch (e) { mostrarErro('Erro ao salvar: ' + e.message); }
 }
 
 // Atualiza (sem re-render) a caixinha de descrição do método da linha.
@@ -634,12 +677,16 @@ function atualizarDescMetodo(el) {
 }
 
 async function removerItem(id) {
-  if (!confirm('Remover este exercício do treino?')) return;
+  if (!(await confirmar({
+    titulo: 'Remover exercício',
+    mensagem: 'Remover este exercício do treino?',
+    textoOk: 'Remover', perigo: true,
+  }))) return;
   try {
     await excluirItem(id);
     _itens = await listarItensDoTreino(_treino.id);
     renderDia();
-  } catch (e) { alert('Erro: ' + e.message); }
+  } catch (e) { mostrarErro('Erro: ' + e.message); }
 }
 
 // Move um item para cima/baixo dentro do dia, trocando o campo `ordem` com o vizinho.
@@ -654,7 +701,7 @@ async function moverItem(id, dir) {
     await Promise.all([atualizarItem(a.id, { ordem: j }), atualizarItem(b.id, { ordem: i })]);
     _itens = await listarItensDoTreino(_treino.id);
     renderDia();
-  } catch (e) { alert('Erro ao reordenar: ' + e.message); }
+  } catch (e) { mostrarErro('Erro ao reordenar: ' + e.message); }
 }
 
 // ───────────────────────────────────────────────────────────
@@ -756,15 +803,19 @@ async function adicionarProg(id) {
     });
     mostrarToast('✓ Registro salvo');
     await carregarProg(id);
-  } catch (e) { alert('Erro ao salvar: ' + e.message); }
+  } catch (e) { mostrarErro('Erro ao salvar: ' + e.message); }
 }
 
 async function removerProg(regId, itemId) {
-  if (!confirm('Excluir este registro de carga?')) return;
+  if (!(await confirmar({
+    titulo: 'Excluir carga',
+    mensagem: 'Excluir este registro de carga?',
+    textoOk: 'Excluir', perigo: true,
+  }))) return;
   try {
     await excluirProgressao(regId);
     await carregarProg(itemId);
-  } catch (e) { alert('Erro: ' + e.message); }
+  } catch (e) { mostrarErro('Erro: ' + e.message); }
 }
 
 // ───────────────────────────────────────────────────────────

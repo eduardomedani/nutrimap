@@ -9,15 +9,40 @@
 <script>
   // Lucide: converte <i data-lucide="..."> em SVG. Coalesce por frame e cobre
   // conteúdo renderizado dinamicamente (módulos ES via innerHTML).
+  //
+  // Dois cuidados aqui, e os dois quebram CLIQUE se faltarem:
+  //
+  //   1) createIcons() SUBSTITUI o nó do ícone. Como ele deixa o data-lucide no
+  //      <svg> que acabou de criar, a passada seguinte troca o mesmo ícone de
+  //      novo — sem parar. Tirar o atributo encerra o ciclo.
+  //   2) Essa troca é uma mutação do DOM, então o próprio observer se
+  //      reagendava: um <svg> novo a cada frame, para sempre.
+  //
+  // O efeito era clique no ícone não funcionar: quando o nó é trocado entre o
+  // mousedown e o mouseup, o browser não dispara "click". Clicar no botão em
+  // volta funcionava, porque o botão não era trocado.
   let _iconRaf = null;
+  const _iconObs = new MutationObserver(renderIcons);
+  function observarIcones() {
+    _iconObs.observe(document.documentElement, { childList: true, subtree: true });
+  }
   function renderIcons() {
     if (!window.lucide) return;
     if (_iconRaf) return;
-    _iconRaf = requestAnimationFrame(() => { _iconRaf = null; try { window.lucide.createIcons(); } catch (e) {} });
+    _iconRaf = requestAnimationFrame(() => {
+      _iconRaf = null;
+      _iconObs.disconnect();                       // não observa a própria escrita
+      try {
+        window.lucide.createIcons();
+        document.querySelectorAll('svg[data-lucide]')
+          .forEach(el => el.removeAttribute('data-lucide'));   // já convertido: não mexer mais
+      } catch (e) {}
+      observarIcones();
+    });
   }
   window.renderIcons = renderIcons;
   document.addEventListener('DOMContentLoaded', renderIcons);
-  new MutationObserver(renderIcons).observe(document.documentElement, { childList: true, subtree: true });
+  observarIcones();
 </script>
 <style>
   /* Ícones Lucide: tamanho segue a fonte do contexto */
@@ -510,6 +535,389 @@
   .form-warn { background: rgba(184,103,74,0.1); border-left: 3px solid var(--terracotta); color: var(--terracotta); padding: 11px 14px; border-radius: 10px; font-size: 13px; margin: 12px 0; }
   .form-ok { background: rgba(135,160,130,0.15); border-left: 3px solid var(--sage); color: var(--moss-deep); padding: 11px 14px; border-radius: 10px; font-size: 13px; margin: 12px 0; }
 
+  /* ===== CONSTRUTOR DE PLANO ALIMENTAR (dieta-ui.js) ===== */
+  .di-refeicoes { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
+  .di-refeicao { padding: 14px 16px; box-shadow: none; border: 1px solid var(--line); border-radius: 14px; }
+
+  /* Cabeçalho da refeição (uma linha no desktop, empilha no mobile) */
+  .di-ref-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .di-ref-nome { flex: 1 1 150px; min-width: 110px; border: none; background: none; font-family: 'Nunito', sans-serif; font-size: 16px; font-weight: 800; color: var(--moss-deep); padding: 4px 4px 4px 2px; border-radius: 6px; }
+  .di-ref-nome:focus { outline: none; background: var(--bg); }
+  .di-ref-hora { flex: 0 0 auto; width: 96px; padding: 6px 8px; font-size: 13px; }
+  .di-ref-stats { display: flex; align-items: baseline; gap: 10px; margin-left: auto; }
+  .di-ref-kcal { font-size: 13.5px; font-weight: 800; color: var(--moss-deep); white-space: nowrap; }
+  .di-ref-count { font-size: 12px; font-weight: 600; color: var(--ink-mute); white-space: nowrap; }
+  .di-ref-del { flex: 0 0 auto; border: none; background: none; color: var(--ink-mute); cursor: pointer; padding: 6px; border-radius: 6px; display: flex; }
+  .di-ref-del:hover { color: #C0392B; background: var(--bg-warm); }
+
+  /* Resumo nutricional da refeição */
+  .di-ref-macros { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-bottom: 12px; font-size: 12.5px; color: var(--ink-soft); font-weight: 600; }
+  .di-ref-macros b { color: var(--moss-deep); font-weight: 800; }
+
+  /* Lista de alimentos (cards internos compactos) */
+  .di-itens { display: flex; flex-direction: column; gap: 8px; }
+  .di-item { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; background: var(--bg-card); }
+  .di-item-num { flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%; background: var(--cream); color: var(--moss-deep); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; margin-top: 1px; }
+  .di-item-info { flex: 1 1 200px; min-width: 0; }
+  .di-item-nome { font-family: 'Nunito', sans-serif; font-weight: 700; color: var(--ink); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .di-item-ctl { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+  .di-qtd-wrap { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--ink-mute); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+  .di-qtd-inp { width: 60px; text-align: center; padding: 5px 6px; font-size: 13px; }
+  .di-med-inp { width: 104px; padding: 5px 8px; font-size: 13px; }
+  .di-obs-inp { flex: 1 1 110px; min-width: 80px; padding: 5px 8px; font-size: 13px; }
+  .di-item-macros { flex: 0 0 auto; display: flex; gap: 9px; font-size: 12px; color: var(--ink-soft); font-weight: 600; padding-top: 3px; white-space: nowrap; }
+  .di-item-macros b { color: var(--moss-deep); font-weight: 800; }
+  .di-item-acts { flex: 0 0 auto; display: flex; gap: 2px; opacity: 0; transition: opacity 0.15s; }
+  .di-item:hover .di-item-acts, .di-item:focus-within .di-item-acts { opacity: 1; }
+  @media (hover: none) { .di-item-acts { opacity: 1; } }
+  .di-iact { border: none; background: none; color: var(--ink-mute); cursor: pointer; padding: 4px; border-radius: 6px; display: flex; }
+  .di-iact:hover { background: var(--bg-warm); color: var(--ink); }
+  .di-iact:disabled { opacity: 0.3; cursor: default; }
+  .di-iact-del:hover { color: #C0392B; }
+  .di-item-vazio { font-size: 13px; color: var(--ink-mute); padding: 4px 2px; }
+
+  /* Adicionar alimento (botão full-width que abre a busca) */
+  .di-add-wrap { margin-top: 12px; }
+  .di-add-btn2 { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 10px; border: 1px dashed var(--line); border-radius: 10px; background: var(--bg); color: var(--moss); font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+  .di-add-btn2:hover { border-color: var(--sage); background: rgba(135,160,130,0.08); }
+  .di-add-btn2 svg { width: 16px; height: 16px; }
+  .di-ac { position: relative; flex: 1 1 220px; min-width: 180px; }
+  .di-ac .np-input { width: 100%; }
+  .di-ac-list { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 40; background: var(--bg-card); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-lg); max-height: 260px; overflow-y: auto; }
+  .di-ac-item { display: flex; flex-direction: column; gap: 1px; padding: 8px 11px; cursor: pointer; }
+  .di-ac-item:hover, .di-ac-item.active { background: var(--bg-warm); }
+  .di-ac-nome { font-size: 13.5px; color: var(--ink); font-weight: 600; }
+  .di-ac-macro { font-size: 11.5px; color: var(--ink-mute); }
+  .di-ac-empty { padding: 10px 11px; font-size: 12.5px; color: var(--ink-mute); }
+
+  /* Resumo de macros do dia */
+  .di-resumo { background: var(--bg-card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
+  .di-resumo-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .di-resumo-lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-mute); }
+  .di-resumo-kcal { font-family: 'Nunito', sans-serif; font-size: 14px; color: var(--ink-soft); }
+  .di-resumo-kcal strong { font-size: 22px; font-weight: 700; color: var(--moss-deep); }
+  .di-resumo-meta { color: var(--ink-mute); }
+  .di-bar { margin-top: 8px; height: 7px; border-radius: 100px; background: var(--bg-warm); overflow: hidden; }
+  .di-bar > span { display: block; height: 100%; border-radius: 100px; background: linear-gradient(90deg, var(--moss), var(--sage)); transition: width 0.35s ease; }
+  .di-bar.over > span { background: linear-gradient(90deg, var(--gold), var(--terracotta)); }
+  .di-macros-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+  .di-macro-top { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink-soft); margin-bottom: 5px; }
+  .di-macro-val { font-family: 'Nunito', sans-serif; color: var(--moss-deep); font-weight: 700; }
+  .di-macro-val em { color: var(--ink-mute); font-style: normal; font-weight: 600; }
+  .di-macro .di-bar { margin-top: 0; }
+  @media (max-width: 560px) { .di-macros-row { grid-template-columns: 1fr; gap: 8px; } }
+  .di-metas summary { list-style: revert; }
+  /* Metas (somente-leitura) — vêm do Cálculo de Calorias */
+  .pl-status-ativo { border-color: var(--sage); color: var(--moss-deep); background: rgba(135,160,130,0.15); font-weight: 700; }
+  .pl-status-inativo { border-color: #C0392B; color: #C0392B; background: rgba(192,57,43,0.08); font-weight: 700; }
+  .di-metas-ro { margin-top: 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .di-metas-ro-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .di-metas-ro-tit { font-size: 13px; font-weight: 700; color: var(--moss-deep); display: inline-flex; align-items: center; gap: 6px; }
+  .di-metas-ro-tit svg { color: var(--gold); }
+  .di-metas-ro-hint { font-size: 12px; color: var(--ink-mute); }
+  .di-metas-ro-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .di-metas-ro-grid > div { display: flex; flex-direction: column; gap: 2px; }
+  .di-metas-ro-grid span { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-mute); font-weight: 700; }
+  .di-metas-ro-grid b { font-family: 'Nunito', sans-serif; font-size: 17px; font-weight: 800; color: var(--moss-deep); }
+  @media (max-width: 560px) { .di-metas-ro-grid { grid-template-columns: 1fr 1fr; } }
+  .al-fonte { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; color: var(--moss); background: rgba(135,160,130,0.15); padding: 1px 7px; border-radius: 100px; vertical-align: middle; margin-left: 4px; }
+
+  /* ===== PRESCRIÇÃO DE DIETA — tela de refeições (dieta-ui.js, nível 3) ===== */
+  /* Só tokens do sistema. Nada de cor solta: estados usam sage/gold/terracotta. */
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* Layout: conteúdo + resumo sticky */
+  .di-rx { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; margin-top: 16px; }
+  .di-rx-aside { position: sticky; top: 12px; }
+  .di-refeicoes { display: flex; flex-direction: column; gap: 10px; }
+
+  /* Cabeçalho contextual */
+  .di-hd { position: sticky; top: 0; z-index: 20; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+           background: var(--bg-card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; box-shadow: var(--shadow); }
+  .di-hd-eyebrow { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-mute); display: flex; align-items: center; gap: 8px; }
+  .di-hd-nome { font-family: 'Fraunces', Georgia, serif; font-size: 22px; font-weight: 600; color: var(--moss-deep); margin: 2px 0 3px; line-height: 1.2; }
+  .di-hd-sub { font-size: 12.5px; color: var(--ink-soft); }
+  .di-hd-sub strong { color: var(--ink); font-weight: 800; }
+  .di-hd-data { color: var(--ink-mute); }
+  .di-hd-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .di-chip { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 100px; background: var(--bg-warm); color: var(--ink-soft); }
+  .di-chip-on { background: rgba(135,160,130,0.22); color: var(--moss-deep); }
+
+  /* Estado do autosave */
+  .di-save { font-size: 12px; color: var(--ink-mute); display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+  .di-save-salvando svg { animation: di-spin 1s linear infinite; }
+  .di-save-salvo { color: var(--moss); }
+  .di-save-erro { color: var(--terracotta); }
+  @keyframes di-spin { to { transform: rotate(360deg); } }
+
+  /* Menu de três pontos */
+  .di-menu-wrap { position: relative; }
+  .di-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 232px; padding: 6px;
+             background: var(--bg-card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-lg); }
+  .di-menu button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 10px; border: none; border-radius: 8px;
+                    background: none; cursor: pointer; font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 600; color: var(--ink); text-align: left; }
+  .di-menu button:hover { background: var(--bg); }
+  .di-menu button.perigo { color: var(--rose); }
+  .di-menu svg { width: 15px; height: 15px; color: var(--ink-mute); }
+  .di-menu button.perigo svg { color: var(--rose); }
+
+  /* Card de refeição */
+  .di-card { background: var(--bg-card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: visible; }
+  .di-card-hd { display: flex; align-items: center; gap: 10px; padding: 9px 12px; }
+  .di-card.recolhida .di-card-hd { padding: 7px 12px; }
+  .di-toggle { flex: 0 0 auto; width: 28px; height: 28px; display: grid; place-items: center; border: none; background: none; cursor: pointer; color: var(--ink-mute); border-radius: 7px; }
+  .di-toggle:hover { background: var(--bg); color: var(--moss); }
+  .di-card-id { display: flex; align-items: center; gap: 8px; flex: 1 1 220px; min-width: 0; }
+  .di-hora { flex: 0 0 auto; width: 78px; padding: 5px 7px; font-family: 'Nunito', sans-serif; font-size: 12.5px; font-weight: 700;
+             color: var(--moss); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; }
+  .di-nome { flex: 1 1 auto; min-width: 90px; padding: 5px 6px; border: 1px solid transparent; border-radius: 7px; background: none;
+             font-family: 'Nunito', sans-serif; font-size: 15px; font-weight: 800; color: var(--moss-deep); }
+  .di-nome:hover { border-color: var(--line); }
+  .di-nome:focus, .di-hora:focus { outline: none; border-color: var(--sage); background: var(--bg); }
+  .di-card-stats { display: flex; align-items: baseline; gap: 10px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+  .di-kcal { font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 800; color: var(--moss-deep); white-space: nowrap; }
+  .di-macros { font-size: 11.5px; color: var(--ink-soft); white-space: nowrap; }
+  .di-conta { font-size: 11px; color: var(--ink-mute); white-space: nowrap; }
+  .di-card-acts { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+
+  /* Ações por ícone — 40px de alvo, sem apertar */
+  .di-iact { width: 30px; height: 30px; display: grid; place-items: center; border: none; background: none; cursor: pointer;
+             color: var(--ink-mute); border-radius: 7px; position: relative; }
+  .di-iact::after { content: ''; position: absolute; inset: -5px; }  /* área clicável ~40px */
+  .di-iact:hover:not(:disabled) { background: var(--bg); color: var(--moss); }
+  .di-iact:disabled { opacity: 0.28; cursor: default; }
+  .di-iact-del:hover:not(:disabled) { background: rgba(184,103,74,0.12); color: var(--terracotta); }
+  .di-iact svg { width: 15px; height: 15px; }
+
+  .di-card-body { border-top: 1px solid var(--line); }
+  .di-card-ft { padding: 6px 12px 10px; }
+  .di-add-link { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; border: none; background: none; cursor: pointer;
+                 font-family: 'Nunito', sans-serif; font-size: 12.5px; font-weight: 700; color: var(--moss); border-radius: 7px; }
+  .di-add-link:hover { background: var(--bg); }
+  .di-add-link svg { width: 14px; height: 14px; }
+  .di-sem-itens { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 12px; font-size: 13px; color: var(--ink-mute); }
+
+  /* Tabela de itens */
+  .di-tab { display: flex; flex-direction: column; }
+  .di-tr { display: grid; grid-template-columns: 26px minmax(0,1fr) 62px 128px 62px 42px 42px 42px 54px 124px; align-items: center; gap: 8px; padding: 6px 12px; }
+  .di-th { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-mute); border-bottom: 1px solid var(--line); padding-bottom: 5px; }
+  .di-item { border-bottom: 1px solid rgba(221,214,197,0.5); }
+  .di-item:last-child { border-bottom: none; }
+  .di-item:hover { background: rgba(244,241,234,0.6); }
+  .c-num { font-size: 11px; color: var(--ink-mute); }
+  .c-mac, .c-kcal, .c-peso { font-size: 12px; color: var(--ink-soft); text-align: right; }
+  .c-kcal b, .c-peso b { font-family: 'Nunito', sans-serif; font-weight: 800; color: var(--moss-deep); }
+  .di-it-nome { font-size: 13.5px; font-weight: 700; color: var(--ink); line-height: 1.3; }
+  .di-it-sub { display: flex; align-items: center; gap: 6px; margin-top: 1px; }
+  .di-it-fonte { font-size: 9.5px; font-weight: 700; letter-spacing: 0.03em; color: var(--moss); background: rgba(135,160,130,0.15); padding: 1px 6px; border-radius: 100px; white-space: nowrap; }
+  .di-obs { flex: 1 1 auto; min-width: 60px; padding: 1px 4px; border: 1px solid transparent; border-radius: 5px; background: none;
+            font-family: 'Nunito', sans-serif; font-size: 11px; color: var(--ink-mute); }
+  .di-obs:hover { border-color: var(--line); }
+  .di-obs:focus { outline: none; border-color: var(--sage); background: var(--bg-card); color: var(--ink); }
+  .di-inp { width: 100%; padding: 5px 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg-card);
+            font-family: 'Nunito', sans-serif; font-size: 12.5px; color: var(--ink); }
+  .di-inp:focus { outline: none; border-color: var(--sage); box-shadow: 0 0 0 2px rgba(135,160,130,0.2); }
+  .di-inp-qtd { text-align: right; }
+  .c-acts { display: flex; justify-content: flex-end; gap: 1px; }
+
+  /* Nova refeição */
+  .di-nova { margin-top: 12px; }
+  .di-nova-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 12px; cursor: pointer;
+                 border: 1.5px dashed var(--line); border-radius: 12px; background: none;
+                 font-family: 'Nunito', sans-serif; font-size: 13.5px; font-weight: 700; color: var(--moss); }
+  .di-nova-btn:hover { border-color: var(--sage); background: var(--bg-card); }
+  .di-nova-form { background: var(--bg-card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; box-shadow: var(--shadow); }
+  .di-nova-grid { display: grid; grid-template-columns: 2fr 1fr 1.6fr; gap: 10px; }
+  .di-nova-acts { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; }
+
+  /* Estado vazio do plano */
+  .di-vazio { text-align: center; padding: 40px 20px; background: var(--bg-card); border: 1px solid var(--line); border-radius: 14px; }
+  .di-vazio-tit { font-family: 'Fraunces', Georgia, serif; font-size: 18px; color: var(--moss-deep); margin-top: 8px; }
+  .di-vazio-sub { font-size: 13px; color: var(--ink-mute); margin: 4px 0 16px; }
+  .di-vazio-acts { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+  /* Resumo */
+  .di-rs { background: var(--bg-card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; box-shadow: var(--shadow); }
+  .di-rs-tit { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-mute); margin-bottom: 12px; }
+  .di-rs-kcal-num { font-family: 'Nunito', sans-serif; font-size: 14px; color: var(--ink-mute); }
+  .di-rs-kcal-num strong { font-size: 30px; font-weight: 800; color: var(--moss-deep); }
+  .di-rs-kcal-sub { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--ink-mute); margin-top: 5px; }
+  .di-rs-pct { font-weight: 800; }
+  .di-rs-macros { display: flex; flex-direction: column; gap: 11px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .di-rs-linha { display: flex; flex-direction: column; gap: 4px; }
+  .di-rs-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .di-rs-nome { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+  .di-rs-val { font-family: 'Nunito', sans-serif; font-size: 12.5px; font-weight: 800; color: var(--moss-deep); white-space: nowrap; }
+  .di-rs-val em { font-style: normal; font-weight: 600; color: var(--ink-mute); }
+  .di-rs-hint { font-size: 10.5px; color: var(--ink-mute); }
+
+  /* Barras — estado NUNCA é só cor: o texto ao lado sempre diz o número */
+  .di-bar { height: 5px; border-radius: 100px; background: var(--bg-warm); overflow: hidden; }
+  .di-bar-lg { height: 8px; margin-top: 8px; }
+  .di-bar > span { display: block; height: 100%; border-radius: 100px; background: var(--sage); transition: width 0.25s; }
+  .di-bar-perto > span { background: var(--moss); }
+  .di-bar-acima > span { background: var(--gold-soft); }
+  .di-bar-excesso > span { background: var(--terracotta); }
+  .di-txt-perto { color: var(--moss); }
+  .di-txt-acima { color: var(--gold); }
+  .di-txt-excesso { color: var(--terracotta); }
+
+  /* Distribuição de macros */
+  .di-rs-dist { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .di-rs-dist-tit { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-mute); margin-bottom: 7px; }
+  .di-rs-dist-bar { display: flex; height: 8px; border-radius: 100px; overflow: hidden; background: var(--bg-warm); }
+  .di-rs-dist-bar span { display: block; height: 100%; }
+  .dp { background: var(--moss); } .dc { background: var(--sage); } .dg { background: var(--gold-soft); }
+  .di-rs-dist-lg { display: flex; justify-content: space-between; gap: 6px; margin-top: 7px; font-size: 10.5px; color: var(--ink-soft); }
+  .di-rs-dist-lg .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; }
+
+  .di-rs-fatos { display: flex; flex-direction: column; gap: 6px; margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--line); }
+  .di-rs-fatos > div { display: flex; justify-content: space-between; gap: 8px; }
+  .di-rs-fatos dt { font-size: 11.5px; color: var(--ink-mute); }
+  .di-rs-fatos dd { margin: 0; font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 800; color: var(--moss-deep); }
+
+  .di-rs-alertas { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .di-al { display: flex; gap: 7px; align-items: flex-start; font-size: 11.5px; line-height: 1.4; padding: 7px 9px; border-radius: 8px; }
+  .di-al svg { width: 13px; height: 13px; flex-shrink: 0; margin-top: 1px; }
+  .di-al-ok { background: rgba(135,160,130,0.14); color: var(--moss-deep); }
+  .di-al-aviso { background: var(--bg-warm); color: var(--ink-soft); }
+  .di-al-alerta { background: rgba(212,179,115,0.2); color: var(--ink); }
+
+  /* Drawer de busca */
+  .di-drawer-fundo { position: fixed; inset: 0; background: rgba(26,31,27,0.32); z-index: 900; animation: fadeIn 0.15s; }
+  .di-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 440px; max-width: 100vw; z-index: 901;
+               display: flex; flex-direction: column; background: var(--bg-card); border-left: 1px solid var(--line);
+               box-shadow: -12px 0 40px rgba(0,0,0,0.12); animation: di-slide 0.2s ease-out; }
+  @keyframes di-slide { from { transform: translateX(100%); } to { transform: translateX(0); } }
+  .di-dw-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px; border-bottom: 1px solid var(--line); }
+  .di-dw-eyebrow { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute); }
+  .di-dw-tit { font-family: 'Fraunces', Georgia, serif; font-size: 18px; color: var(--moss-deep); }
+  .di-dw-abas { display: flex; gap: 3px; padding: 8px 12px 0; border-bottom: 1px solid var(--line); }
+  .di-dw-aba { padding: 7px 12px; border: none; background: none; cursor: pointer; border-radius: 8px 8px 0 0;
+               font-family: 'Nunito', sans-serif; font-size: 12.5px; font-weight: 700; color: var(--ink-mute); border-bottom: 2px solid transparent; }
+  .di-dw-aba:hover { color: var(--moss); }
+  .di-dw-aba.ativa { color: var(--moss-deep); border-bottom-color: var(--moss); }
+  .di-dw-busca { display: flex; align-items: center; gap: 9px; margin: 12px; padding: 9px 13px; background: var(--bg); border: 1.5px solid var(--line); border-radius: 100px; }
+  .di-dw-busca:focus-within { border-color: var(--sage); box-shadow: 0 0 0 3px rgba(135,160,130,0.15); }
+  .di-dw-busca svg { width: 15px; height: 15px; color: var(--ink-mute); flex-shrink: 0; }
+  .di-dw-busca input { flex: 1; border: none; background: none; outline: none; font-family: 'Nunito', sans-serif; font-size: 13.5px; color: var(--ink); }
+  .di-dw-lista { flex: 1; overflow-y: auto; padding: 0 8px 8px; }
+  .di-dw-vazio { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 20px; text-align: center; font-size: 12.5px; color: var(--ink-mute); }
+  .di-dw-vazio svg { width: 22px; height: 22px; }
+  .di-res { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; cursor: pointer; border: 1px solid transparent; }
+  .di-res:hover, .di-res.ativo { background: var(--bg); border-color: var(--line); }
+  .di-res.ativo { border-color: var(--sage); }
+  .di-res-txt { flex: 1; min-width: 0; }
+  .di-res-nome { font-size: 13px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 4px; }
+  .di-fav { width: 12px; height: 12px; color: var(--gold); }
+  .di-res-sub { font-size: 10.5px; color: var(--ink-mute); margin-top: 1px; }
+  .di-res-mac { text-align: right; flex-shrink: 0; }
+  .di-res-kcal { font-family: 'Nunito', sans-serif; font-size: 12.5px; font-weight: 800; color: var(--moss-deep); }
+  .di-res-pcg { font-size: 10px; color: var(--ink-mute); white-space: nowrap; }
+  .di-res-add { flex-shrink: 0; padding: 5px 11px; font-size: 12px; }
+  .di-dw-ft { display: flex; gap: 12px; justify-content: center; padding: 9px; border-top: 1px solid var(--line); font-size: 10.5px; color: var(--ink-mute); flex-wrap: wrap; }
+  .di-dw-ft kbd { font-family: inherit; font-size: 9.5px; font-weight: 700; background: var(--bg-warm); border: 1px solid var(--line);
+                  border-radius: 4px; padding: 1px 5px; margin-right: 2px; }
+
+  /* Resumo em barra fixa — só existe abaixo de 1000px */
+  .di-rs-mob { display: none; }
+
+  /* ── Tablet: resumo sai da lateral e vira barra fixa ── */
+  @media (max-width: 1000px) {
+    .di-rx { grid-template-columns: minmax(0, 1fr); }
+    .di-rx-aside { display: none; }
+    .di-rs-mob { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 800;
+                 background: var(--bg-card); border-top: 1px solid var(--line); box-shadow: 0 -6px 24px rgba(60,80,60,0.1); }
+    .di-rs-mob-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 11px 16px;
+                     border: none; background: none; cursor: pointer; font-family: 'Nunito', sans-serif; }
+    .di-rs-mob-kcal { font-size: 14px; color: var(--ink-mute); }
+    .di-rs-mob-kcal strong { font-size: 17px; font-weight: 800; color: var(--moss-deep); }
+    .di-rs-mob-macros { font-size: 11.5px; color: var(--ink-soft); }
+    .di-rs-mob-painel { max-height: 62vh; overflow-y: auto; padding: 0 12px 12px; }
+    .di-rs-mob-painel .di-rs { border: none; box-shadow: none; padding: 0; }
+    .di-refeicoes, .di-nova { margin-bottom: 0; }
+    .di-rx-main { padding-bottom: 64px; }   /* espaço para a barra fixa */
+    .di-drawer { width: 52vw; min-width: 380px; }
+    .di-tr { grid-template-columns: 22px minmax(0,1fr) 56px 108px 56px 46px 108px; }
+    .di-th .c-mac:nth-of-type(6), .di-th .c-mac:nth-of-type(7), .di-th .c-mac:nth-of-type(8) { display: none; }
+    .di-item .c-mac { display: none; }      /* macros por item saem; kcal fica */
+  }
+
+  /* ── Mobile: tabela vira card empilhado ── */
+  @media (max-width: 700px) {
+    .di-hd { position: static; padding: 12px; }
+    .di-hd-nome { font-size: 19px; }
+    .di-hd-acts { width: 100%; }
+    .di-hd-acts .btn { flex: 1 1 auto; justify-content: center; }
+    .di-drawer { width: 100vw; min-width: 0; border-left: none; }
+    .di-nova-grid { grid-template-columns: 1fr; }
+    .di-card-hd { flex-wrap: wrap; }
+    .di-card-id { flex: 1 1 100%; order: 1; }
+    .di-toggle { order: 0; }
+    .di-card-acts { order: 2; margin-left: auto; }
+    .di-card-stats { order: 3; flex: 1 1 100%; justify-content: flex-start; margin-left: 0; }
+
+    /* Sem rolagem horizontal: cada item vira um bloco */
+    .di-th { display: none; }
+    .di-tr { display: block; padding: 10px 12px; position: relative; }
+    .di-item { border-bottom: 1px solid var(--line); }
+    .c-num { position: absolute; top: 10px; right: 12px; }
+    .c-nome { margin-bottom: 8px; }
+    .di-item .c-qtd, .di-item .c-med, .di-item .c-peso { display: inline-block; vertical-align: middle; margin-right: 8px; }
+    .di-item .c-qtd { width: 68px; }
+    .di-item .c-med { width: 130px; }
+    .di-item .c-peso { font-size: 12.5px; }
+    .di-item .c-mac { display: inline-block; margin-right: 10px; font-size: 11.5px; }
+    .di-item .c-mac::before { content: attr(title) ': '; color: var(--ink-mute); }
+    .di-item .c-kcal { display: inline-block; }
+    .c-acts { justify-content: flex-start; margin-top: 8px; gap: 4px; }
+  }
+
+  /* ===== CÁLCULO DE CALORIAS (calorias-ui.js) ===== */
+  .av-form-subtitle { font-family: 'Nunito', sans-serif; font-size: 15px; font-weight: 700; color: var(--moss-deep); }
+  .cal-hint { font-size: 12.5px; color: var(--ink-mute); margin: 6px 0 12px; }
+  .cal-formula-field { max-width: 340px; margin-bottom: 14px; }
+  .cal-inputs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; align-items: end; }
+  @media (max-width: 640px) { .cal-inputs { grid-template-columns: 1fr 1fr; } }
+  .cal-rate { margin-top: 10px; }
+  .cal-rate-line { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-soft); font-weight: 600; }
+  .cal-rate-line svg { width: 15px; height: 15px; color: var(--moss); }
+  .cal-rate-line strong { color: var(--moss-deep); font-weight: 800; }
+  .cal-alert { display: flex; align-items: flex-start; gap: 7px; margin-top: 8px; padding: 9px 12px; background: rgba(184,146,74,0.10); border-left: 3px solid var(--gold); border-radius: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.4; }
+  .cal-alert svg { width: 15px; height: 15px; color: var(--gold); flex: 0 0 auto; margin-top: 1px; }
+  .cal-note { grid-column: 1 / -1; font-size: 12px; color: var(--ink-mute); }
+  /* Meta calórica — card de destaque (resultado principal) */
+  .cal-meta-card { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; width: 100%; margin: 18px 0; padding: 20px 22px; background: #FFFFFF; border: 1px solid rgba(26,31,27,0.07); border-radius: 16px; box-shadow: 0 1px 2px rgba(26,31,27,0.03), 0 8px 22px rgba(60,77,63,0.06); }
+  .cal-meta-main { flex: 1 1 240px; min-width: 0; }
+  .cal-meta-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-mute); }
+  .cal-meta-big { margin-top: 6px; font-family: 'Nunito', sans-serif; color: var(--ink-mute); line-height: 1; }
+  .cal-meta-big strong { font-size: 44px; font-weight: 800; color: var(--moss-deep); letter-spacing: -0.02em; }
+  .cal-meta-big span { font-size: 15px; font-weight: 600; }
+  .cal-base { margin-top: 16px; }
+  .cal-base-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-mute); margin-bottom: 6px; }
+  .cal-base-list { margin: 0; display: flex; flex-direction: column; gap: 3px; }
+  .cal-base-list > div { display: flex; gap: 8px; font-size: 13px; }
+  .cal-base-list dt { flex: 0 0 68px; color: var(--ink-mute); font-weight: 600; }
+  .cal-base-list dd { margin: 0; color: var(--ink-soft); font-weight: 600; }
+  .cal-base-list dd b { color: var(--moss-deep); font-weight: 800; }
+  .cal-badge { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--moss-deep); background: rgba(135,160,130,0.12); padding: 7px 13px; border-radius: 100px; white-space: nowrap; }
+  .cal-macro-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0 12px; }
+  .cal-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 100px; overflow: hidden; background: var(--bg-card); }
+  .cal-toggle button { border: none; background: none; padding: 6px 14px; font-family: inherit; font-size: 13px; font-weight: 700; color: var(--ink-mute); cursor: pointer; }
+  .cal-toggle button.active { background: var(--moss); color: var(--cream); }
+  .cal-3col { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 560px) { .cal-3col { grid-template-columns: 1fr; } }
+  .cal-macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
+  .cal-total { grid-column: 1 / -1; font-size: 13px; color: var(--ink-soft); font-weight: 600; margin-top: 2px; }
+  .cal-total strong { color: var(--moss-deep); font-weight: 800; }
+  .cal-total-dif { color: var(--ink-mute); font-weight: 600; }
+  .cal-ro { background: var(--bg); color: var(--ink-soft); cursor: not-allowed; }
+  .cal-macro { border: 1px solid var(--line); border-left: 4px solid var(--c, var(--moss)); border-radius: 12px; padding: 12px 14px; background: var(--bg-card); }
+  .cal-macro-nome { font-size: 12px; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; }
+  .cal-macro-g { font-family: 'Nunito', sans-serif; font-size: 24px; font-weight: 800; color: var(--moss-deep); margin-top: 4px; }
+  .cal-macro-sub { font-size: 12px; color: var(--ink-mute); margin-top: 2px; }
+  @media (max-width: 560px) { .cal-macros { grid-template-columns: 1fr; } }
+
   /* ===== RECORDATÓRIO CALCULADO (IA) ===== */
   /* Card largo do recordatório: relato da pessoa | estimativa IA */
   .rec-full-card { background: var(--bg-card); border: 1px solid var(--line); border-radius: 18px; padding: 22px; margin-bottom: 24px; box-shadow: var(--shadow-lg); }
@@ -661,6 +1069,7 @@
         <div class="nav-item" data-page="pacientes"><span class="nav-icon"><i data-lucide="users"></i></span><span>Clientes</span></div>
         <div class="nav-item" data-page="exercicios"><span class="nav-icon"><i data-lucide="dumbbell"></i></span><span>Exercícios</span></div>
         <div class="nav-item" data-page="treinos"><span class="nav-icon"><i data-lucide="list-checks"></i></span><span>Treinos</span></div>
+        <div class="nav-item" data-page="alimentos"><span class="nav-icon"><i data-lucide="apple"></i></span><span>Alimentos</span></div>
       </div>
       <div class="nav-group">
         <div class="nav-group-title">Análise</div>
@@ -752,9 +1161,14 @@
       <div class="loading"><div class="spinner"></div>Carregando...</div>
     </div>
 
-    <!-- EM BREVE -->
+    <!-- BIBLIOTECA DE ALIMENTOS (montada por js/alimentos-ui.js) -->
+    <div class="module-page" id="page-alimentos">
+      <div class="loading"><div class="spinner"></div>Carregando...</div>
+    </div>
+
+    <!-- BIBLIOTECA DE PLANOS ALIMENTARES / MODELOS (montada por js/dieta-ui.js) -->
     <div class="module-page" id="page-plano-alimentar">
-      <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="salad"></i></div><div class="em-breve-titulo">Plano Alimentar</div><div class="em-breve-sub">Monte planos alimentares personalizados, com cálculo de macros, lista de substituições e exportação em PDF para entregar ao cliente.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
+      <div class="loading"><div class="spinner"></div>Carregando...</div>
     </div>
     <div class="module-page" id="page-plano-ia">
       <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="sparkles"></i></div><div class="em-breve-titulo">Plano Alimentar com IA</div><div class="em-breve-sub">Gere automaticamente um plano alimentar com base nas respostas do cliente, patologias, cronotipo e objetivos — pronto para você revisar e ajustar.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
@@ -822,6 +1236,38 @@
     if (pagina === 'treinos') {
       abrirTreinosBiblioteca().catch(console.error);
     }
+    if (pagina === 'alimentos') {
+      abrirAlimentos().catch(console.error);
+    }
+    if (pagina === 'plano-alimentar') {
+      abrirDieta().catch(console.error);
+    }
+    try { history.replaceState(null, '', '#' + pagina); } catch (e) {}
+  }
+
+  // Restaura a rota (página ou ficha+aba) a partir do #hash da URL, no load.
+  function restaurarRota() {
+    const h = (location.hash || '').replace(/^#/, '');
+    if (!h) return;
+    if (h.startsWith('ficha/')) {
+      const partes = h.split('/');
+      const id = partes[1], aba = partes[2] || 'dados';
+      if (id) abrirRelatorio(id, aba).catch(console.error);
+      return;
+    }
+    if (document.getElementById('page-' + h)) navegar(h);
+  }
+
+  async function abrirAlimentos() {
+    const sessao = await obterSessao();
+    const { initAlimentosUI } = await import('./js/alimentos-ui.js');
+    await initAlimentosUI(sessao?.user?.id);
+  }
+
+  async function abrirDieta() {
+    const sessao = await obterSessao();
+    const { initBibliotecaDietas } = await import('./js/dieta-ui.js');
+    await initBibliotecaDietas(sessao?.user?.id, 'page-plano-alimentar');
   }
 
   async function abrirExercicios() {
@@ -947,6 +1393,7 @@
       }
     } catch (e) { console.warn('Não conseguiu carregar perfil:', e); }
     await carregarPacientes();
+    restaurarRota();   // F5 mantém a página/ficha/aba onde o usuário estava
   }
 
   async function carregarPacientes() {
@@ -1062,7 +1509,7 @@
     } catch (e) { alert('Erro: ' + e.message); }
   }
 
-  async function abrirRelatorio(id) {
+  async function abrirRelatorio(id, abaInicial = 'dados') {
     // Abre a FICHA do paciente (modelo WebDiet). A ficha renderiza
     // internamente o relatório na aba "Anamnese geral".
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -1071,7 +1518,7 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     const sessao = await obterSessao();
-    abrirFichaPaciente(id, sessao?.user?.id, () => navegar('pacientes'));
+    await abrirFichaPaciente(id, sessao?.user?.id, () => navegar('pacientes'), abaInicial);
   }
 
   // Mantida para compatibilidade: relatório "puro" (não usado na ficha)

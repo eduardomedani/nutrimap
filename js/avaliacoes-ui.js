@@ -12,7 +12,7 @@ import {
   proximoNumero, dadosBasicosDaAnamnese, gerarOpcoesProtocolo,
   calcularResultados, extrairDobras
 } from './avaliacoes.js';
-import { mostrarToast } from './utils.js';
+import { mostrarToast, mostrarErro, confirmar } from './utils.js';
 
 let _nutriId = null;
 let _pacientes = [];
@@ -171,12 +171,16 @@ async function abrirPainelPaciente() {
 }
 
 async function removerAval(id, numero) {
-  if (!confirm(`Excluir a Avaliação ${numero}?`)) return;
+  if (!(await confirmar({
+    titulo: 'Excluir avaliação',
+    mensagem: `Excluir a Avaliação ${numero}?`,
+    textoOk: 'Excluir', perigo: true,
+  }))) return;
   try {
     await excluirAvaliacao(id);
     mostrarToast('✓ Avaliação excluída');
     await abrirPainelPaciente();
-  } catch (e) { alert('Erro: ' + e.message); }
+  } catch (e) { mostrarErro('Erro: ' + e.message); }
 }
 
 // ───────────────────────────────────────────────────────────
@@ -316,7 +320,7 @@ async function salvar() {
     document.getElementById('avFormWrap').innerHTML = '';
     await abrirPainelPaciente();
   } catch (e) {
-    alert('Erro ao salvar: ' + e.message);
+    mostrarErro('Erro ao salvar: ' + e.message);
     btn.disabled = false; btn.innerHTML = '<i data-lucide="save"></i> Salvar avaliação';
   }
 }

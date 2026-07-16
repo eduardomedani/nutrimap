@@ -198,6 +198,46 @@ export async function prescreverModeloParaPaciente(modeloId, pacienteId, extras 
   return novo;
 }
 
+/**
+ * Sobe um treino (prescrição de um aluno, ou outro treino) para a BIBLIOTECA:
+ * cria um novo treino MODELO (paciente_id NULL) copiando os dados + todos os
+ * itens. NÃO copia a progressão (cargas realizadas são histórico do aluno).
+ * Reaproveita o nutri_id do treino de origem. Retorna o modelo criado.
+ */
+export async function salvarComoModelo(treinoId, extras = {}) {
+  const origem = await buscarTreino(treinoId);
+  const itens  = await listarItensDoTreino(treinoId);
+
+  const modelo = await criarTreino(origem.nutri_id, {
+    nome:        extras.nome ?? origem.nome,
+    divisao:     origem.divisao,
+    data_inicio: null,     // modelo não tem data de início
+    ativo:       true,
+    paciente_id: null,     // <- vai para a biblioteca
+  });
+
+  if (itens.length) {
+    const copias = itens.map((it) => ({
+      nutri_id:     origem.nutri_id,
+      treino_id:    modelo.id,
+      exercicio_id: it.exercicio_id,
+      dia:          it.dia,
+      ordem:        it.ordem,
+      series:       it.series,
+      repeticoes:   it.repeticoes,
+      carga:        it.carga,
+      cadencia:     it.cadencia,
+      descanso:     it.descanso,
+      rir:          it.rir,
+      metodo:       it.metodo,
+      observacao:   it.observacao,
+    }));
+    const { error } = await sb.from('treino_exercicios').insert(copias);
+    if (error) throw error;
+  }
+  return modelo;
+}
+
 // ───────────────────────────────────────────────────────────
 // ITENS DO TREINO  (treino_exercicios)
 // ───────────────────────────────────────────────────────────

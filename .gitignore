@@ -1,3 +1,5 @@
 
-# Scripts SQL com dados de paciente (não versionar)
+# Scripts SQL com dados de paciente (não versionar — o repositório é público).
+# São migrações pontuais que carregam nome completo e UUID reais.
 db/ficha_eduardo_*.sql
+db/treino_eduardo_*.sql

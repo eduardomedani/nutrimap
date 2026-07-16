@@ -11,7 +11,7 @@ import { buscarRespostasModulo } from './respostas.js';
 import { gerarRelatorio, ativarConduta } from './relatorio.js';
 import { processarRecordatorioIA } from './recordatorio-ia.js';
 import { QUESTIONARIO_URL } from './supabase.js';
-import { copiarParaClipboard, gerarLinkWhatsapp, montarMensagemQuestionario } from './utils.js';
+import { copiarParaClipboard, gerarLinkWhatsapp, montarMensagemQuestionario, mostrarErro } from './utils.js';
 // Fase 3 ligará as Avaliações dentro da ficha.
 
 let _pacienteAtual = null;
@@ -26,8 +26,8 @@ const ABAS = [
   { id: 'exames',       icone: '<i data-lucide="flask-conical"></i>', label: 'Exames laboratoriais', pronta: false },
   { id: 'avaliacoes',   icone: '<i data-lucide="ruler"></i>',         label: 'Avaliações Físicas', pronta: true },
   { id: 'treinos',      icone: '<i data-lucide="dumbbell"></i>',      label: 'Treinos',            pronta: true },
-  { id: 'planejamento', icone: '<i data-lucide="salad"></i>',         label: 'Planejamento Alimentar', pronta: false },
-  { id: 'metas',        icone: '<i data-lucide="target"></i>',        label: 'Prescrição de Metas', pronta: false },
+  { id: 'calorias',     icone: '<i data-lucide="flame"></i>',         label: 'Cálculo de Calorias', pronta: true },
+  { id: 'planejamento', icone: '<i data-lucide="salad"></i>',         label: 'Planejamento Alimentar', pronta: true },
   { id: 'manipulados',  icone: '<i data-lucide="pill"></i>',          label: 'Prescrição de Manipulados', pronta: false },
   { id: 'orientacoes',  icone: '<i data-lucide="file-pen"></i>',      label: 'Orientações Nutricionais', pronta: false },
 ];
@@ -38,10 +38,13 @@ const ABAS = [
  * @param {string} nutriId
  * @param {function} onVoltar - callback pra voltar à lista
  */
-export async function abrirFichaPaciente(pacienteId, nutriId, onVoltar) {
+export async function abrirFichaPaciente(pacienteId, nutriId, onVoltar, abaInicial = 'dados') {
   _nutriId = nutriId;
   const page = document.getElementById('page-ficha');
   if (!page) { console.error('page-ficha não existe'); return; }
+
+  // Aba inicial válida (existe e está pronta), senão cai em "dados".
+  const abaOk = ABAS.find(a => a.id === abaInicial && a.pronta) ? abaInicial : 'dados';
 
   page.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando ficha...</div>`;
 
@@ -78,7 +81,7 @@ export async function abrirFichaPaciente(pacienteId, nutriId, onVoltar) {
     <div class="ficha-body">
       <div class="ficha-menu" id="fichaMenu">
         ${ABAS.map(a => `
-          <div class="fm-item ${a.id === 'dados' ? 'active' : ''} ${a.pronta ? '' : 'soon'}" data-aba="${a.id}">
+          <div class="fm-item ${a.id === abaOk ? 'active' : ''} ${a.pronta ? '' : 'soon'}" data-aba="${a.id}">
             <span>${a.icone}</span><span>${a.label}</span>
           </div>`).join('')}
       </div>
@@ -104,8 +107,8 @@ export async function abrirFichaPaciente(pacienteId, nutriId, onVoltar) {
     });
   });
 
-  // Abre a primeira aba
-  renderAba('dados');
+  // Abre a aba inicial (restaurada da URL ou "dados")
+  renderAba(abaOk);
 }
 
 /**
@@ -114,6 +117,9 @@ export async function abrirFichaPaciente(pacienteId, nutriId, onVoltar) {
 async function renderAba(abaId) {
   const cont = document.getElementById('fichaConteudo');
   const p = _pacienteAtual;
+
+  // Grava a rota na URL (sem poluir o histórico) p/ o F5 manter cliente + aba.
+  if (p?.id) { try { history.replaceState(null, '', '#ficha/' + p.id + '/' + abaId); } catch (e) {} }
 
   // Abas prontas
   if (abaId === 'dados') {
@@ -162,6 +168,28 @@ async function renderAba(abaId) {
       await initTreinosUIParaPaciente(_nutriId, p, 'treinosFichaMount');
     } catch (e) {
       cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro nos treinos: ${e.message}</div>`;
+    }
+    return;
+  }
+
+  if (abaId === 'calorias') {
+    cont.innerHTML = `<div id="caloriasFichaMount"><div class="loading"><div class="spinner"></div>Carregando...</div></div>`;
+    try {
+      const { initCaloriasUIParaPaciente } = await import('./calorias-ui.js');
+      await initCaloriasUIParaPaciente(_nutriId, p, 'caloriasFichaMount');
+    } catch (e) {
+      cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro no cálculo de calorias: ${e.message}</div>`;
+    }
+    return;
+  }
+
+  if (abaId === 'planejamento') {
+    cont.innerHTML = `<div id="dietaFichaMount"><div class="loading"><div class="spinner"></div>Carregando planos...</div></div>`;
+    try {
+      const { initDietaUIParaPaciente } = await import('./dieta-ui.js');
+      await initDietaUIParaPaciente(_nutriId, p, 'dietaFichaMount');
+    } catch (e) {
+      cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro no planejamento: ${e.message}</div>`;
     }
     return;
   }
@@ -277,7 +305,7 @@ function renderDadosView(cont, p, m1, editando) {
         renderDadosView(cont, _pacienteAtual, m1, false);
       } catch (e) {
         btn.disabled = false; btn.innerHTML = '<i data-lucide="save"></i> Salvar';
-        alert('Erro ao salvar: ' + e.message);
+        mostrarErro('Erro ao salvar: ' + e.message);
       }
     });
   } else {

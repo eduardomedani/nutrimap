@@ -1,1 +1,274 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NutriMap — Admin</title>
+<meta name="theme-color" content="#2A3A2C">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+  // createIcons() troca o nó do ícone e deixa o data-lucide no <svg> gerado, então
+  // se reprocessa sem parar — e cada troca reagenda o observer. Um <svg> novo por
+  // frame quebra o clique (mousedown e mouseup caem em nós diferentes).
+  let _r = null;
+  const _obs = new MutationObserver(renderIcons);
+  function observarIcones() { _obs.observe(document.documentElement, { childList: true, subtree: true }); }
+  function renderIcons() {
+    if (!window.lucide || _r) return;
+    _r = requestAnimationFrame(() => {
+      _r = null;
+      _obs.disconnect();
+      try {
+        window.lucide.createIcons();
+        document.querySelectorAll('svg[data-lucide]').forEach(el => el.removeAttribute('data-lucide'));
+      } catch (e) {}
+      observarIcones();
+    });
+  }
+  document.addEventListener('DOMContentLoaded', renderIcons);
+  observarIcones();
+</script>
+<style>
+  :root{
+    --bg:#F4F1EA; --bg-card:#FDFBF7; --bg-warm:#EDE7D8;
+    --ink:#1A1F1B; --ink-soft:#4A524C; --ink-mute:#8A8F89;
+    --moss:#3D4D3F; --moss-deep:#2A3A2C; --olive:#5C6B47; --sage:#87A082; --gold:#B8924A;
+    --cream:#F8F1DD; --line:#DDD6C5; --shadow:0 4px 20px rgba(60,80,60,0.07);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:'Nunito',sans-serif;font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
+  em{font-style:italic}
+  @keyframes slideInRight{from{transform:translateX(40px);opacity:0}to{transform:translateX(0);opacity:1}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spin{display:inline-block;width:18px;height:18px;border:2.5px solid var(--line);border-top-color:var(--moss);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
 
+  .wrap{max-width:860px;margin:0 auto;padding:28px 18px 60px}
+  .brand{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+  .brand-mark{width:44px;height:44px;background:linear-gradient(135deg,var(--moss),var(--olive));border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--cream);font-size:20px;font-weight:600;font-style:italic}
+  .brand-name{font-size:24px;font-weight:500}
+  .brand-name em{color:var(--moss)}
+  .brand-sub{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--moss);font-weight:600}
+  .spacer{margin-left:auto}
+
+  .card{background:var(--bg-card);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:var(--shadow);margin-bottom:18px}
+  .card-title{font-size:16px;font-weight:700;color:var(--moss-deep);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .card-title svg{width:18px;height:18px;color:var(--moss)}
+
+  label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 5px}
+  .inp{width:100%;padding:11px 13px;background:var(--bg);border:1.5px solid var(--line);border-radius:10px;font-size:15px;color:var(--ink);font-family:inherit}
+  .inp:focus{outline:none;border-color:var(--moss)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .grid .full{grid-column:1/-1}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 18px;border:none;border-radius:100px;background:var(--moss);color:var(--cream);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:background .2s}
+  .btn:hover:not(:disabled){background:var(--moss-deep)}
+  .btn:disabled{opacity:.6;cursor:default}
+  .btn svg{width:16px;height:16px}
+  .btn-ghost{background:var(--bg-warm);color:var(--ink)}
+  .btn-ghost:hover:not(:disabled){background:var(--line)}
+  .btn-sm{padding:7px 12px;font-size:12.5px}
+
+  .msg{min-height:18px;font-size:13px;color:#b4553f;margin-top:10px}
+  .msg.ok{color:var(--moss)}
+
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);font-size:13.5px;vertical-align:middle}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-mute);font-weight:700}
+  .cod{font-weight:800;letter-spacing:.04em;color:var(--moss-deep);cursor:pointer}
+  .cod:hover{text-decoration:underline}
+  .tag{display:inline-block;padding:3px 9px;border-radius:100px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+  .tag-on{background:rgba(135,160,130,.22);color:var(--moss-deep)}
+  .tag-off{background:var(--bg-warm);color:var(--ink-mute)}
+  .muted{color:var(--ink-mute)}
+  .table-scroll{overflow-x:auto}
+
+  .center{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;color:var(--ink-soft)}
+  .center svg{width:34px;height:34px;color:var(--gold)}
+  .login{max-width:380px;margin:0 auto}
+</style>
+</head>
+<body>
+  <div id="app"><div class="center"><span class="spin" style="width:30px;height:30px"></span></div></div>
+
+<script type="module">
+  import { sb } from './js/supabase.js';
+  import { fazerLogin, fazerLogout, obterSessao, traduzirErroAuth } from './js/auth.js';
+  import { copiarParaClipboard, mostrarToast } from './js/utils.js';
+
+  const app = () => document.getElementById('app');
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const fmtData = d => { if(!d) return '—'; try { return new Date(d).toLocaleDateString('pt-BR'); } catch { return '—'; } };
+
+  async function boot() {
+    const sessao = await obterSessao();
+    if (!sessao) return renderLogin();
+    await tentarConsole();
+  }
+
+  function renderLogin(erro = '') {
+    app().innerHTML = `
+      <div class="wrap">
+        <div class="brand"><div class="brand-mark">N</div><div><div class="brand-name">Nutri<em>Map</em></div><div class="brand-sub">Admin</div></div></div>
+        <div class="card login">
+          <div class="card-title"><i data-lucide="shield"></i> Acesso do administrador</div>
+          <label>Email</label>
+          <input type="email" id="email" class="inp" autocomplete="email">
+          <label>Senha</label>
+          <input type="password" id="senha" class="inp" autocomplete="current-password">
+          <div style="margin-top:16px"><button class="btn" id="entrar" style="width:100%">Entrar</button></div>
+          <div class="msg" id="msg">${esc(erro)}</div>
+        </div>
+      </div>`;
+    const doIt = () => login();
+    document.getElementById('entrar').addEventListener('click', doIt);
+    document.getElementById('senha').addEventListener('keydown', e => { if (e.key === 'Enter') doIt(); });
+  }
+
+  async function login() {
+    const email = (document.getElementById('email').value || '').trim();
+    const senha = (document.getElementById('senha').value || '').trim();
+    if (!email || !senha) return setMsg('Preencha email e senha.');
+    const b = document.getElementById('entrar'); b.disabled = true; b.textContent = 'Entrando...';
+    try {
+      await fazerLogin(email, senha);
+      await tentarConsole();
+    } catch (e) {
+      b.disabled = false; b.textContent = 'Entrar';
+      setMsg(traduzirErroAuth(e.message));
+    }
+  }
+
+  async function tentarConsole() {
+    app().innerHTML = `<div class="center"><span class="spin" style="width:30px;height:30px"></span><div>Carregando...</div></div>`;
+    const { data, error } = await sb.rpc('admin_listar_codigos');
+    if (error) {
+      if (/nao_autorizado|not.?authorized|permission/i.test(error.message || '')) return renderSemAcesso();
+      return renderErro(error.message);
+    }
+    renderConsole(data || []);
+  }
+
+  function renderSemAcesso() {
+    app().innerHTML = `
+      <div class="center">
+        <i data-lucide="lock"></i>
+        <div><strong>Esta conta não tem acesso de administrador.</strong></div>
+        <div class="muted" style="max-width:340px">Só o dono da plataforma pode gerar códigos. Rode a migração <code>db/admin_convites.sql</code> e confirme que sua conta está na tabela <code>admins</code>.</div>
+        <button class="btn btn-ghost btn-sm" id="sair">Sair</button>
+      </div>`;
+    document.getElementById('sair').addEventListener('click', logout);
+  }
+
+  function renderErro(txt) {
+    app().innerHTML = `<div class="center"><i data-lucide="triangle-alert"></i><div>${esc(txt)}</div><button class="btn btn-ghost btn-sm" onclick="location.reload()">Recarregar</button></div>`;
+  }
+
+  function renderConsole(codigos) {
+    codigos = [...codigos].sort((a, b) => String(b.criado_em || '').localeCompare(String(a.criado_em || '')));
+
+    const linhas = codigos.length ? codigos.map(c => {
+      const esgotado = (c.usos_maximo != null) && (c.usos_atuais >= c.usos_maximo);
+      const on = c.ativo && !esgotado;
+      return `<tr>
+        <td><span class="cod" data-copy="${esc(c.codigo)}" title="Copiar">${esc(c.codigo)}</span></td>
+        <td>${esc(c.descricao || '—')}</td>
+        <td>${c.usos_atuais ?? 0}/${c.usos_maximo ?? '∞'}</td>
+        <td>${c.expira_em ? fmtData(c.expira_em) : '—'}</td>
+        <td><span class="tag ${on ? 'tag-on' : 'tag-off'}">${c.ativo ? (esgotado ? 'esgotado' : 'ativo') : 'inativo'}</span></td>
+        <td><button class="btn btn-ghost btn-sm" data-toggle="${esc(c.id)}" data-ativo="${c.ativo ? '1' : '0'}">${c.ativo ? 'Desativar' : 'Ativar'}</button></td>
+      </tr>`;
+    }).join('') : `<tr><td colspan="6" class="muted" style="text-align:center;padding:18px">Nenhum código ainda. Gere o primeiro acima.</td></tr>`;
+
+    app().innerHTML = `
+      <div class="wrap">
+        <div class="brand">
+          <div class="brand-mark">N</div>
+          <div><div class="brand-name">Nutri<em>Map</em></div><div class="brand-sub">Admin · convites</div></div>
+          <div class="spacer"></div>
+          <button class="btn btn-ghost btn-sm" id="sair"><i data-lucide="log-out"></i> Sair</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><i data-lucide="ticket-plus"></i> Gerar código de convite</div>
+          <div class="grid">
+            <div>
+              <label>Código <span class="muted" style="text-transform:none;font-weight:400">(vazio = aleatório)</span></label>
+              <input type="text" id="gCodigo" class="inp" placeholder="Ex.: DRA-MARIA-2026" style="text-transform:uppercase">
+            </div>
+            <div>
+              <label>Nº de usos</label>
+              <input type="number" id="gUsos" class="inp" value="1" min="1">
+            </div>
+            <div>
+              <label>Descrição <span class="muted" style="text-transform:none;font-weight:400">(quem é / plano)</span></label>
+              <input type="text" id="gDesc" class="inp" placeholder="Ex.: Dra. Maria — plano anual">
+            </div>
+            <div>
+              <label>Expira em <span class="muted" style="text-transform:none;font-weight:400">(opcional)</span></label>
+              <input type="date" id="gExpira" class="inp">
+            </div>
+            <div class="full"><button class="btn" id="gBtn"><i data-lucide="plus"></i> Gerar código</button></div>
+          </div>
+          <div class="msg ok" id="gMsg"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><i data-lucide="tickets"></i> Códigos (${codigos.length})</div>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Código</th><th>Descrição</th><th>Usos</th><th>Expira</th><th>Status</th><th></th></tr></thead>
+              <tbody>${linhas}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
+
+    document.getElementById('sair').addEventListener('click', logout);
+    document.getElementById('gBtn').addEventListener('click', gerar);
+    app().querySelectorAll('[data-copy]').forEach(el =>
+      el.addEventListener('click', () => copiarParaClipboard(el.dataset.copy, '✓ Código copiado: ' + el.dataset.copy)));
+    app().querySelectorAll('[data-toggle]').forEach(b =>
+      b.addEventListener('click', () => toggle(b.dataset.toggle, b.dataset.ativo === '1')));
+  }
+
+  async function gerar() {
+    const codigo = (document.getElementById('gCodigo').value || '').trim();
+    const desc = (document.getElementById('gDesc').value || '').trim();
+    const usos = parseInt(document.getElementById('gUsos').value, 10) || 1;
+    const expira = document.getElementById('gExpira').value || null;
+    const b = document.getElementById('gBtn'); const orig = b.innerHTML;
+    b.disabled = true; b.textContent = 'Gerando...';
+    try {
+      const { data, error } = await sb.rpc('admin_gerar_codigo', {
+        p_codigo: codigo || null, p_descricao: desc || null,
+        p_usos_maximo: usos, p_expira_em: expira,
+      });
+      if (error) throw error;
+      copiarParaClipboard(data, '✓ Código gerado e copiado: ' + data);
+      await tentarConsole();
+    } catch (e) {
+      b.disabled = false; b.innerHTML = orig;
+      const gm = document.getElementById('gMsg');
+      gm.className = 'msg'; gm.textContent = /duplicate|unique/i.test(e.message || '') ? 'Esse código já existe. Escolha outro.' : ('Erro: ' + e.message);
+    }
+  }
+
+  async function toggle(id, ativoAtual) {
+    try {
+      const { error } = await sb.rpc('admin_definir_ativo', { p_id: id, p_ativo: !ativoAtual });
+      if (error) throw error;
+      mostrarToast(ativoAtual ? '✓ Código desativado' : '✓ Código ativado');
+      await tentarConsole();
+    } catch (e) { mostrarToast('Erro: ' + e.message); }
+  }
+
+  async function logout() { await fazerLogout(); renderLogin(); }
+  function setMsg(t) { const m = document.getElementById('msg'); if (m) m.textContent = t; }
+
+  boot();
+</script>
+</body>
+</html>
