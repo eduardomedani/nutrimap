@@ -233,7 +233,7 @@ async function fazerVinculo() {
 async function abrirTreino() {
   renderCarregando('Carregando seu treino...');
   try {
-    _treinos = await meusTreinos();
+    _treinos = await meusTreinos(_paciente?.id);
     _treinosCarregados = true;
     if (!_treinos.length) { renderSemTreino(); return; }
 

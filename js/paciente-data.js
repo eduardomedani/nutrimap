@@ -54,11 +54,18 @@ export async function vincularPorCodigo(codigo) {
 
 // ── TREINO ────────────────────────────────────────────────────
 
-/** Treinos ativos do paciente, mais recentes primeiro. */
-export async function meusTreinos() {
+/**
+ * Treinos ativos do paciente, mais recentes primeiro.
+ * Filtra por paciente_id explicitamente: se a conta logada também for um nutri
+ * (o nutri testando o app como aluno), a policy de dono faria o RLS devolver
+ * a biblioteca inteira e os treinos de outros pacientes.
+ */
+export async function meusTreinos(pacienteId) {
+  if (!pacienteId) return [];
   const { data, error } = await sb
     .from('treinos')
     .select('*')
+    .eq('paciente_id', pacienteId)
     .eq('ativo', true)
     .order('criado_em', { ascending: false });
   if (error) throw error;
