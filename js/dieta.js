@@ -10,6 +10,8 @@
 // Espelha js/treinos.js.
 
 import { sb } from './supabase.js';
+import { GRUPOS } from './dieta-grupos.js';
+import { gerarPlano } from './dieta-gerar.js';
 
 /**
  * DELETE que falha alto quando nao apaga nada.
@@ -572,4 +574,89 @@ export async function prescreverModeloParaPaciente(modeloId, pacienteId, extras 
 /** Sobe um plano de aluno para a BIBLIOTECA como modelo reutilizável. */
 export async function salvarComoModelo(planoId, extras = {}) {
   return copiarPlano(planoId, { paciente_id: null, nome: extras.nome });
+}
+
+// ───────────────────────────────────────────────────────────
+// GERAÇÃO AUTOMÁTICA  (motor em dieta-gerar.js)
+// ───────────────────────────────────────────────────────────
+
+/**
+ * Catálogo no formato que o gerador espera: mapa nome -> macros por 100 g.
+ * Busca só os alimentos citados nos grupos (1 consulta), não o catálogo todo.
+ * Prefere o alimento próprio quando existe um global de mesmo nome.
+ */
+export async function catalogoParaGerador() {
+  const nomes = [...new Set(Object.values(GRUPOS).flatMap(g => g.alimentos))];
+  const { data, error } = await sb
+    .from('foods')
+    .select('id, nome, calorias, proteina, carboidrato, gordura, fibra, nutri_id')
+    .in('nome', nomes);
+  if (error) throw error;
+
+  const cat = {};
+  for (const f of data || []) {
+    // próprio (nutri_id preenchido) ganha do global de mesmo nome
+    if (!cat[f.nome] || (f.nutri_id && !cat[f.nome].nutri_id)) cat[f.nome] = f;
+  }
+  return cat;
+}
+
+/**
+ * Quais alimentos dos grupos ainda NÃO estão no catálogo do nutri.
+ * Serve para avisar antes de gerar, em vez de entregar um plano com buracos.
+ */
+export function faltandoNoCatalogo(catalogo) {
+  const nomes = [...new Set(Object.values(GRUPOS).flatMap(g => g.alimentos))];
+  return nomes.filter(n => !catalogo[n]);
+}
+
+/**
+ * Gera e GRAVA um plano alimentar completo.
+ *
+ * @param {string} nutriId
+ * @param {object} p  { pacienteId, metas: {kcal,prot,carb,gord}, nome,
+ *                      templateId, excluir, preferir, data_inicio, data_fim }
+ * @returns {object} { plano, resultado } — resultado traz macros/desvio/avisos
+ */
+export async function gerarPlanoParaPaciente(nutriId, p = {}) {
+  const catalogo = await catalogoParaGerador();
+  const resultado = gerarPlano(p.metas, catalogo, {
+    templateId: p.templateId,
+    excluir:    p.excluir,
+    preferir:   p.preferir,
+  });
+
+  const plano = await criarPlano(nutriId, {
+    nome:        p.nome || 'Plano gerado',
+    objetivo:    p.objetivo ?? null,
+    kcal_meta:   p.metas.kcal,
+    prot_meta:   p.metas.prot,
+    carb_meta:   p.metas.carb,
+    gord_meta:   p.metas.gord,
+    data_inicio: p.data_inicio ?? null,
+    data_fim:    p.data_fim ?? null,
+    ativo:       true,
+    paciente_id: p.pacienteId ?? null,
+    observacoes: `Gerado automaticamente · ${resultado.template.nome}`,
+  });
+
+  for (const r of resultado.refeicoes) {
+    const ref = await criarRefeicao(nutriId, {
+      plano_id: plano.id, nome: r.nome, horario: r.horario, ordem: r.ordem,
+    });
+    const itens = r.itens.map(it => ({
+      nutri_id:      nutriId,
+      refeicao_id:   ref.id,
+      food_id:       it.food_id,
+      quantidade:    it.quantidade,
+      medida:        it.medida,
+      ordem:         it.ordem,
+      substituicoes: it.substituicoes?.length ? it.substituicoes : null,
+    }));
+    if (itens.length) {
+      const { error } = await sb.from('refeicao_itens').insert(itens);
+      if (error) throw error;
+    }
+  }
+  return { plano, resultado };
 }

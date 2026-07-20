@@ -10,8 +10,12 @@
 // Plugado na ficha via initCaloriasUIParaPaciente(nutriId, paciente, mountId).
 
 import { listarAvaliacoes } from './avaliacoes.js';
-import { listarPlanosDoPaciente, criarPlano, atualizarPlano } from './dieta.js';
-import { mostrarToast } from './utils.js';
+import {
+  listarPlanosDoPaciente, criarPlano, atualizarPlano,
+  gerarPlanoParaPaciente, catalogoParaGerador, faltandoNoCatalogo,
+} from './dieta.js';
+import { TEMPLATES } from './dieta-grupos.js';
+import { mostrarToast, confirmar } from './utils.js';
 
 let _nutriId  = null;
 let _paciente = null;
@@ -142,7 +146,8 @@ function render() {
       <div class="cal-macros" id="calMacros"></div>
 
       <div class="av-actions">
-        <button class="btn primary" id="calAplicar"><i data-lucide="check"></i> Aplicar ao plano alimentar</button>
+        <button class="btn" id="calAplicar"><i data-lucide="check"></i> Aplicar só as metas</button>
+        <button class="btn primary" id="calGerar"><i data-lucide="wand-sparkles"></i> Gerar plano completo</button>
       </div>
       <div class="cal-hint" id="calAplicarMsg" style="text-align:right;"></div>
     </div>
@@ -167,6 +172,7 @@ function render() {
     b.addEventListener('click', () => setModo(b.dataset.modo)));
 
   document.getElementById('calAplicar').addEventListener('click', aplicarAoPlano);
+  document.getElementById('calGerar').addEventListener('click', gerarPlanoCompleto);
 
   setModo(_modo);                 // visibilidade inicial dos macros
   if (_av) recomputarGet();       // preenche o GET pela fórmula selecionada
@@ -335,6 +341,72 @@ function recomputar() {
     linha('Carboidrato', c.carbG, 4, 'var(--gold)') +
     linha('Gordura', c.gordG, 9, 'var(--terracotta)') +
     `<div class="cal-total">Total: <strong>${Math.round(totalKcal)} kcal</strong>${difTxt}</div>`;
+}
+
+/**
+ * Gera um plano completo (refeições + itens) a partir das metas da tela.
+ * Cria um plano NOVO — nunca sobrescreve o que já existe, porque o plano
+ * atual pode ter ajuste manual do nutri que a geração não sabe reproduzir.
+ */
+async function gerarPlanoCompleto() {
+  const c = _calcular();
+  if (!c.meta) { mostrarToast('Informe o GET para calcular a meta'); return; }
+
+  const btn = document.getElementById('calGerar');
+  const msg = document.getElementById('calAplicarMsg');
+  const orig = btn.innerHTML;
+  btn.disabled = true; btn.textContent = 'Gerando...';
+  try {
+    // o catálogo precisa ter os alimentos dos grupos; sem isso o plano sai furado
+    const catalogo = await catalogoParaGerador();
+    const faltam = faltandoNoCatalogo(catalogo);
+    if (faltam.length) {
+      const aviso = `Faltam ${faltam.length} alimentos no catálogo (ex.: ${faltam.slice(0, 3).join(', ')}). ` +
+        `Rode db/foods_gerador_seed.sql no Supabase.`;
+      if (msg) msg.textContent = aviso;
+      mostrarToast('Catálogo incompleto — veja a mensagem abaixo do botão');
+      return;
+    }
+
+    const planos = await listarPlanosDoPaciente(_paciente.id);
+    if (planos.length && !(await confirmar({
+      titulo: 'Gerar novo plano',
+      mensagem: `${_paciente.nome} já tem ${planos.length} plano(s). ` +
+        `Gerar cria um plano NOVO e desativa o atual — nada é apagado.`,
+      textoOk: 'Gerar',
+    }))) return;
+
+    const objetivo = document.getElementById('calObjetivo')?.selectedOptions[0]?.textContent || null;
+    const { plano, resultado } = await gerarPlanoParaPaciente(_nutriId, {
+      pacienteId: _paciente.id,
+      nome: `Plano ${Math.round(c.meta)} kcal`,
+      objetivo,
+      templateId: TEMPLATES[0].id,
+      metas: {
+        kcal: c.meta,
+        prot: Math.round(c.protG),
+        carb: Math.round(c.carbG),
+        gord: Math.round(c.gordG),
+      },
+    });
+
+    // o novo vira o ativo; os anteriores saem de cena sem serem apagados
+    for (const p of planos) if (p.ativo) await atualizarPlano(p.id, { ativo: false });
+
+    const m = resultado.macros, d = resultado.desvio;
+    const pc = v => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}%`;
+    if (msg) msg.textContent =
+      `✓ "${plano.nome}" criado: ${Math.round(m.kcal)} kcal (${pc(d.kcal)}), ` +
+      `P ${Math.round(m.proteina)}g · C ${Math.round(m.carboidrato)}g · G ${Math.round(m.gordura)}g. ` +
+      `Ajuste na aba "Planejamento Alimentar".` +
+      (resultado.avisos.length ? ` ⚠ ${resultado.avisos.join(' ')}` : '');
+    mostrarToast('✓ Plano gerado');
+  } catch (e) {
+    if (msg) msg.textContent = 'Erro: ' + e.message;
+    mostrarToast('Erro ao gerar o plano');
+  } finally {
+    btn.disabled = false; btn.innerHTML = orig;
+  }
 }
 
 async function aplicarAoPlano() {
