@@ -1,0 +1,9 @@
+{
+  "name": "nutrimap",
+  "private": true,
+  "type": "module",
+  "description": "NutriMap — painel do nutricionista + PWA do aluno. Site estático, sem build.",
+  "scripts": {
+    "dev": "npx --yes serve . -l 3000"
+  }
+}
