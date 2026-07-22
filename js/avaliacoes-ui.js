@@ -13,6 +13,7 @@ import {
   calcularResultados, extrairDobras
 } from './avaliacoes.js';
 import { mostrarToast, mostrarErro, confirmar } from './utils.js';
+import { FATORES } from './calorias-calc.js';
 
 let _nutriId = null;
 let _pacientes = [];
@@ -34,10 +35,8 @@ const PERIMETRIAS = [
   ['per_coxa_direita', 'Coxa D'], ['per_coxa_esquerda', 'Coxa E'],
   ['per_panturrilha_direita', 'Pantur. D'], ['per_panturrilha_esquerda', 'Pantur. E'],
 ];
-const FATORES = [
-  [1.2, 'Sedentário'], [1.375, 'Levemente ativo'], [1.55, 'Moderadamente ativo'],
-  [1.725, 'Muito ativo'], [1.9, 'Extremamente ativo'],
-];
+// Fatores vêm de calorias-calc.js: eram duas listas paralelas, e mudar uma
+// sem a outra faria a avaliação e o cálculo discordarem do mesmo GET.
 
 // ───────────────────────────────────────────────────────────
 // ENTRADA: chamado pelo index.html quando entra na aba
@@ -215,7 +214,7 @@ async function abrirFormulario(aval) {
         ${campoNum('altura', 'Altura (m)', aval?.altura, '0.01')}
         <div class="av-field"><label>Atividade</label>
           <select id="fator_atividade" class="np-input av-in">
-            ${FATORES.map(([v,n]) => `<option value="${v}" ${(aval?.fator_atividade==v)||(!aval&&v==1.2)?'selected':''}>${n}</option>`).join('')}
+            ${FATORES.map(({ v, label }) => `<option value="${v}" ${(aval?.fator_atividade==v)||(!aval&&v==1.2)?'selected':''}>${label}</option>`).join('')}
           </select></div>
         ${campoNum('pct_gordura_ideal', '%G ideal (frac.)', aval?.pct_gordura_ideal ?? 0.12, '0.01')}
         <div class="av-field"><label>Protocolo %G</label>

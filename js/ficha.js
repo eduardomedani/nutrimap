@@ -11,12 +11,13 @@ import { buscarRespostasModulo } from './respostas.js';
 import { gerarRelatorio, ativarConduta } from './relatorio.js';
 import { processarRecordatorioIA } from './recordatorio-ia.js';
 import { QUESTIONARIO_URL } from './supabase.js';
-import { copiarParaClipboard, gerarLinkWhatsapp, montarMensagemQuestionario, mostrarErro } from './utils.js';
+import { copiarParaClipboard, gerarLinkWhatsapp, montarMensagemQuestionario, mostrarErro, confirmar } from './utils.js';
 // Fase 3 ligará as Avaliações dentro da ficha.
 
 let _pacienteAtual = null;
 let _nutriId = null;
 let _dados = { sexo: null, idade: null };
+let _calorias = null;         // módulo carregado, p/ checar edições pendentes
 
 // Definição das abas (id, ícone, label, estado)
 const ABAS = [
@@ -100,8 +101,20 @@ export async function abrirFichaPaciente(pacienteId, nutriId, onVoltar, abaInici
 
   // Navegação entre abas
   document.querySelectorAll('#fichaMenu .fm-item').forEach(item => {
-    item.addEventListener('click', () => {
+    item.addEventListener('click', async () => {
       if (item.classList.contains('soon')) return;   // abas não prontas: sem funcionalidade
+      // Trocar de aba substitui o innerHTML e levaria junto o formulário do
+      // cálculo. Confirma antes, em vez de descartar em silêncio.
+      if (_calorias?.caloriasSujo?.()) {
+        const ok = await confirmar({
+          titulo: 'Sair do cálculo',
+          mensagem: 'Há alterações não salvas. Trocar de aba agora descarta essas mudanças.',
+          textoOk: 'Sair sem salvar',
+        });
+        if (!ok) return;
+      }
+      _calorias?.encerrarCalorias?.();
+      _calorias = null;
       document.querySelectorAll('#fichaMenu .fm-item').forEach(i => i.classList.remove('active'));
       item.classList.add('active');
       renderAba(item.dataset.aba);
@@ -176,8 +189,9 @@ async function renderAba(abaId) {
   if (abaId === 'calorias') {
     cont.innerHTML = `<div id="caloriasFichaMount"><div class="loading"><div class="spinner"></div>Carregando...</div></div>`;
     try {
-      const { initCaloriasUIParaPaciente } = await import('./calorias-ui.js');
-      await initCaloriasUIParaPaciente(_nutriId, p, 'caloriasFichaMount');
+      const mod = await import('./calorias-ui.js');
+      _calorias = mod;
+      await mod.initCaloriasUIParaPaciente(_nutriId, p, 'caloriasFichaMount');
     } catch (e) {
       cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro no cálculo de calorias: ${e.message}</div>`;
     }

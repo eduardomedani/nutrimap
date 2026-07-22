@@ -1067,49 +1067,324 @@
   }
 
   /* ===== CÁLCULO DE CALORIAS (calorias-ui.js) ===== */
-  .av-form-subtitle { font-family: 'Nunito', sans-serif; font-size: 15px; font-weight: 700; color: var(--moss-deep); }
-  .cal-hint { font-size: 12.5px; color: var(--ink-mute); margin: 6px 0 12px; }
-  .cal-formula-field { max-width: 340px; margin-bottom: 14px; }
-  .cal-inputs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; align-items: end; }
-  @media (max-width: 640px) { .cal-inputs { grid-template-columns: 1fr 1fr; } }
-  .cal-rate { margin-top: 10px; }
-  .cal-rate-line { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-soft); font-weight: 600; }
-  .cal-rate-line svg { width: 15px; height: 15px; color: var(--moss); }
-  .cal-rate-line strong { color: var(--moss-deep); font-weight: 800; }
-  .cal-alert { display: flex; align-items: flex-start; gap: 7px; margin-top: 8px; padding: 9px 12px; background: rgba(184,146,74,0.10); border-left: 3px solid var(--gold); border-radius: 8px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.4; }
-  .cal-alert svg { width: 15px; height: 15px; color: var(--gold); flex: 0 0 auto; margin-top: 1px; }
-  .cal-note { grid-column: 1 / -1; font-size: 12px; color: var(--ink-mute); }
-  /* Meta calórica — card de destaque (resultado principal) */
-  .cal-meta-card { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; width: 100%; margin: 18px 0; padding: 20px 22px; background: #FFFFFF; border: 1px solid rgba(26,31,27,0.07); border-radius: 16px; box-shadow: 0 1px 2px rgba(26,31,27,0.03), 0 8px 22px rgba(60,77,63,0.06); }
-  .cal-meta-main { flex: 1 1 240px; min-width: 0; }
-  .cal-meta-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-mute); }
-  .cal-meta-big { margin-top: 6px; font-family: 'Nunito', sans-serif; color: var(--ink-mute); line-height: 1; }
-  .cal-meta-big strong { font-size: 44px; font-weight: 800; color: var(--moss-deep); letter-spacing: -0.02em; }
-  .cal-meta-big span { font-size: 15px; font-weight: 600; }
-  .cal-base { margin-top: 16px; }
-  .cal-base-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-mute); margin-bottom: 6px; }
-  .cal-base-list { margin: 0; display: flex; flex-direction: column; gap: 3px; }
-  .cal-base-list > div { display: flex; gap: 8px; font-size: 13px; }
-  .cal-base-list dt { flex: 0 0 68px; color: var(--ink-mute); font-weight: 600; }
-  .cal-base-list dd { margin: 0; color: var(--ink-soft); font-weight: 600; }
-  .cal-base-list dd b { color: var(--moss-deep); font-weight: 800; }
-  .cal-badge { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--moss-deep); background: rgba(135,160,130,0.12); padding: 7px 13px; border-radius: 100px; white-space: nowrap; }
-  .cal-macro-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0 12px; }
-  .cal-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 100px; overflow: hidden; background: var(--bg-card); }
-  .cal-toggle button { border: none; background: none; padding: 6px 14px; font-family: inherit; font-size: 13px; font-weight: 700; color: var(--ink-mute); cursor: pointer; }
-  .cal-toggle button.active { background: var(--moss); color: var(--cream); }
-  .cal-3col { grid-template-columns: repeat(3, 1fr); }
-  @media (max-width: 560px) { .cal-3col { grid-template-columns: 1fr; } }
-  .cal-macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
-  .cal-total { grid-column: 1 / -1; font-size: 13px; color: var(--ink-soft); font-weight: 600; margin-top: 2px; }
-  .cal-total strong { color: var(--moss-deep); font-weight: 800; }
-  .cal-total-dif { color: var(--ink-mute); font-weight: 600; }
-  .cal-ro { background: var(--bg); color: var(--ink-soft); cursor: not-allowed; }
-  .cal-macro { border: 1px solid var(--line); border-left: 4px solid var(--c, var(--moss)); border-radius: 12px; padding: 12px 14px; background: var(--bg-card); }
-  .cal-macro-nome { font-size: 12px; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; }
-  .cal-macro-g { font-family: 'Nunito', sans-serif; font-size: 24px; font-weight: 800; color: var(--moss-deep); margin-top: 4px; }
-  .cal-macro-sub { font-size: 12px; color: var(--ink-mute); margin-top: 2px; }
-  @media (max-width: 560px) { .cal-macros { grid-template-columns: 1fr; } }
+  /* Monta DENTRO da aba da ficha — sem overlay, sem tela cheia, sem clique
+     extra. Os nomes de token do layout apontam de volta para a paleta
+     NutriMap do :root, então nenhuma cor nova entra no sistema. */
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn:disabled:hover { transform: none; }
+
+  .cal {
+    --page-bg: var(--bg);
+    --surface: var(--bg-card);
+    --surface-subtle: var(--bg-warm);
+    --border: var(--line);
+    --border-strong: var(--moss-light);
+    --text-primary: var(--ink);
+    --text-secondary: var(--ink-soft);
+    --text-muted: var(--ink-mute);
+    --primary: var(--moss);
+    --primary-hover: var(--moss-deep);
+    --primary-soft: var(--bg-warm);
+    --success: var(--sage);
+    --success-soft: color-mix(in srgb, var(--sage) 16%, transparent);
+    --warning: var(--gold);
+    --warning-soft: color-mix(in srgb, var(--gold) 12%, transparent);
+    --danger: var(--terracotta);
+    --danger-soft: color-mix(in srgb, var(--terracotta) 10%, transparent);
+    --macro-prot: var(--moss);
+    --macro-carb: var(--gold);
+    --macro-gord: var(--terracotta);
+  }
+  .cal-boot { display: flex; align-items: center; justify-content: center; gap: 12px;
+             padding: 40px; color: var(--ink-soft); }
+  .cal .btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; }
+  .cal .btn svg { width: 15px; height: 15px; }
+  .cal .btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+  /* ── barra de ações sticky (dentro da aba, não sobre a página) ── */
+  .cal-head { position: sticky; top: 0; z-index: 20; display: flex; align-items: center;
+             justify-content: space-between; gap: 16px; min-height: 56px; padding: 10px 16px;
+             margin-bottom: 16px; background: var(--surface); border: 1px solid var(--border);
+             border-radius: 14px; box-shadow: var(--shadow); }
+  .cal-head-r { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .cal-ident { min-width: 0; }
+  .cal-nome { font-size: 14.5px; font-weight: 700; color: var(--text-primary); line-height: 1.2;
+             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cal-sub { font-size: 12px; color: var(--text-muted); line-height: 1.3; }
+  .cal-status { font-size: 12.5px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+  .cal-status[data-tom="aviso"] { color: var(--warning); }
+  .cal-status[data-tom="ok"] { color: var(--success); }
+
+  /* ── layout: cálculo à esquerda, resumo da meta à direita ── */
+  .cal-grid { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+  /* ── cards ── */
+  .cal-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+              padding: 18px 20px; box-shadow: var(--shadow); }
+  .cal-card-head { display: flex; align-items: center; justify-content: space-between;
+                   gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .cal-card-tit { display: flex; align-items: center; gap: 8px; font-family: 'Nunito', sans-serif;
+                  font-size: 16px; font-weight: 800; color: var(--moss-deep); margin-bottom: 14px; }
+  .cal-card-head .cal-card-tit { margin-bottom: 0; }
+  .cal-card-tit svg { width: 17px; height: 17px; color: var(--moss); }
+
+  /* ── formulário ── */
+  .cal-linha { display: grid; gap: 14px; margin-bottom: 14px; }
+  .cal-linha-3 { grid-template-columns: 150px minmax(0,1fr) 165px; align-items: start; }
+  .cal-hint-larga { grid-column: 1 / -1; margin-top: 0; }
+  .cal-hint:empty { display: none; }
+  /* Atividade física: fator único x soma de atividades (MET) */
+  .cal-ativ { margin: 16px 0 22px; padding: 16px 0 20px;
+              border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .cal-ativ-hd { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+  .cal-ativ-hd .cal-seg { background: none; border: none; padding: 0; gap: 10px; flex-wrap: wrap; }
+  .cal-ativ-hd .cal-seg button { min-height: 42px; padding: 10px 20px; border-radius: 10px;
+                                border: 1px solid var(--line); background: var(--bg-card);
+                                font-size: 13px; font-weight: 700; color: var(--ink-soft);
+                                transition: background .14s, color .14s, border-color .14s; }
+  .cal-ativ-hd .cal-seg button:hover { background: var(--bg-warm); color: var(--ink); }
+  .cal-ativ-hd .cal-seg button[aria-pressed="true"] { background: var(--moss); border-color: var(--moss); color: var(--cream); }
+  .cal-ativ-tit { font-size: 12.5px; font-weight: 700; color: var(--ink-soft); }
+  .cal-ativ-corpo { margin-top: 12px; }
+  .cal-ativ-lista { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+  .cal-ativ-cab, .cal-ativ-linha { display: grid; gap: 8px; align-items: center;
+                    grid-template-columns: minmax(0,1.3fr) minmax(0,1fr) 92px 88px 110px 32px; }
+  .cal-ativ-cab { margin-bottom: 6px; font-size: 10.5px; font-weight: 700; color: var(--ink-mute);
+                  text-transform: uppercase; letter-spacing: 0.04em; }
+  .cal-ativ-fator { max-width: 320px; margin-top: 12px; }
+  .cal-ativ-fator label { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); margin-bottom: 6px; }
+  .cal-ativ-kcal { font-size: 12.5px; font-weight: 700; color: var(--moss-deep);
+                   text-align: right; font-variant-numeric: tabular-nums; }
+  .cal-ativ-x { display: grid; place-items: center; width: 32px; height: 40px; padding: 0;
+                border: none; background: none; border-radius: 8px; color: var(--ink-mute); cursor: pointer; }
+  .cal-ativ-x:hover { background: var(--bg-warm); color: var(--terracotta); }
+  .cal-ativ-x:focus-visible { outline: 2px solid var(--moss); outline-offset: 1px; }
+  .cal-ativ-x svg { width: 15px; height: 15px; }
+  .cal-ativ-total { margin-top: 12px; padding: 10px 12px; border-radius: 10px;
+                    background: var(--bg-warm); font-size: 12.5px; color: var(--ink-soft);
+                    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .cal-ativ-total strong { font-family: 'Nunito', sans-serif; font-size: 15px; color: var(--moss-deep); }
+  @media (max-width: 720px) {
+    .cal-ativ-cab { display: none; }
+    .cal-ativ-linha { grid-template-columns: 1fr 1fr;
+                      grid-template-areas: 'ativ ativ' 'inten inten' 'min sem' 'kcal x'; }
+    .cal-ativ-linha > select:nth-of-type(1) { grid-area: ativ; }
+    .cal-ativ-linha > select:nth-of-type(2) { grid-area: inten; }
+    .cal-ativ-linha > input:nth-of-type(1) { grid-area: min; }
+    .cal-ativ-linha > input:nth-of-type(2) { grid-area: sem; }
+    .cal-ativ-kcal { grid-area: kcal; text-align: left; }
+    .cal-ativ-x { grid-area: x; justify-self: end; }
+    .cal-ativ-linha { border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+  }
+
+  .cal-linha-2 { grid-template-columns: minmax(0,1fr) 200px; }
+  /* Objetivo: as seis opções visíveis de uma vez, em vez de escondidas num
+     select. Rádios nativos por baixo — navegação por setas e leitura de tela
+     vêm de graça; o <label> inteiro é a área de clique. */
+  .cal-obj { border: none; padding: 0; margin: 0 0 14px; }
+  .cal-obj legend { padding: 0; font-size: 12.5px; font-weight: 600;
+                    color: var(--ink-soft); margin-bottom: 8px; }
+  .cal-obj-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; }
+  .cal-obj-op { display: flex; align-items: flex-start; gap: 9px; min-height: 56px;
+                padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px;
+                background: var(--bg-card); cursor: pointer;
+                transition: background .14s, border-color .14s; }
+  .cal-obj-op:hover { background: var(--bg-warm); border-color: var(--moss-light); }
+  .cal-obj-op input { flex-shrink: 0; margin: 2px 0 0; width: 16px; height: 16px; accent-color: var(--moss); }
+  .cal-obj-txt { display: flex; flex-direction: column; min-width: 0; }
+  .cal-obj-l { font-size: 13px; font-weight: 700; color: var(--ink); line-height: 1.25; }
+  .cal-obj-a { font-size: 11.5px; color: var(--ink-mute); margin-top: 2px; }
+  .cal-obj-op:has(input:checked) { background: color-mix(in srgb, var(--moss) 9%, var(--bg-card));
+                                   border-color: var(--moss); }
+  .cal-obj-op:has(input:checked) .cal-obj-l { color: var(--moss-deep); }
+  .cal-obj-op:has(input:focus-visible) { outline: 2px solid var(--moss); outline-offset: 2px; }
+  .cal-linha-1 { grid-template-columns: 220px; }
+  .cal-campo { min-width: 0; }
+  .cal-campo label { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+  .cal-un { font-weight: 600; color: var(--text-muted); }
+  .cal-input { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--border);
+              border-radius: 10px; background: var(--surface); color: var(--text-primary);
+              font-family: inherit; font-size: 14.5px; font-variant-numeric: tabular-nums;
+              transition: border-color .14s, box-shadow .14s; }
+  .cal-input:hover:not(:read-only) { border-color: var(--border-strong); }
+  .cal-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+  .cal-input:read-only { background: var(--surface-subtle); color: var(--text-secondary); cursor: not-allowed; }
+  .cal-input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+  .cal-input[type=number]::-webkit-outer-spin-button,
+  .cal-input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .cal-hint { font-size: 11.5px; color: var(--text-muted); margin-top: 6px; line-height: 1.4; }
+
+  /* ── macros ── */
+  .cal-macro-head { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+  .cal-seg { display: inline-flex; background: var(--surface-subtle); border: 1px solid var(--border);
+            border-radius: 9px; padding: 2px; gap: 2px; }
+  .cal-seg button { min-height: 32px; border: none; background: none; padding: 5px 15px; border-radius: 7px;
+                   font-family: inherit; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+  .cal-seg button[aria-pressed="true"] { background: var(--primary); color: #fff; }
+  .cal-seg button:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+  .cal-macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  /* Cada macro tem identidade de cor: fundo tingido de leve, filete cheio na
+     esquerda e o número grande na própria cor. O tom vem da paleta NutriMap
+     (musgo / dourado / terracota), sem cor nova no sistema. */
+  .cal-macro { border: 1px solid color-mix(in srgb, var(--c) 28%, transparent);
+               border-left: 4px solid var(--c); border-radius: 14px; padding: 14px 15px;
+               background: color-mix(in srgb, var(--c) 7%, var(--surface)); }
+  .cal-macro[data-macro="proteina"]    { --c: var(--macro-prot); }
+  .cal-macro[data-macro="carboidrato"] { --c: var(--macro-carb); }
+  .cal-macro[data-macro="gordura"]     { --c: var(--macro-gord); }
+  .cal-macro.travado { background: color-mix(in srgb, var(--c) 4%, var(--surface-subtle)); }
+  .cal-macro-top { display: flex; align-items: center; gap: 7px; margin-bottom: 9px; }
+  .cal-macro-nome { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+                    color: color-mix(in srgb, var(--c) 62%, var(--ink)); }
+  .cal-lock { margin-left: auto; display: inline-flex; align-items: center; justify-content: center;
+             width: 26px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 7px;
+             background: var(--surface); color: var(--text-muted); cursor: pointer; transition: background .14s, color .14s; }
+  .cal-lock:hover { background: var(--surface-subtle); color: var(--text-secondary); }
+  .cal-lock.travado { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .cal-lock:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+  .cal-lock svg { width: 12px; height: 12px; }
+  /* input + setinhas como um grupo só (macros e ajuste sobre o GET) */
+  .cal-macro-in, .cal-step-wrap { display: flex; align-items: stretch; gap: 7px; }
+  .cal-step-wrap .cal-input { min-height: 40px; }
+  .cal-macro-in .cal-input { min-height: 40px; padding: 8px 10px; font-size: 15px; font-weight: 700; }
+  .cal-macro-un { display: grid; place-items: center; font-size: 11.5px; font-weight: 600; color: var(--text-muted); }
+  .cal-step { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 8px;
+             overflow: hidden; background: var(--surface); flex-shrink: 0; }
+  .cal-step-b { display: grid; place-items: center; width: 26px; flex: 1; padding: 0; border: none;
+               background: none; color: var(--text-muted); cursor: pointer; transition: background .12s, color .12s; }
+  .cal-step-b + .cal-step-b { border-top: 1px solid var(--border); }
+  .cal-step-b:hover:not(:disabled) { background: var(--primary-soft); color: var(--primary); }
+  .cal-step-b:disabled { opacity: .35; cursor: not-allowed; }
+  .cal-step-b svg { width: 11px; height: 11px; stroke-width: 2.6; }
+  /* mistura com a tinta escura: mantém a identidade do macro sem cair de
+     contraste sobre o fundo tingido (dourado e terracota puros ficariam claros) */
+  .cal-macro-g { font-family: 'Nunito', sans-serif; font-size: 26px; font-weight: 800;
+                color: color-mix(in srgb, var(--c) 62%, var(--ink));
+                line-height: 1.15; margin-top: 10px; }
+  .cal-macro-sub { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+  .cal-barra { height: 6px; border-radius: 3px; margin-top: 10px; overflow: hidden;
+               background: color-mix(in srgb, var(--c) 16%, transparent); }
+  .cal-barra span { display: block; height: 100%; border-radius: 3px; background: var(--c, var(--primary)); transition: width .2s; }
+
+  /* ── avisos ── */
+  .cal-ok { display: flex; align-items: center; gap: 8px; margin-top: 16px; padding: 11px 14px; border-radius: 11px;
+           font-size: 13px; font-weight: 600; background: var(--success-soft);
+           border: 1px solid color-mix(in srgb, var(--success) 26%, transparent); color: #1F6B4A; }
+  .cal-ok svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .cal-alerta { margin-top: 16px; padding: 14px 16px; border-radius: 12px; border: 1px solid; }
+  .cal-alerta[data-tom="erro"]  { background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 28%, transparent); }
+  .cal-alerta[data-tom="aviso"] { background: var(--warning-soft); border-color: color-mix(in srgb, var(--warning) 30%, transparent); }
+  .cal-alerta-h { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--text-primary); }
+  .cal-alerta-h svg { width: 17px; height: 17px; }
+  .cal-alerta[data-tom="erro"] .cal-alerta-h svg { color: var(--danger); }
+  .cal-alerta[data-tom="aviso"] .cal-alerta-h svg { color: var(--warning); }
+  .cal-alerta-n { display: flex; gap: 26px; margin: 12px 0 10px; flex-wrap: wrap; }
+  .cal-alerta-n dt { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+  .cal-alerta-n dd { font-size: 16px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  .cal-alerta-msg { font-size: 12.5px; color: var(--text-secondary); }
+
+  .cal-cta { display: flex; align-items: center; gap: 14px; margin-top: 18px; flex-wrap: wrap; }
+  .cal-cta-b { min-height: 44px; }
+  .cal-cta-why { font-size: 12.5px; color: var(--text-muted); }
+  .cal-msg { font-size: 12.5px; color: var(--text-secondary); margin-top: 10px; }
+
+  /* ── card de meta ── */
+  .cal-meta { background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+             padding: 18px 20px; box-shadow: var(--shadow); border-top: 3px solid var(--primary); }
+  .cal-meta-tit { font-size: 10.5px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  .cal-meta-topo { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .cal-meta-big { display: flex; align-items: baseline; gap: 6px; margin: 7px 0 10px; }
+  .cal-meta-big strong { font-family: 'Nunito', sans-serif; font-size: 34px; font-weight: 800;
+                        color: var(--text-primary); line-height: 1; letter-spacing: -0.02em; }
+  .cal-meta-big span { font-size: 12.5px; color: var(--text-muted); font-weight: 600; }
+  .cal-badge { display: inline-block; padding: 4px 11px; border-radius: 100px; font-size: 12px; font-weight: 600;
+              background: var(--surface-subtle); color: var(--text-secondary); border: 1px solid var(--border); }
+  .cal-badge[data-tom="deficit"]   { background: var(--warning-soft); border-color: color-mix(in srgb, var(--warning) 30%, transparent); color: #8A5D12; }
+  .cal-badge[data-tom="superavit"] { background: var(--success-soft); border-color: color-mix(in srgb, var(--success) 30%, transparent); color: #1F6B4A; }
+  /* GET x Meta: duas barras na mesma escala, rótulo à esquerda e valor à
+     direita. Empilhar rótulo/barra/rótulo ficava solto na largura cheia. */
+  .cal-comp { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .cal-comp-linha { display: grid; grid-template-columns: 42px minmax(0,1fr) 92px;
+                    align-items: center; gap: 10px; margin-bottom: 7px; }
+  .cal-comp-rot { font-size: 11px; font-weight: 700; color: var(--text-muted);
+                  text-transform: uppercase; letter-spacing: 0.05em; }
+  .cal-comp-v { font-size: 12.5px; color: var(--text-secondary); text-align: right;
+                font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .cal-comp-v.forte { font-weight: 700; color: var(--text-primary); }
+  .cal-comp-bar { height: 8px; border-radius: 4px; background: var(--surface-subtle); overflow: hidden; }
+  .cal-comp-bar span { display: block; height: 100%; border-radius: 4px;
+                       background: var(--border-strong); transition: width .2s; }
+  .cal-comp-bar span[data-tom="neutro"]    { background: var(--primary); }
+  .cal-comp-bar span[data-tom="deficit"]   { background: var(--warning); }
+  .cal-comp-bar span[data-tom="superavit"] { background: var(--success); }
+  .cal-comp-dif { margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+  .cal-comp-dif[data-tom="deficit"]   { color: var(--warning); }
+  .cal-comp-dif[data-tom="superavit"] { color: var(--success); }
+  .cal-comp-dif:empty { display: none; }
+  .cal-meta-lista { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
+                    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px 20px;
+                   display: flex; flex-direction: column; gap: 8px; }
+  .cal-meta-lista > div { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 12.5px; }
+  .cal-meta-lista dt { color: var(--text-muted); font-weight: 600; }
+  .cal-meta-lista dd { color: var(--text-primary); font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+  .cal-meta-alerta { margin-top: 12px; padding: 10px 12px; border-radius: 10px; font-size: 12px; line-height: 1.45;
+                    background: var(--warning-soft); border: 1px solid color-mix(in srgb, var(--warning) 28%, transparent);
+                    color: #8A5D12; }
+
+  /* ── detalhes ── */
+  .cal-det { margin-top: 16px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .cal-det summary { display: flex; align-items: center; gap: 7px; min-height: 44px; padding: 11px 15px; cursor: pointer;
+                    font-size: 13px; font-weight: 600; color: var(--text-secondary); list-style: none; }
+  .cal-det summary::-webkit-details-marker { display: none; }
+  .cal-det summary:hover { background: var(--surface-subtle); color: var(--text-primary); }
+  .cal-det summary:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+  .cal-det summary svg { width: 15px; height: 15px; transition: transform .16s; }
+  .cal-det[open] summary svg { transform: rotate(90deg); }
+  .cal-det-corpo { padding: 4px 15px 14px; border-top: 1px solid var(--border); }
+  .cal-det-lista { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 24px; margin-top: 10px; }
+  .cal-det-lista > div { display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+                        font-size: 12.5px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  .cal-det-lista dt { color: var(--text-muted); font-weight: 600; }
+  .cal-det-lista dd { color: var(--text-primary); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .cal-det-nota { font-size: 11.5px; color: var(--text-muted); margin-top: 12px; line-height: 1.5; }
+  /* o negrito herdaria o cinza da nota e quase não leria: escurece junto */
+  .cal-det-nota strong { color: var(--ink-soft); font-weight: 700; }
+
+  .cal-barra-mobile { display: none; }
+
+  /* ── tablet: uma coluna, resumo da meta acima ── */
+  @media (max-width: 1080px) {
+    .cal-grid { grid-template-columns: minmax(0,1fr); }
+    .cal-macros { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* ── mobile ── */
+  @media (max-width: 720px) {
+    .cal-head { min-height: 52px; padding: 9px 12px; flex-wrap: wrap; gap: 8px; }
+    .cal-head-r #calSalvar { display: none; }
+    .cal-linha-3, .cal-linha-2, .cal-linha-1, .cal-macros, .cal-det-lista { grid-template-columns: 1fr; }
+    .cal-obj-grid { grid-template-columns: 1fr; }
+    .cal-card { padding: 16px; }
+    .cal-meta-big strong { font-size: 30px; }
+    .cal { padding-bottom: 72px; }
+    .cal-barra-mobile { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+                       position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+                       padding: 10px 12px; background: var(--surface); border-top: 1px solid var(--border);
+                       box-shadow: 0 -4px 16px rgba(60,80,60,0.07); }
+    .cal-barra-mobile .btn { flex: 1; justify-content: center; min-height: 44px; }
+    .cal-status-m { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+    .cal-status-m[data-tom="aviso"] { color: var(--warning); }
+    .cal-status-m[data-tom="ok"] { color: var(--success); }
+  }
+
+
+  /* ── movimento reduzido ── */
+  @media (prefers-reduced-motion: reduce) {
+    .cal *, .cal *::before, .cal *::after {
+      transition-duration: 0.01ms !important; animation-duration: 0.01ms !important;
+    }
+  }
 
   /* ===== RECORDATÓRIO CALCULADO (IA) ===== */
   /* Card largo do recordatório: relato da pessoa | estimativa IA */
@@ -1188,10 +1463,6 @@
   .ficha-badge.badge-ok { background: rgba(135,160,130,0.2); color: var(--moss-deep); }
   .ficha-badge.badge-wait { background: rgba(201,164,92,0.2); color: #8A6D2A; }
   .ficha-badge.badge-cod { background: var(--bg); color: var(--ink-soft); border: 1px solid var(--line); }
-  /* Card "Links de acesso" da ficha */
-  .ficha-links { background: var(--bg-card); border: 1px solid var(--line); border-radius: 16px; padding: 14px 18px; box-shadow: var(--shadow); margin-bottom: 16px; }
-  .ficha-links .fl-head { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--moss-deep); margin-bottom: 6px; }
-  .ficha-links .fl-head svg { width: 16px; height: 16px; color: var(--moss); }
   .fl-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--line); }
   .fl-info { flex: 1; min-width: 220px; }
   .fl-titulo { font-size: 13.5px; font-weight: 700; color: var(--ink); }
@@ -1512,6 +1783,12 @@
       const partes = h.split('/');
       const id = partes[1], aba = partes[2] || 'dados';
       if (id) abrirRelatorio(id, aba).catch(console.error);
+      return;
+    }
+    // URLs antigas do workspace: caem na aba de cálculo da ficha.
+    if (h.startsWith('planejamento/') || h.startsWith('calorias/')) {
+      const id = h.split('/')[1];
+      if (id) abrirRelatorio(id, 'calorias').catch(console.error);
       return;
     }
     if (document.getElementById('page-' + h)) navegar(h);

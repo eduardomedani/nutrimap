@@ -136,7 +136,7 @@ function substituicoesDe(vaga, cat, excluir = []) {
 /**
  * Gera um plano alimentar completo.
  *
- * @param {object} metas    { kcal, prot, carb, gord } — o que calorias-ui.js já produz
+ * @param {object} metas    { kcal, prot, carb, gord } — o que calorias-calc.js já produz
  * @param {object} catalogo mapa nome -> { id, calorias, proteina, carboidrato, gordura, fibra }
  * @param {object} opcoes   { templateId, excluir: [nomes], preferir: { grupoId: nome } }
  * @returns {object} { refeicoes, macros, alvo, desvio, avisos }

@@ -1,370 +1,830 @@
 // ═══════════════════════════════════════════════════════════
-// CÁLCULO DE CALORIAS — UI (aba da ficha do paciente)
+// CÁLCULO DE CALORIAS — UI da aba da ficha
 // ═══════════════════════════════════════════════════════════
-// Parte do GET (gasto energético) da última avaliação (TMB Mifflin-St Jeor ×
-// fator de atividade, já calculado em avaliacoes.js) e devolve:
-//   · meta calórica  = GET ajustado por objetivo (déficit/superávit em %)
-//   · macros         = por g/kg OU por percentuais (seletor)
-// Pode aplicar as metas direto no plano alimentar do paciente.
+// Escopo: só o cálculo. Gasto energético, meta calórica e distribuição de
+// macros. Refeições, prescrição e entrega continuam na aba "Planejamento
+// Alimentar" (dieta-ui.js) — esta tela não tenta conduzir o fluxo inteiro.
 //
-// Plugado na ficha via initCaloriasUIParaPaciente(nutriId, paciente, mountId).
+// Monta dentro da aba, sem overlay e sem tela cheia.
+// Regras de cálculo: todas em calorias-calc.js, intocadas.
 
+import {
+  OBJETIVOS, FORMULAS, FATORES, FATOR_PADRAO, MACRO_DEF, OBJ_PADRAO,
+  num, tmbPorFormula, getDe, metaDe, statusAjuste, ritmoSemanal, calcularMacros,
+} from './calorias-calc.js';
+import { ATIVIDADES_ORDENADAS, atividadePorNome, gastoDeAtividades } from './atividades.js';
 import { listarAvaliacoes } from './avaliacoes.js';
 import {
-  listarPlanosDoPaciente, criarPlano, atualizarPlano,
-  gerarPlanoParaPaciente, catalogoParaGerador, faltandoNoCatalogo,
+  listarPlanosDoPaciente, criarPlano, atualizarPlano, gerarPlanoParaPaciente,
+  catalogoParaGerador, faltandoNoCatalogo,
 } from './dieta.js';
 import { TEMPLATES } from './dieta-grupos.js';
 import { mostrarToast, confirmar } from './utils.js';
 
-let _nutriId  = null;
+let _nutriId = null;
 let _paciente = null;
-let _mountEl  = null;
-let _av       = null;        // última avaliação (ou null)
-let _modo     = 'gkg';       // 'gkg' | 'pct'
+let _av = null;
+let _root = null;
+let _salvoEm = null;           // timestamp do último salvamento
+let _tickSalvo = null;
 
-// Objetivo -> ajuste % padrão sobre o GET (sub-níveis com respaldo na literatura).
-const OBJETIVOS = [
-  { v: 'emag_leve',  label: 'Emagrecimento LEVE',      ajuste: -12 },
-  { v: 'emag_mod',   label: 'Emagrecimento MODERADO',  ajuste: -20 },
-  { v: 'emag_acent', label: 'Emagrecimento ACENTUADO', ajuste: -27 },
-  { v: 'manutencao', label: 'Manutenção',              ajuste: 0 },
-  { v: 'hiper_lean', label: 'Hipertrofia LEAN BULK',   ajuste: 8 },
-  { v: 'hiper_mod',  label: 'Hipertrofia MODERADO',    ajuste: 15 },
-];
-const OBJ_PADRAO = 'emag_mod';   // pré-selecionado ao abrir
+// Estado do formulário — fonte de verdade. `_salvo` é o último estado
+// persistido; a diferença entre os dois acende "Alterações não salvas".
+let _form = null;
+let _salvo = null;
+
+const estadoInicial = () => ({
+  peso: '', formula: 'mifflin', fator: FATOR_PADRAO, get: '', objetivo: OBJ_PADRAO,
+  // null = nada escolhido ainda | 'fator' = multiplicador único da rotina
+  // | 'met' = soma atividade a atividade.
+  // Começa nulo de propósito: nenhum dos dois painéis abre antes de o nutri
+  // decidir. Para o cálculo, nulo se comporta como 'fator' — o GET segue o
+  // fator que veio da avaliação, sem inventar nada.
+  modoAtiv: null,
+  atividades: [],
+  ajuste: OBJETIVOS.find(o => o.v === OBJ_PADRAO).ajuste,
+  modo: 'gkg',
+  gkg: { proteina: 2, carboidrato: 3, gordura: 1 },
+  pct: { proteina: 30, carboidrato: 40, gordura: 30 },
+  travas: [],
+});
+
+const clonar = o => JSON.parse(JSON.stringify(o));
+const sujo = () => JSON.stringify(_form) !== JSON.stringify(_salvo);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmtKcal = v => Math.round(v).toLocaleString('pt-BR');
+// `data_avaliacao` é um DATE puro; sem o T00:00:00 o browser lê como UTC e
+// mostra o dia anterior (mesmo tratamento de avaliacoes-ui.js:333).
+const fmtData = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+
+// ───────────────────────────────────────────────────────────
+// CICLO DE VIDA
+// ───────────────────────────────────────────────────────────
 
 export async function initCaloriasUIParaPaciente(nutriId, paciente, mountId) {
   _nutriId = nutriId;
   _paciente = paciente;
-  _mountEl = document.getElementById(mountId);
-  _modo = 'gkg';
-  if (!_mountEl) return;
+  _salvoEm = null;
 
-  _mountEl.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando...</div>`;
+  _root = document.getElementById(mountId);
+  if (!_root) return;
+  _root.innerHTML = `<div class="cal-boot"><div class="spinner"></div>Carregando cálculo...</div>`;
+
+  _form = estadoInicial();
+
   try {
     const avs = await listarAvaliacoes(paciente.id);
     _av = avs && avs[0] ? avs[0] : null;
   } catch (e) { _av = null; }
+  if (_av?.peso) _form.peso = String(_av.peso);
+  if (_av?.fator_atividade) _form.fator = num(_av.fator_atividade) || FATOR_PADRAO;
+
+  // Retoma as metas do plano ativo: sem isto a tela abriria sempre nos
+  // padrões e "Descartar" não teria a que voltar.
+  try {
+    const planos = await listarPlanosDoPaciente(paciente.id);
+    const plano = planos.find(p => p.ativo) || planos[0];
+    const peso = num(_form.peso);
+    if (plano?.kcal_meta && peso) {
+      if (plano.prot_meta) _form.gkg.proteina    = +(plano.prot_meta / peso).toFixed(1);
+      if (plano.carb_meta) _form.gkg.carboidrato = +(plano.carb_meta / peso).toFixed(1);
+      if (plano.gord_meta) _form.gkg.gordura     = +(plano.gord_meta / peso).toFixed(1);
+    }
+  } catch (e) { /* sem plano ainda */ }
+
   render();
+  recalcularGet();
+  _salvo = clonar(_form);      // baseline: abrir não conta como alteração
+  pintar();
 }
 
+/**
+ * Há edições pendentes? A ficha consulta antes de trocar de aba — trocar
+ * substitui o innerHTML e levaria o formulário junto, sem aviso.
+ */
+export function caloriasSujo() {
+  return !!_form && !!_salvo && sujo();
+}
+
+/** Solta o timer quando a aba é desmontada. */
+export function encerrarCalorias() {
+  if (_tickSalvo) { clearInterval(_tickSalvo); _tickSalvo = null; }
+  _form = null; _salvo = null; _root = null;
+}
+
+// ───────────────────────────────────────────────────────────
+// RENDER
+// ───────────────────────────────────────────────────────────
+
 function render() {
-  const peso = num(_av?.peso);
-  const get  = num(_av?.get_kcal);
-  const avInfo = _av
-    ? `Da última avaliação (AV ${_av.numero})${_av.tmb ? ` — TMB ${Math.round(_av.tmb)} kcal, GET ${Math.round(get)} kcal` : ''}.`
-    : 'Nenhuma avaliação encontrada. Preencha o peso e o GET manualmente, ou faça uma avaliação física.';
+  _root.innerHTML = `
+    <div class="cal">
+      ${barraAcoes()}
+      <div class="cal-grid">
+        ${cardEnergetico()}
+        ${cardMeta()}
+        ${cardMacros()}
+      </div>
+      <div class="cal-barra-mobile">
+        <span class="cal-status-m" id="calStatusM"></span>
+        <button class="btn primary" id="calSalvarM" disabled><i data-lucide="save"></i> Salvar</button>
+      </div>
+    </div>`;
+  ligarEventos();
+}
 
-  _mountEl.innerHTML = `
-    <div class="av-form-card">
-      <div class="av-form-title"><i data-lucide="flame"></i> Cálculo de calorias</div>
+function barraAcoes() {
+  const av = _av?.data_avaliacao
+    ? `Avaliação ${_av.numero} · ${fmtData(_av.data_avaliacao)}`
+    : 'Sem avaliação registrada';
+  return `
+    <div class="cal-head">
+      <div class="cal-ident">
+        <div class="cal-nome">Cálculo de calorias</div>
+        <div class="cal-sub">${esc(av)}</div>
+      </div>
+      <div class="cal-head-r">
+        <span class="cal-status" id="calStatus" role="status" aria-live="polite"></span>
+        <button class="btn" id="calDescartar" disabled>Descartar</button>
+        <button class="btn primary" id="calSalvar" disabled>
+          <i data-lucide="save"></i> Salvar alterações
+        </button>
+      </div>
+    </div>`;
+}
 
-      <!-- 1) Base -->
-      <div class="cal-hint">${esc(avInfo)}</div>
-      ${_av ? `
-      <div class="av-field cal-formula-field">
-        <label>Fórmula da TMB</label>
-        <select id="calFormula" class="np-input">
-          <option value="mifflin">Mifflin-St Jeor</option>
-          <option value="harris">Harris-Benedict (revisada)</option>
-          <option value="katch">Katch-McArdle (massa magra)</option>
-        </select>
-        <div class="cal-hint" id="calFormulaNote" style="margin:6px 0 0;"></div>
-      </div>` : ''}
-      <!-- 1-2) Base + objetivo: tudo na mesma linha -->
-      <div class="cal-inputs">
-        <div class="av-field">
-          <label>Peso (kg)</label>
-          <input type="number" step="0.1" inputmode="decimal" id="calPeso" class="np-input" value="${peso ? peso : ''}" placeholder="Ex.: 80">
+function cardEnergetico() {
+  return `
+    <section class="cal-card" aria-labelledby="calTitEnerg">
+      <h3 class="cal-card-tit" id="calTitEnerg"><i data-lucide="flame"></i> Cálculo energético</h3>
+
+      <div class="cal-linha cal-linha-3">
+        <div class="cal-campo">
+          <label for="calPeso">Peso <span class="cal-un">kg</span></label>
+          <input type="number" step="0.1" min="0" inputmode="decimal" id="calPeso" class="cal-input" data-campo="peso">
         </div>
-        <div class="av-field">
-          <label>GET (kcal/dia)</label>
-          <input type="number" step="1" inputmode="decimal" id="calGet" class="np-input" value="${get ? Math.round(get) : ''}" placeholder="Ex.: 2400">
-        </div>
-        <div class="av-field">
-          <label>Objetivo</label>
-          <select id="calObjetivo" class="np-input">
-            ${OBJETIVOS.map(o => `<option value="${o.v}" data-ajuste="${o.ajuste}" ${o.v === OBJ_PADRAO ? 'selected' : ''}>${o.label}</option>`).join('')}
+        <div class="cal-campo">
+          <label for="calFormula">Fórmula da TMB</label>
+          <select id="calFormula" class="cal-input" data-campo="formula">
+            ${FORMULAS.map(f => `<option value="${f.v}">${f.label}</option>`).join('')}
           </select>
         </div>
-        <div class="av-field">
-          <label>Ajuste sobre o GET (%)</label>
-          <input type="number" step="1" inputmode="decimal" id="calAjuste" class="np-input" value="${OBJETIVOS.find(o => o.v === OBJ_PADRAO).ajuste}">
+        <div class="cal-campo">
+          <label for="calGet">GET <span class="cal-un">kcal/dia</span></label>
+          <input type="number" step="1" min="0" inputmode="decimal" id="calGet" class="cal-input" data-campo="get">
+        </div>
+        <p class="cal-hint cal-hint-larga" id="calTmbNota" aria-live="polite"></p>
+      </div>
+
+      ${blocoAtividades()}
+
+      <fieldset class="cal-obj">
+        <legend>Objetivo</legend>
+        <div class="cal-obj-grid">
+          ${OBJETIVOS.map(o => `
+            <label class="cal-obj-op">
+              <input type="radio" name="calObjetivo" value="${o.v}" data-campo="objetivo">
+              <span class="cal-obj-txt">
+                <span class="cal-obj-l">${o.label}</span>
+                <span class="cal-obj-a">${o.ajuste > 0 ? '+' : ''}${o.ajuste}% sobre o GET</span>
+              </span>
+            </label>`).join('')}
+        </div>
+      </fieldset>
+
+      <div class="cal-linha cal-linha-1">
+        <div class="cal-campo">
+          <label for="calAjuste">Ajuste sobre o GET <span class="cal-un">%</span></label>
+          <div class="cal-step-wrap">
+            <input type="number" step="1" inputmode="decimal" id="calAjuste" class="cal-input" data-campo="ajuste">
+            <div class="cal-step">
+              <button type="button" class="cal-step-b" data-step="up" data-alvo="ajuste" tabindex="-1"
+                      aria-label="Aumentar o ajuste sobre o GET"><i data-lucide="chevron-up"></i></button>
+              <button type="button" class="cal-step-b" data-step="down" data-alvo="ajuste" tabindex="-1"
+                      aria-label="Diminuir o ajuste sobre o GET"><i data-lucide="chevron-down"></i></button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- Dica ao vivo: ritmo estimado + alerta -->
-      <div class="cal-rate" id="calRate"></div>
+      <details class="cal-det">
+        <summary><i data-lucide="chevron-right"></i> Ver detalhes do cálculo</summary>
+        <div class="cal-det-corpo" id="calDetCorpo"></div>
+      </details>
+    </section>`;
+}
 
-      <!-- Meta calórica (card de destaque) -->
-      <div class="cal-meta-card">
-        <div class="cal-meta-main">
-          <div class="cal-meta-title">Meta calórica</div>
-          <div class="cal-meta-big"><strong id="calMetaVal">—</strong> <span>kcal/dia</span></div>
-          <div class="cal-base">
-            <div class="cal-base-lbl">Baseado em</div>
-            <dl class="cal-base-list">
-              <div><dt>GET</dt><dd><b id="calBaseGet">—</b> kcal/dia</dd></div>
-              <div><dt>Objetivo</dt><dd id="calBaseObj">—</dd></div>
-              <div><dt>Ajuste</dt><dd id="calBaseAj">—</dd></div>
-            </dl>
-          </div>
+/**
+ * Modo aditivo: cada atividade entra separada e o gasto médio diário é somado
+ * ao GET. Com ele ligado o fator vira 1,2 e sai de cena — os dois modelos
+ * contariam o exercício duas vezes se somados.
+ */
+function blocoAtividades() {
+  const met = _form.modoAtiv === 'met';
+  const fat = _form.modoAtiv === 'fator';
+  return `
+    <div class="cal-ativ">
+      <div class="cal-ativ-hd">
+        <span class="cal-ativ-tit">Lançar fator atividade física:</span>
+        <div class="cal-seg" role="group" aria-label="Modelo de atividade física">
+          <button type="button" data-modoativ="fator" aria-pressed="${fat}">Fator único</button>
+          <button type="button" data-modoativ="met" aria-pressed="${met}">Somar atividades</button>
         </div>
+      </div>
+      <div class="cal-ativ-fator" ${fat ? '' : 'hidden'}>
+        <label for="calFator">Nível de atividade da rotina</label>
+        <select id="calFator" class="cal-input" data-campo="fator">
+          ${FATORES.map(f => `<option value="${f.v}">${f.label} (${String(f.v).replace('.', ',')})</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="cal-ativ-corpo" ${met ? '' : 'hidden'}>
+        <div class="cal-ativ-cab" aria-hidden="true">
+          <span>Atividade</span><span>Intensidade</span><span>Tempo (min)</span><span>×/semana</span><span></span><span></span>
+        </div>
+        <div class="cal-ativ-lista" id="calAtivLista"></div>
+        <button type="button" class="btn" id="calAtivAdd"><i data-lucide="plus"></i> Adicionar atividade</button>
+        <div class="cal-ativ-total" id="calAtivTotal"></div>
+        <p class="cal-hint">Fator fixo em 1,2 (rotina sem treino); o gasto de cada atividade é somado ao GET.</p>
+      </div>
+    </div>`;
+}
+
+function linhaAtividadeHtml(a, i, calc) {
+  const opcoes = ATIVIDADES_ORDENADAS.map(x =>
+    `<option value="${esc(x.nome)}" ${x.nome === a.nome ? 'selected' : ''}>${esc(x.nome)}</option>`).join('');
+
+  const at = atividadePorNome(a.nome);
+  const intens = (at?.intensidades || []).map(x =>
+    `<option value="${esc(x.label)}" ${x.label === a.intensidade ? 'selected' : ''}>
+      ${esc(x.label)} · MET ${String(x.met).replace('.', ',')}
+    </option>`).join('');
+
+  return `
+    <div class="cal-ativ-linha" data-ativ-i="${i}">
+      <select class="cal-input" data-ativ-campo="nome" data-ativ-i="${i}" aria-label="Atividade ${i + 1}">
+        ${opcoes}
+      </select>
+      <select class="cal-input" data-ativ-campo="intensidade" data-ativ-i="${i}"
+              aria-label="Intensidade da atividade ${i + 1}" ${(at?.intensidades.length || 0) < 2 ? 'disabled' : ''}>
+        ${intens}
+      </select>
+      <input type="number" min="0" step="5" inputmode="numeric"
+             class="cal-input" value="${a.minutos}" data-ativ-campo="minutos" data-ativ-i="${i}"
+             aria-label="Tempo em minutos da atividade ${i + 1}">
+      <input type="number" min="0" max="14" step="1" inputmode="numeric"
+             class="cal-input" value="${a.vezesSemana}" data-ativ-campo="vezesSemana" data-ativ-i="${i}"
+             aria-label="Vezes por semana da atividade ${i + 1}">
+      <span class="cal-ativ-kcal">${fmtKcal(calc.kcalSemana)} kcal/sem</span>
+      <button type="button" class="cal-ativ-x" data-ativ-del="${i}" aria-label="Remover atividade ${i + 1}">
+        <i data-lucide="x"></i>
+      </button>
+    </div>`;
+}
+
+function cardMacros() {
+  const bloco = m => `
+    <div class="cal-macro" data-macro="${m.id}">
+      <div class="cal-macro-top">
+        <span class="cal-macro-nome">${m.label}</span>
+        <button type="button" class="cal-lock" data-lock="${m.id}" aria-pressed="false"
+                title="Congelar ${m.label.toLowerCase()}">
+          <i data-lucide="lock-open"></i>
+        </button>
+      </div>
+      <div class="cal-macro-in">
+        <input type="number" min="0" inputmode="decimal" id="calM_${m.id}"
+               class="cal-input" data-macro-input="${m.id}" aria-label="${m.label}">
+        <span class="cal-macro-un" aria-hidden="true"></span>
+        <div class="cal-step">
+          <button type="button" class="cal-step-b" data-step="up" data-alvo="${m.id}" tabindex="-1"
+                  aria-label="Aumentar ${m.label.toLowerCase()}"><i data-lucide="chevron-up"></i></button>
+          <button type="button" class="cal-step-b" data-step="down" data-alvo="${m.id}" tabindex="-1"
+                  aria-label="Diminuir ${m.label.toLowerCase()}"><i data-lucide="chevron-down"></i></button>
+        </div>
+      </div>
+      <div class="cal-macro-g" id="calG_${m.id}">—</div>
+      <div class="cal-macro-sub" id="calS_${m.id}">—</div>
+      <div class="cal-barra"><span id="calB_${m.id}"></span></div>
+    </div>`;
+
+  return `
+    <section class="cal-card" aria-labelledby="calTitMacro">
+      <div class="cal-card-head">
+        <h3 class="cal-card-tit" id="calTitMacro"><i data-lucide="chart-pie"></i> Distribuição de macronutrientes</h3>
+        <div class="cal-seg" role="group" aria-label="Unidade dos macronutrientes">
+          <button type="button" data-modo="gkg" aria-pressed="true">g/kg</button>
+          <button type="button" data-modo="pct" aria-pressed="false">%</button>
+        </div>
+      </div>
+
+      <div class="cal-macros">${MACRO_DEF.map(bloco).join('')}</div>
+
+      <div id="calAviso"></div>
+
+      <div class="cal-cta">
+        <button class="btn primary cal-cta-b" id="calGerar">
+          <i data-lucide="wand-sparkles"></i> Gerar plano completo
+        </button>
+        <p class="cal-cta-why" id="calGerarWhy"></p>
+      </div>
+      <p class="cal-msg" id="calMsg" role="status" aria-live="polite"></p>
+    </section>`;
+}
+
+function cardMeta() {
+  return `
+    <section class="cal-meta" aria-labelledby="calMetaTit">
+      <h3 class="cal-meta-tit" id="calMetaTit">Meta calórica</h3>
+      <div class="cal-meta-topo">
+        <div class="cal-meta-big"><strong id="calMeta">—</strong><span>kcal/dia</span></div>
         <div class="cal-badge" id="calBadge">—</div>
       </div>
 
-      <!-- 3) Macros -->
-      <div class="cal-macro-head">
-        <div class="av-form-subtitle">Distribuição de macros</div>
-        <div class="cal-toggle" id="calToggle">
-          <button type="button" data-modo="gkg" class="active">g/kg</button>
-          <button type="button" data-modo="pct">%</button>
+      <div class="cal-comp">
+        <div class="cal-comp-linha">
+          <span class="cal-comp-rot">GET</span>
+          <div class="cal-comp-bar" aria-hidden="true"><span id="calCompBarGet"></span></div>
+          <span class="cal-comp-v" id="calCompGet">—</span>
         </div>
+        <div class="cal-comp-linha">
+          <span class="cal-comp-rot">Meta</span>
+          <div class="cal-comp-bar" aria-hidden="true"><span id="calCompBarMeta"></span></div>
+          <span class="cal-comp-v forte" id="calCompMeta">—</span>
+        </div>
+        <p class="cal-comp-dif" id="calCompDif"></p>
       </div>
 
-      <div class="av-grid cal-3col" id="calGkg">
-        <div class="av-field"><label>Proteína (g/kg)</label>
-          <input type="number" step="0.1" inputmode="decimal" id="calProtGkg" class="np-input" value="2"></div>
-        <div class="av-field"><label>Carboidrato (g/kg)</label>
-          <input type="number" step="0.1" inputmode="decimal" id="calCarbGkg" class="np-input" value="3"></div>
-        <div class="av-field"><label>Gordura (g/kg)</label>
-          <input type="number" step="0.1" inputmode="decimal" id="calGordGkg" class="np-input" value="1"></div>
-      </div>
+      <dl class="cal-meta-lista">
+        <div><dt>GET</dt><dd id="calResGet">—</dd></div>
+        <div><dt>Objetivo</dt><dd id="calResObj">—</dd></div>
+        <div><dt>Ajuste</dt><dd id="calResAj">—</dd></div>
+        <div><dt id="calResRitmoL">Variação estimada</dt><dd id="calResRitmo">—</dd></div>
+      </dl>
+      <div class="cal-meta-alerta" id="calMetaAlerta" hidden></div>
+    </section>`;
+}
 
-      <div class="av-grid cal-3col" id="calPct">
-        <div class="av-field"><label>Proteína (%)</label>
-          <input type="number" step="1" inputmode="decimal" id="calProtPct" class="np-input" value="30"></div>
-        <div class="av-field"><label>Carboidrato (%) <span class="ex-opt">automático</span></label>
-          <input type="number" id="calCarbPct" class="np-input cal-ro" value="40" readonly tabindex="-1"></div>
-        <div class="av-field"><label>Gordura (%)</label>
-          <input type="number" step="1" inputmode="decimal" id="calGordPct" class="np-input" value="30"></div>
-        <div class="cal-note">O carboidrato completa 100% automaticamente (100 − proteína − gordura).</div>
-      </div>
+// ───────────────────────────────────────────────────────────
+// EVENTOS
+// ───────────────────────────────────────────────────────────
 
-      <!-- Resultado dos macros -->
-      <div class="cal-macros" id="calMacros"></div>
+function ligarEventos() {
+  _root.querySelector('#calSalvar').addEventListener('click', salvar);
+  _root.querySelector('#calSalvarM').addEventListener('click', salvar);
+  _root.querySelector('#calDescartar').addEventListener('click', descartar);
+  _root.querySelector('#calGerar').addEventListener('click', gerarPlanoCompleto);
 
-      <div class="av-actions">
-        <button class="btn" id="calAplicar"><i data-lucide="check"></i> Aplicar só as metas</button>
-        <button class="btn primary" id="calGerar"><i data-lucide="wand-sparkles"></i> Gerar plano completo</button>
-      </div>
-      <div class="cal-hint" id="calAplicarMsg" style="text-align:right;"></div>
-    </div>
-  `;
-
-  // listeners
-  const ids = ['calGet', 'calAjuste', 'calProtGkg', 'calCarbGkg', 'calGordGkg', 'calCarbPct', 'calProtPct', 'calGordPct'];
-  ids.forEach(id => document.getElementById(id)?.addEventListener('input', recomputar));
-
-  // Peso e fórmula recalculam o GET (quando há dados da avaliação).
-  document.getElementById('calPeso')?.addEventListener('input', recomputarGet);
-  document.getElementById('calFormula')?.addEventListener('change', recomputarGet);
-
-  const obj = document.getElementById('calObjetivo');
-  obj.addEventListener('change', () => {
-    const aj = obj.selectedOptions[0]?.dataset.ajuste ?? '0';
-    document.getElementById('calAjuste').value = aj;
-    recomputar();
+  _root.querySelectorAll('[data-campo]').forEach(el => {
+    el.addEventListener('input', () => {
+      const c = el.dataset.campo;
+      _form[c] = el.value;
+      if (c === 'objetivo') {
+        const o = OBJETIVOS.find(x => x.v === el.value);
+        if (o) { _form.ajuste = o.ajuste; _root.querySelector('#calAjuste').value = o.ajuste; }
+      }
+      if (c === 'fator') _form.fator = num(el.value) || FATOR_PADRAO;   // select devolve string
+      if (c === 'peso' || c === 'formula' || c === 'fator') recalcularGet();
+      pintar();
+    });
   });
 
-  document.getElementById('calToggle').querySelectorAll('button').forEach(b =>
-    b.addEventListener('click', () => setModo(b.dataset.modo)));
+  _root.querySelectorAll('[data-macro-input]').forEach(el => {
+    el.addEventListener('input', () => {
+      _form[_form.modo][el.dataset.macroInput] = num(el.value);
+      pintar();
+    });
+  });
 
-  document.getElementById('calAplicar').addEventListener('click', aplicarAoPlano);
-  document.getElementById('calGerar').addEventListener('click', gerarPlanoCompleto);
+  // Delegação: os <i data-lucide> viram <svg> depois da renderização e um
+  // handler preso no ícone morreria junto com o nó trocado (index.html:13).
+  _root.addEventListener('click', (ev) => {
+    const lock = ev.target.closest?.('.cal-lock');
+    if (lock) { alternarTrava(lock.dataset.lock); return; }
 
-  setModo(_modo);                 // visibilidade inicial dos macros
-  if (_av) recomputarGet();       // preenche o GET pela fórmula selecionada
+    const st = ev.target.closest?.('.cal-step-b');
+    if (st?.dataset.alvo === 'ajuste') { passoAjuste(st.dataset.step); return; }
+    if (st) { passo(st.dataset.alvo, st.dataset.step); return; }
+
+    const seg = ev.target.closest?.('.cal-seg button');
+    if (seg?.dataset.modoativ) { setModoAtiv(seg.dataset.modoativ); return; }
+    if (seg?.dataset.modo) { setModo(seg.dataset.modo); return; }
+
+    const add = ev.target.closest?.('#calAtivAdd');
+    if (add) { addAtividade(); return; }
+
+    const del = ev.target.closest?.('[data-ativ-del]');
+    if (del) { delAtividade(Number(del.dataset.ativDel)); return; }
+  });
+
+  // Campos das atividades: delegado porque a lista é re-renderizada.
+  _root.addEventListener('input', (ev) => {
+    const el = ev.target.closest?.('[data-ativ-campo]');
+    if (!el) return;
+    const i = Number(el.dataset.ativI);
+    const campo = el.dataset.ativCampo;
+    if (!_form.atividades[i]) return;
+    if (campo === 'nome') {
+      _form.atividades[i].nome = el.value;
+      // intensidade da atividade anterior não existe na nova: volta para a 1ª
+      _form.atividades[i].intensidade = atividadePorNome(el.value)?.intensidades[0]?.label || '';
+    } else if (campo === 'intensidade') {
+      _form.atividades[i].intensidade = el.value;
+    } else {
+      _form.atividades[i][campo] = num(el.value) || 0;
+    }
+    recalcularGet();
+    pintar();
+  });
 }
 
-// TMB pela fórmula escolhida. Retorna null se faltar dado necessário.
-function tmbPorFormula(formula, d) {
-  const { peso, alturaCm, idade, sexo, pctGordura } = d;
-  if (formula === 'katch') {
-    if (!peso || !pctGordura || pctGordura <= 0) return null;   // precisa de %gordura
-    return 370 + 21.6 * (peso * (1 - pctGordura));
+function setModoAtiv(modo) {
+  if (_form.modoAtiv === modo) return;
+  _form.modoAtiv = modo;
+  if (modo === 'met') {
+    _form.fator = FATOR_PADRAO;                    // sem contagem dupla
+    if (!_form.atividades.length) addAtividade(false);
   }
-  if (!peso || !alturaCm || !idade || !sexo) return null;
-  if (formula === 'harris') {
-    return sexo === 'M'
-      ? 88.362 + 13.397 * peso + 4.799 * alturaCm - 5.677 * idade
-      : 447.593 + 9.247 * peso + 3.098 * alturaCm - 4.330 * idade;
-  }
-  // mifflin-st jeor (padrão)
-  const base = 10 * peso + 6.25 * alturaCm - 5 * idade;
-  return sexo === 'M' ? base + 5 : base - 161;
+  const corpo = _root.querySelector('.cal-ativ-corpo');
+  if (corpo) corpo.hidden = modo !== 'met';
+  const bloco = _root.querySelector('.cal-ativ-fator');
+  if (bloco) bloco.hidden = modo !== 'fator';
+  _root.querySelectorAll('[data-modoativ]').forEach(b =>
+    b.setAttribute('aria-pressed', b.dataset.modoativ === modo ? 'true' : 'false'));
+  recalcularGet();
+  pintar();
 }
 
-// Recalcula o GET a partir da fórmula + dados da avaliação e preenche o campo.
-function recomputarGet() {
-  if (!_av) { recomputar(); return; }
-  const formula = document.getElementById('calFormula')?.value || 'mifflin';
-  const fator = num(_av.fator_atividade) || 1.2;
-  const d = {
-    peso: num(document.getElementById('calPeso')?.value),
+function addAtividade(repintar = true) {
+  _form.atividades.push({ nome: 'Musculação', intensidade: 'Moderada', minutos: 60, vezesSemana: 3 });
+  if (repintar) { recalcularGet(); pintar(); }
+}
+
+function delAtividade(i) {
+  _form.atividades.splice(i, 1);
+  recalcularGet();
+  pintar();
+}
+
+function setModo(modo) {
+  if (_form.modo === modo) return;
+  _form.modo = modo;
+  _root.querySelectorAll('.cal-seg button').forEach(b =>
+    b.setAttribute('aria-pressed', b.dataset.modo === modo ? 'true' : 'false'));
+  pintar();
+}
+
+function alternarTrava(macro) {
+  const i = _form.travas.indexOf(macro);
+  if (i >= 0) _form.travas.splice(i, 1); else _form.travas.push(macro);
+  pintar();
+}
+
+/**
+ * Passo do ajuste sobre o GET, de 1 em 1 ponto percentual. Diferente dos
+ * macros, aceita valor NEGATIVO — é um déficit — então não há piso em zero.
+ * Os limites só evitam absurdo aritmético (−100% zeraria a meta).
+ */
+function passoAjuste(dir) {
+  const atual = num(_form.ajuste) || 0;
+  _form.ajuste = Math.max(-90, Math.min(100, atual + (dir === 'up' ? 1 : -1)));
+  pintar();
+}
+
+/** Passo do stepper. Respeita a trava e normaliza o ruído de ponto flutuante. */
+function passo(macro, dir) {
+  if (_form.travas.includes(macro)) return;
+  const step = _form.modo === 'gkg' ? 0.1 : 1;
+  const atual = _form[_form.modo][macro] || 0;
+  const novo = Math.max(0, atual + (dir === 'up' ? step : -step));
+  _form[_form.modo][macro] = step < 1 ? +novo.toFixed(1) : Math.round(novo);
+  pintar();
+}
+
+// ───────────────────────────────────────────────────────────
+// CÁLCULO + PINTURA
+// ───────────────────────────────────────────────────────────
+
+function recalcularGet() {
+  const nota = _root.querySelector('#calTmbNota');
+  if (!_av) { if (nota) nota.textContent = 'Sem avaliação: informe o GET manualmente.'; return; }
+
+  // No modo aditivo o fator volta a 1,2: o multiplicador já embutiria o treino.
+  const fator = _form.modoAtiv === 'met' ? FATOR_PADRAO : (num(_form.fator) || FATOR_PADRAO);
+  const tmb = tmbPorFormula(_form.formula, {
+    peso: num(_form.peso),
     alturaCm: num(_av.altura) * 100,   // altura vem em metros no banco
     idade: num(_av.idade),
     sexo: _av.sexo,
     pctGordura: num(_av.pct_gordura),
-  };
-  const tmb = tmbPorFormula(formula, d);
-  const note = document.getElementById('calFormulaNote');
+  });
+
   if (tmb == null) {
-    if (note) note.textContent = formula === 'katch'
-      ? 'Katch-McArdle precisa do % de gordura (faça a avaliação com dobras). GET mantido.'
+    if (nota) nota.textContent = _form.formula === 'katch'
+      ? 'Katch-McArdle precisa do % de gordura (avaliação com dobras). GET mantido.'
       : 'Faltam dados da avaliação (idade/altura/sexo) para esta fórmula. GET mantido.';
-    recomputar();
     return;
   }
-  const get = Math.round(tmb * fator);
-  const getEl = document.getElementById('calGet');
-  if (getEl) getEl.value = get;
-  if (note) note.textContent = `TMB ${Math.round(tmb)} kcal × fator ${String(fator).replace('.', ',')} = GET ${get} kcal/dia`;
-  recomputar();
+
+  const extra = _form.modoAtiv === 'met'
+    ? gastoDeAtividades(_form.atividades, num(_form.peso)).kcalDia : 0;
+
+  _form.get = String(getDe(tmb, fator) + Math.round(extra));
+  const getEl = _root.querySelector('#calGet');
+  if (getEl) getEl.value = _form.get;
+  // Deu certo: nada escrito. A nota só existe para explicar falha.
+  if (nota) nota.textContent = '';
+  _form._tmb = Math.round(tmb);
 }
 
-function setModo(modo) {
-  _modo = modo;
-  // style.display inline vence o `display:grid` do CSS (o atributo hidden não venceria).
-  const gkg = document.getElementById('calGkg');
-  const pct = document.getElementById('calPct');
-  if (gkg) gkg.style.display = modo === 'gkg' ? '' : 'none';
-  if (pct) pct.style.display = modo === 'pct' ? '' : 'none';
-  document.getElementById('calToggle').querySelectorAll('button').forEach(b =>
-    b.classList.toggle('active', b.dataset.modo === modo));
-  recomputar();
+function estado() {
+  const peso = num(_form.peso);
+  const get = num(_form.get);
+  const ajuste = num(_form.ajuste);
+  const meta = metaDe(get, ajuste);
+  const macros = calcularMacros({ modo: _form.modo, meta, peso, valores: _form[_form.modo] });
+  return { peso, get, ajuste, meta, macros, status: statusAjuste(ajuste), ritmo: ritmoSemanal(meta, get, peso) };
 }
 
-// Lê inputs, calcula meta + macros, e atualiza os resultados na tela.
-function _calcular() {
-  const peso = num(document.getElementById('calPeso')?.value);
-  const get  = num(document.getElementById('calGet')?.value);
-  const ajuste = num(document.getElementById('calAjuste')?.value) || 0;
-  const meta = get ? Math.round(get * (1 + ajuste / 100)) : 0;
+function pintar() {
+  const s = estado();
+  const q = sel => _root.querySelector(sel);
+  const txt = (sel, v) => { const el = q(sel); if (el) el.textContent = v; };
+  const setV = (sel, v) => { const el = q(sel); if (el && el.value !== String(v)) el.value = v; };
 
-  let protG = 0, gordG = 0, carbG = 0;
-  if (_modo === 'gkg') {
-    const pk = num(document.getElementById('calProtGkg')?.value) || 0;
-    const ck = num(document.getElementById('calCarbGkg')?.value) || 0;
-    const gk = num(document.getElementById('calGordGkg')?.value) || 0;
-    protG = pk * (peso || 0);
-    carbG = ck * (peso || 0);
-    gordG = gk * (peso || 0);
-  } else {
-    // % travado em 100: carboidrato = 100 − proteína − gordura (preenchido auto).
-    const pp = num(document.getElementById('calProtPct')?.value) || 0;
-    const gp = num(document.getElementById('calGordPct')?.value) || 0;
-    let cp = 100 - pp - gp;
-    if (cp < 0) cp = 0;
-    const carbEl = document.getElementById('calCarbPct');
-    if (carbEl) carbEl.value = Math.round(cp);
-    carbG = (meta * cp / 100) / 4;
-    protG = (meta * pp / 100) / 4;
-    gordG = (meta * gp / 100) / 9;
-  }
-  return { peso, get, meta, protG, gordG, carbG };
-}
+  setV('#calPeso', _form.peso);
+  setV('#calGet', _form.get);
+  setV('#calAjuste', _form.ajuste);
+  const fEl = q('#calFormula'); if (fEl) fEl.value = _form.formula;
+  const aEl = q('#calFator'); if (aEl) aEl.value = String(_form.fator);
+  pintarAtividades(q);
+  // o objetivo virou grupo de rádios: marca o que corresponde ao estado
+  const oEl = q(`input[name="calObjetivo"][value="${_form.objetivo}"]`);
+  if (oEl && !oEl.checked) oEl.checked = true;
 
-// Selo automático conforme o ajuste (%). Sem cores fortes; texto no card.
-function badgeAjuste(aj) {
-  if (aj <= -1) {
-    const a = Math.abs(aj);
-    const q = a >= 25 ? 'acentuado' : a >= 12 ? 'moderado' : 'leve';
-    return `🔥 Déficit ${q}`;
-  }
-  if (aj >= 1) {
-    const q = aj >= 20 ? 'agressivo' : aj >= 12 ? 'moderado' : 'controlado';
-    return `💪 Superávit ${q}`;
-  }
-  return '⚖️ Manutenção';
-}
-
-function recomputar() {
-  const c = _calcular();
-  const metaEl = document.getElementById('calMetaVal');
-  if (metaEl) metaEl.textContent = c.meta ? c.meta : '—';
-
-  // "Baseado em" + selo (apresentação; não altera o cálculo)
-  const ajuste = num(document.getElementById('calAjuste')?.value) || 0;
-  const objTxt = document.getElementById('calObjetivo')?.selectedOptions[0]?.textContent || '—';
-  const getEl = document.getElementById('calBaseGet');
-  if (getEl) getEl.textContent = c.get ? Math.round(c.get) : '—';
-  const objEl = document.getElementById('calBaseObj');
-  if (objEl) objEl.textContent = objTxt;
-  const ajEl = document.getElementById('calBaseAj');
-  if (ajEl) ajEl.textContent = (ajuste > 0 ? '+' : '') + ajuste + '%';
-  const badgeEl = document.getElementById('calBadge');
-  if (badgeEl) badgeEl.textContent = c.meta ? badgeAjuste(ajuste) : '—';
-
-  // Dica ao vivo: ritmo semanal estimado + alerta se ajuste for extremo.
-  const rateEl = document.getElementById('calRate');
-  if (rateEl) {
-    if (!c.meta || !c.get) {
-      rateEl.innerHTML = '';
-    } else {
-      const kgSem = Math.abs((c.meta - c.get) * 7 / 7700);   // ~7700 kcal ≈ 1 kg
-      const kgTxt = kgSem.toFixed(2).replace('.', ',');
-      const pctBw = c.peso ? ` · ${(kgSem / c.peso * 100).toFixed(1).replace('.', ',')}% do peso/sem` : '';
-      let linha;
-      if (ajuste === 0) linha = `<i data-lucide="minus"></i> Manutenção do peso`;
-      else if (ajuste < 0) linha = `<i data-lucide="trending-down"></i> Perda estimada de <strong>${kgTxt} kg/semana</strong>${pctBw}`;
-      else linha = `<i data-lucide="trending-up"></i> Ganho estimado de <strong>${kgTxt} kg/semana</strong>${pctBw}`;
-
-      let alerta = '';
-      if (ajuste <= -25) alerta = `<div class="cal-alert"><i data-lucide="triangle-alert"></i> Déficit acentuado (acima de 25%): maior risco de perda de massa magra e menor adesão. Prefira ciclos curtos e proteína alta.</div>`;
-      else if (ajuste >= 20) alerta = `<div class="cal-alert"><i data-lucide="triangle-alert"></i> Superávit alto (acima de 20%): tende a gerar mais gordura. Para treinados, +5 a +10% costuma bastar.</div>`;
-
-      rateEl.innerHTML = `<div class="cal-rate-line">${linha}</div>${alerta}`;
+  // ── macros ──
+  const un = _form.modo === 'gkg' ? 'g/kg' : '%';
+  for (const m of MACRO_DEF) {
+    const travado = _form.travas.includes(m.id);
+    const inp = q(`[data-macro-input="${m.id}"]`);
+    if (inp) {
+      const v = _form[_form.modo][m.id];
+      if (num(inp.value) !== v) inp.value = v;
+      inp.readOnly = travado;
+      inp.step = _form.modo === 'gkg' ? '0.1' : '1';
+      inp.setAttribute('aria-label', `${m.label} em ${un}`);
     }
+    const bloco = q(`.cal-macro[data-macro="${m.id}"]`);
+    if (bloco) {
+      bloco.classList.toggle('travado', travado);
+      bloco.querySelectorAll('.cal-step-b').forEach(b => { b.disabled = travado; });
+      const u = bloco.querySelector('.cal-macro-un'); if (u) u.textContent = un;
+    }
+    const lock = q(`[data-lock="${m.id}"]`);
+    if (lock) {
+      lock.classList.toggle('travado', travado);
+      lock.setAttribute('aria-pressed', travado ? 'true' : 'false');
+      lock.title = `${travado ? 'Destravar' : 'Congelar'} ${m.label.toLowerCase()}`;
+      lock.innerHTML = `<i data-lucide="${travado ? 'lock' : 'lock-open'}"></i>`;
+    }
+    txt(`#calG_${m.id}`, `${Math.round(s.macros.gramas[m.id])} g`);
+    txt(`#calS_${m.id}`, `${fmtKcal(s.macros.kcalPorMacro[m.id])} kcal · ${Math.round(s.macros.somaPct[m.id])}%`);
+    const barra = q(`#calB_${m.id}`);
+    if (barra) barra.style.width = Math.min(100, Math.round(s.macros.somaPct[m.id])) + '%';
   }
 
-  const macros = document.getElementById('calMacros');
-  if (!macros) return;
-  if (!c.meta) { macros.innerHTML = `<div class="cal-note">Informe o GET para calcular os macros.</div>`; return; }
+  pintarAviso(s);
 
-  const totalKcal = c.protG * 4 + c.carbG * 4 + c.gordG * 9;
-  const linha = (nome, gr, kcalPg, cor) => {
-    const kcal = gr * kcalPg;
-    const pct = totalKcal ? Math.round(kcal / totalKcal * 100) : 0;   // % do total (soma 100)
-    return `<div class="cal-macro" style="--c:${cor}">
-      <div class="cal-macro-nome">${nome}</div>
-      <div class="cal-macro-g">${Math.round(gr)} g</div>
-      <div class="cal-macro-sub">${Math.round(kcal)} kcal · ${pct}%</div>
-    </div>`;
-  };
-  const dif = c.meta ? Math.round(totalKcal - c.meta) : 0;
-  const difTxt = (c.meta && Math.abs(dif) >= 20)
-    ? ` <span class="cal-total-dif">(${dif > 0 ? '+' : ''}${dif} kcal vs meta)</span>` : '';
-  macros.innerHTML =
-    linha('Proteína', c.protG, 4, 'var(--moss)') +
-    linha('Carboidrato', c.carbG, 4, 'var(--gold)') +
-    linha('Gordura', c.gordG, 9, 'var(--terracotta)') +
-    `<div class="cal-total">Total: <strong>${Math.round(totalKcal)} kcal</strong>${difTxt}</div>`;
+  const btnGerar = q('#calGerar');
+  if (btnGerar) btnGerar.disabled = !s.macros.bate;
+  txt('#calGerarWhy', s.macros.bate ? '' :
+    !s.meta ? 'Informe o GET para calcular a meta.'
+      : 'Os macronutrientes precisam somar a meta calórica.');
+
+  // ── card de meta ──
+  txt('#calMeta', s.meta ? fmtKcal(s.meta) : '—');
+  txt('#calResGet', s.get ? `${fmtKcal(s.get)} kcal/dia` : '—');
+  txt('#calResObj', OBJETIVOS.find(o => o.v === _form.objetivo)?.label || '—');
+  txt('#calResAj', (s.ajuste > 0 ? '+' : '') + s.ajuste + '%');
+  txt('#calResRitmoL', s.ajuste < 0 ? 'Perda estimada' : s.ajuste > 0 ? 'Ganho estimado' : 'Variação estimada');
+  // Em gramas: "420 g/semana" pesa mais na leitura do que "0,42 kg/semana".
+  txt('#calResRitmo', s.ajuste === 0 || !s.get ? 'Manutenção do peso'
+    : `${fmtKcal(s.ritmo.kgSemana * 1000)} g/semana`);
+
+  const badge = q('#calBadge');
+  if (badge) { badge.textContent = s.status.label; badge.dataset.tom = s.status.tom; }
+
+  // Duas barras na MESMA escala: assim o déficit (meta menor) e o superávit
+  // (meta maior) se leem do mesmo jeito, sem inverter o significado da barra.
+  txt('#calCompGet', s.get ? `${fmtKcal(s.get)} kcal` : '—');
+  txt('#calCompMeta', s.meta ? `${fmtKcal(s.meta)} kcal` : '—');
+  const maior = Math.max(s.get || 0, s.meta || 0) || 1;
+  const bGet = q('#calCompBarGet');
+  if (bGet) bGet.style.width = Math.round((s.get || 0) / maior * 100) + '%';
+  const bMeta = q('#calCompBarMeta');
+  if (bMeta) {
+    bMeta.style.width = Math.round((s.meta || 0) / maior * 100) + '%';
+    bMeta.dataset.tom = s.status.tom;
+  }
+  const dif = q('#calCompDif');
+  if (dif) {
+    const d = Math.round(s.ritmo.kcalDia);
+    dif.textContent = !s.get || !s.meta ? ''
+      : d === 0 ? 'Meta igual ao gasto estimado'
+        : `${fmtKcal(Math.abs(d))} kcal/dia ${d < 0 ? 'abaixo' : 'acima'} do gasto`;
+    dif.dataset.tom = s.status.tom;
+  }
+
+  const alerta = q('#calMetaAlerta');
+  if (alerta) {
+    let t = '';
+    if (s.ajuste <= -25) t = 'Déficit acima de 25%: maior risco de perda de massa magra e menor adesão. Prefira ciclos curtos e proteína alta.';
+    else if (s.ajuste >= 20) t = 'Superávit acima de 20%: tende a gerar mais gordura. Para treinados, +5 a +10% costuma bastar.';
+    alerta.hidden = !t;
+    alerta.textContent = t;
+  }
+
+  // ── detalhes ──
+  const det = q('#calDetCorpo');
+  if (det) {
+    const f = FORMULAS.find(x => x.v === _form.formula)?.label || _form.formula;
+    det.innerHTML = `
+      <dl class="cal-det-lista">
+        <div><dt>Fórmula</dt><dd>${esc(f)}</dd></div>
+        <div><dt>TMB</dt><dd>${_form._tmb ? fmtKcal(_form._tmb) + ' kcal/dia' : '—'}</dd></div>
+        <div><dt>Atividade física</dt><dd>${esc(FATORES.find(x => x.v === _form.fator)?.label || '—')} (${String(_form.fator).replace('.', ',')})</dd></div>
+        <div><dt>GET</dt><dd>${s.get ? fmtKcal(s.get) + ' kcal/dia' : '—'}</dd></div>
+        <div><dt>Ajuste aplicado</dt><dd>${(s.ajuste > 0 ? '+' : '') + s.ajuste}% → ${s.meta ? fmtKcal(s.meta) : '—'} kcal/dia</dd></div>
+        <div><dt>${s.ritmo.kcalDia < 0 ? 'Déficit' : 'Superávit'} diário</dt><dd>${fmtKcal(Math.abs(s.ritmo.kcalDia))} kcal</dd></div>
+        <div><dt>Estimativa semanal</dt><dd>${fmtKcal(Math.abs(s.ritmo.kcalDia) * 7)} kcal ≈ ${fmtKcal(s.ritmo.kgSemana * 1000)} g</dd></div>
+        <div><dt>Total distribuído</dt><dd>${fmtKcal(s.macros.totalKcal)} kcal (tolerância ±${Math.round(s.macros.tol)})</dd></div>
+      </dl>
+      <p class="cal-det-nota">A estimativa semanal usa 7.700 kcal ≈ 1 kg de tecido adiposo: <strong>referência de planejamento, não garantia de resultado</strong>.</p>`;
+  }
+
+  pintarStatusSalvo();
 }
 
 /**
- * Gera um plano completo (refeições + itens) a partir das metas da tela.
- * Cria um plano NOVO — nunca sobrescreve o que já existe, porque o plano
- * atual pode ter ajuste manual do nutri que a geração não sabe reproduzir.
+ * Lista de atividades + total. Re-renderiza o HTML inteiro da lista, mas só
+ * quando o modo aditivo está ligado — evita reconstruir o que está escondido.
  */
-async function gerarPlanoCompleto() {
-  const c = _calcular();
-  if (!c.meta) { mostrarToast('Informe o GET para calcular a meta'); return; }
+function pintarAtividades(q) {
+  if (_form.modoAtiv !== 'met') return;
+  const lista = q('#calAtivLista');
+  const total = q('#calAtivTotal');
+  if (!lista) return;
 
-  const btn = document.getElementById('calGerar');
-  const msg = document.getElementById('calAplicarMsg');
+  const g = gastoDeAtividades(_form.atividades, num(_form.peso));
+
+  // Não recria enquanto o nutri digita: só o foco perdido justificaria.
+  const focado = document.activeElement?.dataset?.ativCampo;
+  if (!focado) {
+    lista.innerHTML = _form.atividades
+      .map((a, i) => linhaAtividadeHtml(a, i, g.porAtividade[i])).join('');
+  } else {
+    // Atualiza só os números, preservando o campo em edição.
+    _form.atividades.forEach((a, i) => {
+      const el = lista.querySelector(`.cal-ativ-linha[data-ativ-i="${i}"] .cal-ativ-kcal`);
+      if (el) el.textContent = `${fmtKcal(g.porAtividade[i].kcalSemana)} kcal/sem`;
+    });
+  }
+
+  if (total) {
+    total.innerHTML = _form.atividades.length
+      ? `<strong>${fmtKcal(g.kcalSemana)} kcal/semana</strong>
+         <span>= ${fmtKcal(g.kcalDia)} kcal/dia somadas ao GET</span>`
+      : `<span>Nenhuma atividade lançada.</span>`;
+  }
+}
+
+function pintarAviso(s) {
+  const box = _root.querySelector('#calAviso');
+  if (!box) return;
+  if (!s.meta || s.macros.bate) {
+    box.innerHTML = s.meta ? `
+      <div class="cal-ok"><i data-lucide="check-circle-2"></i>
+        <span>Distribuição fecha com a meta — <strong>${fmtKcal(s.macros.totalKcal)} kcal</strong> distribuídas.</span>
+      </div>` : '';
+    return;
+  }
+
+  const dif = Math.round(s.macros.dif);
+  const acima = dif > 0;
+  box.innerHTML = `
+    <div class="cal-alerta" data-tom="${acima ? 'erro' : 'aviso'}" role="alert">
+      <div class="cal-alerta-h">
+        <i data-lucide="${acima ? 'alert-triangle' : 'info'}"></i>
+        <strong>Distribuição ${acima ? 'acima' : 'abaixo'} da meta</strong>
+      </div>
+      <dl class="cal-alerta-n">
+        <div><dt>Meta</dt><dd>${fmtKcal(s.meta)} kcal</dd></div>
+        <div><dt>Distribuído</dt><dd>${fmtKcal(s.macros.totalKcal)} kcal</dd></div>
+        <div><dt>${acima ? 'Excesso' : 'Faltam'}</dt><dd>${fmtKcal(Math.abs(dif))} kcal</dd></div>
+      </dl>
+      <p class="cal-alerta-msg">Ajuste os macronutrientes até a soma fechar a meta.</p>
+    </div>`;
+}
+
+/** "Alterações não salvas" / "Salvo há X" — texto, não só cor. */
+function pintarStatusSalvo() {
+  const d = sujo();
+  const el = _root.querySelector('#calStatus');
+  const elM = _root.querySelector('#calStatusM');
+  let t = '', tom = '';
+  if (d) { t = 'Alterações não salvas'; tom = 'aviso'; }
+  else if (_salvoEm) {
+    const seg = Math.round((Date.now() - _salvoEm) / 1000);
+    t = seg < 60 ? 'Salvo há poucos segundos'
+      : seg < 3600 ? `Salvo há ${Math.floor(seg / 60)} min`
+        : 'Salvo';
+    tom = 'ok';
+  }
+  if (el) { el.textContent = t; el.dataset.tom = tom; }
+  if (elM) { elM.textContent = t; elM.dataset.tom = tom; }
+
+  const s = estado();
+  const sv = _root.querySelector('#calSalvar'); if (sv) sv.disabled = !d || !s.meta;
+  const svm = _root.querySelector('#calSalvarM'); if (svm) svm.disabled = !d || !s.meta;
+  const ds = _root.querySelector('#calDescartar'); if (ds) ds.disabled = !d;
+}
+
+// ───────────────────────────────────────────────────────────
+// AÇÕES
+// ───────────────────────────────────────────────────────────
+
+async function salvar() {
+  const s = estado();
+  if (!s.meta) { mostrarToast('Informe o GET para calcular a meta'); return; }
+
+  // Os dois botões travam juntos: só um está visível por vez, e deixar o
+  // outro ativo permitiria envio duplicado.
+  const btn = _root.querySelector('#calSalvar');
+  const btnM = _root.querySelector('#calSalvarM');
+  const orig = btn.innerHTML, origM = btnM.innerHTML;
+  btn.disabled = btnM.disabled = true;
+  btn.textContent = btnM.textContent = 'Salvando...';
+  try {
+    const metas = {
+      kcal_meta: s.meta,
+      prot_meta: Math.round(s.macros.gramas.proteina),
+      carb_meta: Math.round(s.macros.gramas.carboidrato),
+      gord_meta: Math.round(s.macros.gramas.gordura),
+      objetivo: OBJETIVOS.find(o => o.v === _form.objetivo)?.label || null,
+    };
+
+    const planos = await listarPlanosDoPaciente(_paciente.id);
+    if (!planos.length) {
+      await criarPlano(_nutriId, { nome: 'Plano alimentar', ativo: true, paciente_id: _paciente.id, ...metas });
+      mostrarToast('✓ Plano criado com as metas');
+    } else {
+      const plano = planos.find(p => p.ativo) || planos[0];
+      await atualizarPlano(plano.id, metas);
+      mostrarToast('✓ Metas salvas');
+    }
+    _salvo = clonar(_form);
+    _salvoEm = Date.now();
+    if (!_tickSalvo) _tickSalvo = setInterval(pintarStatusSalvo, 30000);
+  } catch (e) {
+    mostrarToast('Erro ao salvar: ' + e.message);
+  } finally {
+    btn.innerHTML = orig; btnM.innerHTML = origM;
+    pintar();            // devolve o disabled ao estado real do formulário
+  }
+}
+
+async function descartar() {
+  if (!sujo()) return;
+  if (!(await confirmar({
+    titulo: 'Descartar alterações',
+    mensagem: 'Os campos voltam ao último estado salvo.',
+    textoOk: 'Descartar',
+  }))) return;
+  _form = clonar(_salvo);
+  pintar();
+  mostrarToast('Alterações descartadas');
+}
+
+async function gerarPlanoCompleto() {
+  const s = estado();
+  if (!s.macros.bate) {
+    const d = Math.round(s.macros.dif);
+    mostrarToast(`Macros ${d > 0 ? 'passam' : 'faltam'} ${Math.abs(d)} kcal da meta`);
+    return;
+  }
+
+  const btn = _root.querySelector('#calGerar');
+  const msg = _root.querySelector('#calMsg');
   const orig = btn.innerHTML;
   btn.disabled = true; btn.textContent = 'Gerando...';
   try {
-    // o catálogo precisa ter os alimentos dos grupos; sem isso o plano sai furado
     const catalogo = await catalogoParaGerador();
     const faltam = faltandoNoCatalogo(catalogo);
     if (faltam.length) {
-      const aviso = `Faltam ${faltam.length} alimentos no catálogo (ex.: ${faltam.slice(0, 3).join(', ')}). ` +
+      if (msg) msg.textContent =
+        `Faltam ${faltam.length} alimentos no catálogo (ex.: ${faltam.slice(0, 3).join(', ')}). ` +
         `Rode db/foods_gerador_seed.sql no Supabase.`;
-      if (msg) msg.textContent = aviso;
-      mostrarToast('Catálogo incompleto — veja a mensagem abaixo do botão');
+      mostrarToast('Catálogo incompleto');
       return;
     }
 
@@ -376,81 +836,38 @@ async function gerarPlanoCompleto() {
       textoOk: 'Gerar',
     }))) return;
 
-    const objetivo = document.getElementById('calObjetivo')?.selectedOptions[0]?.textContent || null;
     const { plano, resultado } = await gerarPlanoParaPaciente(_nutriId, {
       pacienteId: _paciente.id,
-      nome: `Plano ${Math.round(c.meta)} kcal`,
-      objetivo,
+      nome: `Plano ${fmtKcal(s.meta)} kcal`,
+      objetivo: OBJETIVOS.find(o => o.v === _form.objetivo)?.label || null,
       templateId: TEMPLATES[0].id,
+      // kcal vem da SOMA dos macros, não da meta: dentro da tolerância os dois
+      // diferem por algumas kcal, e mandar dois alvos discordantes ao motor foi
+      // exatamente o que produziu planos 33% fora antes.
       metas: {
-        kcal: c.meta,
-        prot: Math.round(c.protG),
-        carb: Math.round(c.carbG),
-        gord: Math.round(c.gordG),
+        kcal: Math.round(s.macros.totalKcal),
+        prot: Math.round(s.macros.gramas.proteina),
+        carb: Math.round(s.macros.gramas.carboidrato),
+        gord: Math.round(s.macros.gramas.gordura),
       },
     });
 
     // o novo vira o ativo; os anteriores saem de cena sem serem apagados
     for (const p of planos) if (p.ativo) await atualizarPlano(p.id, { ativo: false });
 
-    const m = resultado.macros, d = resultado.desvio;
+    const m = resultado.macros, dv = resultado.desvio;
     const pc = v => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}%`;
     if (msg) msg.textContent =
-      `✓ "${plano.nome}" criado: ${Math.round(m.kcal)} kcal (${pc(d.kcal)}), ` +
+      `✓ "${plano.nome}" criado: ${fmtKcal(m.kcal)} kcal (${pc(dv.kcal)}), ` +
       `P ${Math.round(m.proteina)}g · C ${Math.round(m.carboidrato)}g · G ${Math.round(m.gordura)}g. ` +
-      `Ajuste na aba "Planejamento Alimentar".` +
+      `Monte as refeições na aba "Planejamento Alimentar".` +
       (resultado.avisos.length ? ` ⚠ ${resultado.avisos.join(' ')}` : '');
     mostrarToast('✓ Plano gerado');
   } catch (e) {
     if (msg) msg.textContent = 'Erro: ' + e.message;
     mostrarToast('Erro ao gerar o plano');
   } finally {
-    btn.disabled = false; btn.innerHTML = orig;
+    btn.innerHTML = orig;
+    pintar();
   }
-}
-
-async function aplicarAoPlano() {
-  const c = _calcular();
-  if (!c.meta) { mostrarToast('Informe o GET para calcular a meta'); return; }
-
-  const btn = document.getElementById('calAplicar');
-  const msg = document.getElementById('calAplicarMsg');
-  const orig = btn.innerHTML;
-  btn.disabled = true; btn.textContent = 'Aplicando...';
-  try {
-    const metas = {
-      kcal_meta: c.meta,
-      prot_meta: Math.round(c.protG),
-      carb_meta: Math.round(c.carbG),
-      gord_meta: Math.round(c.gordG),
-      objetivo:  document.getElementById('calObjetivo')?.selectedOptions[0]?.textContent || null,
-    };
-
-    const planos = await listarPlanosDoPaciente(_paciente.id);
-    if (!planos.length) {
-      // Nenhum plano ainda: cria um já com as metas (o nutri só adiciona as refeições depois).
-      await criarPlano(_nutriId, { nome: 'Plano alimentar', ativo: true, paciente_id: _paciente.id, ...metas });
-      if (msg) msg.textContent = '✓ Plano criado com as metas. Monte as refeições na aba "Planejamento Alimentar".';
-      mostrarToast('✓ Plano criado com as metas');
-      return;
-    }
-
-    const plano = planos.find(p => p.ativo) || planos[0];
-    await atualizarPlano(plano.id, metas);
-    if (msg) msg.textContent = `✓ Metas aplicadas ao plano "${plano.nome}".`;
-    mostrarToast('✓ Metas aplicadas ao plano');
-  } catch (e) {
-    if (msg) msg.textContent = 'Erro: ' + e.message;
-  } finally {
-    btn.disabled = false; btn.innerHTML = orig;
-  }
-}
-
-// helpers
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-function num(v) {
-  const s = String(v ?? '').trim().replace(',', '.');
-  if (s === '') return 0;
-  const n = Number(s);
-  return Number.isFinite(n) ? n : 0;
 }
