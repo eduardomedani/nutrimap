@@ -357,7 +357,7 @@ function dadosCardAbertoHtml() {
           <label>Nome do ${termo} *</label>
           <input type="text" id="plNome" value="${esc(t?.nome || '')}" class="np-input" placeholder="Ex.: Emagrecimento — Fase 1">
         </div>
-        <div class="av-field">
+        <div class="av-field" style="grid-column: span 2;">
           <label>Objetivo</label>
           <input type="text" id="plObjetivo" value="${esc(t?.objetivo || '')}" class="np-input" list="dlObjetivos" placeholder="Ex.: Emagrecimento">
         </div>
