@@ -51,8 +51,7 @@ let _drawerAba  = 'alimentos'; // 'alimentos' | 'favoritos' | 'recentes'
 let _medidasDe  = new Map();   // food_id -> medidas caseiras (cache por plano aberto)
 let _salvando   = 0;           // requisições de escrita em voo (para o indicador)
 let _statusSave = 'ocioso';    // 'ocioso' | 'salvando' | 'salvo' | 'erro'
-let _resumoAberto = false;     // drawer do resumo aberto (temporário)
-let _resumoPin = (() => { try { return localStorage.getItem('nm_dieta_resumo_pin') === '1'; } catch { return false; } })();  // drawer fixado
+let _dadosAberto = false;      // accordion dos dados administrativos do plano aberto
 let _atalhosLigados = false;   // o listener global de atalhos é ligado uma vez só
 
 /**
@@ -265,6 +264,9 @@ async function abrirEditor(plano) {
   _recolhidas.clear();
   _medidasDe.clear();
   _statusSave = 'ocioso';
+  // Plano novo → dados abertos (é preciso preencher). Plano existente → recolhido,
+  // para o nutri "cair" direto no ambiente de prescrição. (Também recolhe após salvar.)
+  _dadosAberto = !_plano;
 
   if (_plano) {
     try {
@@ -290,8 +292,66 @@ function renderEditor() {
   _mountEl.innerHTML = `
     <span class="ficha-voltar" id="plVoltar"><i data-lucide="arrow-left"></i> Voltar para os planos</span>
 
-    <div class="av-form-card">
-      <div class="av-form-title">${t ? `Editar: <em>${esc(t.nome || '')}</em>` : `Novo ${termo}`}</div>
+    <div id="plDadosMount"></div>
+
+    ${t ? `<div id="plRefeicoes"></div>` : `
+      <div class="form-warn" style="margin-top:16px;"><i data-lucide="lightbulb"></i> Preencha os dados e clique em <strong>Criar ${termo}</strong> para liberar as refeições.</div>
+    `}
+
+    <datalist id="dlObjetivos">${OBJETIVOS.map(o => `<option value="${esc(o)}">`).join('')}</datalist>
+    <datalist id="dlRefeicoes">${REFEICOES_SUGERIDAS.map(r => `<option value="${esc(r)}">`).join('')}</datalist>
+  `;
+
+  qs('plVoltar').addEventListener('click', () => renderLista());
+  montarDadosCard();
+  if (t) renderRefeicoes();
+}
+
+// ── Card de dados administrativos (accordion) ─────────────────────────────
+// Fechado: resumo compacto (nome · objetivo · status · período) + "Editar".
+// Aberto: o formulário completo. O foco da tela é a prescrição, não isto.
+function montarDadosCard() {
+  const mount = qs('plDadosMount');
+  if (!mount) return;
+  if (!_plano) _dadosAberto = true;   // criar exige o formulário aberto
+  mount.innerHTML = _dadosAberto ? dadosCardAbertoHtml() : dadosCardFechadoHtml();
+  if (_dadosAberto) ligarDadosAberto(mount);
+  else ligarDadosFechado(mount);
+}
+
+function fmtPeriodo(t) {
+  if (!t) return '';
+  if (t.data_inicio && t.data_fim) return `${fmtData(t.data_inicio)} – ${fmtData(t.data_fim)}`;
+  if (t.data_inicio) return `desde ${fmtData(t.data_inicio)}`;
+  return '';
+}
+
+function dadosCardFechadoHtml() {
+  const t = _plano || {};
+  const periodo = fmtPeriodo(t);
+  return `
+    <div class="pl-dados-min">
+      <div class="pl-dados-min-info">
+        <div class="pl-dados-eyebrow">Dados do plano</div>
+        <div class="pl-dados-min-nome">${esc(t.nome || 'Plano sem nome')} ${estadoChipHtml()}</div>
+        <div class="pl-dados-min-tags">
+          ${t.objetivo ? `<span class="pl-tag"><i data-lucide="target"></i> ${esc(t.objetivo)}</span>` : ''}
+          ${periodo ? `<span class="pl-tag"><i data-lucide="calendar"></i> ${periodo}</span>` : ''}
+        </div>
+      </div>
+      <button class="btn" id="plDadosEditar"><i data-lucide="pencil"></i> Editar</button>
+    </div>`;
+}
+
+function dadosCardAbertoHtml() {
+  const t = _plano;
+  const termo = _modo === 'modelo' ? 'modelo' : 'plano';
+  return `
+    <div class="av-form-card pl-dados-form">
+      <div class="pl-dados-head">
+        <div class="av-form-title">${t ? `Editar: <em>${esc(t.nome || '')}</em>` : `Novo ${termo}`}</div>
+        ${t ? `<button class="btn di-mini-btn" id="plDadosRecolher" title="Recolher os dados"><i data-lucide="chevrons-down-up"></i> Recolher</button>` : ''}
+      </div>
       <div class="av-grid">
         <div class="av-field" style="grid-column: 1 / -1;">
           <label>Nome do ${termo} *</label>
@@ -344,23 +404,27 @@ function renderEditor() {
       <div class="av-actions">
         <button class="btn primary" id="plSalvarDados">${t ? '<i data-lucide="save"></i> Salvar dados' : `<i data-lucide="plus"></i> Criar ${termo}`}</button>
       </div>
-    </div>
+    </div>`;
+}
 
-    ${t ? `<div id="plRefeicoes"></div>` : `
-      <div class="form-warn" style="margin-top:16px;"><i data-lucide="lightbulb"></i> Preencha os dados e clique em <strong>Criar ${termo}</strong> para liberar as refeições.</div>
-    `}
+function ligarDadosFechado(mount) {
+  mount.querySelector('#plDadosEditar')?.addEventListener('click', () => {
+    _dadosAberto = true;
+    montarDadosCard();
+  });
+}
 
-    <datalist id="dlObjetivos">${OBJETIVOS.map(o => `<option value="${esc(o)}">`).join('')}</datalist>
-    <datalist id="dlRefeicoes">${REFEICOES_SUGERIDAS.map(r => `<option value="${esc(r)}">`).join('')}</datalist>
-  `;
-
-  qs('plVoltar').addEventListener('click', () => renderLista());
-  qs('plSalvarDados').addEventListener('click', salvarDados);
+function ligarDadosAberto(mount) {
+  mount.querySelector('#plSalvarDados')?.addEventListener('click', () => salvarDados());
+  mount.querySelector('#plDadosRecolher')?.addEventListener('click', () => {
+    _dadosAberto = false;
+    montarDadosCard();
+  });
 
   // Vínculo Data de início ↔ Dias ↔ Data de término (só no modo paciente).
-  const elIni = qs('plData');
-  const elDias = qs('plDias');
-  const elFim = qs('plDataFim');
+  const elIni = mount.querySelector('#plData');
+  const elDias = mount.querySelector('#plDias');
+  const elFim = mount.querySelector('#plDataFim');
   if (elIni && elDias && elFim) {
     const fimPorDias = () => {
       const n = Number(elDias.value);
@@ -378,7 +442,7 @@ function renderEditor() {
   }
 
   // Cor do Status: Ativo = verde, Inativo = vermelho.
-  const elStatus = qs('plAtivo');
+  const elStatus = mount.querySelector('#plAtivo');
   if (elStatus) {
     const corStatus = () => {
       const ativo = elStatus.value === '1';
@@ -388,46 +452,50 @@ function renderEditor() {
     elStatus.addEventListener('change', corStatus);
     corStatus();
   }
-
-  if (t) renderRefeicoes();
 }
 
+// Lê o formulário administrativo. Quando o card está RECOLHIDO os inputs não
+// existem: cada campo então cai no valor atual do _plano (nada mudou lá).
 function lerDados() {
   const g = id => (qs(id)?.value || '').trim();
+  const t = _plano || {};
   const dataEl = qs('plData');
   const dataFimEl = qs('plDataFim');
   const ativoEl = qs('plAtivo');
-  const dataInicio = dataEl ? (dataEl.value || null) : null;
-  const dataFim = dataFimEl ? (dataFimEl.value || null) : null;
+  const dataInicio = dataEl ? (dataEl.value || null) : (t.data_inicio ?? null);
+  const dataFim = dataFimEl ? (dataFimEl.value || null) : (t.data_fim ?? null);
   // Metas (kcal/macros) NÃO entram aqui de propósito: vêm do Cálculo de Calorias.
   return {
-    nome:        g('plNome'),
-    objetivo:    g('plObjetivo') || null,
+    nome:        qs('plNome') ? g('plNome') : (t.nome || ''),
+    objetivo:    qs('plObjetivo') ? (g('plObjetivo') || null) : (t.objetivo ?? null),
     data_inicio: dataInicio,
     data_fim:    dataFim,
-    ativo:       ativoEl ? (ativoEl.value === '1') : true,
-    observacoes: g('plObs') || null,
+    ativo:       ativoEl ? (ativoEl.value === '1') : (t.ativo ?? true),
+    observacoes: qs('plObs') ? (g('plObs') || null) : (t.observacoes ?? null),
     _dataInicio: dataInicio, _dataFim: dataFim,
   };
 }
 
-async function salvarDados() {
-  const dados = lerDados();
+async function salvarDados(override = {}) {
+  const dados = { ...lerDados(), ...override };
   if (!dados.nome) { mostrarToast('Informe o nome do plano'); return; }
   if (dados._dataInicio && dados._dataFim && dados._dataFim < dados._dataInicio) {
     mostrarToast('A data de término não pode ser antes do início'); return;
   }
   delete dados._dataInicio; delete dados._dataFim;
 
+  // O botão pode estar no card de dados (aberto) OU ausente (salvo pela barra
+  // com o card recolhido) — por isso o indicador de autosave também é atualizado.
   const btn = qs('plSalvarDados');
-  const orig = btn.innerHTML;
-  btn.disabled = true; btn.textContent = 'Salvando...';
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+  marcarSave('salvando');
   try {
     if (_plano) {
       const atualizado = await atualizarPlano(_plano.id, dados);
       _plano = { ..._plano, ...atualizado };
       mostrarToast('✓ Plano atualizado');
-      await abrirEditor(_plano);
+      await abrirEditor(_plano);   // recolhe o card de dados e volta à prescrição
     } else {
       const nutriId = await getNutriId();
       const extra = _modo === 'modelo' ? {} : { paciente_id: _paciente.id };
@@ -435,9 +503,11 @@ async function salvarDados() {
       mostrarToast(_modo === 'modelo' ? '✓ Modelo criado' : '✓ Plano criado');
       await abrirEditor(criado);
     }
+    marcarSave('salvo');
   } catch (e) {
     mostrarErro('Erro ao salvar: ' + e.message);
-    btn.disabled = false; btn.innerHTML = orig;
+    marcarSave('erro');
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
   }
 }
 
@@ -454,57 +524,73 @@ function renderRefeicoes() {
   const cont = qs('plRefeicoes');
   if (!cont) return;
 
-  const aberto = _resumoAberto || _resumoPin;
   cont.innerHTML = `
-    <div class="di-rx ${_resumoPin ? 'di-rx-pin' : ''}">
+    <div class="di-rx">
       <div class="di-rx-main">
-        ${cabecalhoHtml()}
+        ${resumoBarHtml()}
+        ${secaoPrescricaoHtml()}
         <div class="di-refeicoes">${refeicoesHtml()}</div>
         ${novaRefeicaoHtml()}
       </div>
     </div>
-    <div class="di-rs-overlay ${aberto && !_resumoPin ? 'show' : ''}" id="diRsOverlay" ${aberto && !_resumoPin ? '' : 'hidden'}></div>
-    ${drawerResumoHtml(aberto)}
     ${_drawerRef ? drawerHtml() : ''}
   `;
 
-  ligarCabecalho(cont);
+  ligarBarra(cont);
   ligarRefeicoes(cont);
   ligarNovaRefeicao(cont);
-  ligarResumoDrawer(cont);
   if (_drawerRef) ligarDrawer(cont);
 }
 
 // ───────────────────────────────────────────────────────────
-// CABEÇALHO CONTEXTUAL (sticky)
+// BARRA DE RESUMO NUTRICIONAL (sticky) — macros sempre à vista + ações
 // ───────────────────────────────────────────────────────────
-function cabecalhoHtml() {
+function resumoBarHtml() {
   const p = _plano || {};
   const tot = macrosPlano(_refeicoes);
+  const pk = progresso(tot.kcal, p.kcal_meta);
   const n = _refeicoes.length;
-  const quem = _modo === 'modelo'
-    ? 'Modelo reutilizável'
-    : esc(_paciente?.nome || _paciente?.codigo || 'Cliente');
 
-  const sub = [
-    p.objetivo ? esc(p.objetivo) : '',
-    `${fmtKcal(tot.kcal)} kcal`,
-    `${n} ${n === 1 ? 'refeição' : 'refeições'}`,
-  ].filter(Boolean).join(' · ');
+  const metric = (lbl, val, sub) => `
+    <div class="di-rb-metric">
+      <span class="di-rb-lbl">${lbl}</span>
+      <span class="di-rb-val">${val}</span>
+      ${sub ? `<span class="di-rb-sub">${sub}</span>` : ''}
+    </div>`;
 
-  const atualizado = p.criado_em
-    ? `<span class="di-hd-data" title="Criado em">${fmtDataHora(p.criado_em)}</span>` : '';
+  const macro = (lbl, atual, meta) => {
+    const pr = progresso(atual, meta);
+    const sub = pr.temMeta
+      ? `<span class="di-txt-${pr.status}">${pr.pctReal}%</span> · meta ${fmtG(meta)} g`
+      : 'sem meta';
+    return metric(lbl, `${fmtG(atual)} <em>g</em>`, sub);
+  };
 
   return `
-    <header class="di-hd">
-      <div class="di-hd-txt">
-        <div class="di-hd-eyebrow">Prescrição alimentar ${estadoChipHtml()}</div>
-        <h2 class="di-hd-nome">${esc(p.nome || 'Plano sem nome')}</h2>
-        <div class="di-hd-sub"><strong>${quem}</strong> · ${sub} ${atualizado}</div>
+    <div class="di-resumo-bar" id="diResumoBar" role="region" aria-label="Resumo nutricional do plano">
+      <div class="di-rb-metrics">
+        <div class="di-rb-metric di-rb-kcal">
+          <span class="di-rb-lbl">Calorias</span>
+          <span class="di-rb-val">${fmtKcal(tot.kcal)}${pk.temMeta ? ` <em>/ ${fmtKcal(p.kcal_meta)}</em>` : ' <em>kcal</em>'}</span>
+          ${pk.temMeta
+            ? `<div class="di-bar di-bar-${pk.status}" role="progressbar" aria-valuenow="${pk.pctReal}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pk.pct}%"></span></div>`
+            : '<span class="di-rb-sub">defina no cálculo</span>'}
+        </div>
+        ${macro('Proteína', tot.prot, p.prot_meta)}
+        ${macro('Carboidrato', tot.carb, p.carb_meta)}
+        ${macro('Gordura', tot.gord, p.gord_meta)}
+        ${metric('Refeições', n, tot.fibra > 0 ? `${fmtG(tot.fibra)} g de fibra` : '')}
+        ${metric('Meta atingida',
+            pk.temMeta ? `<span class="di-txt-${pk.status}">${pk.pctReal}%</span>` : '—',
+            pk.temMeta
+              ? (pk.resta > 0 ? `faltam ${fmtKcal(pk.resta)} kcal` : pk.excedeu > 0 ? `${fmtKcal(pk.excedeu)} kcal acima` : 'na meta')
+              : 'sem meta definida')}
       </div>
-      <div class="di-hd-acts">
+      <div class="di-rb-acts">
         <span class="di-save" id="diSave" role="status" aria-live="polite">${saveStatusHtml()}</span>
-        ${resumoBtnHtml(tot)}
+        ${_modo === 'paciente'
+          ? `<button class="btn di-rb-calc" id="diEditarCalc" title="Editar metas na aba Cálculo de Calorias"><i data-lucide="calculator"></i> Editar cálculo</button>`
+          : ''}
         <button class="btn" id="diSalvarRasc" title="Salvar mantendo como rascunho (Ctrl+S)">Salvar rascunho</button>
         ${_modo === 'paciente'
           ? `<button class="btn primary" id="diPublicar" title="Salvar e marcar o plano como ativo">Salvar e publicar</button>`
@@ -522,7 +608,15 @@ function cabecalhoHtml() {
           </div>
         </div>
       </div>
-    </header>`;
+    </div>`;
+}
+
+function secaoPrescricaoHtml() {
+  return `
+    <div class="di-secao">
+      <h3 class="di-secao-tit"><i data-lucide="utensils"></i> Prescrição alimentar</h3>
+      ${estadoChipHtml()}
+    </div>`;
 }
 
 // O banco só tem `ativo` (boolean). "Rascunho/arquivado" não existe: não invento
@@ -566,142 +660,6 @@ async function comSave(fn) {
     marcarSave('erro');
     throw e;
   }
-}
-
-// ───────────────────────────────────────────────────────────
-// RESUMO NUTRICIONAL (sticky no desktop)
-// ───────────────────────────────────────────────────────────
-function metaLinhaHtml(nome, atual, meta, unidade = 'g') {
-  const pr = progresso(atual, meta);
-  const val = unidade === 'kcal' ? fmtKcal(atual) : fmtG(atual);
-  const alvo = unidade === 'kcal' ? fmtKcal(meta) : fmtG(meta);
-
-  const detalhe = !pr.temMeta
-    ? '<span class="di-rs-hint">sem meta definida</span>'
-    : pr.resta > 0
-      ? `<span class="di-rs-hint">Faltam ${unidade === 'kcal' ? fmtKcal(pr.resta) : fmtG(pr.resta)} ${unidade}</span>`
-      : pr.excedeu > 0
-        ? `<span class="di-rs-hint">${unidade === 'kcal' ? fmtKcal(pr.excedeu) : fmtG(pr.excedeu)} ${unidade} acima</span>`
-        : '<span class="di-rs-hint">na meta</span>';
-
-  return `
-    <div class="di-rs-linha">
-      <div class="di-rs-top">
-        <span class="di-rs-nome">${nome}</span>
-        <span class="di-rs-val">${val}${pr.temMeta ? ` <em>/ ${alvo}</em>` : ''} ${unidade}</span>
-      </div>
-      ${pr.temMeta ? `
-        <div class="di-bar di-bar-${pr.status}"
-             role="progressbar" aria-valuenow="${pr.pctReal}" aria-valuemin="0" aria-valuemax="100"
-             aria-label="${nome}: ${pr.pctReal}% da meta">
-          <span style="width:${pr.pct}%"></span>
-        </div>` : ''}
-      ${detalhe}
-    </div>`;
-}
-
-function resumoHtml() {
-  const tot = macrosPlano(_refeicoes);
-  const p = _plano || {};
-  const pk = progresso(tot.kcal, p.kcal_meta);
-  const dist = distribuicaoMacros(tot);
-  const intervalo = intervaloMedioHoras(_refeicoes);
-  const ultima = [..._refeicoes].reverse().find(r => r.horario);
-  const alertas = alertasPlano(_refeicoes, p);
-
-  return `
-    <div class="di-rs">
-      <div class="di-rs-kcal">
-        <div class="di-rs-kcal-num">
-          <strong>${fmtKcal(tot.kcal)}</strong>${pk.temMeta ? ` <span>de ${fmtKcal(p.kcal_meta)} kcal</span>` : ' <span>kcal</span>'}
-        </div>
-        ${pk.temMeta ? `
-          <div class="di-bar di-bar-lg di-bar-${pk.status}"
-               role="progressbar" aria-valuenow="${pk.pctReal}" aria-valuemin="0" aria-valuemax="100"
-               aria-label="Calorias: ${pk.pctReal}% da meta">
-            <span style="width:${pk.pct}%"></span>
-          </div>
-          <div class="di-rs-kcal-sub">
-            <span class="di-rs-pct di-txt-${pk.status}">${pk.pctReal}% da meta</span>
-            <span>${pk.resta > 0 ? `Faltam ${fmtKcal(pk.resta)} kcal` : pk.excedeu > 0 ? `${fmtKcal(pk.excedeu)} kcal acima` : 'Na meta'}</span>
-          </div>`
-        : `<div class="di-rs-hint">Defina as metas na aba <strong>Cálculo de Calorias</strong> para acompanhar o progresso.</div>`}
-      </div>
-
-      <div class="di-rs-macros">
-        ${metaLinhaHtml('Proteína', tot.prot, p.prot_meta)}
-        ${metaLinhaHtml('Carboidrato', tot.carb, p.carb_meta)}
-        ${metaLinhaHtml('Gordura', tot.gord, p.gord_meta)}
-      </div>
-
-      ${tot.kcal > 0 ? `
-        <div class="di-rs-dist" aria-label="Distribuição dos macronutrientes por calorias">
-          <div class="di-rs-dist-tit">Distribuição das calorias</div>
-          <div class="di-rs-dist-bar">
-            <span class="dp" style="width:${dist.prot}%" title="Proteína ${dist.prot}%"></span>
-            <span class="dc" style="width:${dist.carb}%" title="Carboidrato ${dist.carb}%"></span>
-            <span class="dg" style="width:${dist.gord}%" title="Gordura ${dist.gord}%"></span>
-          </div>
-          <div class="di-rs-dist-lg">
-            <span><i class="dot dp"></i> P ${dist.prot}%</span>
-            <span><i class="dot dc"></i> C ${dist.carb}%</span>
-            <span><i class="dot dg"></i> G ${dist.gord}%</span>
-          </div>
-        </div>` : ''}
-
-      <dl class="di-rs-fatos">
-        <div><dt>Refeições</dt><dd>${_refeicoes.length}</dd></div>
-        ${tot.fibra > 0 ? `<div><dt>Fibras</dt><dd>${fmtG(tot.fibra)} g</dd></div>` : ''}
-        ${ultima ? `<div><dt>Última refeição</dt><dd>${esc(hhmm(ultima.horario))}</dd></div>` : ''}
-        ${intervalo != null ? `<div><dt>Intervalo médio</dt><dd>${fmtQtd(intervalo)} h</dd></div>` : ''}
-      </dl>
-
-      ${alertas.length ? `
-        <div class="di-rs-alertas">
-          ${alertas.map(a => `
-            <div class="di-al di-al-${a.nivel}">
-              <i data-lucide="${a.nivel === 'ok' ? 'circle-check' : a.nivel === 'alerta' ? 'triangle-alert' : 'info'}"></i>
-              <span>${esc(a.texto)}</span>
-            </div>`).join('')}
-        </div>` : ''}
-    </div>`;
-}
-
-// Botão do cabeçalho: abre o drawer e mostra a leitura rápida (kcal · % · dot).
-function resumoBtnHtml(tot) {
-  const pk = progresso(tot.kcal, _plano?.kcal_meta);
-  const pct = pk.temMeta ? `${pk.pctReal}%` : '';
-  return `
-    <button class="btn di-resumo-btn" id="diResumoBtn" aria-haspopup="dialog"
-      aria-expanded="${_resumoAberto || _resumoPin}" title="Visualizar metas e distribuição nutricional">
-      <i data-lucide="panel-right"></i>
-      <span class="di-resumo-btn-txt">Resumo <b>${fmtKcal(tot.kcal)} kcal</b>${pct ? ` · ${pct}` : ''}</span>
-      ${pk.temMeta ? `<span class="di-resumo-dot di-dot-${pk.status}"></span>` : ''}
-    </button>`;
-}
-
-// Drawer lateral do resumo (head + corpo reaproveitando resumoHtml).
-function drawerResumoHtml(aberto) {
-  const p = _plano || {};
-  const quem = _modo === 'modelo'
-    ? 'Modelo reutilizável'
-    : esc(_paciente?.nome || _paciente?.codigo || 'Cliente');
-  const sub = `${quem} · Plano ${p.kcal_meta ? fmtKcal(p.kcal_meta) + ' kcal' : (esc(p.nome || ''))}`;
-  return `
-    <aside class="di-rs-drawer ${aberto ? 'aberto' : ''} ${_resumoPin ? 'pin' : ''}" id="diRsDrawer"
-      role="dialog" aria-modal="${_resumoPin ? 'false' : 'true'}" aria-label="Resumo do plano" ${aberto ? '' : 'hidden'}>
-      <div class="di-rs-drawer-head">
-        <div class="di-rs-drawer-id">
-          <div class="di-rs-drawer-tit">Resumo do plano</div>
-          <div class="di-rs-drawer-sub">${sub}</div>
-        </div>
-        <div class="di-rs-drawer-acts">
-          <button class="di-icon-btn ${_resumoPin ? 'on' : ''}" id="diRsPin" title="${_resumoPin ? 'Desafixar painel' : 'Fixar painel'}" aria-pressed="${_resumoPin}"><i data-lucide="pin"></i></button>
-          <button class="di-icon-btn" id="diRsClose" title="Fechar" aria-label="Fechar resumo"><i data-lucide="x"></i></button>
-        </div>
-      </div>
-      <div class="di-rs-drawer-body">${resumoHtml()}</div>
-    </aside>`;
 }
 
 // ───────────────────────────────────────────────────────────
@@ -991,9 +949,10 @@ function abrirMenu(btn, pop) {
   document.addEventListener('mousedown', fora);
 }
 
-function ligarCabecalho(cont) {
+function ligarBarra(cont) {
   cont.querySelector('#diSalvarRasc')?.addEventListener('click', () => salvarDados());
   cont.querySelector('#diPublicar')?.addEventListener('click', () => publicarPlano());
+  cont.querySelector('#diEditarCalc')?.addEventListener('click', irParaCalculo);
 
   const btn = cont.querySelector('#diMaisBtn');
   const pop = cont.querySelector('#diMais');
@@ -1011,41 +970,12 @@ function ligarCabecalho(cont) {
   }));
 }
 
-// Abre/fecha o drawer do resumo sem re-render (anima e preserva a prescrição).
-function abrirResumoDrawer(abrir) {
-  if (_resumoPin) return;   // fixado: sempre visível
-  _resumoAberto = abrir != null ? abrir : !_resumoAberto;
-  const dr = qs('diRsDrawer'), ov = qs('diRsOverlay'), bt = qs('diResumoBtn');
-  if (_resumoAberto) {
-    if (dr) { dr.hidden = false; void dr.offsetWidth; dr.classList.add('aberto'); }
-    if (ov) { ov.hidden = false; void ov.offsetWidth; ov.classList.add('show'); }
-    qs('diRsClose')?.focus();
-  } else {
-    dr?.classList.remove('aberto');
-    ov?.classList.remove('show');
-    setTimeout(() => { if (!_resumoAberto) { if (dr) dr.hidden = true; if (ov) ov.hidden = true; } }, 260);
-    bt?.focus();
-  }
-  bt?.setAttribute('aria-expanded', String(_resumoAberto));
-}
-
-function toggleResumoPin() {
-  _resumoPin = !_resumoPin;
-  _resumoAberto = false;
-  try { localStorage.setItem('nm_dieta_resumo_pin', _resumoPin ? '1' : '0'); } catch {}
-  renderRefeicoes();   // re-render p/ ajustar o layout (main reserva/solta espaço)
-}
-
-function ligarResumoDrawer(cont) {
-  cont.querySelector('#diResumoBtn')?.addEventListener('click', () => {
-    if (_resumoPin) { toggleResumoPin(); return; }   // fixado → clique no botão desafixa
-    abrirResumoDrawer();
-  });
-  cont.querySelector('#diRsClose')?.addEventListener('click', () => {
-    if (_resumoPin) toggleResumoPin(); else abrirResumoDrawer(false);
-  });
-  cont.querySelector('#diRsOverlay')?.addEventListener('click', () => abrirResumoDrawer(false));
-  cont.querySelector('#diRsPin')?.addEventListener('click', toggleResumoPin);
+// "Editar cálculo" → salta para a aba Cálculo de Calorias (onde as metas moram).
+// Só existe na ficha do paciente; a navegação é o próprio menu lateral da ficha.
+function irParaCalculo() {
+  const item = document.querySelector('#fichaMenu .fm-item[data-aba="calorias"]');
+  if (item) { item.click(); return; }
+  mostrarToast('Abra a aba "Cálculo de Calorias" para editar as metas.');
 }
 
 function ligarNovaRefeicao(cont) {
@@ -1369,7 +1299,7 @@ async function moverRefeicao(id, dir) {
 async function publicarPlano() {
   const sel = qs('plAtivo');
   if (sel) sel.value = '1';
-  await salvarDados();
+  await salvarDados({ ativo: true });   // força ativo mesmo com o card de dados recolhido
 }
 
 async function salvarCampoRefeicao(el) {
@@ -1599,8 +1529,6 @@ function ligarAtalhos() {
   document.addEventListener('keydown', (e) => {
     // Só quando o editor de plano está montado e visível.
     if (!_plano || !_mountEl?.isConnected || !_mountEl.querySelector('.di-rx')) return;
-    // ESC fecha o drawer do resumo (quando aberto e não fixado).
-    if (e.key === 'Escape' && _resumoAberto && !_resumoPin) { e.preventDefault(); abrirResumoDrawer(false); return; }
     const cmd = e.ctrlKey || e.metaKey;
     if (!cmd) return;
 

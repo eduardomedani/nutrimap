@@ -731,13 +731,55 @@
   /* Só tokens do sistema. Nada de cor solta: estados usam sage/gold/terracotta. */
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-  /* Layout: conteúdo + resumo sticky */
-  /* Prescrição em largura total; resumo virou drawer (ver .di-rs-drawer). */
-  .di-rx { margin: 16px auto 0; max-width: 1200px; }
+  /* Layout: prescrição em largura total (dados viram accordion; resumo vira barra sticky). */
+  .di-rx { margin: 14px auto 0; max-width: 1200px; }
   .di-rx-main { min-width: 0; }
-  .di-rx.di-rx-pin { max-width: none; margin-right: 408px; }   /* reserva espaço p/ o drawer fixado */
-  @media (max-width: 1279px) { .di-rx.di-rx-pin { max-width: 1200px; margin-right: auto; } }
   .di-refeicoes { display: flex; flex-direction: column; gap: 10px; }
+
+  /* ── Card de dados administrativos (accordion) ── */
+  .pl-dados-min { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+                  margin-top: 18px; padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--line);
+                  border-radius: 14px; box-shadow: var(--shadow); }
+  .pl-dados-min-info { min-width: 0; }
+  .pl-dados-eyebrow { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-mute); }
+  .pl-dados-min-nome { font-family: 'Fraunces', Georgia, serif; font-size: 19px; font-weight: 600; color: var(--moss-deep);
+                       display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 2px 0 4px; line-height: 1.2; }
+  .pl-dados-min-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .pl-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; color: var(--ink-soft);
+            background: var(--bg-warm); border-radius: 100px; padding: 3px 10px; }
+  .pl-tag svg { width: 13px; height: 13px; color: var(--ink-mute); }
+  .pl-dados-form { margin-top: 18px; }
+  .pl-dados-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .pl-dados-head .av-form-title { margin-bottom: 0; }
+  .di-mini-btn { padding: 6px 12px; font-size: 12.5px; }
+  .di-mini-btn svg { width: 14px; height: 14px; }
+
+  /* ── Barra de Resumo Nutricional (sticky) — macros sempre à vista ── */
+  .di-resumo-bar { position: sticky; top: 0; z-index: 25; display: flex; align-items: center; justify-content: space-between;
+                   gap: 16px; flex-wrap: wrap; margin-bottom: 14px; padding: 12px 16px;
+                   background: var(--bg-card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); }
+  .di-rb-metrics { display: flex; align-items: stretch; gap: 22px; flex-wrap: wrap; min-width: 0; }
+  .di-rb-metric { display: flex; flex-direction: column; gap: 2px; min-width: 74px; }
+  .di-rb-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-mute); }
+  .di-rb-val { font-family: 'Nunito', sans-serif; font-size: 18px; font-weight: 800; color: var(--moss-deep); white-space: nowrap; line-height: 1.15; }
+  .di-rb-val em { font-style: normal; font-weight: 600; font-size: 12px; color: var(--ink-mute); }
+  .di-rb-sub { font-size: 10.5px; color: var(--ink-mute); white-space: nowrap; }
+  .di-rb-kcal { padding-right: 22px; border-right: 1px solid var(--line); min-width: 130px; }
+  .di-rb-kcal .di-bar { margin-top: 6px; }
+  .di-rb-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .di-rb-calc svg { width: 15px; height: 15px; }
+
+  /* Título da seção de prescrição (dá destaque à dieta) */
+  .di-secao { display: flex; align-items: center; gap: 10px; margin: 2px 0 12px; }
+  .di-secao-tit { font-family: 'Fraunces', Georgia, serif; font-size: 17px; font-weight: 600; color: var(--moss-deep);
+                  display: inline-flex; align-items: center; gap: 8px; margin: 0; }
+  .di-secao-tit svg { width: 17px; height: 17px; color: var(--gold); }
+
+  @media (max-width: 720px) {
+    .di-rb-kcal { border-right: none; padding-right: 0; }
+    .di-rb-metrics { gap: 12px 18px; }
+    .di-rb-acts { width: 100%; }
+  }
 
   /* Cabeçalho contextual */
   .di-hd { position: sticky; top: 0; z-index: 20; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap;
