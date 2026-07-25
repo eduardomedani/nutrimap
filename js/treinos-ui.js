@@ -537,8 +537,18 @@ function renderPreviewIA(plano, bib) {
       </div>
     </div>`).join('');
 
+  // Relatório: renderiza os campos presentes, na ordem definida (cobre os
+  // campos do Criar/Ajustar e os do Evoluir — mantidos/alterados/progressões).
+  const ROTULOS = {
+    estrutura: 'Estrutura', volume: 'Volume semanal', mantidos: 'Exercícios mantidos',
+    alteracoes: 'Exercícios alterados', progressoes: 'Progressões', melhorias: 'Melhorias',
+    justificativa: 'Justificativa', tempo_estimado: 'Tempo estimado', sugestoes: 'Sugestões',
+  };
+  const ORDEM = ['estrutura', 'mantidos', 'alteracoes', 'progressoes', 'melhorias', 'volume', 'justificativa', 'tempo_estimado', 'sugestoes'];
   const r = plano.relatorio || {};
-  const rel = (t, txt) => txt ? `<div class="ia-rel-item"><b>${t}</b><span>${esc(txt)}</span></div>` : '';
+  const relatorio = ORDEM.filter(k => r[k])
+    .map(k => `<div class="ia-rel-item${k === 'sugestoes' ? ' ia-rel-sugestao' : ''}"><b>${ROTULOS[k]}</b><span>${esc(String(r[k]))}</span></div>`)
+    .join('');
 
   const res = document.getElementById('iaResultado');
   res.innerHTML = `
@@ -551,12 +561,7 @@ function renderPreviewIA(plano, bib) {
         <button class="btn primary" id="iaCriar"><i data-lucide="check"></i> Criar treino</button>
       </div>
       <div class="ia-dias">${dias}</div>
-      <div class="ia-relatorio">
-        ${rel('Estrutura', r.estrutura)}
-        ${rel('Volume semanal', r.volume)}
-        ${rel('Justificativa', r.justificativa)}
-        ${rel('Tempo estimado', r.tempo_estimado)}
-      </div>
+      <div class="ia-relatorio">${relatorio}</div>
       <div class="av-actions">
         <button class="btn" id="iaRefazer"><i data-lucide="rotate-ccw"></i> Ajustar critérios</button>
         <button class="btn primary" id="iaCriar2"><i data-lucide="check"></i> Criar treino</button>

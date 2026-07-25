@@ -10,7 +10,23 @@
 
 const METODOS_PERMITIDOS = ['Normal', 'Drop-set', 'Rest-pause', 'Piramidal', 'Isometria', 'Cluster', 'FST-7'];
 
-const FORMATO = `RESPONDA APENAS com um JSON válido (sem markdown, sem texto antes/depois) neste formato exato:
+const REL_EVOLUIR = `"relatorio": {
+    "mantidos": "exercícios mantidos e por quê (o que já vinha funcionando)",
+    "alteracoes": "cada troca no formato 'Antigo → Novo: motivo técnico' (uma por linha); vazio se nada trocou",
+    "progressoes": "aumentos de carga/séries, mudanças de faixa de reps/intensidade/técnica e por quê",
+    "melhorias": "o que melhorou, por quê, e como contribui para o objetivo do aluno",
+    "sugestoes": "oportunidades extras NÃO aplicadas (ex.: mudar a frequência) — apenas sugestão; vazio se não houver"
+  }`;
+
+const REL_PADRAO = `"relatorio": {
+    "estrutura": "nº de treinos, distribuição semanal e o que cada dia trabalha",
+    "volume": "séries semanais por grupo e por que cada um recebeu esse volume",
+    "justificativa": "por que essa divisão/ajuste; como a recuperação foi considerada",
+    "tempo_estimado": "estimativa de duração por sessão"
+  }`;
+
+function formato(modo) {
+  return `RESPONDA APENAS com um JSON válido (sem markdown, sem texto antes/depois) neste formato exato:
 {
   "nome": "nome curto e descritivo do treino",
   "objetivo": "string",
@@ -23,15 +39,11 @@ const FORMATO = `RESPONDA APENAS com um JSON válido (sem markdown, sem texto an
       ]
     }
   ],
-  "relatorio": {
-    "estrutura": "nº de treinos, distribuição semanal e o que cada dia trabalha",
-    "volume": "séries semanais por grupo e por que cada um recebeu esse volume",
-    "justificativa": "por que essa divisão/ajuste; como a recuperação foi considerada",
-    "tempo_estimado": "estimativa de duração por sessão"
-  }
+  ${modo === 'evoluir' ? REL_EVOLUIR : REL_PADRAO}
 }
 
 Regras do JSON: use "dia" A, B, C... na ordem; "series" inteiro; "repeticoes" texto (faixa); "exercicio_id" SEMPRE um id da lista de exercícios disponíveis; "metodo" um de ${METODOS_PERMITIDOS.join(', ')} (NÃO use bi-set/tri-set/super-set).`;
+}
 
 const PAPEL = `Você é um treinador especialista em musculação (hipertrofia, força, emagrecimento e periodização). Monte treinos inteligentes, equilibrados e individualizados — nada de divisão fixa ou exercícios aleatórios. Ordem dentro do dia: compostos/multiarticulares primeiro, isoladores depois. Equilibre agonista/antagonista e superiores/inferiores. Respeite o tempo. Use técnicas avançadas só quando fizer sentido (e explique na justificativa).`;
 
@@ -47,13 +59,24 @@ Distribua os grupos pelos ${dias} dias respeitando recuperação (48h para o mes
 }
 
 function contextoEvoluir(treino, progressao) {
-  return `MODO: EVOLUIR O TREINO ATUAL.
-Progrida o treino abaixo aplicando periodização: aumente carga/volume onde o aluno avançou, ajuste o que estagnou, e varie 20–40% dos exercícios para novo estímulo — mantendo a estrutura e os dias que funcionam. Mantenha o mesmo número de dias.
+  return `MODO: EVOLUIR O TREINO ATUAL. Sua função NÃO é criar um treino novo — é evoluir a ficha de um aluno que já treina, como um treinador experiente revisando semanas de acompanhamento.
+
+PRINCÍPIO PRINCIPAL: mantenha tudo que está funcionando; altere SOMENTE o que precisa evoluir, sempre com justificativa técnica. Continuidade e progressão, não um treino diferente.
+
+ANTES DE MUDAR, analise: a divisão faz sentido? o volume está equilibrado? os músculos prioritários recebem estímulo suficiente com recuperação adequada (nunca o mesmo grupo fatigado em dias consecutivos)? há exercícios redundantes/muito parecidos, excesso de máquinas ou de isoladores, ausência de movimentos fundamentais? o tempo está adequado?
+
+PODE evoluir: aumentar carga/reps, mudar faixa de reps, ajustar séries, reordenar exercícios, trocar exercícios ESTAGNADOS ou que geram dor, substituir equipamento indisponível, inserir técnica avançada (com benefício claro), corrigir desequilíbrios, melhorar o tempo.
+NÃO faça: trocar exercício só para variar; mudar toda a divisão sem necessidade; aumentar volume indiscriminadamente; pôr técnica avançada em tudo; alterar exercícios que estão evoluindo bem.
+
+FREQUÊNCIA: mantenha o MESMO número de dias. Se enxergar ganho em mudar a frequência, coloque isso APENAS em "sugestoes" do relatório — nunca aplique automaticamente.
+MÚSCULOS PRIORITÁRIOS: dê preferência (frequência, volume, posição no treino, qualidade do estímulo), mas nunca aumente volume só por ser prioridade — respeite a recuperação.
+
+Use as CARGAS REGISTRADAS para decidir a progressão: onde o aluno avançou, progrida; onde estagnou, ajuste ou troque.
 
 TREINO ATUAL:
 ${treino}
 
-CARGAS REGISTRADAS PELO ALUNO (use para decidir a progressão):
+CARGAS REGISTRADAS PELO ALUNO:
 ${progressao || 'Sem registros.'}`;
 }
 
@@ -105,9 +128,9 @@ Observações (equipamentos/lesões/preferências): ${criterios.obs || 'nenhuma'
 EXERCÍCIOS DISPONÍVEIS (escolha SOMENTE destes — use o id exato). Formato "id | nome | grupo":
 ${bib}
 
-Se faltar exercício para um grupo, use o mais próximo disponível e comente na justificativa.
+Se faltar exercício para um grupo, use o mais próximo disponível e comente no relatório.
 
-${FORMATO}`;
+${formato(modo)}`;
 
     const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
