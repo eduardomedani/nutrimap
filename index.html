@@ -474,6 +474,61 @@
   .tr-metodo-desc { background: rgba(135,160,130,0.12); border-left: 3px solid var(--sage); color: var(--moss-deep); padding: 8px 12px; border-radius: 8px; font-size: 12.5px; margin-top: 10px; }
   .tr-metodo-desc strong { color: var(--moss-deep); }
 
+  /* ── Bi-set (grupo A + B) ── */
+  .tr-biset-card { border: 1.5px solid var(--sage); background: linear-gradient(180deg, rgba(135,160,130,0.05), transparent 120px); }
+  .tr-biset-head { align-items: center; }
+  .tr-biset-title { display: flex; align-items: center; gap: 10px; }
+  .tr-biset-toggle { background: none; border: none; cursor: pointer; color: var(--moss); display: flex; padding: 2px; border-radius: 6px; }
+  .tr-biset-toggle svg { width: 20px; height: 20px; }
+  .tr-biset-selo { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 8px; background: rgba(135,160,130,0.18); color: var(--moss-deep); font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+  .tr-biset-selo svg { width: 14px; height: 14px; }
+  .tr-biset-desc { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 12px; }
+
+  .tr-biset-avisos { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+  .tr-aviso { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: #8a6d1e; background: rgba(184,146,74,0.12); border-radius: 8px; padding: 7px 10px; }
+  .tr-aviso svg { width: 14px; height: 14px; flex: none; }
+
+  /* Blocos A e B */
+  .tr-biset-ex { background: var(--bg-card); border: 1px solid var(--line); border-radius: 12px; padding: 13px 14px; }
+  .tr-biset-ex-head { display: flex; align-items: center; gap: 9px; margin-bottom: 11px; flex-wrap: wrap; }
+  .tr-biset-mark { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex: none; border-radius: 7px; background: linear-gradient(135deg, var(--sage), var(--moss-light)); color: var(--cream); font-size: 12px; font-weight: 800; }
+  .tr-biset-mark.vazio { background: var(--bg-warm); color: var(--ink-soft); border: 1px dashed var(--sage); }
+  .tr-biset-mark.sm { width: 19px; height: 19px; font-size: 10.5px; border-radius: 5px; }
+  .tr-biset-ex-nome { font-size: 14.5px; font-weight: 700; color: var(--ink); }
+  .tr-biset-ex-nome.muted { color: var(--ink-soft); font-weight: 600; }
+  .tr-biset-ex-acoes { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+  .tr-biset-link { display: inline-flex; align-items: center; gap: 4px; background: none; border: none; cursor: pointer; font-size: 12px; font-weight: 700; color: var(--moss); padding: 4px 6px; border-radius: 7px; }
+  .tr-biset-link:hover { background: var(--bg-warm); }
+  .tr-biset-link.danger { color: var(--rose); }
+  .tr-biset-link svg { width: 13px; height: 13px; }
+
+  /* Conector "sem descanso" */
+  .tr-biset-conector { display: flex; align-items: center; gap: 10px; margin: 4px 0; padding-left: 8px; }
+  .tr-biset-line { flex: 1; height: 1px; background: repeating-linear-gradient(90deg, var(--sage) 0 5px, transparent 5px 10px); opacity: 0.5; }
+  .tr-biset-nodesc { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: var(--olive); background: rgba(92,107,71,0.10); padding: 4px 10px; border-radius: 20px; }
+  .tr-biset-nodesc svg { width: 13px; height: 13px; }
+
+  /* Seleção do Exercício B (autocomplete inline) */
+  .tr-biset-bsel { margin-top: 10px; position: relative; }
+  .tr-biset-bsel > label { display: block; font-size: 11.5px; font-weight: 600; color: var(--ink-soft); margin-bottom: 5px; }
+  .tr-biset-bsel .tr-ac { position: relative; }
+  .tr-biset-b-vazio { border-style: dashed; }
+  .tr-field-err { color: var(--rose); font-size: 11.5px; font-weight: 700; margin-top: 6px; }
+  .tr-field-err:empty { display: none; }
+
+  /* Descanso do conjunto */
+  .tr-biset-descanso { margin-top: 13px; background: rgba(135,160,130,0.08); border-radius: 12px; padding: 12px 14px; }
+  .tr-biset-descanso .av-field { max-width: 200px; }
+  .tr-biset-aux { font-size: 11.5px; color: var(--ink-soft); margin-top: 6px; }
+
+  /* Resumo (recolhido) */
+  .tr-biset-card.recolhido { padding-bottom: 14px; }
+  .tr-biset-resumo { cursor: pointer; padding: 4px 2px 0; }
+  .tr-biset-resumo-exs { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; font-weight: 700; color: var(--ink); }
+  .tr-biset-resumo-ex { display: inline-flex; align-items: center; gap: 7px; }
+  .tr-biset-resumo-seta { width: 15px; height: 15px; color: var(--olive); }
+  .tr-biset-resumo-meta { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; margin-top: 7px; }
+
   /* Progressão de carga (painel por exercício) */
   .tr-prog { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line); }
   .tr-prog-head { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--moss-deep); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; }

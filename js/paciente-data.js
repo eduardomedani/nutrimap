@@ -156,6 +156,8 @@ export function traduzirErro(msg) {
   if (m.includes('password'))                       return 'Senha muito curta (mínimo 6 caracteres).';
   if (m.includes('codigo_invalido_ou_ja_vinculado')) return 'Código inválido ou já usado por outra conta.';
   if (m.includes('rate limit'))                     return 'Muitas tentativas. Aguarde alguns minutos.';
+  if (m.includes('item_nao_pertence_ao_paciente'))  return 'Este exercício não está no seu treino. Recarregue a página e tente de novo.';
+  if (m.includes('sem_paciente'))                   return 'Sua conta não está vinculada a um paciente. Informe seu código de acesso.';
   if (m.includes('email'))                          return 'Email inválido.';
   return msg || 'Algo deu errado. Tente de novo.';
 }

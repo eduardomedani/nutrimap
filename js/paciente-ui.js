@@ -49,6 +49,30 @@ function metodoInfo(metodo) {
   return nome ? { nome, desc: MET_DESC[nome] } : null;
 }
 
+// ── Técnicas avançadas (drop set) ──────────────────────────────
+// Fonte da técnica hoje: o `metodo` prescrito pelo nutri (dropdown fixo).
+// A arquitetura é intencionalmente extensível — cada série carrega no JSON
+// um sub-objeto por técnica; por ora só `drop`. Para novas técnicas
+// (rest-pause, bi-set, cluster, myo-reps...) basta uma nova config aqui.
+const DROP_REDUCAO_PCT = 20;   // sugestão padrão de redução do drop set (%)
+
+// O exercício usa drop set? (base para decidir quais séries têm a etapa extra)
+function exercicioTemDrop(it) {
+  return String(it?.metodo || '').trim().toLowerCase() === 'drop-set';
+}
+// A série `i` (0-based) tem drop? O nutri define em quantas das ÚLTIMAS séries
+// o drop se aplica (it.drop_ultimas): 0 = todas; N = apenas as N últimas.
+function serieTemDrop(it, i, nSeries) {
+  if (!exercicioTemDrop(it)) return false;
+  const n = Number(it?.drop_ultimas) || 0;
+  return n <= 0 ? true : i >= nSeries - n;
+}
+// Arredonda o peso para o passo dos inputs (0,5 kg).
+function arredMeio(v) { return Math.round(v * 2) / 2; }
+function prefereMenosMovimento() {
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+
 const app = () => document.getElementById('app');
 
 // ═══════════════════════════════════════════════════════════
@@ -592,7 +616,10 @@ function renderDia() {
     return;
   }
 
-  cont.innerHTML = doDia.map((it, i) => cardExercicio(it, i)).join('');
+  // Agrupa Bi-sets (A + B) num único bloco; o B não vira card separado.
+  const unidades = unidadesDia(doDia);
+  cont.innerHTML = unidades.map((u, i) =>
+    u.tipo === 'grupo' ? cardBisetAluno(u, i) : cardExercicio(u.a, i)).join('');
 
   cont.querySelectorAll('[data-carga]').forEach(b =>
     b.addEventListener('click', () => toggleProg(b.dataset.carga)));
@@ -604,18 +631,19 @@ function renderDia() {
   });
 }
 
-function cardExercicio(it, i) {
+function cardExercicio(it, i, opts = {}) {
   const ex = it.exercicio || {};
   const grupo = ex.grupo_muscular ? esc(ex.grupo_muscular) : '';
-  const mi = metodoInfo(it.metodo);
+  const mi = opts.ocultarMetodo ? null : metodoInfo(it.metodo);
+  const marcador = opts.marcador != null ? opts.marcador : (i + 1);
 
   // 2 · Linha compacta de prescrição — só mostra o que existe.
   const specParts = [];
   if (it.series != null && it.series !== '')
     specParts.push(`<span><b>${esc(it.series)}</b> ${Number(it.series) === 1 ? 'série' : 'séries'}</span>`);
   if (it.repeticoes) specParts.push(`<span><b>${esc(fmtReps(it.repeticoes))}</b> reps</span>`);
-  if (it.descanso)   specParts.push(`<span>${esc(fmtDescanso(it.descanso))} descanso</span>`);
-  const tec = it.metodo ? `<span class="pa-ex-tec"><i data-lucide="zap"></i> ${esc(it.metodo)}</span>` : '';
+  if (!opts.ocultarDescanso && it.descanso) specParts.push(`<span>${esc(fmtDescanso(it.descanso))} descanso</span>`);
+  const tec = (!opts.ocultarMetodo && it.metodo) ? `<span class="pa-ex-tec"><i data-lucide="zap"></i> ${esc(it.metodo)}</span>` : '';
   const specLine = (specParts.length || tec)
     ? `<div class="pa-ex-spec">${specParts.join('<span class="sep">·</span>')}${tec}</div>` : '';
 
@@ -629,7 +657,7 @@ function cardExercicio(it, i) {
   return `
     <div class="pa-ex">
       <div class="pa-ex-top">
-        <span class="pa-ex-num">${i + 1}</span>
+        <span class="pa-ex-num">${esc(String(marcador))}</span>
         <div class="pa-ex-id">
           <div class="pa-ex-nome">${esc(ex.nome || '(exercício)')}</div>
           ${grupo ? `<div class="pa-ex-grupo">${grupo}</div>` : ''}
@@ -645,10 +673,45 @@ function cardExercicio(it, i) {
 
       <div class="pa-ex-foot">
         ${video}
-        <button class="pa-carga-btn" data-carga="${it.id}"><i data-lucide="chart-line"></i> Registrar séries</button>
+        <button class="pa-carga-btn${itemFeitoHoje(it.id) ? ' pa-carga-btn-done' : ''}" data-carga="${it.id}">${footBtnInner(itemFeitoHoje(it.id))}</button>
       </div>
 
       <div class="pa-prog" data-prog-box="${it.id}" hidden></div>
+    </div>`;
+}
+
+// Agrupa os itens de um dia em unidades (single | grupo Bi-set).
+// O Exercício B (grupo_pos 'B') nunca vira card próprio — vai dentro do bloco.
+function unidadesDia(doDia) {
+  return doDia
+    .filter(it => it.grupo_pos !== 'B')
+    .map(a => {
+      if (String(a.metodo || '').trim().toLowerCase() === 'bi-set') {
+        const b = doDia.find(x => x.grupo_id === a.id && x.grupo_pos === 'B') || null;
+        return { tipo: 'grupo', a, b };
+      }
+      return { tipo: 'single', a };
+    });
+}
+
+// Card de Bi-set no app do aluno (Fase 1 — visualização agrupada, sem o ciclo
+// guiado de execução). Cada exercício mantém sua própria área de registro.
+function cardBisetAluno(u, i) {
+  const { a, b } = u;
+  const descanso = a.descanso ? fmtDescanso(a.descanso) : null;
+  const corpoB = b
+    ? cardExercicio(b, i, { marcador: 'B', ocultarMetodo: true, ocultarDescanso: true })
+    : `<div class="pa-biset-incompleto"><i data-lucide="alert-triangle"></i> Segundo exercício ainda não definido pelo seu treinador.</div>`;
+  return `
+    <div class="pa-biset">
+      <div class="pa-biset-head">
+        <span class="pa-biset-selo"><i data-lucide="repeat-2"></i> Bi-set</span>
+        <span class="pa-biset-n">${i + 1}</span>
+      </div>
+      ${cardExercicio(a, i, { marcador: 'A', ocultarMetodo: true })}
+      <div class="pa-biset-conector"><i data-lucide="arrow-down"></i> Sem descanso entre A e B</div>
+      ${corpoB}
+      ${descanso ? `<div class="pa-biset-descanso"><i data-lucide="timer"></i> Descanso após o conjunto: <b>${esc(descanso)}</b></div>` : ''}
     </div>`;
 }
 
@@ -666,6 +729,28 @@ function lastBlockInner(regs) {
 function atualizarUltimo(id) {
   const last = document.querySelector(`[data-prog-box="${id}"]`)?.closest('.pa-ex')?.querySelector('.pa-ex-last');
   if (last) last.innerHTML = lastBlockInner(_progCache.get(id) || []);
+}
+
+// O exercício foi concluído hoje? (há registro salvo com a data de hoje)
+function itemFeitoHoje(id) {
+  const h = hoje();
+  return (_progCache.get(id) || []).some(r => r.data === h);
+}
+
+// Conteúdo do botão do rodapé conforme o exercício esteja concluído ou não.
+function footBtnInner(feito) {
+  return feito
+    ? `<i data-lucide="circle-check-big"></i> Exercício concluído`
+    : `<i data-lucide="chart-line"></i> Registrar séries`;
+}
+
+// Atualiza o botão do rodapé (dourado + "Exercício concluído" quando feito hoje).
+function atualizarBotaoFeito(id) {
+  const btn = document.querySelector(`.pa-carga-btn[data-carga="${id}"]`);
+  if (!btn) return;
+  const feito = itemFeitoHoje(id);
+  btn.classList.toggle('pa-carga-btn-done', feito);
+  btn.innerHTML = footBtnInner(feito);
 }
 
 // Resumo da última sessão: peso representativo + reps por série + data curta.
@@ -719,10 +804,17 @@ function toggleProg(id) {
     _progAbertas.add(id);
     carregarProg(id);
   } else {
-    box.hidden = true;
-    box.innerHTML = '';
-    _progAbertas.delete(id);
+    recolherProg(id);
   }
+}
+
+// Recolhe (fecha) o painel de séries de um exercício.
+function recolherProg(id) {
+  const box = document.querySelector(`[data-prog-box="${id}"]`);
+  if (!box) return;
+  box.hidden = true;
+  box.innerHTML = '';
+  _progAbertas.delete(id);
 }
 
 // Pré-carrega a progressão de TODOS os itens do treino numa consulta só.
@@ -772,19 +864,9 @@ function renderProg(box, id, regs) {
   const nSeries = Math.min(
     Math.max(Number(it.series) || ultimaSeries.length || 1, 1), 12);
 
-  const linhasSeries = Array.from({ length: nSeries }, (_, i) => {
-    const s = ultimaSeries[i] || {};
-    return `
-      <div class="pa-serie" data-serie="${i}">
-        <span class="pa-serie-num">${i + 1}ª</span>
-        <input type="number" step="0.5" inputmode="decimal" class="pa-input pa-mini"
-          data-s-peso="${i}" placeholder="kg" value="${s.peso ?? ''}">
-        <input type="number" inputmode="numeric" class="pa-input pa-mini"
-          data-s-reps="${i}" placeholder="${esc(alvoReps || 'reps')}" value="${s.reps ?? ''}">
-        <button type="button" class="pa-serie-check" data-sdone="${i}"
-          title="Concluir série" aria-label="Concluir série ${i + 1}"><i data-lucide="check"></i></button>
-      </div>`;
-  }).join('');
+  const linhasSeries = Array.from({ length: nSeries }, (_, i) =>
+    blocoSerieHTML(i, ultimaSeries[i] || {},
+      { alvoReps, temDrop: serieTemDrop(it, i, nSeries) })).join('');
 
   const quando = ultima ? `Última vez: ${fmtData(ultima.data)}` : 'Primeiro registro';
 
@@ -813,52 +895,235 @@ function renderProg(box, id, regs) {
   box.querySelector('[data-ssave]').addEventListener('click', () => salvarSeriesUI(id, nSeries));
   box.querySelectorAll('[data-sdone]').forEach(b =>
     b.addEventListener('click', () => toggleSerie(box, Number(b.dataset.sdone), nSeries)));
-  // Enter no campo de reps conclui a série e pula para a próxima.
+  box.querySelectorAll('[data-ddone]').forEach(b =>
+    b.addEventListener('click', () => toggleDrop(box, Number(b.dataset.ddone), nSeries)));
+  box.querySelectorAll('[data-sedit]').forEach(b =>
+    b.addEventListener('click', () => editarSerie(box, Number(b.dataset.sedit), nSeries)));
+  // Enter no campo de reps conclui a série/drop e pula para a próxima etapa.
   box.querySelectorAll('[data-s-reps]').forEach(inp =>
     inp.addEventListener('keydown', e => {
       if (e.key === 'Enter') { e.preventDefault(); toggleSerie(box, Number(inp.dataset.sReps), nSeries); }
     }));
+  box.querySelectorAll('[data-d-reps]').forEach(inp =>
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); toggleDrop(box, Number(inp.dataset.dReps), nSeries); }
+    }));
   box.querySelectorAll('[data-pdel]').forEach(b =>
     b.addEventListener('click', () => removerCarga(b.dataset.pdel, id)));
+
+  // Estado inicial: séries já registradas aparecem concluídas (resumo compacto).
+  box.querySelectorAll('.pa-serie-block').forEach(bl => preencherResumo(box, Number(bl.dataset.block)));
+  atualizarSeriesProg(box, nSeries);
 }
 
-// Marca/desmarca uma série como concluída e avança o foco para a próxima.
+// ── "Componentes" de série (HTML) ──────────────────────────────
+// Uma série = linha principal + (se houver técnica) selo, painel do drop e
+// resumo compacto. Reaproveita os estilos .pa-serie / .pa-mini / .pa-serie-check.
+function blocoSerieHTML(i, s, { alvoReps, temDrop }) {
+  const d = (s && s.drop) || {};
+  const principalOk = s && s.peso != null && s.reps != null;
+  const dropOk = temDrop && d.peso != null && d.reps != null;
+  const cls = [
+    'pa-serie-block',
+    temDrop ? 'has-drop' : '',
+    principalOk ? 'done' : '',
+    dropOk ? 'drop-done' : '',
+  ].filter(Boolean).join(' ');
+
+  const selo = temDrop
+    ? `<div class="pa-drop-badge"><i data-lucide="chevrons-down"></i> Drop set</div>` : '';
+
+  const painel = temDrop ? `
+      <div class="pa-drop-wrap"><div class="pa-drop-inner">
+        <div class="pa-drop">
+          <div class="pa-drop-head"><i data-lucide="corner-down-right"></i> Drop set</div>
+          <div class="pa-drop-grid">
+            <label class="pa-drop-field">
+              <span class="pa-drop-lab">Peso reduzido</span>
+              <input type="number" step="0.5" inputmode="decimal" class="pa-input pa-mini"
+                data-d-peso="${i}" placeholder="kg" value="${d.peso ?? ''}"
+                aria-label="Peso do drop da série ${i + 1}">
+              <span class="pa-drop-hint">Sugestão: -${DROP_REDUCAO_PCT}% do peso da série</span>
+            </label>
+            <label class="pa-drop-field">
+              <span class="pa-drop-lab">Repetições <span class="pa-drop-alvo">alvo: até a falha</span></span>
+              <input type="number" inputmode="numeric" class="pa-input pa-mini"
+                data-d-reps="${i}" placeholder="reps" value="${d.reps ?? ''}"
+                aria-label="Repetições do drop da série ${i + 1}">
+            </label>
+          </div>
+          <button type="button" class="pa-btn-drop" data-ddone="${i}"
+            aria-label="Concluir drop da série ${i + 1}"><i data-lucide="check"></i> Concluir drop</button>
+        </div>
+      </div></div>` : '';
+
+  const resumo = temDrop ? `
+      <button type="button" class="pa-serie-resumo" data-sedit="${i}"
+        aria-label="Editar série ${i + 1} (concluída)">
+        <span class="pa-res-check"><i data-lucide="check"></i></span>
+        <span class="pa-res-main"><b>${i + 1}ª</b> <span data-res-p="${i}"></span></span>
+        <span class="pa-res-drop"><i data-lucide="corner-down-right"></i> <span data-res-d="${i}"></span></span>
+      </button>` : '';
+
+  return `
+    <div class="${cls}" data-block="${i}">
+      <div class="pa-serie" data-serie="${i}">
+        <span class="pa-serie-num">${i + 1}ª</span>
+        <input type="number" step="0.5" inputmode="decimal" class="pa-input pa-mini"
+          data-s-peso="${i}" placeholder="kg" value="${s.peso ?? ''}"
+          aria-label="Peso da série ${i + 1}">
+        <input type="number" inputmode="numeric" class="pa-input pa-mini"
+          data-s-reps="${i}" placeholder="${esc(alvoReps || 'reps')}" value="${s.reps ?? ''}"
+          aria-label="Repetições da série ${i + 1}">
+        <button type="button" class="pa-serie-check" data-sdone="${i}"
+          title="Concluir série" aria-label="Concluir série ${i + 1}"><i data-lucide="check"></i></button>
+      </div>
+      ${selo}
+      ${painel}
+      ${resumo}
+      <div class="pa-field-err" data-err="${i}" role="alert" aria-live="polite"></div>
+    </div>`;
+}
+
+// ── Helpers do fluxo de séries / drop ──────────────────────────
+const val = (box, sel) => (box.querySelector(sel)?.value || '').trim();
+
+function marcarErro(box, i, sel, msg) {
+  const err = box.querySelector(`.pa-serie-block[data-block="${i}"] [data-err="${i}"]`);
+  if (err) err.textContent = msg || '';
+  const inp = sel ? box.querySelector(sel) : null;
+  if (inp) {
+    inp.classList.add('pa-input-err');
+    inp.focus();
+    inp.addEventListener('input', () => {
+      inp.classList.remove('pa-input-err');
+      if (err) err.textContent = '';
+    }, { once: true });
+  }
+}
+function limparErro(box, i) {
+  const err = box.querySelector(`.pa-serie-block[data-block="${i}"] [data-err="${i}"]`);
+  if (err) err.textContent = '';
+}
+
+// Um bloco só conta como concluído quando a principal está pronta e,
+// havendo drop set, o drop também.
+function blocoConcluido(bl) {
+  if (!bl || !bl.classList.contains('done')) return false;
+  return bl.classList.contains('has-drop') ? bl.classList.contains('drop-done') : true;
+}
+
+// Marca/desmarca a série principal. Havendo drop, expande a etapa extra.
 function toggleSerie(box, i, nSeries) {
-  const row = box.querySelector(`.pa-serie[data-serie="${i}"]`);
-  if (!row) return;
-  if (row.classList.contains('done')) {   // toque de novo = desfazer
-    row.classList.remove('done');
+  const bl = box.querySelector(`.pa-serie-block[data-block="${i}"]`);
+  if (!bl) return;
+
+  if (bl.classList.contains('done')) {          // toque de novo = desfazer a série inteira
+    bl.classList.remove('done', 'drop-open', 'drop-done');
+    limparErro(box, i);
     atualizarSeriesProg(box, nSeries);
     return;
   }
-  const peso = (box.querySelector(`[data-s-peso="${i}"]`)?.value || '').trim();
-  const reps = (box.querySelector(`[data-s-reps="${i}"]`)?.value || '').trim();
-  if (!peso && !reps) { mostrarToast('Preencha o peso ou as reps desta série.'); return; }
 
-  row.classList.add('done');
+  const peso = val(box, `[data-s-peso="${i}"]`);
+  const reps = val(box, `[data-s-reps="${i}"]`);
+  if (!peso && !reps) { marcarErro(box, i, `[data-s-peso="${i}"]`, 'Informe o peso ou as repetições'); return; }
+  limparErro(box, i);
+  bl.classList.add('done');
+
+  if (bl.classList.contains('has-drop') && !bl.classList.contains('drop-done')) {
+    abrirDrop(box, i);                          // expande o drop e foca o peso reduzido
+    atualizarSeriesProg(box, nSeries);
+    return;
+  }
   atualizarSeriesProg(box, nSeries);
+  focarProxima(box, i);
+}
 
-  const rows = [...box.querySelectorAll('.pa-serie[data-serie]')];
-  const prox = rows.find((r, idx) => idx > i && !r.classList.contains('done'));
+// Expande o painel de drop, sugere o peso reduzido e leva o foco pra ele.
+function abrirDrop(box, i) {
+  const bl = box.querySelector(`.pa-serie-block[data-block="${i}"]`);
+  if (!bl) return;
+  bl.classList.add('drop-open');
+  bl.classList.remove('drop-done');
+  const dPeso = box.querySelector(`[data-d-peso="${i}"]`);
+  if (dPeso && !dPeso.value) {                  // pré-preenche a sugestão (-X%) se ainda vazio
+    const base = parseFloat(val(box, `[data-s-peso="${i}"]`));
+    if (base > 0) dPeso.value = arredMeio(base * (1 - DROP_REDUCAO_PCT / 100));
+  }
+  requestAnimationFrame(() => {
+    dPeso?.focus();
+    bl.scrollIntoView({ block: 'center', behavior: prefereMenosMovimento() ? 'auto' : 'smooth' });
+  });
+}
+
+// Conclui o drop: recolhe o painel e mostra o resumo compacto.
+function toggleDrop(box, i, nSeries) {
+  const bl = box.querySelector(`.pa-serie-block[data-block="${i}"]`);
+  if (!bl) return;
+  const peso = val(box, `[data-d-peso="${i}"]`);
+  const reps = val(box, `[data-d-reps="${i}"]`);
+  if (!peso) { marcarErro(box, i, `[data-d-peso="${i}"]`, 'Informe o peso do drop'); return; }
+  if (!reps) { marcarErro(box, i, `[data-d-reps="${i}"]`, 'Informe as repetições do drop'); return; }
+  limparErro(box, i);
+  bl.classList.remove('drop-open');
+  bl.classList.add('drop-done');
+  preencherResumo(box, i);
+  atualizarSeriesProg(box, nSeries);
+  focarProxima(box, i);
+}
+
+// Reabre uma série concluída para edição (principal + drop).
+function editarSerie(box, i, nSeries) {
+  const bl = box.querySelector(`.pa-serie-block[data-block="${i}"]`);
+  if (!bl) return;
+  bl.classList.remove('done', 'drop-done');
+  bl.classList.add('drop-open');
+  atualizarSeriesProg(box, nSeries);
+  requestAnimationFrame(() => box.querySelector(`[data-s-peso="${i}"]`)?.focus());
+}
+
+// Escreve o texto do resumo compacto a partir dos inputs atuais.
+function preencherResumo(box, i) {
+  const bl = box.querySelector(`.pa-serie-block[data-block="${i}"]`);
+  if (!bl || !bl.classList.contains('has-drop')) return;
+  const fmt = (p, r) => `${p || '–'} kg × ${r || '–'}`;
+  const p = box.querySelector(`[data-res-p="${i}"]`);
+  const d = box.querySelector(`[data-res-d="${i}"]`);
+  if (p) p.textContent = fmt(val(box, `[data-s-peso="${i}"]`), val(box, `[data-s-reps="${i}"]`));
+  if (d) d.textContent = fmt(val(box, `[data-d-peso="${i}"]`), val(box, `[data-d-reps="${i}"]`));
+}
+
+// Leva o foco para a próxima série pendente, ou para "Concluir exercício".
+function focarProxima(box, i) {
+  const blocks = [...box.querySelectorAll('.pa-serie-block')];
+  const prox = blocks.find((b, idx) => idx > i && !blocoConcluido(b));
   if (prox) {
     prox.querySelector('[data-s-peso]')?.focus();
     prox.scrollIntoView({ block: 'nearest' });
   } else {
-    box.querySelector('[data-ssave]')?.focus();   // todas prontas → foco em "Concluir exercício"
+    box.querySelector('[data-ssave]')?.focus();
   }
 }
 
 function atualizarSeriesProg(box, nSeries) {
-  const done = box.querySelectorAll('.pa-serie.done').length;
+  const done = [...box.querySelectorAll('.pa-serie-block')].filter(blocoConcluido).length;
   const el = box.querySelector('[data-sprog]');
   if (el) el.innerHTML = `<b>${done}</b>/${nSeries} séries concluídas`;
   box.querySelector('[data-ssave]')?.classList.toggle('pa-btn-ready', done > 0 && done === nSeries);
 }
 
-// Resumo compacto de uma sessão para o histórico: "20/22/22 kg · 8/7/6 reps".
+// Resumo compacto de uma sessão para o histórico.
+// Sem drop: "20/22/22 kg · 8/7/6 reps". Com drop: "18×12 ↳12×8 · ...".
 function resumoSeries(r) {
   const arr = r.series_realizadas || [];
   if (arr.length) {
+    if (arr.some(s => s && s.drop)) {
+      return arr.map(s => {
+        const base = `${s.peso ?? '–'}×${s.reps ?? '–'}`;
+        return s.drop ? `${base} ↳${s.drop.peso ?? '–'}×${s.drop.reps ?? '–'}` : base;
+      }).join(' · ');
+    }
     const pesos = arr.map(s => s.peso ?? '–').join('/');
     const reps  = arr.map(s => s.reps ?? '–').join('/');
     return `${pesos} kg · ${reps} reps`;
@@ -874,12 +1139,27 @@ async function salvarSeriesUI(id, nSeries) {
   if (!box) return;
   const series = [];
   for (let i = 0; i < nSeries; i++) {
-    const peso = (box.querySelector(`[data-s-peso="${i}"]`)?.value || '').trim();
-    const reps = (box.querySelector(`[data-s-reps="${i}"]`)?.value || '').trim();
-    series.push({
+    const bl = box.querySelector(`.pa-serie-block[data-block="${i}"]`);
+    const peso = val(box, `[data-s-peso="${i}"]`);
+    const reps = val(box, `[data-s-reps="${i}"]`);
+    const s = {
       peso: peso === '' ? null : Number(peso),
       reps: reps === '' ? null : parseInt(reps, 10),
-    });
+    };
+    if (bl?.classList.contains('has-drop')) {
+      const dp = val(box, `[data-d-peso="${i}"]`);
+      const dr = val(box, `[data-d-reps="${i}"]`);
+      s.drop = (dp === '' && dr === '')
+        ? null
+        : { peso: dp === '' ? null : Number(dp), reps: dr === '' ? null : parseInt(dr, 10) };
+      // Série com drop iniciada mas com o drop incompleto → bloqueia a finalização.
+      if ((s.peso != null || s.reps != null) && (!s.drop || s.drop.peso == null || s.drop.reps == null)) {
+        abrirDrop(box, i);
+        marcarErro(box, i, `[data-d-peso="${i}"]`, 'Conclua o Drop Set antes de finalizar a série');
+        return;
+      }
+    }
+    series.push(s);
   }
   if (series.every(s => s.peso == null && s.reps == null)) {
     mostrarToast('Preencha ao menos uma série.');
@@ -888,7 +1168,9 @@ async function salvarSeriesUI(id, nSeries) {
   try {
     await salvarSeries({ treinoExercicioId: id, series });
     mostrarToast('✓ Exercício concluído');
-    await carregarProg(id, true);   // atualiza o cache com o que acabou de salvar
+    _progCache.set(id, await progressaoDoItem(id));  // atualiza o cache com o que acabou de salvar
+    recolherProg(id);               // recolhe o painel de séries
+    atualizarBotaoFeito(id);        // botão do rodapé fica dourado → "Exercício concluído"
     atualizarUltimo(id);            // reflete no resumo "Último treino" do card
     atualizarHero();                // atualiza progresso (feitos/total) do dia
     atualizarStats();               // sequência + recordes podem ter mudado

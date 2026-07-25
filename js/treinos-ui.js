@@ -50,6 +50,36 @@ const METODOS = [
   'Rest-pause', 'Piramidal', 'Isometria', 'FST-7', 'Cluster',
 ];
 
+// Em quais séries o drop set se aplica (só quando metodo = 'Drop-set').
+// Guardamos "quantas das ÚLTIMAS" — 0 = todas as séries.
+const DROP_OPCOES = [
+  { v: '0', label: 'Todas as séries' },
+  { v: '1', label: 'Somente a última' },
+  { v: '2', label: 'Duas últimas' },
+  { v: '3', label: 'Três últimas' },
+];
+const ehDropSet = (metodo) => String(metodo || '').trim().toLowerCase() === 'drop-set';
+const ehBiset   = (metodo) => String(metodo || '').trim().toLowerCase() === 'bi-set';
+
+// Cards de Bi-set recolhidos (guarda o id do exercício âncora A).
+const _bisetRecolhidos = new Set();
+
+// Acha o exercício B (parceiro) de um âncora, ou null.
+function membroB(ancora) {
+  return _itens.find(x => x.grupo_id === ancora.id && x.grupo_pos === 'B') || null;
+}
+
+// Unidades do dia atual (single | grupo), na ordem de exibição.
+// O exercício B nunca vira um card próprio — é renderizado dentro do card do A.
+function unidadesDoDia() {
+  return _itens
+    .filter(it => it.dia === _diaSel && it.grupo_pos !== 'B')
+    .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))
+    .map(a => ehBiset(a.metodo)
+      ? { tipo: 'grupo', a, b: membroB(a) }
+      : { tipo: 'single', a, b: null });
+}
+
 // Descrição curta de como executar cada método (mostrada na linha do exercício).
 // "Normal" fica de fora de propósito (não precisa de explicação).
 const MET_DESC = {
@@ -429,9 +459,8 @@ function renderDia() {
   const cont = document.getElementById('trDiaConteudo');
   if (!cont) return;
 
-  const doDia = _itens
-    .filter(it => it.dia === _diaSel)
-    .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+  const unidades = unidadesDoDia();
+  const nEx = _itens.filter(it => it.dia === _diaSel).length;
 
   // Dropdown de adicionar exercício — busca no banco conforme digita (não pré-carrega a biblioteca).
   let addBox;
@@ -451,12 +480,14 @@ function renderDia() {
       </div>`;
   }
 
-  const linhas = doDia.length
-    ? doDia.map((it, i) => itemHtml(it, i, doDia.length)).join('')
+  const linhas = unidades.length
+    ? unidades.map((u, i) => u.tipo === 'grupo'
+        ? grupoCardHtml(u, i, unidades.length)
+        : itemHtml(u.a, i, unidades.length)).join('')
     : `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="inbox"></i></div>Nenhum exercício no Dia ${_diaSel} ainda.</div>`;
 
   cont.innerHTML = `
-    <div class="tr-dia-head">Dia <em>${_diaSel}</em> — ${doDia.length} exercício(s)</div>
+    <div class="tr-dia-head">Dia <em>${_diaSel}</em> — ${nEx} exercício(s)</div>
     ${addBox}
     <div class="tr-ex-list">${linhas}</div>
   `;
@@ -466,12 +497,13 @@ function renderDia() {
 
   montarAutocomplete();
 
-  // Listeners das linhas
-  cont.querySelectorAll('[data-item-campo]').forEach(el =>
+  // Listeners das linhas — método tem tratamento próprio (pode remover o B do Bi-set)
+  cont.querySelectorAll('[data-item-campo]:not([data-item-campo="metodo"])').forEach(el =>
     el.addEventListener('change', () => salvarCampoItem(el)));
-  // Atualiza a descrição do método ao vivo (input), antes mesmo de salvar
-  cont.querySelectorAll('[data-item-campo="metodo"]').forEach(el =>
-    el.addEventListener('input', () => atualizarDescMetodo(el)));
+  cont.querySelectorAll('[data-item-campo="metodo"]').forEach(el => {
+    el.addEventListener('input', () => { atualizarDescMetodo(el); atualizarCampoDrop(el); });
+    el.addEventListener('change', () => mudarMetodo(el));
+  });
   cont.querySelectorAll('[data-item-del]').forEach(b =>
     b.addEventListener('click', () => removerItem(b.dataset.itemDel)));
   cont.querySelectorAll('[data-item-up]').forEach(b =>
@@ -481,6 +513,27 @@ function renderDia() {
   cont.querySelectorAll('[data-item-prog]').forEach(b =>
     b.addEventListener('click', () => toggleProg(b.dataset.itemProg)));
 
+  // ── Bi-set ──
+  cont.querySelectorAll('[data-biset-del]').forEach(b =>
+    b.addEventListener('click', () => excluirBiset(b.dataset.bisetDel)));
+  cont.querySelectorAll('[data-biset-remb]').forEach(b =>
+    b.addEventListener('click', () => removerBDoBiset(b.dataset.bisetRemb)));
+  cont.querySelectorAll('[data-biset-toggle]').forEach(b =>
+    b.addEventListener('click', () => toggleRecolherBiset(b.dataset.bisetToggle)));
+  cont.querySelectorAll('[data-biset-trocar]').forEach(b =>
+    b.addEventListener('click', () => {
+      const inp = cont.querySelector(`[data-biset-b-input="${b.dataset.bisetTrocar}"]`);
+      const bloco = cont.querySelector(`[data-biset-bsel="${b.dataset.bisetTrocar}"]`);
+      if (bloco) bloco.hidden = false;
+      if (inp) inp.focus();
+    }));
+  // Autocomplete inline para escolher/trocar o Exercício B (reaproveita o do topo)
+  cont.querySelectorAll('[data-biset-b-input]').forEach(inp => {
+    const anchorId = inp.dataset.bisetBInput;
+    const lista = cont.querySelector(`[data-biset-b-list="${anchorId}"]`);
+    if (lista) montarAutocompleteEl(inp, lista, (ex) => escolherB(anchorId, ex));
+  });
+
   // Reabre os painéis de progressão que estavam abertos antes do re-render
   _progAbertas.forEach(id => {
     const box = cont.querySelector(`[data-prog-box="${id}"]`);
@@ -489,25 +542,45 @@ function renderDia() {
   });
 }
 
+// Gera um campo (.av-field) para a chave `k` de CAMPOS_ITEM, do item `it`.
+// `labelOverride` troca o rótulo (ex.: "Descanso após o Bi-set").
+function campoHtml(k, it, labelOverride) {
+  const c = CAMPOS_ITEM.find(x => x.k === k);
+  if (!c) return '';
+  const label = esc(labelOverride || c.label);
+  if (c.select) {
+    const cur = String(it[c.k] || '');
+    const opts = c.options.slice();
+    if (cur && !opts.includes(cur)) opts.unshift(cur);   // preserva método custom antigo
+    const ops = ['<option value="">—</option>']
+      .concat(opts.map(o => `<option value="${esc(o)}" ${cur === o ? 'selected' : ''}>${esc(o)}</option>`))
+      .join('');
+    return `<div class="av-field"><label>${label}</label>
+      <select data-item-campo="${c.k}" data-item-id="${it.id}" class="np-input">${ops}</select></div>`;
+  }
+  return `<div class="av-field"><label>${label}</label>
+    <input type="${c.type}" placeholder="${c.ph}" value="${esc(it[c.k] ?? '')}"
+      data-item-campo="${c.k}" data-item-id="${it.id}" class="np-input"></div>`;
+}
+// Vários campos de uma vez (lista de chaves de CAMPOS_ITEM).
+function camposHtml(it, chaves) {
+  return chaves.map(k => campoHtml(k, it)).join('');
+}
+
 function itemHtml(it, i, total) {
   const nome = it.exercicio?.nome || '(exercício)';
   const grupo = it.exercicio?.grupo_muscular ? ` · ${esc(it.exercicio.grupo_muscular)}` : '';
   const mi = metodoInfo(it.metodo);
-  const campos = CAMPOS_ITEM.map(c => {
-    if (c.select) {
-      const cur = String(it[c.k] || '');
-      const opts = c.options.slice();
-      if (cur && !opts.includes(cur)) opts.unshift(cur);   // preserva método custom antigo
-      const ops = ['<option value="">—</option>']
-        .concat(opts.map(o => `<option value="${esc(o)}" ${cur === o ? 'selected' : ''}>${esc(o)}</option>`))
-        .join('');
-      return `<div class="av-field"><label>${c.label}</label>
-        <select data-item-campo="${c.k}" data-item-id="${it.id}" class="np-input">${ops}</select></div>`;
-    }
-    return `<div class="av-field"><label>${c.label}</label>
-      <input type="${c.type}" placeholder="${c.ph}" value="${esc(it[c.k] ?? '')}"
-        data-item-campo="${c.k}" data-item-id="${it.id}" class="np-input"></div>`;
-  }).join('');
+  const campos = camposHtml(it, ['series', 'repeticoes', 'carga', 'cadencia', 'descanso', 'metodo']);
+
+  // Campo "Drop set em" — só visível quando o método é Drop-set.
+  const dropCur = String(it.drop_ultimas ?? '0');
+  const dropOps = DROP_OPCOES
+    .map(o => `<option value="${o.v}" ${dropCur === o.v ? 'selected' : ''}>${esc(o.label)}</option>`)
+    .join('');
+  const dropCampo = `<div class="av-field tr-drop-field" data-drop-field="${it.id}"${ehDropSet(it.metodo) ? '' : ' style="display:none"'}>
+      <label>Drop set em</label>
+      <select data-item-campo="drop_ultimas" data-item-id="${it.id}" class="np-input">${dropOps}</select></div>`;
 
   return `
     <div class="av-form-card tr-ex-card">
@@ -520,7 +593,7 @@ function itemHtml(it, i, total) {
           <button class="patient-action patient-action-danger" data-item-del="${it.id}" title="Remover"><i data-lucide="trash-2"></i></button>
         </div>
       </div>
-      <div class="av-grid tr-ex-grid">${campos}</div>
+      <div class="av-grid tr-ex-grid">${campos}${dropCampo}</div>
       <div class="tr-metodo-desc" data-metodo-desc="${it.id}"${mi ? '' : ' style="display:none"'}>${mi ? `<i data-lucide="lightbulb"></i> <strong>${esc(mi.nome)}</strong> — ${esc(mi.desc)}` : ''}</div>
       <div class="av-field" style="margin-top:10px;">
         <label>Observação</label>
@@ -531,31 +604,23 @@ function itemHtml(it, i, total) {
     </div>`;
 }
 
-// ── Autocomplete customizado do campo "adicionar exercício" ──
+// ── Autocomplete customizado (reutilizável) ──
 // Dropdown estilizado (no lugar do <datalist> nativo), com busca debounced no
 // banco, navegação por teclado (↑ ↓ Enter Esc) e realce do trecho buscado.
-function montarAutocomplete() {
-  const input = document.getElementById('trAddInput');
-  const lista = document.getElementById('trAcList');
-  if (!input || !lista) return;
+// `onEscolher(ex)` recebe o exercício selecionado. Estado local por instância
+// (permite vários autocompletes na tela — o do topo e o Exercício B de cada Bi-set).
+function montarAutocompleteEl(input, lista, onEscolher) {
+  if (!input || !lista || input.dataset.acPronto) return;
+  input.dataset.acPronto = '1';
 
-  let ativo = -1;   // índice do item destacado (-1 = nenhum)
+  let ativo = -1;         // índice do item destacado (-1 = nenhum)
+  let resultados = [];    // último lote da busca (isolado desta instância)
 
   const fechar = () => {
-    lista.hidden = true;
-    lista.innerHTML = '';
-    ativo = -1;
+    lista.hidden = true; lista.innerHTML = ''; ativo = -1;
     input.setAttribute('aria-expanded', 'false');
   };
-
-  const escolher = (ex) => {
-    if (!ex) return;
-    _exSelecionado = ex;
-    input.value = ex.nome || '';
-    fechar();
-    input.focus();
-  };
-
+  const escolher = (ex) => { if (!ex) return; fechar(); onEscolher(ex); };
   const pintar = () => {
     lista.querySelectorAll('.tr-ac-item').forEach((el, i) => {
       const on = i === ativo;
@@ -563,12 +628,11 @@ function montarAutocomplete() {
       if (on) el.scrollIntoView({ block: 'nearest' });
     });
   };
-
   const desenhar = (termo) => {
-    if (!_bibResultados.length) {
+    if (!resultados.length) {
       lista.innerHTML = `<div class="tr-ac-empty">Nenhum exercício encontrado${termo ? ` para “${esc(termo)}”` : ''}.</div>`;
     } else {
-      lista.innerHTML = _bibResultados.map((ex, i) => `
+      lista.innerHTML = resultados.map((ex, i) => `
         <div class="tr-ac-item" data-i="${i}">
           <span class="tr-ac-nome">${realce(ex.nome || '(sem nome)', termo)}</span>
           ${ex.grupo_muscular ? `<span class="tr-ac-grupo">${esc(ex.grupo_muscular)}</span>` : ''}
@@ -576,40 +640,47 @@ function montarAutocomplete() {
       lista.querySelectorAll('.tr-ac-item').forEach(el => {
         const idx = +el.dataset.i;
         // mousedown (não click): dispara antes do blur do input, senão a lista fecharia antes de selecionar
-        el.addEventListener('mousedown', (e) => { e.preventDefault(); escolher(_bibResultados[idx]); });
+        el.addEventListener('mousedown', (e) => { e.preventDefault(); escolher(resultados[idx]); });
         el.addEventListener('mouseenter', () => { ativo = idx; pintar(); });
       });
     }
-    ativo = -1;
-    lista.hidden = false;
+    ativo = -1; lista.hidden = false;
     input.setAttribute('aria-expanded', 'true');
   };
-
   const buscar = debounce(async (termo) => {
-    try { _bibResultados = await listarExercicios({ termo, limite: 40 }); }
-    catch { _bibResultados = []; }
+    try { resultados = await listarExercicios({ termo, limite: 40 }); }
+    catch { resultados = []; }
     desenhar(termo);
   }, 300);
 
-  input.addEventListener('input', () => {
-    _exSelecionado = null;
-    buscar(input.value.trim());
-  });
-
+  input.addEventListener('input', () => buscar(input.value.trim()));
   input.addEventListener('keydown', (e) => {
     if (lista.hidden) return;
     const n = lista.querySelectorAll('.tr-ac-item').length;
     if (e.key === 'ArrowDown')      { e.preventDefault(); if (n) { ativo = (ativo + 1) % n; pintar(); } }
     else if (e.key === 'ArrowUp')   { e.preventDefault(); if (n) { ativo = (ativo - 1 + n) % n; pintar(); } }
-    else if (e.key === 'Enter')     { if (ativo >= 0 && _bibResultados[ativo]) { e.preventDefault(); escolher(_bibResultados[ativo]); } }
+    else if (e.key === 'Enter')     { if (ativo >= 0 && resultados[ativo]) { e.preventDefault(); escolher(resultados[ativo]); } }
     else if (e.key === 'Escape')    { fechar(); }
   });
-
   input.addEventListener('focus', () => {
     const t = input.value.trim();
-    if (t && _bibResultados.length) desenhar(t);
+    if (t && resultados.length) desenhar(t);
   });
   input.addEventListener('blur', () => { setTimeout(fechar, 120); });
+}
+
+// Autocomplete do campo "adicionar exercício" (topo). Guarda o escolhido em
+// _exSelecionado, que adicionarExercicio() consome.
+function montarAutocomplete() {
+  const input = document.getElementById('trAddInput');
+  const lista = document.getElementById('trAcList');
+  if (!input || !lista) return;
+  input.addEventListener('input', () => { _exSelecionado = null; });
+  montarAutocompleteEl(input, lista, (ex) => {
+    _exSelecionado = ex;
+    input.value = ex.nome || '';
+    input.focus();
+  });
 }
 
 async function adicionarExercicio() {
@@ -649,6 +720,8 @@ async function salvarCampoItem(el) {
   let payload;
   if (campo === 'series') {
     payload = { series: valor === '' ? null : parseInt(valor, 10) };
+  } else if (campo === 'drop_ultimas') {
+    payload = { drop_ultimas: parseInt(valor, 10) || 0 };
   } else {
     payload = { [campo]: valor === '' ? null : valor };
   }
@@ -660,6 +733,12 @@ async function salvarCampoItem(el) {
     if (campo === 'metodo') atualizarDescMetodo(el);
     mostrarToast('✓ Salvo');
   } catch (e) { mostrarErro('Erro ao salvar: ' + e.message); }
+}
+
+// Mostra/esconde o campo "Drop set em" conforme o método selecionado.
+function atualizarCampoDrop(el) {
+  const box = document.querySelector(`[data-drop-field="${el.dataset.itemId}"]`);
+  if (box) box.style.display = ehDropSet(el.value) ? '' : 'none';
 }
 
 // Atualiza (sem re-render) a caixinha de descrição do método da linha.
@@ -689,19 +768,264 @@ async function removerItem(id) {
   } catch (e) { mostrarErro('Erro: ' + e.message); }
 }
 
-// Move um item para cima/baixo dentro do dia, trocando o campo `ordem` com o vizinho.
-async function moverItem(id, dir) {
-  const doDia = _itens.filter(it => it.dia === _diaSel).sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
-  const i = doDia.findIndex(it => it.id === id);
+// Move um BLOCO (exercício single ou Bi-set inteiro) para cima/baixo no dia,
+// trocando a `ordem` do âncora com a do vizinho. O Exercício B acompanha o A
+// pelo grupo_id (não tem ordem própria relevante), então nunca fica separado.
+async function moverItem(anchorId, dir) {
+  const unidades = unidadesDoDia();
+  const i = unidades.findIndex(u => u.a.id === anchorId);
   const j = i + dir;
-  if (i < 0 || j < 0 || j >= doDia.length) return;
-  const a = doDia[i], b = doDia[j];
+  if (i < 0 || j < 0 || j >= unidades.length) return;
+  const a = unidades[i].a, b = unidades[j].a;
   try {
     // troca as ordens (usa o índice como ordem canônica para evitar empates)
     await Promise.all([atualizarItem(a.id, { ordem: j }), atualizarItem(b.id, { ordem: i })]);
     _itens = await listarItensDoTreino(_treino.id);
     renderDia();
   } catch (e) { mostrarErro('Erro ao reordenar: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// BI-SET — grupo de 2 exercícios (A + B)
+// ═══════════════════════════════════════════════════════════
+
+// Trata a troca do campo Método. Sair de "Bi-set" com um B já escolhido
+// remove o B (com confirmação). Entrar em "Bi-set" abre a área do Exercício B.
+async function mudarMetodo(el) {
+  const id = el.dataset.itemId;
+  const it = _itens.find(x => x.id === id);
+  if (!it) return;
+  const novo = el.value;
+  if (novo === (it.metodo || '')) return;
+  const b = ehBiset(it.metodo) ? membroB(it) : null;
+
+  if (b && !ehBiset(novo)) {
+    const ok = await confirmar({
+      titulo: 'Alterar método',
+      mensagem: 'Alterar o método removerá o segundo exercício deste Bi-set.',
+      textoOk: 'Alterar método', perigo: true,
+    });
+    if (!ok) { el.value = it.metodo || ''; atualizarDescMetodo(el); atualizarCampoDrop(el); return; }
+    try {
+      await excluirItem(b.id);
+      await atualizarItem(id, { metodo: novo || null, grupo_id: null, grupo_pos: null, grupo_obs: null });
+    } catch (e) { return mostrarErro('Erro ao alterar método: ' + e.message); }
+  } else {
+    try { await atualizarItem(id, { metodo: novo || null }); }
+    catch (e) { return mostrarErro('Erro ao salvar: ' + e.message); }
+  }
+  _itens = await listarItensDoTreino(_treino.id);
+  renderDia();
+}
+
+// Seleciona (ou troca) o Exercício B de um Bi-set.
+async function escolherB(anchorId, ex) {
+  const a = _itens.find(x => x.id === anchorId);
+  if (!a || !ex) return;
+  if (ex.id === a.exercicio_id) {
+    mostrarErroBiset(anchorId, 'Escolha um exercício diferente do Exercício A.');
+    return;
+  }
+  const b = membroB(a);
+  try {
+    if (b) {
+      await atualizarItem(b.id, { exercicio_id: ex.id });   // troca preservando os campos do B
+    } else {
+      await atualizarItem(a.id, { grupo_id: a.id, grupo_pos: 'A' });   // A vira âncora
+      const nutriId = await getNutriId();
+      await adicionarExercicioAoTreino(nutriId, {
+        treino_id: a.treino_id, dia: a.dia, exercicio_id: ex.id,
+        grupo_id: a.id, grupo_pos: 'B', ordem: a.ordem ?? 0,
+        series: a.series ?? null,     // herda a quantidade de séries do A
+      });
+    }
+    _itens = await listarItensDoTreino(_treino.id);
+    renderDia();
+  } catch (e) { mostrarErro('Erro ao definir o Exercício B: ' + e.message); }
+}
+
+function mostrarErroBiset(anchorId, msg) {
+  const el = document.querySelector(`[data-biset-err="${anchorId}"]`);
+  if (el) el.textContent = msg || '';
+}
+
+// Exclui o Bi-set inteiro (A + B).
+async function excluirBiset(anchorId) {
+  const a = _itens.find(x => x.id === anchorId);
+  if (!a) return;
+  if (!(await confirmar({
+    titulo: 'Excluir este Bi-set?',
+    mensagem: 'O Exercício A e o Exercício B serão removidos do treino.',
+    textoOk: 'Excluir Bi-set', perigo: true,
+  }))) return;
+  const b = membroB(a);
+  try {
+    if (b) await excluirItem(b.id);
+    await excluirItem(a.id);
+    _bisetRecolhidos.delete(a.id);
+    _itens = await listarItensDoTreino(_treino.id);
+    renderDia();
+  } catch (e) { mostrarErro('Erro ao excluir: ' + e.message); }
+}
+
+// Remove só o Exercício B; o A volta a ser exercício normal (dados preservados).
+async function removerBDoBiset(anchorId) {
+  const a = _itens.find(x => x.id === anchorId);
+  if (!a) return;
+  const b = membroB(a);
+  try {
+    if (b) await excluirItem(b.id);
+    await atualizarItem(a.id, { metodo: 'Normal', grupo_id: null, grupo_pos: null, grupo_obs: null });
+    _itens = await listarItensDoTreino(_treino.id);
+    renderDia();
+  } catch (e) { mostrarErro('Erro: ' + e.message); }
+}
+
+function toggleRecolherBiset(anchorId) {
+  if (_bisetRecolhidos.has(anchorId)) _bisetRecolhidos.delete(anchorId);
+  else _bisetRecolhidos.add(anchorId);
+  renderDia();
+}
+
+// Avisos (não bloqueiam o salvamento — os campos salvam incrementalmente).
+function avisosBisetHtml(u) {
+  const { a, b } = u;
+  const av = [];
+  if (!b) av.push('Selecione o segundo exercício do Bi-set.');
+  if (a.series == null || a.series === '') av.push('Informe a quantidade de séries.');
+  if (!a.repeticoes) av.push('Informe as repetições do Exercício A.');
+  if (b) {
+    if (b.series == null || b.series === '') av.push('Informe as séries do Exercício B.');
+    if (!b.repeticoes) av.push('Informe as repetições do Exercício B.');
+    if (a.series != null && b.series != null && Number(a.series) !== Number(b.series))
+      av.push('As quantidades de séries são diferentes. Isso pode deixar o Bi-set incompleto.');
+  }
+  if (!a.descanso) av.push('Informe o descanso após o Bi-set.');
+  if (!av.length) return '';
+  return `<div class="tr-biset-avisos">${av.map(m =>
+    `<div class="tr-aviso"><i data-lucide="alert-triangle"></i> ${esc(m)}</div>`).join('')}</div>`;
+}
+
+// Resumo compacto (card recolhido).
+function grupoResumoHtml(u) {
+  const { a, b } = u;
+  const nomeA = a.exercicio?.nome || '(A)';
+  const nomeB = b ? (b.exercicio?.nome || '(B)') : '— selecionar Exercício B —';
+  const series = a.series ?? '—';
+  const repsA = a.repeticoes || '—';
+  const repsB = b ? (b.repeticoes || '—') : '—';
+  const desc = a.descanso ? `descanso ${esc(a.descanso)}` : 'sem descanso definido';
+  return `
+    <div class="tr-biset-resumo" data-biset-toggle="${a.id}">
+      <div class="tr-biset-resumo-exs">
+        <span class="tr-biset-resumo-ex"><span class="tr-biset-mark sm">A</span> ${esc(nomeA)}</span>
+        <i data-lucide="arrow-down" class="tr-biset-resumo-seta"></i>
+        <span class="tr-biset-resumo-ex"><span class="tr-biset-mark sm">B</span> ${esc(nomeB)}</span>
+      </div>
+      <div class="tr-biset-resumo-meta">${esc(String(series))} séries · ${esc(repsA)} / ${esc(repsB)} reps · ${desc}</div>
+    </div>`;
+}
+
+// Card completo do Bi-set (A + conector + B + descanso do conjunto).
+function grupoCardHtml(u, i, total) {
+  const { a, b } = u;
+  const recolhido = _bisetRecolhidos.has(a.id);
+
+  const header = `
+    <div class="tr-ex-head tr-biset-head">
+      <div class="tr-biset-title">
+        <button class="tr-biset-toggle" data-biset-toggle="${a.id}" title="${recolhido ? 'Expandir' : 'Recolher'}"
+          aria-expanded="${recolhido ? 'false' : 'true'}"><i data-lucide="${recolhido ? 'chevron-right' : 'chevron-down'}"></i></button>
+        <span class="tr-biset-selo"><i data-lucide="repeat-2"></i> Bi-set</span>
+        <span class="tr-ex-num">${i + 1}</span>
+      </div>
+      <div class="tr-ex-btns">
+        <button class="patient-action" data-item-up="${a.id}" ${i === 0 ? 'disabled' : ''} title="Subir"><i data-lucide="chevron-up"></i></button>
+        <button class="patient-action" data-item-down="${a.id}" ${i === total - 1 ? 'disabled' : ''} title="Descer"><i data-lucide="chevron-down"></i></button>
+        <button class="patient-action patient-action-danger" data-biset-del="${a.id}" title="Excluir Bi-set"><i data-lucide="trash-2"></i></button>
+      </div>
+    </div>`;
+
+  if (recolhido) {
+    return `<div class="av-form-card tr-ex-card tr-biset-card recolhido">${header}${grupoResumoHtml(u)}</div>`;
+  }
+
+  const nomeA = a.exercicio?.nome || '(exercício A)';
+  const grupoA = a.exercicio?.grupo_muscular ? `<span class="tr-ex-grupo"> · ${esc(a.exercicio.grupo_muscular)}</span>` : '';
+  const blocoA = `
+    <div class="tr-biset-ex">
+      <div class="tr-biset-ex-head"><span class="tr-biset-mark">A</span> <span class="tr-biset-ex-nome">${esc(nomeA)}${grupoA}</span></div>
+      <div class="av-grid tr-ex-grid">${camposHtml(a, ['series', 'repeticoes', 'carga', 'cadencia'])}${campoHtml('metodo', a)}</div>
+      <div class="av-field" style="margin-top:10px;"><label>Observação do Exercício A</label>
+        <input type="text" placeholder="Ex.: extensão completa sem tirar o quadril do banco."
+          value="${esc(a.observacao ?? '')}" data-item-campo="observacao" data-item-id="${a.id}" class="np-input"></div>
+    </div>`;
+
+  const conector = `<div class="tr-biset-conector"><span class="tr-biset-line"></span>
+    <span class="tr-biset-nodesc"><i data-lucide="arrow-down"></i> Sem descanso entre A e B</span>
+    <span class="tr-biset-line"></span></div>`;
+
+  let blocoB;
+  if (b) {
+    const nomeB = b.exercicio?.nome || '(exercício B)';
+    const grupoB = b.exercicio?.grupo_muscular ? `<span class="tr-ex-grupo"> · ${esc(b.exercicio.grupo_muscular)}</span>` : '';
+    blocoB = `
+      <div class="tr-biset-ex">
+        <div class="tr-biset-ex-head">
+          <span class="tr-biset-mark">B</span> <span class="tr-biset-ex-nome">${esc(nomeB)}${grupoB}</span>
+          <div class="tr-biset-ex-acoes">
+            <button class="tr-biset-link" data-biset-trocar="${a.id}" type="button"><i data-lucide="repeat"></i> Trocar</button>
+            <button class="tr-biset-link danger" data-biset-remb="${a.id}" type="button"><i data-lucide="x"></i> Remover do Bi-set</button>
+          </div>
+        </div>
+        <div class="av-grid tr-ex-grid">${camposHtml(b, ['series', 'repeticoes', 'carga', 'cadencia'])}</div>
+        <div class="av-field" style="margin-top:10px;"><label>Observação do Exercício B</label>
+          <input type="text" placeholder="Ex.: manter o joelho alinhado."
+            value="${esc(b.observacao ?? '')}" data-item-campo="observacao" data-item-id="${b.id}" class="np-input"></div>
+        <div class="tr-biset-bsel" data-biset-bsel="${a.id}" hidden>
+          <label>Trocar Exercício B</label>
+          <div class="tr-ac"><input class="np-input" data-biset-b-input="${a.id}" autocomplete="off"
+            role="combobox" aria-autocomplete="list" aria-expanded="false" placeholder="Buscar outro exercício...">
+            <div class="tr-ac-list" data-biset-b-list="${a.id}" hidden></div></div>
+          <div class="tr-field-err" data-biset-err="${a.id}" role="alert"></div>
+        </div>
+      </div>`;
+  } else {
+    blocoB = `
+      <div class="tr-biset-ex tr-biset-b-vazio">
+        <div class="tr-biset-ex-head"><span class="tr-biset-mark vazio">B</span>
+          <span class="tr-biset-ex-nome muted">Selecionar segundo exercício</span></div>
+        <div class="tr-biset-bsel" data-biset-bsel="${a.id}">
+          <div class="tr-ac"><input class="np-input" data-biset-b-input="${a.id}" autocomplete="off"
+            role="combobox" aria-autocomplete="list" aria-expanded="false" placeholder="Buscar o Exercício B...">
+            <div class="tr-ac-list" data-biset-b-list="${a.id}" hidden></div></div>
+          <div class="tr-field-err" data-biset-err="${a.id}" role="alert"></div>
+        </div>
+      </div>`;
+  }
+
+  const descanso = `
+    <div class="tr-biset-descanso">
+      ${campoHtml('descanso', a, 'Descanso após o Bi-set')}
+      <div class="tr-biset-aux">Aplicado após concluir os exercícios A e B.</div>
+    </div>`;
+
+  const obsGeral = `
+    <div class="av-field" style="margin-top:12px;"><label>Observação geral do conjunto</label>
+      <input type="text" placeholder="Ex.: realizar os dois exercícios sem pausa e controlar a execução."
+        value="${esc(a.grupo_obs ?? '')}" data-item-campo="grupo_obs" data-item-id="${a.id}" class="np-input"></div>`;
+
+  return `
+    <div class="av-form-card tr-ex-card tr-biset-card">
+      ${header}
+      <div class="tr-biset-desc">Dois exercícios em sequência, sem descanso entre eles.</div>
+      ${avisosBisetHtml(u)}
+      ${blocoA}
+      ${conector}
+      ${blocoB}
+      ${descanso}
+      ${obsGeral}
+    </div>`;
 }
 
 // ───────────────────────────────────────────────────────────

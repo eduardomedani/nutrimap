@@ -53,6 +53,8 @@
     --ink: #1A1F1B; --ink-soft: #4A524C; --ink-mute: #8A8F89;
     --moss: #3D4D3F; --moss-deep: #2A3A2C; --moss-light: #5C6E5E;
     --olive: #5C6B47; --sage: #87A082; --gold: #B8924A;
+    --plum: #7D6A86; --plum-soft: rgba(125,106,134,0.12); --plum-line: rgba(125,106,134,0.28);
+    --danger: #B4553F;
     --cream: #F8F1DD; --line: #E8E8E8; --hair: rgba(26,31,27,0.07);
     --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 6px 16px rgba(0,0,0,0.05);
     --radius: 16px;
@@ -240,13 +242,16 @@
   .pa-carga-btn { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; padding: 10px 16px; border: none; border-radius: 12px; background: var(--moss); color: var(--cream); font-size: 13.5px; font-weight: 800; cursor: pointer; transition: background 0.2s, transform 0.15s; }
   .pa-carga-btn:hover { background: var(--moss-deep); transform: translateY(-1px); }
   .pa-carga-btn svg { width: 16px; height: 16px; }
+  /* Exercício concluído hoje — botão dourado */
+  .pa-carga-btn.pa-carga-btn-done { background: var(--gold); color: #fff; box-shadow: 0 2px 10px rgba(184,146,74,0.30); }
+  .pa-carga-btn.pa-carga-btn-done:hover { background: #a67f38; }
 
   /* ── Progressão ── */
   .pa-prog { margin-top: 16px; border-top: 1px solid var(--hair); padding-top: 16px; }
   .pa-prog-head { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 700; color: var(--moss-deep); margin-bottom: 10px; }
   .pa-prog-head svg { width: 16px; height: 16px; color: var(--moss); }
   .pa-prog-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
-  .pa-mini { padding: 10px 12px; font-size: 15px; }
+  .pa-mini { padding: 10px 12px; font-size: 16px; }   /* 16px evita zoom automático no iOS */
   .pa-prog-form [data-p="obs"] { grid-column: 1 / -1; }
   .pa-btn-mini { grid-column: 1 / -1; margin-top: 2px; padding: 11px; font-size: 14px; }
 
@@ -279,6 +284,78 @@
   .pa-series-prog { font-size: 12px; font-weight: 700; color: var(--ink-mute); margin: 2px 0 12px 2px; }
   .pa-series-prog b { color: var(--moss); }
   .pa-btn-mini.pa-btn-ready { box-shadow: 0 0 0 3px rgba(135,160,130,0.25); }
+
+  /* ── Drop set — sub-série vinculada à série principal ── */
+  .pa-serie-block { display: flex; flex-direction: column; }
+  /* Selo discreto "DROP SET" sob a linha da série */
+  .pa-drop-badge { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start;
+    margin: 7px 0 0 42px; padding: 3px 9px; border-radius: 7px;
+    background: var(--plum-soft); color: var(--plum);
+    font-size: 10.5px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; }
+  .pa-drop-badge svg { width: 13px; height: 13px; }
+  .pa-serie-block.drop-done .pa-drop-badge,
+  .pa-serie-block.drop-done .pa-serie { display: none; }
+
+  /* Painel do drop — expande/recolhe suave via grid-template-rows */
+  .pa-drop-wrap { display: grid; grid-template-rows: 0fr; opacity: 0;
+    transition: grid-template-rows 0.22s ease, opacity 0.22s ease; }
+  .pa-serie-block.drop-open .pa-drop-wrap { grid-template-rows: 1fr; opacity: 1; }
+  .pa-drop-inner { overflow: hidden; }
+  .pa-drop { margin: 10px 0 2px 20px; padding: 12px 14px; border-left: 2px solid var(--plum-line);
+    background: var(--plum-soft); border-radius: 0 12px 12px 0; }
+  .pa-drop-head { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800;
+    color: var(--plum); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 11px; }
+  .pa-drop-head svg { width: 15px; height: 15px; }
+  .pa-drop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pa-drop-field { display: flex; flex-direction: column; gap: 5px; }
+  .pa-drop-lab { font-size: 11px; font-weight: 700; color: var(--ink-soft); display: flex; gap: 5px; align-items: baseline; }
+  .pa-drop-alvo { font-weight: 700; color: var(--plum); font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .pa-drop-hint { font-size: 10.5px; color: var(--ink-mute); }
+  .pa-btn-drop { margin-top: 12px; width: 100%; display: inline-flex; align-items: center; justify-content: center;
+    gap: 7px; padding: 11px; min-height: 44px; border: none; border-radius: 11px;
+    background: var(--plum); color: #fff; font-size: 13.5px; font-weight: 800; cursor: pointer;
+    transition: background 0.15s, transform 0.1s; }
+  .pa-btn-drop svg { width: 16px; height: 16px; }
+  .pa-btn-drop:hover { background: #6b5975; }
+  .pa-btn-drop:active { transform: translateY(1px); }
+
+  /* Resumo compacto quando a série (principal + drop) está concluída */
+  .pa-serie-resumo { display: none; width: 100%; align-items: center; gap: 9px; text-align: left;
+    padding: 9px 11px; border: 1px solid var(--hair); border-radius: 11px; background: var(--bg);
+    cursor: pointer; font: inherit; min-height: 44px; }
+  .pa-serie-block.drop-done .pa-serie-resumo { display: flex; }
+  .pa-res-check { display: inline-flex; width: 22px; height: 22px; border-radius: 50%; flex: none;
+    background: var(--gold); color: #fff; align-items: center; justify-content: center; }
+  .pa-res-check svg { width: 14px; height: 14px; }
+  .pa-res-main { font-size: 13px; color: var(--moss-deep); font-weight: 700; }
+  .pa-res-drop { display: inline-flex; align-items: center; gap: 4px; margin-left: auto;
+    font-size: 12px; font-weight: 700; color: var(--plum); white-space: nowrap; }
+  .pa-res-drop svg { width: 13px; height: 13px; }
+
+  /* Validação inline (sem alert do navegador) */
+  .pa-field-err { color: var(--danger); font-size: 11.5px; font-weight: 700; margin-top: 7px; }
+  .pa-field-err:empty { display: none; }
+  .pa-input-err { border-color: #D98A76 !important; box-shadow: 0 0 0 2px rgba(180,85,63,0.15); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pa-drop-wrap { transition: none; }
+  }
+
+  /* ── Bi-set (grupo A + B) no app do aluno ── */
+  .pa-biset { border: 1.5px solid var(--sage); border-radius: var(--radius); background: rgba(135,160,130,0.06); padding: 12px; margin-bottom: 14px; }
+  .pa-biset-head { display: flex; align-items: center; gap: 9px; margin: 2px 4px 10px; }
+  .pa-biset-selo { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 8px; background: rgba(60,77,63,0.10); color: var(--moss-deep); font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+  .pa-biset-selo svg { width: 14px; height: 14px; }
+  .pa-biset-n { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--ink-mute); }
+  .pa-biset .pa-ex { box-shadow: none; border: 1px solid var(--hair); margin-bottom: 0; }
+  .pa-biset .pa-ex .pa-ex-num { background: linear-gradient(135deg, var(--sage), var(--moss-light)); color: var(--cream); }
+  .pa-biset-conector { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 9px 0; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: var(--olive); }
+  .pa-biset-conector svg { width: 14px; height: 14px; }
+  .pa-biset-descanso { display: flex; align-items: center; gap: 7px; margin-top: 11px; padding: 10px 13px; border-radius: 12px; background: var(--bg-warm); font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+  .pa-biset-descanso b { color: var(--moss-deep); font-weight: 800; }
+  .pa-biset-descanso svg { width: 15px; height: 15px; color: var(--moss); }
+  .pa-biset-incompleto { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-radius: 12px; background: rgba(184,146,74,0.10); color: #8a6d1e; font-size: 12.5px; font-weight: 600; }
+  .pa-biset-incompleto svg { width: 15px; height: 15px; flex: none; }
   .pa-hist-head { font-size: 12px; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; margin: 14px 0 8px; }
   .pa-hist-row { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; background: var(--bg); border-radius: 9px; padding: 8px 10px; font-size: 13px; margin-bottom: 6px; }
   .pa-hist-data { color: var(--ink-mute); font-weight: 600; }

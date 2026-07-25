@@ -95,6 +95,10 @@ create table if not exists public.treino_exercicios (
   descanso     text,
   rir          text,
   metodo       text,
+  drop_ultimas smallint not null default 0,   -- drop set nas N últimas séries (0 = todas)
+  grupo_id     uuid,                            -- bi-set: id do exercício âncora (A)
+  grupo_pos    text,                            -- 'A' | 'B' (posição no conjunto)
+  grupo_obs    text,                            -- observação geral do conjunto (na linha A)
   observacao   text,
   criado_em    timestamptz not null default now()
 );
@@ -111,6 +115,10 @@ alter table public.treino_exercicios add column if not exists cadencia     text;
 alter table public.treino_exercicios add column if not exists descanso     text;
 alter table public.treino_exercicios add column if not exists rir          text;
 alter table public.treino_exercicios add column if not exists metodo       text;
+alter table public.treino_exercicios add column if not exists drop_ultimas smallint not null default 0;
+alter table public.treino_exercicios add column if not exists grupo_id     uuid;
+alter table public.treino_exercicios add column if not exists grupo_pos    text;
+alter table public.treino_exercicios add column if not exists grupo_obs    text;
 alter table public.treino_exercicios add column if not exists observacao   text;
 alter table public.treino_exercicios add column if not exists criado_em    timestamptz not null default now();
 
