@@ -345,11 +345,11 @@ function renderEditor() {
 
     <div class="av-form-card">
       <div class="av-form-title">${t ? 'Editar' : 'Novo'} ${termo}${t ? ` — <em>${esc(t.nome || '')}</em>` : ''}</div>
-      <div class="av-grid">
-        <div class="av-field" style="grid-column: 1 / -1;">
-          <label>Nome do ${termo} *</label>
-          <input type="text" id="trNome" value="${esc(t?.nome || '')}" class="np-input" placeholder="Ex.: Hipertrofia — Fase 1">
-        </div>
+      <div class="av-field" style="margin-bottom: 14px;">
+        <label>Nome do ${termo} *</label>
+        <input type="text" id="trNome" value="${esc(t?.nome || '')}" class="np-input" placeholder="Ex.: Hipertrofia — Fase 1">
+      </div>
+      <div class="tr-form-linha">
         ${_modo === 'paciente' ? `
         <div class="av-field">
           <label>Data de início</label>
@@ -358,6 +358,10 @@ function renderEditor() {
         <div class="av-field">
           <label>Data de término</label>
           <input type="date" id="trDataFim" value="${t?.data_fim || ''}" class="np-input">
+        </div>
+        <div class="av-field">
+          <label>Nº de treinos</label>
+          <input type="number" min="1" id="trNumTreinos" class="np-input" placeholder="ex.: 36">
         </div>` : ''}
         <div class="av-field">
           <label>Divisão (nº de dias)</label>
@@ -371,9 +375,7 @@ function renderEditor() {
             <option value="0" ${t && !t.ativo ? 'selected' : ''}>Inativo</option>
           </select>
         </div>` : ''}
-      </div>
-      <div class="av-actions">
-        <button class="btn primary" id="trSalvarDados">${t ? '<i data-lucide="save"></i> Salvar dados' : `<i data-lucide="plus"></i> Criar ${termo}`}</button>
+        <button class="btn primary tr-salvar-linha" id="trSalvarDados">${t ? '<i data-lucide="save"></i> Salvar dados' : `<i data-lucide="plus"></i> Criar ${termo}`}</button>
       </div>
     </div>
 
@@ -391,12 +393,51 @@ function renderEditor() {
 
   document.getElementById('trVoltar').addEventListener('click', () => renderLista());
   document.getElementById('trSalvarDados').addEventListener('click', salvarDados);
+  ligarAutocalculoDatas(t);
 
   if (t) {
     _mountEl.querySelectorAll('#trDiasTabs [data-dia]').forEach(b =>
       b.addEventListener('click', () => { _diaSel = b.dataset.dia; renderEditor(); }));
     renderDia();
   }
+}
+
+// Autocálculo entre "Nº de treinos" e "Data de término" (só no modo paciente).
+// dias/semana = a divisão escolhida (ex.: ABC = 3 treinos por semana).
+function ligarAutocalculoDatas(t) {
+  const num = document.getElementById('trNumTreinos');
+  if (!num) return;   // modo modelo: sem datas
+  const ini = document.getElementById('trData');
+  const fim = document.getElementById('trDataFim');
+  const div = document.getElementById('trDivisao');
+
+  const diasSemana = () => Math.max(1, Number(div?.value) || 1);
+  const addDias = (dataStr, dias) => {
+    const d = new Date(dataStr + 'T00:00:00');
+    d.setDate(d.getDate() + dias);
+    return d.toISOString().slice(0, 10);
+  };
+  const calcFim = () => {   // nº de treinos → data de término
+    const n = Number(num.value);
+    if (!ini?.value || !n || n < 1) return;
+    const semanas = Math.ceil(n / diasSemana());
+    fim.value = addDias(ini.value, semanas * 7);
+  };
+  const calcNum = () => {   // data de término → nº de treinos
+    if (!ini?.value || !fim?.value) return;
+    const dias = Math.round((new Date(fim.value + 'T00:00:00') - new Date(ini.value + 'T00:00:00')) / 86400000);
+    if (dias < 0) return;
+    num.value = Math.max(1, Math.round(dias / 7)) * diasSemana();
+  };
+
+  num.addEventListener('input', calcFim);
+  fim?.addEventListener('change', calcNum);
+  // Ao mudar início ou divisão, recalcula o lado que já tem valor.
+  ini?.addEventListener('change', () => { if (num.value) calcFim(); else calcNum(); });
+  div?.addEventListener('change', () => { if (num.value) calcFim(); else calcNum(); });
+
+  // Editando um treino que já tem as duas datas: mostra o nº de treinos.
+  if (t && ini?.value && fim?.value) calcNum();
 }
 
 async function salvarDados() {
