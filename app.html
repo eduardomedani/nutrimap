@@ -278,9 +278,10 @@
   .pa-serie-check { justify-self: end; width: 36px; height: 36px; padding: 0; border: 1px solid var(--hair); border-radius: 50%; background: var(--bg); color: var(--ink-mute); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
   .pa-serie-check svg { width: 17px; height: 17px; }
   .pa-serie-check:hover { border-color: var(--sage); color: var(--moss); }
-  .pa-serie.done .pa-serie-check { background: var(--moss); border-color: var(--moss); color: var(--cream); }
-  .pa-serie.done .pa-serie-num { color: var(--sage); }
-  .pa-serie.done .pa-mini { border-color: transparent; background: rgba(135,160,130,0.12); color: var(--moss-deep); font-weight: 700; }
+  /* Série concluída — a classe `done` fica no bloco (.pa-serie-block) */
+  .pa-serie-block.done .pa-serie-check { background: var(--moss); border-color: var(--moss); color: var(--cream); }
+  .pa-serie-block.done .pa-serie-num { color: var(--sage); }
+  .pa-serie-block.done .pa-serie .pa-mini { border-color: transparent; background: rgba(135,160,130,0.12); color: var(--moss-deep); font-weight: 700; }
   .pa-series-prog { font-size: 12px; font-weight: 700; color: var(--ink-mute); margin: 2px 0 12px 2px; }
   .pa-series-prog b { color: var(--moss); }
   .pa-btn-mini.pa-btn-ready { box-shadow: 0 0 0 3px rgba(135,160,130,0.25); }
