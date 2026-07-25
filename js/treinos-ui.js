@@ -390,6 +390,10 @@ async function gerarTreinoIA() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ criterios, exercicios: bib }),
     });
+    const ct = resp.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      throw new Error('O gerador por IA não está disponível neste endereço. Abra o painel pela URL da Vercel (o mesmo lugar onde o recordatório por IA funciona) — ele não funciona no GitHub Pages nem no localhost.');
+    }
     const data = await resp.json();
     if (!resp.ok || data.error) throw new Error(data.error || ('Falha: ' + resp.status));
     renderPreviewIA(data, bib);
