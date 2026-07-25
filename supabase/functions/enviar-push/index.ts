@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     const nome = record?.nome ? `“${record.nome}”` : 'seu treino';
     const body = JSON.stringify({
       title: 'Treino atualizado',
-      body: `Seu nutricionista atualizou ${nome}. Toque para ver.`,
+      body: `Seu profissional atualizou ${nome}. Toque para ver.`,
       url: '/app.html',
       tag: `treino-${treinoId}`,
     });

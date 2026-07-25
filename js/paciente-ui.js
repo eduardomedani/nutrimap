@@ -151,8 +151,8 @@ function renderAuth(modo = 'entrar') {
       </div>
 
       <div class="pa-foot">${codigoDaUrl()
-        ? 'Você foi convidado pelo seu nutri 🌿 Crie sua conta (email + senha) e seu treino aparece automaticamente.'
-        : 'Use o email e a senha que você definir. Depois é só digitar o código que seu nutri te passou.'}</div>
+        ? 'Você foi convidado pelo seu profissional 🌿 Crie sua conta (email + senha) e seu treino aparece automaticamente.'
+        : 'Use o email e a senha que você definir. Depois é só digitar o código que seu profissional te passou.'}</div>
     </div>`;
 
   app().querySelectorAll('.pa-tab').forEach(b =>
@@ -217,7 +217,7 @@ function renderVincular(prefill = '', erro = '') {
       </div>
 
       <div class="pa-card">
-        <p class="pa-hint">Digite o <strong>código</strong> que seu nutricionista te enviou. Ele liga sua conta ao seu acompanhamento.</p>
+        <p class="pa-hint">Digite o <strong>código</strong> que seu profissional te enviou. Ele liga sua conta ao seu acompanhamento.</p>
 
         <label class="pa-label">Seu código</label>
         <input type="text" id="paCodigo" class="pa-input pa-codigo" placeholder="Ex.: ABC123" autocomplete="off" value="${esc(prefill || '')}">
@@ -315,7 +315,7 @@ function renderListaDias() {
   const lembrete = treinoTemNovidade(treinoAtual)
     ? `<div class="pa-lembrete" role="status">
          <i data-lucide="bell-ring"></i>
-         <div class="pa-lembrete-txt"><b>Seu treino foi atualizado</b><span>${quando ? 'em ' + esc(quando) + ' ' : ''}pelo seu nutricionista.</span></div>
+         <div class="pa-lembrete-txt"><b>Seu treino foi atualizado</b><span>${quando ? 'em ' + esc(quando) + ' ' : ''}pelo seu profissional.</span></div>
          <button class="pa-lembrete-x" data-visto aria-label="Dispensar aviso"><i data-lucide="x"></i></button>
        </div>`
     : '';
@@ -555,7 +555,7 @@ function renderDieta() {
       <div class="pa-empty pa-empty-lg">
         <i data-lucide="salad"></i>
         <div class="pa-empty-t">Sua dieta está a caminho</div>
-        <div class="pa-empty-s">Em breve seu nutricionista vai liberar seu plano alimentar por aqui.</div>
+        <div class="pa-empty-s">Em breve seu profissional vai liberar seu plano alimentar por aqui.</div>
       </div>
     </main>
     ${bottomNav()}`;
@@ -1304,7 +1304,7 @@ function renderSemTreino() {
       <div class="pa-empty pa-empty-lg">
         <i data-lucide="dumbbell"></i>
         <div class="pa-empty-t">Nenhum treino liberado ainda</div>
-        <div class="pa-empty-s">Assim que seu nutricionista montar seu treino, ele aparece aqui.</div>
+        <div class="pa-empty-s">Assim que seu profissional montar seu treino, ele aparece aqui.</div>
       </div>
     </main>
     ${bottomNav()}`;
