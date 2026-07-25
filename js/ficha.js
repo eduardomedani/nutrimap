@@ -70,13 +70,14 @@ export async function abrirFichaPaciente(pacienteId, nutriId, onVoltar, abaInici
         <div class="ficha-nome">${esc(p.nome || '(sem nome)')}</div>
         <div class="ficha-meta">${sexoLabel} · ${idadeLabel} · Cadastrado em ${fmtData(p.criado_em)}</div>
       </div>
-      <div class="ficha-badges">
-        <span class="ficha-badge badge-cod">${p.codigo}</span>
-        <span class="ficha-badge badge-${statusLabel === 'completo' ? 'ok' : 'wait'}">${statusLabel}</span>
+      <div class="ficha-head-right">
+        ${botaoLinks(p)}
+        <div class="ficha-badges">
+          <span class="ficha-badge badge-cod">${p.codigo}</span>
+          <span class="ficha-badge badge-${statusLabel === 'completo' ? 'ok' : 'wait'}">${statusLabel}</span>
+        </div>
       </div>
     </div>
-
-    ${cardLinks(p)}
 
     <div class="ficha-body">
       <div class="ficha-menu" id="fichaMenu">
@@ -339,13 +340,19 @@ function linksDoPaciente(p) {
   };
 }
 
-function cardLinks(p) {
+// Botão "Links de acesso" no cabeçalho (junto ao nome/código) que abre o menu.
+function botaoLinks(p) {
   const l = linksDoPaciente(p);
   return `
-    <div class="ficha-links">
-      <div class="fl-head"><i data-lucide="link"></i> Links de acesso</div>
-      ${linkRow('Anamnese', 'Questionário pré-consulta', l.anamnese, 'anamnese')}
-      ${linkRow('App do aluno', 'Treino + registro de carga', l.app, 'app')}
+    <div class="ficha-links-wrap">
+      <button class="ficha-links-btn" data-links-toggle aria-expanded="false" aria-haspopup="true">
+        <i data-lucide="link"></i> <span>Links de acesso</span> <i data-lucide="chevron-down" class="flb-chev"></i>
+      </button>
+      <div class="ficha-links-pop" data-links-pop hidden>
+        <div class="fl-pop-head"><i data-lucide="link"></i> Links de acesso</div>
+        ${linkRow('Anamnese', 'Questionário pré-consulta', l.anamnese, 'anamnese')}
+        ${linkRow('App do aluno', 'Treino + registro de carga', l.app, 'app')}
+      </div>
     </div>`;
 }
 
@@ -365,8 +372,22 @@ function linkRow(titulo, sub, url, key) {
 
 function ligarLinksAcesso(page, p) {
   const l = linksDoPaciente(p);
+  const btn = page.querySelector('[data-links-toggle]');
+  const pop = page.querySelector('[data-links-pop]');
+  const fechar = () => { if (pop) pop.hidden = true; btn?.setAttribute('aria-expanded', 'false'); };
+  if (btn && pop) {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const abrir = pop.hidden;
+      pop.hidden = !abrir;
+      btn.setAttribute('aria-expanded', String(abrir));
+    });
+    pop.addEventListener('click', (e) => e.stopPropagation());   // clique dentro não fecha
+    document.addEventListener('click', fechar);                  // clique fora fecha
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fechar(); });
+  }
   page.querySelectorAll('[data-flcopy]').forEach(b =>
-    b.addEventListener('click', () => copiarParaClipboard(l[b.dataset.flcopy], '✓ Link copiado')));
+    b.addEventListener('click', () => { copiarParaClipboard(l[b.dataset.flcopy], '✓ Link copiado'); fechar(); }));
   page.querySelectorAll('[data-flwa]').forEach(b =>
     b.addEventListener('click', () => {
       const key = b.dataset.flwa;
@@ -374,6 +395,7 @@ function ligarLinksAcesso(page, p) {
         ? montarMensagemApp(p.nome, l.app)
         : montarMensagemQuestionario(p.nome, l.anamnese);
       window.open(gerarLinkWhatsapp(msg, p.telefone || ''), '_blank');
+      fechar();
     }));
 }
 

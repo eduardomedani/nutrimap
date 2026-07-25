@@ -1029,6 +1029,23 @@
   .fl-sub { font-weight: 500; color: var(--ink-mute); }
   .fl-url { font-size: 12.5px; color: var(--ink-soft); word-break: break-all; margin-top: 2px; }
   .fl-acoes { display: flex; gap: 8px; flex-shrink: 0; }
+  /* Botão "Links de acesso" no cabeçalho + menu (popover) */
+  .ficha-head-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .ficha-head-right .ficha-badges { margin-left: 0; }
+  .ficha-links-wrap { position: relative; }
+  .ficha-links-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; border-radius: 20px; border: 1px solid var(--line); background: var(--bg); color: var(--moss-deep); font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .ficha-links-btn:hover { background: var(--bg-warm); border-color: var(--sage); }
+  .ficha-links-btn svg { width: 15px; height: 15px; }
+  .ficha-links-btn .flb-chev { width: 14px; height: 14px; color: var(--ink-mute); transition: transform 0.15s; }
+  .ficha-links-btn[aria-expanded="true"] .flb-chev { transform: rotate(180deg); }
+  .ficha-links-pop { position: absolute; top: calc(100% + 8px); right: 0; z-index: 50; width: min(360px, 86vw); background: var(--bg-card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-lg); padding: 4px 16px 14px; }
+  .ficha-links-pop[hidden] { display: none; }
+  .ficha-links-pop .fl-row:first-of-type { border-top: none; }
+  .fl-pop-head { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--moss-deep); padding: 12px 0 4px; }
+  .fl-pop-head svg { width: 15px; height: 15px; color: var(--moss); }
+  @media (max-width: 640px) {
+    .ficha-head-right { flex-wrap: wrap; justify-content: flex-end; }
+  }
   .ficha-body { display: grid; grid-template-columns: 230px 1fr; gap: 16px; align-items: start; }
   .ficha-menu { background: var(--bg-card); border: 1px solid var(--line); border-radius: 16px; padding: 8px; box-shadow: var(--shadow); }
   .fm-item { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border-radius: 10px; font-size: 13.5px; font-weight: 600; color: var(--ink-soft); cursor: pointer; transition: all 0.15s; margin-bottom: 2px; white-space: nowrap; }
