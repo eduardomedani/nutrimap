@@ -130,6 +130,22 @@ export async function buscarTreino(id) {
 }
 
 /**
+ * Treinos ATIVOS prescritos a alunos (com paciente), para a tela de
+ * "Gerenciar treinos" — inclui o nome do aluno e as datas de vigência.
+ * Ordena pelos que vencem primeiro (data_fim asc; sem data por último).
+ */
+export async function listarTreinosComVencimento() {
+  const { data, error } = await sb
+    .from('treinos')
+    .select('id, nome, data_inicio, data_fim, criado_em, paciente_id, paciente:pacientes(nome, codigo)')
+    .not('paciente_id', 'is', null)
+    .eq('ativo', true)
+    .order('data_fim', { ascending: true, nullsFirst: false });
+  if (error) throw error;
+  return data || [];
+}
+
+/**
  * Cria treino. Recebe { nome, divisao, data_inicio, ativo, paciente_id }.
  * paciente_id ausente/null => MODELO; preenchido => prescrição do aluno.
  */

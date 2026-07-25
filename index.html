@@ -1007,6 +1007,32 @@
   .rec-sem-get { font-size: 12.5px; color: var(--ink-mute); font-style: italic; margin-top: 8px; }
   .rec-calc-aviso { font-size: 11.5px; color: var(--ink-mute); margin-top: 12px; line-height: 1.5; background: rgba(184,103,74,0.07); padding: 9px 11px; border-radius: 9px; }
 
+  /* ===== GESTÃO — VENCIMENTOS DOS TREINOS ===== */
+  .gt-resumo { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+  .gt-chip { background: var(--bg-card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-size: 13px; font-weight: 600; color: var(--ink-soft); box-shadow: var(--shadow); }
+  .gt-chip b { font-size: 17px; font-weight: 800; margin-right: 4px; }
+  .gt-chip-vencido b { color: var(--rose); }
+  .gt-chip-proximo b { color: #B8924A; }
+  .gt-chip-ok b { color: var(--moss); }
+  .gt-chip-sem b { color: var(--ink-mute); }
+  .gt-card { display: flex; align-items: center; gap: 14px; background: var(--bg-card); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 14px; padding: 14px 16px; box-shadow: var(--shadow); margin-bottom: 10px; }
+  .gt-card.gt-vencido { border-left-color: var(--rose); }
+  .gt-card.gt-proximo { border-left-color: #B8924A; }
+  .gt-card.gt-ok { border-left-color: var(--sage); }
+  .gt-av { width: 42px; height: 42px; border-radius: 50%; background: var(--moss); color: var(--cream); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; flex-shrink: 0; }
+  .gt-info { flex: 1; min-width: 0; }
+  .gt-nome { font-size: 15px; font-weight: 800; color: var(--moss-deep); }
+  .gt-sub { font-size: 12.5px; color: var(--ink-soft); font-weight: 600; margin-top: 2px; }
+  .gt-per { color: var(--ink-mute); font-weight: 500; }
+  .gt-badge { padding: 6px 12px; border-radius: 20px; font-size: 11.5px; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+  .gt-badge-vencido { background: rgba(168,83,74,0.14); color: var(--rose); }
+  .gt-badge-proximo { background: rgba(184,146,74,0.16); color: #8A6D2A; }
+  .gt-badge-ok { background: rgba(135,160,130,0.2); color: var(--moss-deep); }
+  .gt-badge-sem { background: var(--bg); color: var(--ink-mute); border: 1px solid var(--line); }
+  .gt-vazio { text-align: center; padding: 40px 20px; color: var(--ink-mute); font-size: 14px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .gt-vazio svg { width: 34px; height: 34px; }
+  @media (max-width: 620px) { .gt-card { flex-wrap: wrap; } .gt-badge { order: 3; } }
+
   /* ===== FICHA DO PACIENTE ===== */
   .ficha-voltar { font-size: 13px; color: var(--moss); cursor: pointer; font-weight: 700; margin-bottom: 14px; display: inline-block; }
   .ficha-voltar:hover { text-decoration: underline; }
@@ -1154,6 +1180,7 @@
       </div>
       <div class="nav-group">
         <div class="nav-group-title">Gestão</div>
+        <div class="nav-item" data-page="gestao-treinos"><span class="nav-icon"><i data-lucide="calendar-clock"></i></span><span>Gerenciar treinos</span></div>
         <div class="nav-item disabled" data-page="agendamentos"><span class="nav-icon"><i data-lucide="calendar-days"></i></span><span>Agendamentos</span></div>
         <div class="nav-item disabled" data-page="financeiro"><span class="nav-icon"><i data-lucide="wallet"></i></span><span>Financeiro</span></div>
         <div class="nav-item disabled" data-page="materiais"><span class="nav-icon"><i data-lucide="book-open"></i></span><span>Materiais</span></div>
@@ -1277,6 +1304,16 @@
     <div class="module-page" id="page-relatorio">
       <div class="loading"><div class="spinner"></div>Carregando relatório...</div>
     </div>
+    <!-- GESTÃO — GERENCIAR TREINOS (vencimentos) -->
+    <div class="module-page" id="page-gestao-treinos">
+      <div class="page-header">
+        <h1 class="page-title"><i data-lucide="calendar-clock"></i> Gerenciar <em>treinos</em></h1>
+        <div class="page-sub">Acompanhe a vigência dos treinos e renove antes de vencer</div>
+      </div>
+      <div id="gtResumo" class="gt-resumo"></div>
+      <div id="gtLista"><div class="loading"><div class="spinner"></div>Carregando treinos...</div></div>
+    </div>
+
     <div class="module-page" id="page-ficha">
       <div class="loading"><div class="spinner"></div>Carregando ficha...</div>
     </div>
@@ -1293,6 +1330,7 @@
   import { abrirFichaPaciente } from './js/ficha.js';
   import { initAvaliacoesUI } from './js/avaliacoes-ui.js';
   import { initExerciciosUI } from './js/exercicios-ui.js';
+  import { listarTreinosComVencimento } from './js/treinos.js';
 
   let todosPacientes = [];
   let ultimoCodigoGerado = null;
@@ -1316,6 +1354,9 @@
     }
     if (pagina === 'plano-alimentar') {
       abrirDieta().catch(console.error);
+    }
+    if (pagina === 'gestao-treinos') {
+      abrirGestaoTreinos().catch(console.error);
     }
     try { history.replaceState(null, '', '#' + pagina); } catch (e) {}
   }
@@ -1594,6 +1635,67 @@
 
     const sessao = await obterSessao();
     await abrirFichaPaciente(id, sessao?.user?.id, () => navegar('pacientes'), abaInicial);
+  }
+
+  // ── Gestão: vencimentos dos treinos ──
+  function fmtDataBR(d) {
+    if (!d) return '';
+    const dt = new Date(String(d).length <= 10 ? d + 'T00:00:00' : d);
+    return isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('pt-BR');
+  }
+  function statusVencimento(dataFim) {
+    if (!dataFim) return { chave: 'sem', label: 'Sem vencimento' };
+    const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+    const fim = new Date(dataFim + 'T00:00:00');
+    if (isNaN(fim.getTime())) return { chave: 'sem', label: 'Sem vencimento' };
+    const dias = Math.round((fim - hoje) / 86400000);
+    if (dias < 0) return { chave: 'vencido', label: `Vencido há ${Math.abs(dias)} dia${Math.abs(dias) === 1 ? '' : 's'}` };
+    if (dias === 0) return { chave: 'proximo', label: 'Vence hoje' };
+    if (dias <= 7) return { chave: 'proximo', label: `Vence em ${dias} dia${dias === 1 ? '' : 's'}` };
+    return { chave: 'ok', label: `Ativo até ${fmtDataBR(dataFim)}` };
+  }
+  async function abrirGestaoTreinos() {
+    const lista = document.getElementById('gtLista');
+    const resumo = document.getElementById('gtResumo');
+    if (!lista) return;
+    lista.innerHTML = '<div class="loading"><div class="spinner"></div>Carregando treinos...</div>';
+    if (resumo) resumo.innerHTML = '';
+    try {
+      const treinos = await listarTreinosComVencimento();
+      if (!treinos.length) {
+        lista.innerHTML = '<div class="gt-vazio"><i data-lucide="calendar-x"></i> Nenhum treino ativo prescrito ainda.</div>';
+        return;
+      }
+      const linhas = treinos.map(t => ({ t, s: statusVencimento(t.data_fim) }));
+      const cont = { vencido: 0, proximo: 0, ok: 0, sem: 0 };
+      linhas.forEach(({ s }) => { cont[s.chave]++; });
+      if (resumo) resumo.innerHTML = `
+        <div class="gt-chip gt-chip-vencido"><b>${cont.vencido}</b> vencidos</div>
+        <div class="gt-chip gt-chip-proximo"><b>${cont.proximo}</b> vencendo (até 7 dias)</div>
+        <div class="gt-chip gt-chip-ok"><b>${cont.ok}</b> em dia</div>
+        <div class="gt-chip gt-chip-sem"><b>${cont.sem}</b> sem vencimento</div>`;
+      lista.innerHTML = linhas.map(({ t, s }) => {
+        const nome = t.paciente?.nome || '(sem nome)';
+        const periodo = [
+          t.data_inicio ? 'início ' + fmtDataBR(t.data_inicio) : null,
+          t.data_fim ? 'fim ' + fmtDataBR(t.data_fim) : null,
+        ].filter(Boolean).join(' · ') || 'sem período definido';
+        return `
+          <div class="gt-card gt-${s.chave}">
+            <div class="gt-av">${iniciaisDoNome(nome)}</div>
+            <div class="gt-info">
+              <div class="gt-nome">${nome}</div>
+              <div class="gt-sub">${t.nome || 'Treino'} <span class="gt-per">· ${periodo}</span></div>
+            </div>
+            <span class="gt-badge gt-badge-${s.chave}">${s.label}</span>
+            <button class="patient-action primary" data-gt-abrir="${t.paciente_id}"><i data-lucide="dumbbell"></i> Abrir</button>
+          </div>`;
+      }).join('');
+      lista.querySelectorAll('[data-gt-abrir]').forEach(b =>
+        b.addEventListener('click', () => abrirRelatorio(b.dataset.gtAbrir, 'treinos')));
+    } catch (e) {
+      lista.innerHTML = `<div class="gt-vazio"><i data-lucide="triangle-alert"></i> Erro ao carregar: ${e.message}</div>`;
+    }
   }
 
   // Mantida para compatibilidade: relatório "puro" (não usado na ficha)
