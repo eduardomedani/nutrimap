@@ -283,10 +283,32 @@ function renderTreino() {
 }
 
 // ── TELA A: seleção do dia (A/B/C/D…) + evolução + próximo sugerido ──
+// ── "Treino atualizado" — lembrete in-app (compara com a última abertura) ──
+const _vistoKey = (id) => 'nm_treino_visto_' + id;
+function treinoTemNovidade(t) {
+  if (!t) return false;
+  let visto = null;
+  try { visto = localStorage.getItem(_vistoKey(t.id)); } catch {}
+  if (!visto) return true;                                        // nunca aberto = novo
+  return !!t.atualizado_em && new Date(t.atualizado_em) > new Date(visto);
+}
+function marcarTreinoVisto(t) {
+  if (!t || !t.id) return;
+  try { localStorage.setItem(_vistoKey(t.id), t.atualizado_em || new Date().toISOString()); } catch {}
+}
+
 function renderListaDias() {
   const nome = (_paciente?.nome || 'Aluno').trim().split(' ')[0];
   const proximo = proximoDiaSugerido();
   const treinadoHoje = diaTreinadoHoje();
+  const treinoAtual = _treinos.find(t => t.id === _treinoSel);
+  const lembrete = treinoTemNovidade(treinoAtual)
+    ? `<div class="pa-lembrete" role="status">
+         <i data-lucide="bell-ring"></i>
+         <div class="pa-lembrete-txt"><b>Seu treino foi atualizado</b><span>${treinoAtual?.atualizado_em ? 'em ' + esc(fmtData(treinoAtual.atualizado_em)) + ' ' : ''}pelo seu nutricionista.</span></div>
+         <button class="pa-lembrete-x" data-visto aria-label="Dispensar aviso"><i data-lucide="x"></i></button>
+       </div>`
+    : '';
 
   const seletor = _treinos.length > 1
     ? `<div class="pa-lista-sel"><select id="paTreinoSel" class="pa-select">
@@ -310,6 +332,7 @@ function renderListaDias() {
         <div class="pa-hero-sub">${sub}</div>
       </section>
 
+      ${lembrete}
       ${statsTopo()}
       ${seletor}
       <div class="pa-diacards">${cards}</div>
@@ -317,7 +340,9 @@ function renderListaDias() {
     ${bottomNav()}`;
 
   app().querySelectorAll('[data-abrir]').forEach(b =>
-    b.addEventListener('click', () => { _diaSel = b.dataset.abrir; _view = 'treino'; renderTreino(); }));
+    b.addEventListener('click', () => { marcarTreinoVisto(treinoAtual); _diaSel = b.dataset.abrir; _view = 'treino'; renderTreino(); }));
+  const btnVisto = app().querySelector('[data-visto]');
+  if (btnVisto) btnVisto.addEventListener('click', () => { marcarTreinoVisto(treinoAtual); renderListaDias(); });
   const sel = document.getElementById('paTreinoSel');
   if (sel) sel.addEventListener('change', () => { _treinoSel = sel.value; _diaSel = 'A'; _view = 'lista'; abrirTreino(); });
   ligarShell();

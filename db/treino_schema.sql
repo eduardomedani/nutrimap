@@ -55,6 +55,7 @@ create table if not exists public.treinos (
   data_inicio   date,
   data_fim      date,
   ativo         boolean not null default true,
+  atualizado_em timestamptz not null default now(),
   criado_em     timestamptz not null default now()
 );
 
@@ -65,6 +66,7 @@ alter table public.treinos add column if not exists divisao      text;
 alter table public.treinos add column if not exists data_inicio  date;
 alter table public.treinos add column if not exists data_fim     date;
 alter table public.treinos add column if not exists ativo        boolean not null default true;
+alter table public.treinos add column if not exists atualizado_em timestamptz not null default now();
 alter table public.treinos add column if not exists criado_em    timestamptz not null default now();
 
 create index if not exists idx_treinos_nutri    on public.treinos (nutri_id);
