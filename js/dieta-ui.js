@@ -51,7 +51,8 @@ let _drawerAba  = 'alimentos'; // 'alimentos' | 'favoritos' | 'recentes'
 let _medidasDe  = new Map();   // food_id -> medidas caseiras (cache por plano aberto)
 let _salvando   = 0;           // requisições de escrita em voo (para o indicador)
 let _statusSave = 'ocioso';    // 'ocioso' | 'salvando' | 'salvo' | 'erro'
-let _resumoAberto = false;     // mobile: painel de resumo expandido
+let _resumoAberto = false;     // drawer do resumo aberto (temporário)
+let _resumoPin = (() => { try { return localStorage.getItem('nm_dieta_resumo_pin') === '1'; } catch { return false; } })();  // drawer fixado
 let _atalhosLigados = false;   // o listener global de atalhos é ligado uma vez só
 
 /**
@@ -453,23 +454,24 @@ function renderRefeicoes() {
   const cont = qs('plRefeicoes');
   if (!cont) return;
 
+  const aberto = _resumoAberto || _resumoPin;
   cont.innerHTML = `
-    <div class="di-rx">
+    <div class="di-rx ${_resumoPin ? 'di-rx-pin' : ''}">
       <div class="di-rx-main">
         ${cabecalhoHtml()}
         <div class="di-refeicoes">${refeicoesHtml()}</div>
         ${novaRefeicaoHtml()}
       </div>
-      <aside class="di-rx-aside" aria-label="Resumo do plano">${resumoHtml()}</aside>
     </div>
-    ${resumoBarraHtml()}
+    <div class="di-rs-overlay ${aberto && !_resumoPin ? 'show' : ''}" id="diRsOverlay" ${aberto && !_resumoPin ? '' : 'hidden'}></div>
+    ${drawerResumoHtml(aberto)}
     ${_drawerRef ? drawerHtml() : ''}
   `;
 
   ligarCabecalho(cont);
   ligarRefeicoes(cont);
   ligarNovaRefeicao(cont);
-  ligarResumoBarra(cont);
+  ligarResumoDrawer(cont);
   if (_drawerRef) ligarDrawer(cont);
 }
 
@@ -502,6 +504,7 @@ function cabecalhoHtml() {
       </div>
       <div class="di-hd-acts">
         <span class="di-save" id="diSave" role="status" aria-live="polite">${saveStatusHtml()}</span>
+        ${resumoBtnHtml(tot)}
         <button class="btn" id="diSalvarRasc" title="Salvar mantendo como rascunho (Ctrl+S)">Salvar rascunho</button>
         ${_modo === 'paciente'
           ? `<button class="btn primary" id="diPublicar" title="Salvar e marcar o plano como ativo">Salvar e publicar</button>`
@@ -608,8 +611,6 @@ function resumoHtml() {
 
   return `
     <div class="di-rs">
-      <div class="di-rs-tit">Resumo do plano</div>
-
       <div class="di-rs-kcal">
         <div class="di-rs-kcal-num">
           <strong>${fmtKcal(tot.kcal)}</strong>${pk.temMeta ? ` <span>de ${fmtKcal(p.kcal_meta)} kcal</span>` : ' <span>kcal</span>'}
@@ -666,19 +667,41 @@ function resumoHtml() {
     </div>`;
 }
 
-// Barra compacta no mobile (o aside vira isto abaixo de 1000px).
-function resumoBarraHtml() {
-  const tot = macrosPlano(_refeicoes);
+// Botão do cabeçalho: abre o drawer e mostra a leitura rápida (kcal · % · dot).
+function resumoBtnHtml(tot) {
   const pk = progresso(tot.kcal, _plano?.kcal_meta);
+  const pct = pk.temMeta ? `${pk.pctReal}%` : '';
   return `
-    <div class="di-rs-mob ${_resumoAberto ? 'aberto' : ''}" id="diResumoMob">
-      <button class="di-rs-mob-bar" id="diResumoToggle" aria-expanded="${_resumoAberto}" aria-controls="diResumoMobPainel">
-        <span class="di-rs-mob-kcal"><strong>${fmtKcal(tot.kcal)}</strong>${pk.temMeta ? ` / ${fmtKcal(_plano.kcal_meta)}` : ''} kcal</span>
-        <span class="di-rs-mob-macros">P ${fmtG(tot.prot)} · C ${fmtG(tot.carb)} · G ${fmtG(tot.gord)}</span>
-        <i data-lucide="${_resumoAberto ? 'chevron-down' : 'chevron-up'}"></i>
-      </button>
-      <div class="di-rs-mob-painel" id="diResumoMobPainel" ${_resumoAberto ? '' : 'hidden'}>${resumoHtml()}</div>
-    </div>`;
+    <button class="btn di-resumo-btn" id="diResumoBtn" aria-haspopup="dialog"
+      aria-expanded="${_resumoAberto || _resumoPin}" title="Visualizar metas e distribuição nutricional">
+      <i data-lucide="panel-right"></i>
+      <span class="di-resumo-btn-txt">Resumo <b>${fmtKcal(tot.kcal)} kcal</b>${pct ? ` · ${pct}` : ''}</span>
+      ${pk.temMeta ? `<span class="di-resumo-dot di-dot-${pk.status}"></span>` : ''}
+    </button>`;
+}
+
+// Drawer lateral do resumo (head + corpo reaproveitando resumoHtml).
+function drawerResumoHtml(aberto) {
+  const p = _plano || {};
+  const quem = _modo === 'modelo'
+    ? 'Modelo reutilizável'
+    : esc(_paciente?.nome || _paciente?.codigo || 'Cliente');
+  const sub = `${quem} · Plano ${p.kcal_meta ? fmtKcal(p.kcal_meta) + ' kcal' : (esc(p.nome || ''))}`;
+  return `
+    <aside class="di-rs-drawer ${aberto ? 'aberto' : ''} ${_resumoPin ? 'pin' : ''}" id="diRsDrawer"
+      role="dialog" aria-modal="${_resumoPin ? 'false' : 'true'}" aria-label="Resumo do plano" ${aberto ? '' : 'hidden'}>
+      <div class="di-rs-drawer-head">
+        <div class="di-rs-drawer-id">
+          <div class="di-rs-drawer-tit">Resumo do plano</div>
+          <div class="di-rs-drawer-sub">${sub}</div>
+        </div>
+        <div class="di-rs-drawer-acts">
+          <button class="di-icon-btn ${_resumoPin ? 'on' : ''}" id="diRsPin" title="${_resumoPin ? 'Desafixar painel' : 'Fixar painel'}" aria-pressed="${_resumoPin}"><i data-lucide="pin"></i></button>
+          <button class="di-icon-btn" id="diRsClose" title="Fechar" aria-label="Fechar resumo"><i data-lucide="x"></i></button>
+        </div>
+      </div>
+      <div class="di-rs-drawer-body">${resumoHtml()}</div>
+    </aside>`;
 }
 
 // ───────────────────────────────────────────────────────────
@@ -988,11 +1011,41 @@ function ligarCabecalho(cont) {
   }));
 }
 
-function ligarResumoBarra(cont) {
-  cont.querySelector('#diResumoToggle')?.addEventListener('click', () => {
-    _resumoAberto = !_resumoAberto;
-    renderRefeicoes();
+// Abre/fecha o drawer do resumo sem re-render (anima e preserva a prescrição).
+function abrirResumoDrawer(abrir) {
+  if (_resumoPin) return;   // fixado: sempre visível
+  _resumoAberto = abrir != null ? abrir : !_resumoAberto;
+  const dr = qs('diRsDrawer'), ov = qs('diRsOverlay'), bt = qs('diResumoBtn');
+  if (_resumoAberto) {
+    if (dr) { dr.hidden = false; void dr.offsetWidth; dr.classList.add('aberto'); }
+    if (ov) { ov.hidden = false; void ov.offsetWidth; ov.classList.add('show'); }
+    qs('diRsClose')?.focus();
+  } else {
+    dr?.classList.remove('aberto');
+    ov?.classList.remove('show');
+    setTimeout(() => { if (!_resumoAberto) { if (dr) dr.hidden = true; if (ov) ov.hidden = true; } }, 260);
+    bt?.focus();
+  }
+  bt?.setAttribute('aria-expanded', String(_resumoAberto));
+}
+
+function toggleResumoPin() {
+  _resumoPin = !_resumoPin;
+  _resumoAberto = false;
+  try { localStorage.setItem('nm_dieta_resumo_pin', _resumoPin ? '1' : '0'); } catch {}
+  renderRefeicoes();   // re-render p/ ajustar o layout (main reserva/solta espaço)
+}
+
+function ligarResumoDrawer(cont) {
+  cont.querySelector('#diResumoBtn')?.addEventListener('click', () => {
+    if (_resumoPin) { toggleResumoPin(); return; }   // fixado → clique no botão desafixa
+    abrirResumoDrawer();
   });
+  cont.querySelector('#diRsClose')?.addEventListener('click', () => {
+    if (_resumoPin) toggleResumoPin(); else abrirResumoDrawer(false);
+  });
+  cont.querySelector('#diRsOverlay')?.addEventListener('click', () => abrirResumoDrawer(false));
+  cont.querySelector('#diRsPin')?.addEventListener('click', toggleResumoPin);
 }
 
 function ligarNovaRefeicao(cont) {
@@ -1546,6 +1599,8 @@ function ligarAtalhos() {
   document.addEventListener('keydown', (e) => {
     // Só quando o editor de plano está montado e visível.
     if (!_plano || !_mountEl?.isConnected || !_mountEl.querySelector('.di-rx')) return;
+    // ESC fecha o drawer do resumo (quando aberto e não fixado).
+    if (e.key === 'Escape' && _resumoAberto && !_resumoPin) { e.preventDefault(); abrirResumoDrawer(false); return; }
     const cmd = e.ctrlKey || e.metaKey;
     if (!cmd) return;
 
