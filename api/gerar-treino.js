@@ -1,62 +1,16 @@
 // ═══════════════════════════════════════════════════════════
 // /api/gerar-treino.js — Vercel Serverless Function
-// Recebe critérios (músculos-alvo + prioridade, dias/semana, objetivo,
-// nível, tempo, observações) + a biblioteca de exercícios do nutri, e pede
-// à Anthropic que monte um treino inteligente escolhendo APENAS exercícios
-// dessa biblioteca. Devolve a estrutura + um relatório. A chave nunca vai
-// para o navegador (ANTHROPIC_API_KEY na Vercel).
+// Gera/evolui/ajusta um treino via Anthropic, escolhendo APENAS exercícios
+// da biblioteca do nutri. 3 modos:
+//   criar   — do zero a partir de músculos-alvo + dias
+//   evoluir — progride o treino atual usando as cargas registradas pelo aluno
+//   ajustar — aplica um ajuste pontual descrito em texto, mexendo o mínimo
+// A chave nunca vai para o navegador (ANTHROPIC_API_KEY na Vercel).
 // ═══════════════════════════════════════════════════════════
 
 const METODOS_PERMITIDOS = ['Normal', 'Drop-set', 'Rest-pause', 'Piramidal', 'Isometria', 'Cluster', 'FST-7'];
 
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Método não permitido' });
-  }
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: 'ANTHROPIC_API_KEY não configurada na Vercel' });
-  }
-
-  try {
-    const { criterios, exercicios } = req.body || {};
-    if (!criterios || !Array.isArray(exercicios) || !exercicios.length) {
-      return res.status(400).json({ error: 'Envie os critérios e a biblioteca de exercícios (não vazia).' });
-    }
-
-    const musculos = (criterios.musculos || [])
-      .map(m => `- ${m.grupo}: prioridade ${m.prioridade}`).join('\n') || '- (nenhum priorizado)';
-    const dias = Math.max(2, Math.min(7, Number(criterios.dias) || 3));
-
-    // Biblioteca compacta: só o que a IA precisa para escolher (id + nome + grupo).
-    const bib = exercicios.slice(0, 300)
-      .map(e => `${e.id} | ${e.nome}${e.grupo ? ` | ${e.grupo}` : ''}`).join('\n');
-
-    const prompt = `Você é um treinador especialista em musculação (hipertrofia, força, emagrecimento e periodização). Crie um treino INTELIGENTE, equilibrado e individualizado — nada de divisão fixa ou exercícios aleatórios.
-
-REGRA MAIS IMPORTANTE: não comece escolhendo uma divisão pronta (ABC, Upper/Lower, PPL). Comece pelos DOIS critérios e deixe a estrutura nascer deles:
-1) Quais músculos são prioridade (recebem mais frequência, volume e vêm primeiro na ordem).
-2) Quantos dias por semana o aluno treina.
-
-CRITÉRIOS DESTE ALUNO
-Músculos-alvo e prioridade:
-${musculos}
-Dias por semana: ${dias}
-Objetivo: ${criterios.objetivo || 'hipertrofia'}
-Nível: ${criterios.nivel || 'intermediário'}
-Tempo por sessão: ${criterios.tempoMin ? criterios.tempoMin + ' min' : 'sem limite rígido'}
-Observações (equipamentos/lesões/preferências): ${criterios.obs || 'nenhuma'}
-
-COMO PENSAR (nesta ordem): identifique prioridades → distribua os grupos pelos ${dias} dias respeitando recuperação (48h para o mesmo grupo) → calcule o volume semanal (mais séries para prioritários, manutenção para secundários, sem concentrar tudo num dia) → só então escolha os exercícios. Ordem dentro do dia: compostos/multiarticulares primeiro, isoladores depois. Equilibre agonista/antagonista e superiores/inferiores. Respeite o tempo.
-
-EXERCÍCIOS DISPONÍVEIS (escolha SOMENTE destes — use o id exato). Formato "id | nome | grupo":
-${bib}
-
-Se faltar exercício para um grupo prioritário, use o mais próximo disponível e comente na justificativa.
-
-Métodos permitidos por exercício (campo "metodo"): ${METODOS_PERMITIDOS.join(', ')}. Use técnicas avançadas só quando fizer sentido (e explique). NÃO use bi-set/tri-set/super-set.
-
-RESPONDA APENAS com um JSON válido (sem markdown, sem texto antes/depois) neste formato exato:
+const FORMATO = `RESPONDA APENAS com um JSON válido (sem markdown, sem texto antes/depois) neste formato exato:
 {
   "nome": "nome curto e descritivo do treino",
   "objetivo": "string",
@@ -72,25 +26,93 @@ RESPONDA APENAS com um JSON válido (sem markdown, sem texto antes/depois) neste
   "relatorio": {
     "estrutura": "nº de treinos, distribuição semanal e o que cada dia trabalha",
     "volume": "séries semanais por grupo e por que cada um recebeu esse volume",
-    "justificativa": "por que essa divisão, por que cada músculo nessa frequência, como a recuperação foi considerada",
+    "justificativa": "por que essa divisão/ajuste; como a recuperação foi considerada",
     "tempo_estimado": "estimativa de duração por sessão"
   }
 }
 
-Regras do JSON: use "dia" A, B, C... na ordem; ${dias} dias no total; "series" inteiro; "repeticoes" texto (faixa); "exercicio_id" SEMPRE um id da lista acima; "metodo" um dos permitidos.`;
+Regras do JSON: use "dia" A, B, C... na ordem; "series" inteiro; "repeticoes" texto (faixa); "exercicio_id" SEMPRE um id da lista de exercícios disponíveis; "metodo" um de ${METODOS_PERMITIDOS.join(', ')} (NÃO use bi-set/tri-set/super-set).`;
+
+const PAPEL = `Você é um treinador especialista em musculação (hipertrofia, força, emagrecimento e periodização). Monte treinos inteligentes, equilibrados e individualizados — nada de divisão fixa ou exercícios aleatórios. Ordem dentro do dia: compostos/multiarticulares primeiro, isoladores depois. Equilibre agonista/antagonista e superiores/inferiores. Respeite o tempo. Use técnicas avançadas só quando fizer sentido (e explique na justificativa).`;
+
+function contextoCriar(c, dias) {
+  const musculos = (c.musculos || []).map(m => `- ${m.grupo}: prioridade ${m.prioridade}`).join('\n') || '- (nenhum priorizado)';
+  return `MODO: CRIAR DO ZERO.
+REGRA MAIS IMPORTANTE: não comece por uma divisão pronta (ABC, Upper/Lower, PPL). Comece pelos DOIS critérios e deixe a estrutura nascer deles:
+1) Músculos prioritários (mais frequência, volume e ordem):
+${musculos}
+2) Dias por semana: ${dias}
+
+Distribua os grupos pelos ${dias} dias respeitando recuperação (48h para o mesmo grupo), calcule o volume semanal (mais séries para prioritários, manutenção para secundários, sem concentrar num dia) e só então escolha os exercícios.`;
+}
+
+function contextoEvoluir(treino, progressao) {
+  return `MODO: EVOLUIR O TREINO ATUAL.
+Progrida o treino abaixo aplicando periodização: aumente carga/volume onde o aluno avançou, ajuste o que estagnou, e varie 20–40% dos exercícios para novo estímulo — mantendo a estrutura e os dias que funcionam. Mantenha o mesmo número de dias.
+
+TREINO ATUAL:
+${treino}
+
+CARGAS REGISTRADAS PELO ALUNO (use para decidir a progressão):
+${progressao || 'Sem registros.'}`;
+}
+
+function contextoAjustar(treino, instrucao) {
+  return `MODO: AJUSTAR O TREINO ATUAL.
+Faça APENAS o ajuste pedido, mexendo o mínimo possível e mantendo o restante do treino igual (mesmos dias, mesma estrutura). Não recrie o treino.
+
+AJUSTE SOLICITADO: ${instrucao}
+
+TREINO ATUAL:
+${treino}`;
+}
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY não configurada na Vercel' });
+
+  try {
+    const { modo = 'criar', criterios = {}, exercicios, treinoAtualTexto, progressaoTexto, instrucao } = req.body || {};
+    if (!Array.isArray(exercicios) || !exercicios.length) {
+      return res.status(400).json({ error: 'Envie a biblioteca de exercícios (não vazia).' });
+    }
+    if ((modo === 'evoluir' || modo === 'ajustar') && !treinoAtualTexto) {
+      return res.status(400).json({ error: 'Treino base ausente.' });
+    }
+    if (modo === 'ajustar' && !instrucao) {
+      return res.status(400).json({ error: 'Descreva o ajuste desejado.' });
+    }
+
+    const dias = Math.max(2, Math.min(7, Number(criterios.dias) || 3));
+    let contexto;
+    if (modo === 'evoluir') contexto = contextoEvoluir(treinoAtualTexto, progressaoTexto);
+    else if (modo === 'ajustar') contexto = contextoAjustar(treinoAtualTexto, instrucao);
+    else contexto = contextoCriar(criterios, dias);
+
+    const bib = exercicios.slice(0, 200).map(e => `${e.id} | ${e.nome}${e.grupo ? ` | ${e.grupo}` : ''}`).join('\n');
+
+    const prompt = `${PAPEL}
+
+${contexto}
+
+CONTEXTO DO ALUNO
+Objetivo: ${criterios.objetivo || 'hipertrofia'}
+Nível: ${criterios.nivel || 'intermediário'}
+Tempo por sessão: ${criterios.tempoMin ? criterios.tempoMin + ' min' : 'sem limite rígido'}
+Observações (equipamentos/lesões/preferências): ${criterios.obs || 'nenhuma'}
+
+EXERCÍCIOS DISPONÍVEIS (escolha SOMENTE destes — use o id exato). Formato "id | nome | grupo":
+${bib}
+
+Se faltar exercício para um grupo, use o mais próximo disponível e comente na justificativa.
+
+${FORMATO}`;
 
     const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 8000,
-        messages: [{ role: 'user', content: prompt }],
-      }),
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 8000, messages: [{ role: 'user', content: prompt }] }),
     });
 
     if (!aiResp.ok) {
@@ -99,11 +121,8 @@ Regras do JSON: use "dia" A, B, C... na ordem; ${dias} dias no total; "series" i
     }
 
     const data = await aiResp.json();
-    const textoIa = (data.content || [])
-      .filter(b => b.type === 'text').map(b => b.text).join('')
+    const textoIa = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('')
       .replace(/```json|```/g, '').trim();
-
-    // Extrai o bloco JSON (do primeiro "{" ao último "}") — ignora texto ao redor.
     const ini = textoIa.indexOf('{');
     const fim = textoIa.lastIndexOf('}');
     const jsonStr = (ini >= 0 && fim > ini) ? textoIa.slice(ini, fim + 1) : textoIa;
@@ -121,12 +140,10 @@ Regras do JSON: use "dia" A, B, C... na ordem; ${dias} dias no total; "series" i
       });
     }
 
-    // Sanitiza: mantém só exercícios cujo id existe na biblioteca enviada.
     const idsValidos = new Set(exercicios.map(e => e.id));
     (plano.dias || []).forEach(d => {
       d.exercicios = (d.exercicios || []).filter(ex => idsValidos.has(ex.exercicio_id)).map(ex => ({
-        ...ex,
-        metodo: METODOS_PERMITIDOS.includes(ex.metodo) ? ex.metodo : 'Normal',
+        ...ex, metodo: METODOS_PERMITIDOS.includes(ex.metodo) ? ex.metodo : 'Normal',
       }));
     });
     plano.dias = (plano.dias || []).filter(d => d.exercicios.length);
@@ -134,7 +151,6 @@ Regras do JSON: use "dia" A, B, C... na ordem; ${dias} dias no total; "series" i
     if (!plano.dias.length) {
       return res.status(502).json({ error: 'A IA não conseguiu montar o treino com a sua biblioteca. Cadastre mais exercícios e tente de novo.' });
     }
-
     return res.status(200).json(plano);
   } catch (e) {
     return res.status(500).json({ error: 'Erro interno: ' + e.message });

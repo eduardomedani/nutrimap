@@ -321,25 +321,57 @@ async function aplicarModelo(modeloId) {
 // ═══════════════════════════════════════════════════════════
 // GERADOR DE TREINO POR IA (músculos-alvo + frequência semanal)
 // ═══════════════════════════════════════════════════════════
-function renderGeradorIA() {
+async function renderGeradorIA() {
+  let treinos = [];
+  try { treinos = await listarTreinosDoPaciente(_paciente.id); } catch {}
+  const base = treinos.filter(t => t.paciente_id);   // treinos prescritos ao aluno
+  const temBase = base.length > 0;
+
   const chips = GRUPOS_MUSC.map(g => `
     <button type="button" class="ia-musc" data-musc="${esc(g)}" data-prio="">
       <span class="ia-musc-nome">${esc(g)}</span><span class="ia-musc-prio"></span>
     </button>`).join('');
+  const optBase = base.map(t => `<option value="${t.id}">${esc(t.nome || 'Treino')}</option>`).join('');
 
   _mountEl.innerHTML = `
     <span class="ficha-voltar" id="iaVoltar"><i data-lucide="arrow-left"></i> Voltar para os treinos</span>
     <div class="av-form-card">
       <div class="av-form-title"><i data-lucide="sparkles"></i> Gerar treino com <em>IA</em></div>
-      <p class="ia-hint">Escolha os <b>músculos prioritários</b> (clique para alternar Alta → Média → Baixa) e os dias por semana. A IA monta a divisão, o volume e escolhe os exercícios da sua biblioteca.</p>
-      <label class="ia-label">Músculos-alvo e prioridade</label>
-      <div class="ia-muscs">${chips}</div>
-      <div class="tr-form-linha" style="margin-top:16px;">
-        <div class="av-field"><label>Dias por semana</label><select id="iaDias" class="np-input">${[2, 3, 4, 5, 6, 7].map(n => `<option value="${n}" ${n === 4 ? 'selected' : ''}>${n} dias</option>`).join('')}</select></div>
+
+      <div class="ia-modos">
+        <button type="button" class="ia-modo active" data-ia-modo="criar"><i data-lucide="plus"></i> Criar do zero</button>
+        <button type="button" class="ia-modo" data-ia-modo="evoluir" ${temBase ? '' : 'disabled'}><i data-lucide="trending-up"></i> Evoluir treino atual</button>
+        <button type="button" class="ia-modo" data-ia-modo="ajustar" ${temBase ? '' : 'disabled'}><i data-lucide="wrench"></i> Ajustar treino atual</button>
+      </div>
+
+      <div data-ia-bloco="criar">
+        <p class="ia-hint">Escolha os <b>músculos prioritários</b> (clique para alternar Alta → Média → Baixa) e os dias por semana. A IA monta a divisão, o volume e escolhe os exercícios da sua biblioteca.</p>
+        <label class="ia-label">Músculos-alvo e prioridade</label>
+        <div class="ia-muscs">${chips}</div>
+      </div>
+
+      <div data-ia-bloco="base" hidden>
+        <div class="av-field"><label>Treino a usar como base</label>
+          <select id="iaTreinoBase" class="np-input">${optBase}</select></div>
+      </div>
+
+      <div data-ia-bloco="evoluir" hidden>
+        <p class="ia-hint">A IA aplica <b>progressão</b> sobre o treino atual usando as cargas que o aluno registrou — aumenta onde ele avançou, varia exercícios e periodiza. Um treino novo é gerado (o atual não é apagado).</p>
+      </div>
+
+      <div data-ia-bloco="ajustar" hidden>
+        <div class="av-field"><label>O que ajustar</label>
+          <input type="text" id="iaInstrucao" class="np-input" placeholder="Ex.: trocar leg press por agachamento; aluno com dor no ombro; reduzir volume de ombro">
+          <span class="ia-hint" style="margin:6px 0 0;">Descreva o ajuste. A IA mexe o mínimo e mantém o resto do treino.</span></div>
+      </div>
+
+      <div class="tr-form-linha" data-ia-bloco="params" style="margin-top:16px;">
+        <div class="av-field" data-ia-so="criar"><label>Dias por semana</label><select id="iaDias" class="np-input">${[2, 3, 4, 5, 6, 7].map(n => `<option value="${n}" ${n === 4 ? 'selected' : ''}>${n} dias</option>`).join('')}</select></div>
         <div class="av-field"><label>Objetivo</label><select id="iaObj" class="np-input">${OBJETIVOS.map(o => `<option>${o}</option>`).join('')}</select></div>
         <div class="av-field"><label>Nível</label><select id="iaNivel" class="np-input">${NIVEIS.map((o, i) => `<option ${i === 1 ? 'selected' : ''}>${o}</option>`).join('')}</select></div>
         <div class="av-field"><label>Tempo/sessão (min)</label><input type="number" id="iaTempo" class="np-input" placeholder="ex.: 60"></div>
       </div>
+
       <div class="av-field" style="margin-top:12px;">
         <label>Observações (equipamentos, lesões, preferências)</label>
         <input type="text" id="iaObs" class="np-input" placeholder="Ex.: sem barra livre; dor no ombro direito; foco em glúteo">
@@ -358,37 +390,124 @@ function renderGeradorIA() {
     b.className = 'ia-musc' + (next ? ' ' + PRIO[next].cls : '');
     b.querySelector('.ia-musc-prio').textContent = next ? PRIO[next].label : '';
   }));
+  _mountEl.querySelectorAll('.ia-modo').forEach(b =>
+    b.addEventListener('click', () => { if (!b.disabled) aplicarModoIA(b.dataset.iaModo); }));
+  aplicarModoIA('criar');
+}
+
+// Mostra/esconde os blocos do formulário conforme o modo escolhido.
+function aplicarModoIA(modo) {
+  _mountEl.querySelectorAll('.ia-modo').forEach(b => b.classList.toggle('active', b.dataset.iaModo === modo));
+  const vis = {
+    criar:   { criar: 1, base: 0, evoluir: 0, ajustar: 0, params: 1 },
+    evoluir: { criar: 0, base: 1, evoluir: 1, ajustar: 0, params: 1 },
+    ajustar: { criar: 0, base: 1, evoluir: 0, ajustar: 1, params: 0 },
+  }[modo] || {};
+  _mountEl.querySelectorAll('[data-ia-bloco]').forEach(el => { el.hidden = !vis[el.dataset.iaBloco]; });
+  _mountEl.querySelectorAll('[data-ia-so]').forEach(el => { el.style.display = el.dataset.iaSo === modo ? '' : 'none'; });
+  _mountEl.dataset.iaModo = modo;
+}
+
+// Reduz a biblioteca enviada à IA: cobre todos os grupos com um teto,
+// dando mais espaço aos grupos-alvo. Corta bastante o custo da entrada.
+function bibliotecaCompacta(todos, gruposAlvo) {
+  const alvo = new Set((gruposAlvo || []).map(g => String(g).toLowerCase()));
+  const porGrupo = {};
+  todos.forEach(e => { (porGrupo[e.grupo_muscular || 'outros'] ||= []).push(e); });
+  const out = [];
+  for (const [g, exs] of Object.entries(porGrupo)) {
+    const teto = alvo.has(g.toLowerCase()) ? 25 : 10;
+    exs.slice(0, teto).forEach(e => out.push({ id: e.id, nome: e.nome, grupo: e.grupo_muscular || '' }));
+  }
+  return out.slice(0, 180);
+}
+
+// Texto compacto do treino atual (por dia) para a IA evoluir/ajustar.
+function montarTextoTreino(itens) {
+  const porDia = {};
+  itens.filter(it => it.grupo_pos !== 'B')
+    .sort((a, b) => String(a.dia).localeCompare(String(b.dia)) || (a.ordem ?? 0) - (b.ordem ?? 0))
+    .forEach(it => { (porDia[it.dia] ||= []).push(it); });
+  return Object.keys(porDia).sort().map(dia => {
+    const linhas = porDia[dia].map(it => {
+      const nome = it.exercicio?.nome || '(exercício)';
+      const spec = [it.series ? `${it.series}x` : '', it.repeticoes || '', it.carga || '', it.metodo && it.metodo !== 'Normal' ? it.metodo : '']
+        .filter(Boolean).join(' ');
+      return `  - ${nome}${spec ? ` (${spec})` : ''}`;
+    }).join('\n');
+    return `Dia ${dia}:\n${linhas}`;
+  }).join('\n');
+}
+
+// Resumo das últimas cargas registradas pelo aluno, por exercício.
+async function montarTextoProgressao(itens) {
+  const principais = itens.filter(it => it.grupo_pos !== 'B');
+  const regs = await Promise.all(principais.map(it => listarProgressao(it.id).catch(() => [])));
+  const linhas = [];
+  principais.forEach((it, i) => {
+    const ult = (regs[i] || [])[0];
+    if (!ult) return;
+    const arr = ult.series_realizadas || [];
+    let txt;
+    if (arr.length) txt = arr.map(s => `${s.peso ?? '–'}x${s.reps ?? '–'}`).join(', ');
+    else if (ult.carga_realizada != null) txt = `${ult.carga_realizada}kg x ${ult.reps_realizadas ?? '–'}`;
+    else return;
+    linhas.push(`  - ${it.exercicio?.nome || '(exercício)'}: última sessão ${txt} (${(regs[i] || []).length} registros)`);
+  });
+  return linhas.length ? linhas.join('\n') : 'O aluno ainda não registrou cargas.';
 }
 
 async function gerarTreinoIA() {
-  const musculos = [...document.querySelectorAll('.ia-musc')]
-    .filter(b => b.dataset.prio)
-    .map(b => ({ grupo: b.dataset.musc, prioridade: b.dataset.prio }));
-  if (!musculos.length) { mostrarToast('Escolha ao menos um músculo prioritário.'); return; }
-
-  const criterios = {
-    musculos,
-    dias: Number(document.getElementById('iaDias').value),
-    objetivo: document.getElementById('iaObj').value,
-    nivel: document.getElementById('iaNivel').value,
-    tempoMin: Number(document.getElementById('iaTempo').value) || null,
-    obs: (document.getElementById('iaObs').value || '').trim(),
-  };
-
+  const modo = _mountEl.dataset.iaModo || 'criar';
   const res = document.getElementById('iaResultado');
   const btn = document.getElementById('iaGerar');
+
+  const criterios = {
+    objetivo: document.getElementById('iaObj')?.value,
+    nivel: document.getElementById('iaNivel')?.value,
+    tempoMin: Number(document.getElementById('iaTempo')?.value) || null,
+    obs: (document.getElementById('iaObs')?.value || '').trim(),
+  };
+  const payload = { modo, criterios };
+  let gruposAlvo = [];
+
+  try {
+    if (modo === 'criar') {
+      const musculos = [...document.querySelectorAll('.ia-musc')]
+        .filter(b => b.dataset.prio).map(b => ({ grupo: b.dataset.musc, prioridade: b.dataset.prio }));
+      if (!musculos.length) { mostrarToast('Escolha ao menos um músculo prioritário.'); return; }
+      criterios.musculos = musculos;
+      criterios.dias = Number(document.getElementById('iaDias').value);
+      gruposAlvo = musculos.map(m => m.grupo);
+    } else {
+      const treinoId = document.getElementById('iaTreinoBase')?.value;
+      if (!treinoId) { mostrarToast('Selecione o treino base.'); return; }
+      if (modo === 'ajustar') {
+        const instr = (document.getElementById('iaInstrucao')?.value || '').trim();
+        if (!instr) { mostrarToast('Descreva o ajuste desejado.'); return; }
+        payload.instrucao = instr;
+      }
+      const itens = await listarItensDoTreino(treinoId);
+      if (!itens.length) { mostrarToast('O treino base está sem exercícios.'); return; }
+      gruposAlvo = [...new Set(itens.map(it => it.exercicio?.grupo_muscular).filter(Boolean))];
+      payload.treinoAtualTexto = montarTextoTreino(itens);
+      if (modo === 'evoluir') payload.progressaoTexto = await montarTextoProgressao(itens);
+    }
+  } catch (e) { mostrarToast('Erro ao preparar: ' + e.message); return; }
+
   btn.disabled = true;
   res.innerHTML = `<div class="loading" style="padding:24px;"><div class="spinner"></div>A IA está montando o treino... (pode levar alguns segundos)</div>`;
   try {
-    const bib = (await listarExercicios({ termo: '', limite: 300 }))
-      .map(e => ({ id: e.id, nome: e.nome, grupo: e.grupo_muscular || '' }));
-    if (!bib.length) {
+    const todos = await listarExercicios({ termo: '', limite: 500 });
+    if (!todos.length) {
       res.innerHTML = `<div class="ia-erro"><i data-lucide="triangle-alert"></i> Sua biblioteca de exercícios está vazia. Cadastre exercícios em <b>Exercícios</b> antes de gerar.</div>`;
       return;
     }
+    const bib = bibliotecaCompacta(todos, gruposAlvo);
+    payload.exercicios = bib;
     const resp = await fetch('/api/gerar-treino', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ criterios, exercicios: bib }),
+      body: JSON.stringify(payload),
     });
     const ct = resp.headers.get('content-type') || '';
     if (!ct.includes('application/json')) {
