@@ -4,13 +4,14 @@
 // Cache-first para o "app shell" (mesma origem, GET). Requisições ao Supabase
 // (outra origem) e não-GET passam direto pela rede — nunca são cacheadas.
 
-const CACHE = 'nutrimap-aluno-v2';
+const CACHE = 'nutrimap-aluno-v3';
 const SHELL = [
   '/app.html',
   '/manifest.webmanifest',
   '/icons/icon.svg',
   '/js/paciente-ui.js',
   '/js/paciente-data.js',
+  '/js/push.js',
   '/js/supabase.js',
   '/js/utils.js',
 ];
@@ -49,5 +50,38 @@ self.addEventListener('fetch', (event) => {
       })
       .catch(() => caches.match(req).then((cached) =>
         cached || (req.mode === 'navigate' ? caches.match('/app.html') : undefined)))
+  );
+});
+
+// ── Notificações push ──────────────────────────────────────
+// A Edge Function envia um JSON { title, body, url, tag }. Mostramos a
+// notificação; o clique foca uma aba aberta do app ou abre uma nova.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; }
+  catch { data = { body: event.data ? event.data.text() : '' }; }
+
+  const title = data.title || 'NutriMap';
+  const options = {
+    body: data.body || 'Seu treino foi atualizado.',
+    icon: '/icons/icon.svg',
+    badge: '/icons/icon.svg',
+    tag: data.tag || 'treino-atualizado',
+    renotify: true,
+    data: { url: data.url || '/app.html' },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/app.html';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if (c.url.includes('/app.html') && 'focus' in c) return c.focus();
+      }
+      return self.clients.openWindow(url);
+    })
   );
 });

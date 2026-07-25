@@ -14,6 +14,7 @@ import {
   traduzirErro,
 } from './paciente-data.js';
 import { mostrarToast, mostrarErro, confirmar } from './utils.js';
+import { pushSuportado, pushAtivo, ativarNotificacoes, desativarNotificacoes, traduzirPush } from './push.js';
 
 // ── Estado ──
 let _paciente = null;
@@ -79,6 +80,7 @@ const app = () => document.getElementById('app');
 // BOOT
 // ═══════════════════════════════════════════════════════════
 export async function iniciarApp() {
+  ligarBotaoNotificacoes();
   renderCarregando('Abrindo...');
   try {
     const sessao = await sessaoAtual();
@@ -488,6 +490,33 @@ function bottomNav() {
 }
 
 // Liga o logout do topo + a troca de seção da barra inferior.
+// Liga o botão de sino (notificações push) uma única vez, via delegação —
+// o botão é recriado a cada render, mas o listener no document persiste.
+let _pushLigado = false;
+function ligarBotaoNotificacoes() {
+  if (_pushLigado) return;
+  _pushLigado = true;
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest?.('[data-push-toggle]');
+    if (!btn) return;
+    btn.disabled = true;
+    try {
+      if (pushAtivo()) {
+        await desativarNotificacoes();
+        mostrarToast('Notificações desativadas');
+      } else {
+        await ativarNotificacoes();
+        mostrarToast('🔔 Notificações ativadas');
+      }
+    } catch (err) {
+      mostrarToast(traduzirPush(err?.message));
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `<i data-lucide="${pushAtivo() ? 'bell-ring' : 'bell'}"></i>`;   // atualiza o ícone
+    }
+  });
+}
+
 function ligarShell() {
   document.getElementById('paLogout')?.addEventListener('click', logout);
   app().querySelectorAll('.pa-nav-item').forEach(b =>
@@ -1253,6 +1282,7 @@ function topo() {
       <div class="pa-topuser">
         <span class="pa-avatar">${esc(inicial)}</span>
         <span class="pa-username">${esc(nome.split(' ')[0])}</span>
+        ${pushSuportado() ? `<button class="pa-logout" data-push-toggle title="Notificações" aria-label="Ativar ou desativar notificações"><i data-lucide="${pushAtivo() ? 'bell-ring' : 'bell'}"></i></button>` : ''}
         <button class="pa-logout" id="paLogout" title="Sair"><i data-lucide="log-out"></i></button>
       </div>
     </header>`;
