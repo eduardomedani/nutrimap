@@ -359,11 +359,11 @@ function renderEditor() {
           <label>Data de término</label>
           <input type="date" id="trDataFim" value="${t?.data_fim || ''}" class="np-input">
         </div>
-        <div class="av-field">
+        <div class="av-field tr-field-num">
           <label>Nº de treinos</label>
           <input type="number" min="1" id="trNumTreinos" class="np-input" placeholder="ex.: 36">
         </div>` : ''}
-        <div class="av-field">
+        <div class="av-field tr-field-div">
           <label>Divisão (nº de dias)</label>
           <select id="trDivisao" class="np-input">${opcoesDiv.join('')}</select>
         </div>
