@@ -88,7 +88,7 @@ Regras do JSON: use "dia" A, B, C... na ordem; ${dias} dias no total; "series" i
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 4096,
+        max_tokens: 8000,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
@@ -103,9 +103,23 @@ Regras do JSON: use "dia" A, B, C... na ordem; ${dias} dias no total; "series" i
       .filter(b => b.type === 'text').map(b => b.text).join('')
       .replace(/```json|```/g, '').trim();
 
+    // Extrai o bloco JSON (do primeiro "{" ao último "}") — ignora texto ao redor.
+    const ini = textoIa.indexOf('{');
+    const fim = textoIa.lastIndexOf('}');
+    const jsonStr = (ini >= 0 && fim > ini) ? textoIa.slice(ini, fim + 1) : textoIa;
+
     let plano;
-    try { plano = JSON.parse(textoIa); }
-    catch { return res.status(502).json({ error: 'IA retornou formato inesperado', bruto: textoIa.slice(0, 500) }); }
+    try {
+      plano = JSON.parse(jsonStr);
+    } catch {
+      const truncado = data.stop_reason === 'max_tokens';
+      return res.status(502).json({
+        error: truncado
+          ? 'A resposta da IA ficou muito longa e foi cortada. Tente com menos dias/músculos ou gere de novo.'
+          : 'IA retornou formato inesperado. Tente gerar de novo.',
+        bruto: textoIa.slice(0, 400),
+      });
+    }
 
     // Sanitiza: mantém só exercícios cujo id existe na biblioteca enviada.
     const idsValidos = new Set(exercicios.map(e => e.id));
