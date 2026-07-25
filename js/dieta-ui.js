@@ -291,7 +291,7 @@ function renderEditor() {
     <span class="ficha-voltar" id="plVoltar"><i data-lucide="arrow-left"></i> Voltar para os planos</span>
 
     <div class="av-form-card">
-      <div class="av-form-title">${t ? 'Editar' : 'Novo'} ${termo}${t ? ` — <em>${esc(t.nome || '')}</em>` : ''}</div>
+      <div class="av-form-title">${t ? `Editar: <em>${esc(t.nome || '')}</em>` : `Novo ${termo}`}</div>
       <div class="av-grid">
         <div class="av-field" style="grid-column: 1 / -1;">
           <label>Nome do ${termo} *</label>
