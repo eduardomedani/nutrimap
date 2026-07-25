@@ -4,16 +4,18 @@
 // Cache-first para o "app shell" (mesma origem, GET). Requisições ao Supabase
 // (outra origem) e não-GET passam direto pela rede — nunca são cacheadas.
 
-const CACHE = 'nutrimap-aluno-v3';
+const CACHE = 'nutrimap-aluno-v4';
+// Caminhos relativos ao escopo do SW — funcionam tanto na raiz (localhost)
+// quanto numa subpasta (GitHub Pages: /nutrimap/).
 const SHELL = [
-  '/app.html',
-  '/manifest.webmanifest',
-  '/icons/icon.svg',
-  '/js/paciente-ui.js',
-  '/js/paciente-data.js',
-  '/js/push.js',
-  '/js/supabase.js',
-  '/js/utils.js',
+  'app.html',
+  'manifest.webmanifest',
+  'icons/icon.svg',
+  'js/paciente-ui.js',
+  'js/paciente-data.js',
+  'js/push.js',
+  'js/supabase.js',
+  'js/utils.js',
 ];
 
 self.addEventListener('install', (event) => {
@@ -49,7 +51,7 @@ self.addEventListener('fetch', (event) => {
         return resp;
       })
       .catch(() => caches.match(req).then((cached) =>
-        cached || (req.mode === 'navigate' ? caches.match('/app.html') : undefined)))
+        cached || (req.mode === 'navigate' ? caches.match('app.html') : undefined)))
   );
 });
 
