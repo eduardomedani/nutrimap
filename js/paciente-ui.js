@@ -286,6 +286,13 @@ function renderTreino() {
 
 // ── TELA A: seleção do dia (A/B/C/D…) + evolução + próximo sugerido ──
 // ── "Treino atualizado" — lembrete in-app (compara com a última abertura) ──
+// Formata um timestamp completo (timestamptz) em "dd/mm/aaaa às hh:mm".
+function fmtQuando(ts) {
+  if (!ts) return '';
+  const dt = new Date(ts);
+  if (isNaN(dt.getTime())) return '';
+  return dt.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
 const _vistoKey = (id) => 'nm_treino_visto_' + id;
 function treinoTemNovidade(t) {
   if (!t) return false;
@@ -304,10 +311,11 @@ function renderListaDias() {
   const proximo = proximoDiaSugerido();
   const treinadoHoje = diaTreinadoHoje();
   const treinoAtual = _treinos.find(t => t.id === _treinoSel);
+  const quando = fmtQuando(treinoAtual?.atualizado_em);
   const lembrete = treinoTemNovidade(treinoAtual)
     ? `<div class="pa-lembrete" role="status">
          <i data-lucide="bell-ring"></i>
-         <div class="pa-lembrete-txt"><b>Seu treino foi atualizado</b><span>${treinoAtual?.atualizado_em ? 'em ' + esc(fmtData(treinoAtual.atualizado_em)) + ' ' : ''}pelo seu nutricionista.</span></div>
+         <div class="pa-lembrete-txt"><b>Seu treino foi atualizado</b><span>${quando ? 'em ' + esc(quando) + ' ' : ''}pelo seu nutricionista.</span></div>
          <button class="pa-lembrete-x" data-visto aria-label="Dispensar aviso"><i data-lucide="x"></i></button>
        </div>`
     : '';
