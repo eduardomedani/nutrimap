@@ -485,6 +485,7 @@
   .tr-biset-desc { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 12px; }
 
   .tr-biset-avisos { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+  .tr-biset-avisos:empty { display: none; margin: 0; }
   .tr-aviso { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: #8a6d1e; background: rgba(184,146,74,0.12); border-radius: 8px; padding: 7px 10px; }
   .tr-aviso svg { width: 14px; height: 14px; flex: none; }
 
@@ -497,9 +498,11 @@
   .tr-biset-ex-nome { font-size: 14.5px; font-weight: 700; color: var(--ink); }
   .tr-biset-ex-nome.muted { color: var(--ink-soft); font-weight: 600; }
   .tr-biset-ex-acoes { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
-  .tr-biset-link { display: inline-flex; align-items: center; gap: 4px; background: none; border: none; cursor: pointer; font-size: 12px; font-weight: 700; color: var(--moss); padding: 4px 6px; border-radius: 7px; }
-  .tr-biset-link:hover { background: var(--bg-warm); }
-  .tr-biset-link.danger { color: var(--rose); }
+  .tr-biset-link { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; font-size: 12px; font-weight: 700; padding: 6px 13px; border-radius: 100px; border: 1px solid var(--line); background: var(--bg-card); color: var(--moss); transition: background 0.15s, border-color 0.15s, box-shadow 0.15s; }
+  .tr-biset-link:hover { background: var(--bg-warm); border-color: var(--sage); box-shadow: 0 1px 4px rgba(60,80,60,0.08); }
+  .tr-biset-link:active { transform: translateY(0.5px); }
+  .tr-biset-link.danger { color: var(--rose); border-color: rgba(168,83,74,0.28); background: rgba(168,83,74,0.05); }
+  .tr-biset-link.danger:hover { background: rgba(168,83,74,0.12); border-color: var(--rose); box-shadow: 0 1px 4px rgba(168,83,74,0.12); }
   .tr-biset-link svg { width: 13px; height: 13px; }
 
   /* Conector "sem descanso" */

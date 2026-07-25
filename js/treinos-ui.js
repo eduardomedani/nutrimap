@@ -729,7 +729,12 @@ async function salvarCampoItem(el) {
     await atualizarItem(id, payload);
     // atualiza o cache local sem re-render (não perde o foco do próximo campo)
     const it = _itens.find(x => x.id === id);
-    if (it) Object.assign(it, payload);
+    if (it) {
+      Object.assign(it, payload);
+      // se o campo pertence a um Bi-set, recalcula os avisos daquele bloco
+      const anchorId = it.grupo_pos === 'B' ? it.grupo_id : (ehBiset(it.metodo) ? it.id : null);
+      if (anchorId) atualizarAvisosBiset(anchorId);
+    }
     if (campo === 'metodo') atualizarDescMetodo(el);
     mostrarToast('✓ Salvo');
   } catch (e) { mostrarErro('Erro ao salvar: ' + e.message); }
@@ -888,7 +893,8 @@ function toggleRecolherBiset(anchorId) {
 }
 
 // Avisos (não bloqueiam o salvamento — os campos salvam incrementalmente).
-function avisosBisetHtml(u) {
+// Retorna só os itens; o container fica sempre no card (atualizável sem re-render).
+function avisosBisetItems(u) {
   const { a, b } = u;
   const av = [];
   if (!b) av.push('Selecione o segundo exercício do Bi-set.');
@@ -901,9 +907,16 @@ function avisosBisetHtml(u) {
       av.push('As quantidades de séries são diferentes. Isso pode deixar o Bi-set incompleto.');
   }
   if (!a.descanso) av.push('Informe o descanso após o Bi-set.');
-  if (!av.length) return '';
-  return `<div class="tr-biset-avisos">${av.map(m =>
-    `<div class="tr-aviso"><i data-lucide="alert-triangle"></i> ${esc(m)}</div>`).join('')}</div>`;
+  return av.map(m =>
+    `<div class="tr-aviso"><i data-lucide="alert-triangle"></i> ${esc(m)}</div>`).join('');
+}
+
+// Recalcula os avisos de um Bi-set sem re-renderizar o card (não perde o foco).
+function atualizarAvisosBiset(anchorId) {
+  const box = document.querySelector(`[data-biset-avisos="${anchorId}"]`);
+  if (!box) return;
+  const a = _itens.find(x => x.id === anchorId);
+  if (a) box.innerHTML = avisosBisetItems({ a, b: membroB(a) });
 }
 
 // Resumo compacto (card recolhido).
@@ -1019,7 +1032,7 @@ function grupoCardHtml(u, i, total) {
     <div class="av-form-card tr-ex-card tr-biset-card">
       ${header}
       <div class="tr-biset-desc">Dois exercícios em sequência, sem descanso entre eles.</div>
-      ${avisosBisetHtml(u)}
+      <div class="tr-biset-avisos" data-biset-avisos="${a.id}">${avisosBisetItems(u)}</div>
       ${blocoA}
       ${conector}
       ${blocoB}
