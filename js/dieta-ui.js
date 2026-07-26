@@ -359,7 +359,10 @@ function dadosCardAbertoHtml() {
         </div>
         <div class="av-field" style="grid-column: span 2;">
           <label>Objetivo</label>
-          <input type="text" id="plObjetivo" value="${esc(t?.objetivo || '')}" class="np-input" list="dlObjetivos" placeholder="Ex.: Emagrecimento">
+          <input type="text" id="plObjetivo" value="${esc(t?.objetivo || '')}" class="np-input" list="dlObjetivos" placeholder="Ex.: Emagrecimento" autocomplete="off">
+          <div class="pl-obj-chips">
+            ${OBJETIVOS.map(o => `<button type="button" class="pl-chip" data-obj="${esc(o)}">${esc(o)}</button>`).join('')}
+          </div>
         </div>
         ${_modo === 'paciente' ? `
         <div class="av-field">
@@ -420,6 +423,20 @@ function ligarDadosAberto(mount) {
     _dadosAberto = false;
     montarDadosCard();
   });
+
+  // Objetivo: chips sempre visíveis (o datalist nativo esconde as opções quando o
+  // campo já tem texto). Clicar num chip preenche; digitar destaca o correspondente.
+  const inpObj = mount.querySelector('#plObjetivo');
+  const chips = mount.querySelectorAll('.pl-chip');
+  const syncChips = () => {
+    const v = (inpObj?.value || '').trim().toLowerCase();
+    chips.forEach(c => c.classList.toggle('on', c.dataset.obj.toLowerCase() === v));
+  };
+  chips.forEach(c => c.addEventListener('click', () => {
+    if (inpObj) { inpObj.value = c.dataset.obj; syncChips(); }
+  }));
+  inpObj?.addEventListener('input', syncChips);
+  syncChips();
 
   // Vínculo Data de início ↔ Dias ↔ Data de término (só no modo paciente).
   const elIni = mount.querySelector('#plData');
