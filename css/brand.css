@@ -1,0 +1,283 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   EVOLLO · COMPONENTES DE MARCA E CAMADA DE IDENTIDADE
+   ---------------------------------------------------------------------------
+   Carregado DEPOIS do <style> de cada página, porque parte do trabalho aqui é
+   sobrepor regras antigas que nomeavam cores fora dos tokens.
+
+   Só entra aqui o que é identidade: marca, tipografia, cor de componente,
+   forma, movimento. Nada de layout novo, nada de comportamento.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* ── TIPOGRAFIA BASE ──────────────────────────────────────────────────────
+   Uma família só, em todo o sistema. O aperto no tracking é o que separa
+   "formulário" de "produto" — Inter sem isso fica larga demais em título.   */
+body {
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';   /* Inter: formas mais neutras */
+}
+
+h1, .evo-h1 {
+  font-size: var(--text-h1-size); font-weight: var(--text-h1-weight);
+  line-height: var(--text-h1-lh); letter-spacing: var(--tracking-tight);
+}
+h2, .evo-h2 {
+  font-size: var(--text-h2-size); font-weight: var(--text-h2-weight);
+  line-height: var(--text-h2-lh); letter-spacing: var(--tracking-tight);
+}
+h3, .evo-h3 {
+  font-size: var(--text-h3-size); font-weight: var(--text-h3-weight);
+  line-height: var(--text-h3-lh); letter-spacing: var(--tracking-snug);
+}
+.evo-body {
+  font-size: var(--text-body-size); font-weight: var(--text-body-weight);
+  line-height: var(--text-body-lh);
+}
+.evo-caption {
+  font-size: var(--text-caption-size); font-weight: var(--text-caption-weight);
+  line-height: var(--text-caption-lh); color: var(--text-secondary);
+}
+
+/* Os títulos que usavam a serifada decorativa agora se distinguem por peso e
+   tracking, não por família. */
+.pl-dados-min-nome, .di-secao-tit, .di-hd-nome, .di-vazio-tit, .di-dw-tit,
+.page-title, .list-title {
+  letter-spacing: var(--tracking-tight);
+}
+
+/* O tema antigo grifava metade do título em itálico ("Cadastrar <em>novo
+   cliente</em>"). O destaque continua — em cor —, mas sem inclinação: itálico
+   decorativo em títulos é o que mais destoa do registro Apple/Linear. */
+.page-title em, .list-title em, .novo-paciente-title em, .av-form-title em,
+.tr-dia-head em, .sidebar-brand-text em, .pa-topbrand em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--color-primary-700);
+}
+
+/* ── LOGO ─────────────────────────────────────────────────────────────────
+   Componente único. Toda página monta a marca com estas classes; trocar o
+   símbolo provisório pelo SVG definitivo é editar .evo-logo-mark aqui e mais
+   nada. Enquanto o SVG oficial não chega, o símbolo é a letra "E".          */
+.evo-logo {
+  display: inline-flex; align-items: center; gap: 10px;
+  text-decoration: none; color: inherit;
+}
+.evo-logo-mark {
+  display: grid; place-items: center; flex-shrink: 0;
+  width: var(--evo-mark-size, 40px); height: var(--evo-mark-size, 40px);
+  background: var(--color-primary-600);
+  border-radius: calc(var(--evo-mark-size, 40px) * 0.28);   /* squircle: proporcional ao tamanho */
+  color: #FFFFFF;
+  font-family: var(--font-sans);
+  font-size: calc(var(--evo-mark-size, 40px) * 0.52);
+  font-weight: 700; font-style: normal;
+  letter-spacing: -0.04em; line-height: 1;
+  box-shadow: var(--shadow-xs);
+}
+/* Quando o SVG oficial chegar: .evo-logo-mark > img|svg ocupa o quadrado e a
+   letra sai de cena sem mexer em nenhuma página. */
+.evo-logo-mark > img, .evo-logo-mark > svg { width: 100%; height: 100%; display: block; }
+.evo-logo-mark:has(> img), .evo-logo-mark:has(> svg) { background: none; box-shadow: none; }
+
+.evo-logo-name {
+  font-family: var(--font-sans);
+  font-size: var(--evo-name-size, 20px);
+  font-weight: 700; font-style: normal;
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-primary);
+}
+.evo-logo-sub {
+  font-size: var(--text-caption-size); font-weight: 500;
+  color: var(--text-secondary); letter-spacing: var(--tracking-snug);
+}
+.evo-logo--stacked { flex-direction: column; gap: 12px; text-align: center; }
+.evo-logo--on-dark .evo-logo-name { color: #FFFFFF; }
+.evo-logo--on-dark .evo-logo-mark { background: #FFFFFF; color: var(--color-primary-700); }
+.evo-logo--sm { --evo-mark-size: 32px; --evo-name-size: 17px; }
+.evo-logo--lg { --evo-mark-size: 56px; --evo-name-size: 28px; }
+
+/* Onde o container já centralizava a marca, ele precisa continuar em `flex`:
+   o `inline-flex` do componente encolheria a caixa e jogaria o logo à esquerda. */
+.auth-brand.evo-logo, .pa-brand.evo-logo { display: flex; }
+
+/* As marcas antigas (.brand-mark, .sidebar-brand-mark, .pa-brand-mark) passam
+   a herdar o mesmo símbolo, para não existirem dois logos no projeto. */
+.brand-mark, .sidebar-brand-mark, .pa-brand-mark {
+  background: var(--color-primary-600) !important;
+  color: #FFFFFF !important;
+  font-family: var(--font-sans) !important;
+  font-style: normal !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.04em;
+  box-shadow: var(--shadow-xs);
+}
+.brand-mark          { border-radius: 13px; }
+.sidebar-brand-mark  { border-radius: 10px; }
+.pa-brand-mark       { border-radius: 16px; }
+.brand-name, .brand-name-large, .pa-brand-name {
+  font-family: var(--font-sans);
+  font-weight: 700; font-style: normal;
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-primary);
+}
+/* O logo antigo grifava a segunda metade do nome em itálico ("Nutri<em>Map</em>").
+   "Evollo" é uma palavra só — o <em> some do markup, e o que sobrar não vira itálico. */
+.brand-name em, .brand-name-large em, .pa-brand-name em {
+  font-style: normal; font-weight: 700; color: inherit;
+}
+
+/* ── SIDEBAR ──────────────────────────────────────────────────────────── */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+.nav-item {
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  transition: background var(--duration-base) var(--ease),
+              color var(--duration-base) var(--ease);
+}
+.nav-item .nav-icon, .nav-item .nav-icon svg { color: var(--text-secondary); }
+.nav-item:hover:not(.active):not(.disabled) {
+  background: var(--color-primary-100);
+  color: var(--text-primary);
+}
+.nav-item:hover:not(.active):not(.disabled) .nav-icon,
+.nav-item:hover:not(.active):not(.disabled) .nav-icon svg { color: var(--color-primary-700); }
+.nav-item.active {
+  background: var(--color-primary-600);
+  color: #FFFFFF;
+}
+.nav-item.active .nav-icon, .nav-item.active .nav-icon svg { color: #FFFFFF; }
+.nav-item.disabled { color: var(--text-muted); opacity: 1; }
+.nav-item.disabled .nav-icon, .nav-item.disabled .nav-icon svg { color: var(--text-muted); }
+.nav-group-title { color: var(--text-muted); letter-spacing: var(--tracking-wide); }
+
+/* O menu interno da ficha é o mesmo padrão de navegação: mesmo verde de item
+   ativo, senão convivem dois "ativos" diferentes na mesma tela. */
+.fm-item { transition: background var(--duration-base) var(--ease), color var(--duration-base) var(--ease); }
+.fm-item:hover:not(.active):not(.soon) { background: var(--color-primary-100); color: var(--text-primary); }
+.fm-item.active { background: var(--color-primary-600); color: #FFFFFF; }
+.fm-item.active svg { color: #FFFFFF; }
+
+/* ── BOTÕES ───────────────────────────────────────────────────────────────
+   O apelido --moss fica no primary-700 por causa do contraste em texto; aqui
+   o verde aparece como preenchimento com texto branco, então volta ao 600
+   que a identidade define.                                                  */
+.btn.primary, .form-btn, .btn-sm, .patient-action.primary, .btn-editar-dados,
+.auth-tab.active, .pa-tab.active, .pa-btn {
+  background: var(--primary);
+  color: #FFFFFF;
+  border-color: transparent;
+  font-family: var(--font-sans);
+  font-size: var(--text-button-size);
+  font-weight: var(--text-button-weight);
+  letter-spacing: var(--tracking-snug);
+  transition: background var(--duration-fast) var(--ease),
+              box-shadow var(--duration-fast) var(--ease),
+              transform var(--duration-fast) var(--ease);
+}
+.btn.primary:hover, .form-btn:hover:not(:disabled), .btn-sm:hover,
+.patient-action.primary:hover, .btn-editar-dados:hover, .pa-btn:hover:not(:disabled) {
+  background: var(--primary-hover);
+  filter: none;
+  transform: none;                     /* nada de "pulo" no hover */
+}
+.btn.primary:active, .form-btn:active:not(:disabled), .btn-sm:active,
+.patient-action.primary:active, .btn-editar-dados:active {
+  background: var(--primary-pressed);
+}
+.btn.primary:focus-visible, .form-btn:focus-visible, .btn-sm:focus-visible,
+.btn:focus-visible, .btn-sm-secondary:focus-visible {
+  outline: none; box-shadow: var(--shadow-focus);
+}
+
+/* Secundário */
+.btn, .btn-sm-secondary, .patient-action, .btn-cancelar {
+  font-family: var(--font-sans);
+  font-size: var(--text-button-size);
+  font-weight: var(--text-button-weight);
+  letter-spacing: var(--tracking-snug);
+  transition: background var(--duration-fast) var(--ease),
+              border-color var(--duration-fast) var(--ease);
+}
+.btn:not(.primary), .btn-sm-secondary, .patient-action:not(.primary):not(.patient-action-danger) {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+}
+.btn:not(.primary):hover, .btn-sm-secondary:hover,
+.patient-action:not(.primary):not(.patient-action-danger):hover {
+  background: var(--surface-subtle);
+  border-color: var(--border-strong);
+  transform: none;
+}
+.patient-action-danger { color: var(--error); }
+.patient-action-danger:hover { background: var(--error-soft); border-color: var(--error); }
+.logout-btn { transition: var(--transition-base); }
+.logout-btn:hover { background: var(--error-soft); color: var(--error); }
+
+/* ── INPUTS ───────────────────────────────────────────────────────────── */
+.form-input, input[type="text"], input[type="email"], input[type="password"],
+input[type="number"], input[type="date"], input[type="time"], input[type="tel"],
+select, textarea {
+  font-family: var(--font-sans);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  transition: border-color var(--duration-fast) var(--ease),
+              box-shadow var(--duration-fast) var(--ease);
+}
+.form-input:focus, input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--shadow-focus);
+}
+.form-input::placeholder, input::placeholder, textarea::placeholder { color: var(--text-muted); }
+.form-input[aria-invalid="true"], .form-input.erro, input.erro, .campo-erro {
+  border-color: var(--error);
+}
+.form-error { color: var(--error); }
+.form-ok, .form-success { color: var(--success); }
+.form-warn { color: var(--warning); }
+
+/* ── CARDS ────────────────────────────────────────────────────────────────
+   Separação por borda, não por sombra. As sombras pesadas do tema antigo
+   já saíram pelos tokens; aqui garantimos a borda discreta e o raio único. */
+.stat-card, .metric-card-btn, .patient-card, .module-card, .ficha-head,
+.ficha-menu, .ficha-conteudo, .auth-card, .di-ref, .tr-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.metric-card-btn { transition: var(--transition-base); }
+.metric-card-btn:hover {
+  border-color: var(--color-primary-400);
+  box-shadow: var(--shadow-md);
+  transform: none;
+}
+
+/* ── GRÁFICOS ─────────────────────────────────────────────────────────── */
+.dp, .dot.dp, .di-bar-prot span { background: var(--chart-prot); }
+.dc, .dot.dc, .di-bar-carb span { background: var(--chart-carb); }
+.dg, .dot.dg, .di-bar-gord span { background: var(--chart-gord); }
+.di-bar-kcal span, .bar-kcal { background: var(--chart-kcal); }
+
+/* ── MOVIMENTO ────────────────────────────────────────────────────────────
+   Uma curva e três durações para o sistema inteiro.                        */
+a, button, .nav-item, .btn, .btn-sm, .patient-action, .metric-card-btn,
+.auth-tab, .fm-item, .chip, .badge {
+  transition-timing-function: var(--ease);
+  transition-duration: var(--duration-base);
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

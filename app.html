@@ -3,18 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>NutriMap — Aluno</title>
-<meta name="theme-color" content="#2A3A2C">
-<meta name="description" content="Seu treino e sua progressão de carga — NutriMap">
+<title>Evollo — Aluno</title>
+<meta name="theme-color" content="#18B984">
+<meta name="description" content="Seu treino e sua progressão de carga — Evollo">
+<meta name="application-name" content="Evollo">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icons/icon.svg">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="NutriMap">
+<meta name="apple-mobile-web-app-title" content="Evollo">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
 <script src="https://unpkg.com/lucide@latest"></script>
 <script>
@@ -48,26 +51,14 @@
 </script>
 
 <style>
-  :root {
-    --bg: #F7F6F2; --bg-card: #FFFFFF; --bg-warm: #EDE7D8;
-    --ink: #1A1F1B; --ink-soft: #4A524C; --ink-mute: #8A8F89;
-    --moss: #3D4D3F; --moss-deep: #2A3A2C; --moss-light: #5C6E5E;
-    --olive: #5C6B47; --sage: #87A082; --gold: #B8924A;
-    --plum: #7D6A86; --plum-soft: rgba(125,106,134,0.12); --plum-line: rgba(125,106,134,0.28);
-    --danger: #B4553F;
-    --cream: #F8F1DD; --line: #E8E8E8; --hair: rgba(26,31,27,0.07);
-    --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 6px 16px rgba(0,0,0,0.05);
-    --radius: 16px;
-  }
+  /* As cores da marca vivem em css/tokens.css — ver o <link> antes de </head>. */
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { min-height: 100%; }
+  /* Fundo chapado: os gradientes radiais quentes saíram com a identidade antiga. */
   body {
-    background: var(--bg);
-    background-image: radial-gradient(circle at 15% 8%, rgba(135,160,130,0.10), transparent 42%),
-                      radial-gradient(circle at 85% 92%, rgba(184,146,74,0.07), transparent 45%);
-    background-attachment: fixed;
-    color: var(--ink);
-    font-family: 'Nunito', sans-serif; font-size: 15px; line-height: 1.55;
+    background: var(--background);
+    color: var(--text-primary);
+    font-family: var(--font-sans); font-size: 15px; line-height: 1.55;
     -webkit-font-smoothing: antialiased;
     padding-bottom: env(safe-area-inset-bottom);
   }
@@ -108,14 +99,14 @@
   .pa-btn:disabled { opacity: 0.6; cursor: default; }
   .pa-btn svg { width: 17px; height: 17px; }
 
-  .pa-msg { min-height: 18px; margin-top: 12px; font-size: 13px; color: #b4553f; text-align: center; }
+  .pa-msg { min-height: 18px; margin-top: 12px; font-size: 13px; color: var(--error); text-align: center; }
   .pa-msg.ok { color: var(--moss); }
   .pa-hint { font-size: 14px; color: var(--ink-soft); margin-bottom: 6px; line-height: 1.5; }
   .pa-foot { text-align: center; font-size: 12.5px; color: var(--ink-mute); margin-top: 20px; line-height: 1.5; }
   .pa-link { display: block; width: 100%; margin-top: 14px; background: none; border: none; color: var(--ink-mute); font-size: 13px; cursor: pointer; text-decoration: underline; }
 
   /* ── Topbar ── */
-  .pa-topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; padding: calc(12px + env(safe-area-inset-top)) 18px 12px; background: rgba(253,251,247,0.86); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  .pa-topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; padding: calc(12px + env(safe-area-inset-top)) 18px 12px; background: rgba(255,255,255,0.86); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
   .pa-topbrand { font-size: 19px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
   .pa-topbrand em { color: var(--moss); }
   .pa-topmark { width: 30px; height: 30px; background: linear-gradient(135deg, var(--moss), var(--olive)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--cream); font-size: 15px; font-weight: 600; font-style: italic; }
@@ -130,7 +121,7 @@
   .pa-main { max-width: 620px; margin: 0 auto; padding: 18px 16px 96px; }
 
   /* Navegação inferior (Treino | Dieta) */
-  .pa-bottomnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: flex; background: rgba(253,251,247,0.94); backdrop-filter: blur(10px); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+  .pa-bottomnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: flex; background: rgba(255,255,255,0.94); backdrop-filter: blur(10px); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
   .pa-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 4px 8px; background: none; border: none; cursor: pointer; color: var(--ink-mute); font-size: 11px; font-weight: 700; font-family: inherit; transition: color 0.15s; }
   .pa-nav-item svg { width: 21px; height: 21px; }
   .pa-nav-item.active { color: var(--moss); }
@@ -186,7 +177,7 @@
   .pa-dc-sub { display: block; margin-top: 3px; font-size: 12.5px; font-weight: 600; color: var(--ink-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pa-dc-badge { flex: 0 0 auto; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 3px 8px; border-radius: 100px; white-space: nowrap; }
   .pa-dc-badge.prox { background: var(--moss); color: var(--cream); }
-  .pa-dc-badge.feito { background: rgba(135,160,130,0.18); color: var(--moss-deep); }
+  .pa-dc-badge.feito { background: color-mix(in srgb, var(--color-primary-400) 18%, transparent); color: var(--moss-deep); }
   .pa-dc-arrow { flex: 0 0 auto; color: var(--ink-mute); display: flex; }
   .pa-dc-arrow svg { width: 20px; height: 20px; }
 
@@ -213,10 +204,10 @@
   .pa-ex-spec { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 9px; margin-top: 13px; font-size: 13.5px; color: var(--ink-soft); font-weight: 600; }
   .pa-ex-spec b { color: var(--ink); font-weight: 800; }
   .pa-ex-spec .sep { color: #CBCBC7; }
-  .pa-ex-tec { display: inline-flex; align-items: center; gap: 4px; background: rgba(184,146,74,0.13); color: #927023; padding: 2px 9px; border-radius: 100px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
+  .pa-ex-tec { display: inline-flex; align-items: center; gap: 4px; background: color-mix(in srgb, var(--warning) 13%, transparent); color: #927023; padding: 2px 9px; border-radius: 100px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
   .pa-ex-tec svg { width: 12px; height: 12px; }
 
-  .pa-metodo { margin-top: 12px; background: rgba(184,146,74,0.08); border-left: 2px solid var(--gold-soft, var(--gold)); border-radius: 8px; padding: 9px 12px; font-size: 12px; color: var(--ink-soft); line-height: 1.45; }
+  .pa-metodo { margin-top: 12px; background: color-mix(in srgb, var(--warning) 8%, transparent); border-left: 2px solid var(--gold-soft, var(--gold)); border-radius: 8px; padding: 9px 12px; font-size: 12px; color: var(--ink-soft); line-height: 1.45; }
   .pa-metodo svg { width: 13px; height: 13px; color: var(--gold); vertical-align: -2px; }
   .pa-obs { margin-top: 11px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.45; }
   .pa-obs svg { width: 13px; height: 13px; color: var(--ink-mute); vertical-align: -2px; }
@@ -243,7 +234,7 @@
   .pa-carga-btn:hover { background: var(--moss-deep); transform: translateY(-1px); }
   .pa-carga-btn svg { width: 16px; height: 16px; }
   /* Exercício concluído hoje — botão dourado */
-  .pa-carga-btn.pa-carga-btn-done { background: var(--gold); color: #fff; box-shadow: 0 2px 10px rgba(184,146,74,0.30); }
+  .pa-carga-btn.pa-carga-btn-done { background: var(--gold); color: #fff; box-shadow: 0 2px 10px color-mix(in srgb, var(--warning) 30%, transparent); }
   .pa-carga-btn.pa-carga-btn-done:hover { background: #a67f38; }
 
   /* ── Progressão ── */
@@ -262,7 +253,7 @@
   .pa-prog-reps { color: var(--ink-soft); }
   .pa-prog-obs { color: var(--ink-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pa-prog-del { background: none; border: none; color: var(--ink-mute); cursor: pointer; padding: 3px; display: flex; }
-  .pa-prog-del:hover { color: #b4553f; }
+  .pa-prog-del:hover { color: var(--error); }
   .pa-prog-del svg { width: 15px; height: 15px; }
   .pa-prog-vazio { font-size: 13px; color: var(--ink-mute); text-align: center; padding: 6px 0 2px; }
 
@@ -281,10 +272,10 @@
   /* Série concluída — a classe `done` fica no bloco (.pa-serie-block) */
   .pa-serie-block.done .pa-serie-check { background: var(--moss); border-color: var(--moss); color: var(--cream); }
   .pa-serie-block.done .pa-serie-num { color: var(--sage); }
-  .pa-serie-block.done .pa-serie .pa-mini { border-color: transparent; background: rgba(135,160,130,0.12); color: var(--moss-deep); font-weight: 700; }
+  .pa-serie-block.done .pa-serie .pa-mini { border-color: transparent; background: color-mix(in srgb, var(--color-primary-400) 12%, transparent); color: var(--moss-deep); font-weight: 700; }
   .pa-series-prog { font-size: 12px; font-weight: 700; color: var(--ink-mute); margin: 2px 0 12px 2px; }
   .pa-series-prog b { color: var(--moss); }
-  .pa-btn-mini.pa-btn-ready { box-shadow: 0 0 0 3px rgba(135,160,130,0.25); }
+  .pa-btn-mini.pa-btn-ready { box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary-400) 25%, transparent); }
 
   /* ── Drop set — sub-série vinculada à série principal ── */
   .pa-serie-block { display: flex; flex-direction: column; }
@@ -336,14 +327,14 @@
   /* Validação inline (sem alert do navegador) */
   .pa-field-err { color: var(--danger); font-size: 11.5px; font-weight: 700; margin-top: 7px; }
   .pa-field-err:empty { display: none; }
-  .pa-input-err { border-color: #D98A76 !important; box-shadow: 0 0 0 2px rgba(180,85,63,0.15); }
+  .pa-input-err { border-color: #D98A76 !important; box-shadow: 0 0 0 2px color-mix(in srgb, var(--error) 15%, transparent); }
 
   @media (prefers-reduced-motion: reduce) {
     .pa-drop-wrap { transition: none; }
   }
 
   /* ── Bi-set (grupo A + B) no app do aluno ── */
-  .pa-biset { border: 1.5px solid var(--sage); border-radius: var(--radius); background: rgba(135,160,130,0.06); padding: 12px; margin-bottom: 14px; }
+  .pa-biset { border: 1.5px solid var(--sage); border-radius: var(--radius); background: color-mix(in srgb, var(--color-primary-400) 6%, transparent); padding: 12px; margin-bottom: 14px; }
   .pa-biset-head { display: flex; align-items: center; gap: 9px; margin: 2px 4px 10px; }
   .pa-biset-selo { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 8px; background: rgba(60,77,63,0.10); color: var(--moss-deep); font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
   .pa-biset-selo svg { width: 14px; height: 14px; }
@@ -355,11 +346,11 @@
   .pa-biset-descanso { display: flex; align-items: center; gap: 7px; margin-top: 11px; padding: 10px 13px; border-radius: 12px; background: var(--bg-warm); font-size: 13px; font-weight: 600; color: var(--ink-soft); }
   .pa-biset-descanso b { color: var(--moss-deep); font-weight: 800; }
   .pa-biset-descanso svg { width: 15px; height: 15px; color: var(--moss); }
-  .pa-biset-incompleto { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-radius: 12px; background: rgba(184,146,74,0.10); color: #8a6d1e; font-size: 12.5px; font-weight: 600; }
+  .pa-biset-incompleto { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--warning) 10%, transparent); color: #8a6d1e; font-size: 12.5px; font-weight: 600; }
   .pa-biset-incompleto svg { width: 15px; height: 15px; flex: none; }
 
   /* ── Lembrete "Treino atualizado" ── */
-  .pa-lembrete { display: flex; align-items: center; gap: 11px; margin: 0 0 16px; padding: 12px 14px; border-radius: 14px; background: rgba(184,146,74,0.12); border: 1px solid rgba(184,146,74,0.30); }
+  .pa-lembrete { display: flex; align-items: center; gap: 11px; margin: 0 0 16px; padding: 12px 14px; border-radius: 14px; background: color-mix(in srgb, var(--warning) 12%, transparent); border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent); }
   .pa-lembrete > svg { width: 20px; height: 20px; color: var(--gold); flex: none; }
   .pa-lembrete-txt { display: flex; flex-direction: column; line-height: 1.3; }
   .pa-lembrete-txt b { font-size: 13.5px; color: var(--ink); font-weight: 800; }
@@ -392,6 +383,11 @@
     .pa-prog-form [data-p="obs"] { grid-column: 1 / -1; }
   }
 </style>
+
+<!-- Identidade Evollo. Depois do <style> de propósito: tokens.css vence o
+     :root herdado; brand.css vence as regras de componente acima. -->
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/brand.css">
 </head>
 <body>
   <div id="app">

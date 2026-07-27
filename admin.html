@@ -3,11 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NutriMap — Admin</title>
-<meta name="theme-color" content="#2A3A2C">
+<title>Evollo — Admin</title>
+<meta name="description" content="Evollo — administração de convites e contas.">
+<meta name="application-name" content="Evollo">
+<meta name="theme-color" content="#18B984">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/lucide@latest"></script>
 <script>
   // createIcons() troca o nó do ícone e deixa o data-lucide no <svg> gerado, então
@@ -32,14 +37,9 @@
   observarIcones();
 </script>
 <style>
-  :root{
-    --bg:#F4F1EA; --bg-card:#FDFBF7; --bg-warm:#EDE7D8;
-    --ink:#1A1F1B; --ink-soft:#4A524C; --ink-mute:#8A8F89;
-    --moss:#3D4D3F; --moss-deep:#2A3A2C; --olive:#5C6B47; --sage:#87A082; --gold:#B8924A;
-    --cream:#F8F1DD; --line:#DDD6C5; --shadow:0 4px 20px rgba(60,80,60,0.07);
-  }
+  /* As cores da marca vivem em css/tokens.css — ver o <link> antes de </head>. */
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--ink);font-family:'Nunito',sans-serif;font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
+  body{background:var(--bg);color:var(--ink);font-family: var(--font-sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;min-height:100vh}
   em{font-style:italic}
   @keyframes slideInRight{from{transform:translateX(40px);opacity:0}to{transform:translateX(0);opacity:1}}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -71,7 +71,7 @@
   .btn-ghost:hover:not(:disabled){background:var(--line)}
   .btn-sm{padding:7px 12px;font-size:12.5px}
 
-  .msg{min-height:18px;font-size:13px;color:#b4553f;margin-top:10px}
+  .msg{min-height:18px;font-size:13px;color:var(--error);margin-top:10px}
   .msg.ok{color:var(--moss)}
 
   table{width:100%;border-collapse:collapse}
@@ -80,7 +80,7 @@
   .cod{font-weight:800;letter-spacing:.04em;color:var(--moss-deep);cursor:pointer}
   .cod:hover{text-decoration:underline}
   .tag{display:inline-block;padding:3px 9px;border-radius:100px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
-  .tag-on{background:rgba(135,160,130,.22);color:var(--moss-deep)}
+  .tag-on{background:color-mix(in srgb, var(--color-primary-400) 22%, transparent);color:var(--moss-deep)}
   .tag-off{background:var(--bg-warm);color:var(--ink-mute)}
   .muted{color:var(--ink-mute)}
   .table-scroll{overflow-x:auto}
@@ -89,6 +89,11 @@
   .center svg{width:34px;height:34px;color:var(--gold)}
   .login{max-width:380px;margin:0 auto}
 </style>
+
+<!-- Identidade Evollo. Depois do <style> de propósito: tokens.css vence o
+     :root herdado; brand.css vence as regras de componente acima. -->
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/brand.css">
 </head>
 <body>
   <div id="app"><div class="center"><span class="spin" style="width:30px;height:30px"></span></div></div>
@@ -111,7 +116,7 @@
   function renderLogin(erro = '') {
     app().innerHTML = `
       <div class="wrap">
-        <div class="brand"><div class="brand-mark">N</div><div><div class="brand-name">Nutri<em>Map</em></div><div class="brand-sub">Admin</div></div></div>
+        <div class="brand evo-logo"><div class="evo-logo-mark" aria-hidden="true">E</div><div><div class="evo-logo-name">Evollo</div><div class="brand-sub">Admin</div></div></div>
         <div class="card login">
           <div class="card-title"><i data-lucide="shield"></i> Acesso do administrador</div>
           <label>Email</label>
@@ -184,9 +189,9 @@
 
     app().innerHTML = `
       <div class="wrap">
-        <div class="brand">
-          <div class="brand-mark">N</div>
-          <div><div class="brand-name">Nutri<em>Map</em></div><div class="brand-sub">Admin · convites</div></div>
+        <div class="brand evo-logo">
+          <div class="evo-logo-mark" aria-hidden="true">E</div>
+          <div><div class="evo-logo-name">Evollo</div><div class="brand-sub">Admin · convites</div></div>
           <div class="spacer"></div>
           <button class="btn btn-ghost btn-sm" id="sair"><i data-lucide="log-out"></i> Sair</button>
         </div>

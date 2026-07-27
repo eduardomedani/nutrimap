@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// NutriMap · Edge Function: enviar-push
+// Evollo · Edge Function: enviar-push
 // ═══════════════════════════════════════════════════════════
 // Disparada por um Database Webhook quando `treinos` sofre INSERT/UPDATE.
 // Envia uma notificação push para os aparelhos do paciente daquele treino.

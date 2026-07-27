@@ -1,0 +1,11 @@
+<!-- Evollo · favicon. Mesma geometria do símbolo, com raio proporcionalmente
+     maior e traços mais grossos para sobreviver a 16×16. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Evollo">
+  <rect width="64" height="64" rx="14" fill="#18B984"/>
+  <g fill="#FFFFFF">
+    <rect x="21" y="18" width="6"  height="28" rx="1.5"/>
+    <rect x="21" y="18" width="22" height="6"  rx="1.5"/>
+    <rect x="21" y="29" width="18" height="6"  rx="1.5"/>
+    <rect x="21" y="40" width="22" height="6"  rx="1.5"/>
+  </g>
+</svg>

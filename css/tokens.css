@@ -1,0 +1,171 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   EVOLLO · DESIGN TOKENS
+   ---------------------------------------------------------------------------
+   FONTE ÚNICA da identidade visual. Nenhuma cor da marca deve ser escrita
+   literalmente em outro arquivo — se você precisar de um tom que não existe
+   aqui, o lugar de criá-lo é aqui.
+
+   O arquivo tem duas partes:
+
+     1. TOKENS EVOLLO   — a identidade nova, nomes definitivos.
+     2. COMPATIBILIDADE — os nomes herdados do NutriMap (--moss, --cream,
+                          --ink...) reapontados para os tokens novos.
+
+   A parte 2 existe porque havia 1.340 usos dos nomes antigos espalhados por
+   index/app/admin/anamnese. Reapontá-los troca a identidade do sistema inteiro
+   de uma vez, sem editar 1.340 linhas — e sem duplicar nenhuma cor, já que os
+   apelidos referenciam os tokens da parte 1 em vez de repetir o hex.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── ESCALA PRIMÁRIA ────────────────────────────────────────────────── */
+  --color-primary-900: #0E1A16;
+  --color-primary-800: #13472F;
+  --color-primary-700: #167C57;
+  --color-primary-600: #18B984;   /* cor de ação da marca */
+  --color-primary-500: #30C997;
+  --color-primary-400: #58D5AE;
+  --color-primary-300: #7EE2C3;
+  --color-primary-200: #B8F2DE;
+  --color-primary-100: #EAFBF5;
+
+  /* ── SUPERFÍCIES ────────────────────────────────────────────────────── */
+  --background:      #F7F7F6;
+  --surface:         #FFFFFF;
+  --surface-subtle:  #F4F5F7;   /* preenchimento neutro: hover, faixas, chips */
+  --border:          #E6E8EB;
+  --border-strong:   #D8DEE5;   /* borda de input em repouso */
+
+  /* ── TEXTO ──────────────────────────────────────────────────────────── */
+  --text-primary:    #1D2939;
+  --text-secondary:  #667085;
+  --text-muted:      #98A2B3;   /* legendas, placeholders, estados vazios */
+  --text-on-primary: #FFFFFF;
+
+  /* ── AÇÃO ───────────────────────────────────────────────────────────── */
+  --primary:         var(--color-primary-600);
+  --primary-hover:   #16A776;
+  --primary-pressed: #128A63;
+  --primary-soft:    var(--color-primary-100);
+
+  /* ── ESTADO ─────────────────────────────────────────────────────────── */
+  --error:   #EF4444;
+  --success: #22C55E;
+  --info:    #3B82F6;
+  --warning: #F59E0B;
+
+  /* Versões translúcidas, para fundo de alerta sem inventar tom novo. */
+  --error-soft:   color-mix(in srgb, var(--error)   10%, transparent);
+  --success-soft: color-mix(in srgb, var(--success) 12%, transparent);
+  --info-soft:    color-mix(in srgb, var(--info)    10%, transparent);
+  --warning-soft: color-mix(in srgb, var(--warning) 14%, transparent);
+
+  /* ── GRÁFICOS ───────────────────────────────────────────────────────── */
+  --chart-prot: #18B984;
+  --chart-carb: #3B82F6;
+  --chart-gord: #F59E0B;
+  --chart-kcal: #7C5CFF;
+
+  /* ── TIPOGRAFIA ─────────────────────────────────────────────────────── */
+  /* Uma família só. Inter é a fonte de Linear/Stripe/Notion; o stack de
+     sistema atrás dela cobre o intervalo até a webfont carregar. */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+               'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+
+  --text-h1-size: 32px;  --text-h1-weight: 700;  --text-h1-lh: 1.2;
+  --text-h2-size: 24px;  --text-h2-weight: 700;  --text-h2-lh: 1.25;
+  --text-h3-size: 19px;  --text-h3-weight: 600;  --text-h3-lh: 1.3;
+  --text-body-size: 15px; --text-body-weight: 400; --text-body-lh: 1.55;
+  --text-caption-size: 12.5px; --text-caption-weight: 500; --text-caption-lh: 1.4;
+  --text-button-size: 14px; --text-button-weight: 600; --text-button-lh: 1;
+
+  /* Inter fica larga em corpos grandes; o aperto é o que dá o ar "premium". */
+  --tracking-tight: -0.018em;
+  --tracking-snug:  -0.011em;
+  --tracking-wide:   0.04em;
+
+  /* ── FORMA ──────────────────────────────────────────────────────────── */
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   16px;
+  --radius-pill: 999px;
+
+  /* ── ELEVAÇÃO ───────────────────────────────────────────────────────── */
+  /* Sombras quase imperceptíveis: a separação vem da borda, não do borrão. */
+  --shadow-xs: 0 1px 2px rgba(16,24,40,0.04);
+  --shadow-sm: 0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.03);
+  --shadow-md: 0 4px 12px rgba(16,24,40,0.06);
+  --shadow-lg: 0 12px 28px rgba(16,24,40,0.08);
+  --shadow-focus: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
+
+  /* ── MOVIMENTO ──────────────────────────────────────────────────────── */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 260ms;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: all var(--duration-base) var(--ease);
+
+  /* ── LAYOUT ─────────────────────────────────────────────────────────── */
+  --sidebar-w: 260px;
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     COMPATIBILIDADE — nomes herdados do NutriMap
+     -----------------------------------------------------------------------
+     Cada apelido abaixo foi mapeado pelo PAPEL que ele exercia no CSS antigo,
+     não pela semelhança do tom. Onde um nome acumulava dois papéis, seguimos
+     o majoritário e o minoritário virou regra explícita em brand.css.
+     ═══════════════════════════════════════════════════════════════════════ */
+
+  /* Superfícies */
+  --bg:       var(--background);
+  --bg-card:  var(--surface);
+  --bg-warm:  var(--surface-subtle);
+  --line:     var(--border);
+  --hair:     color-mix(in srgb, var(--text-primary) 7%, transparent);
+
+  /* Texto. --ink-mute era o tom de legenda, mais claro que --ink-soft. */
+  --ink:      var(--text-primary);
+  --ink-soft: var(--text-secondary);
+  --ink-mute: var(--text-muted);
+
+  /* Marca.
+     --moss-deep aparecia 105× como `color:` (títulos) contra ~11× como fundo
+     de hover. Vale o papel majoritário: é o tom de texto forte.
+     --moss é o verde da marca, mas 71 dos seus usos são `color:` sobre fundo
+     claro — #18B984 ali dá 2,3:1 de contraste, ilegível. O apelido fica no
+     700 (4,6:1) e os componentes que a identidade exige em #18B984 (botão
+     primário, item ativo da sidebar, foco de input) são declarados em
+     brand.css, onde o verde aparece sobre fundo escuro ou como preenchimento. */
+  --moss-deep:  var(--text-primary);
+  --moss:       var(--color-primary-700);
+  --moss-light: var(--color-primary-500);
+  --olive:      var(--color-primary-500);
+
+  /* --cream era o texto claro sobre verde escuro (logo, item ativo, badges). */
+  --cream: var(--text-on-primary);
+
+  /* Acentos */
+  --sage:       var(--color-primary-400);   /* bordas e hovers suaves */
+  --gold:       var(--warning);
+  --gold-soft:  color-mix(in srgb, var(--warning) 45%, white);
+  --terracotta: var(--error);
+  --rose:       var(--error);
+  --plum:       var(--chart-kcal);
+  --plum-soft:  color-mix(in srgb, var(--chart-kcal) 12%, transparent);
+  --plum-line:  color-mix(in srgb, var(--chart-kcal) 28%, transparent);
+
+  /* Camada semântica que o index.html já declarava; agora vem daqui. */
+  --page-bg:        var(--background);
+  --danger:         var(--error);
+  --danger-soft:    var(--error-soft);
+  --macro-prot:     var(--chart-prot);
+  --macro-carb:     var(--chart-carb);
+  --macro-gord:     var(--chart-gord);
+
+  /* Sombras antigas, agora nos valores suaves da identidade nova. */
+  --shadow: var(--shadow-sm);
+
+  /* Forma legada */
+  --radius: var(--radius-lg);
+}

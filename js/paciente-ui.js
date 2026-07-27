@@ -127,10 +127,12 @@ function renderAuth(modo = 'entrar') {
   const entrarAtivo = modo === 'entrar';
   app().innerHTML = `
     <div class="pa-auth">
-      <div class="pa-brand">
-        <div class="pa-brand-mark">N</div>
-        <div class="pa-brand-name">Nutri<em>Map</em></div>
-        <div class="pa-brand-sub">Área do aluno</div>
+      <div class="pa-brand evo-logo evo-logo--stacked evo-logo--lg">
+        <div class="evo-logo-mark" aria-hidden="true">E</div>
+        <div>
+          <div class="evo-logo-name">Evollo</div>
+          <div class="pa-brand-sub">Área do aluno</div>
+        </div>
       </div>
 
       <div class="pa-card">
@@ -210,10 +212,12 @@ async function fazerCadastro() {
 function renderVincular(prefill = '', erro = '') {
   app().innerHTML = `
     <div class="pa-auth">
-      <div class="pa-brand">
-        <div class="pa-brand-mark">N</div>
-        <div class="pa-brand-name">Quase lá</div>
-        <div class="pa-brand-sub">Vincule sua conta</div>
+      <div class="pa-brand evo-logo evo-logo--stacked evo-logo--lg">
+        <div class="evo-logo-mark" aria-hidden="true">E</div>
+        <div>
+          <div class="evo-logo-name">Quase lá</div>
+          <div class="pa-brand-sub">Vincule sua conta</div>
+        </div>
       </div>
 
       <div class="pa-card">
@@ -1286,7 +1290,7 @@ function topo() {
   const inicial = (nome.trim()[0] || 'A').toUpperCase();
   return `
     <header class="pa-topbar">
-      <div class="pa-topbrand"><span class="pa-topmark">N</span> Nutri<em>Map</em></div>
+      <div class="pa-topbrand evo-logo evo-logo--sm"><span class="evo-logo-mark" aria-hidden="true">E</span><span class="evo-logo-name">Evollo</span></div>
       <div class="pa-topuser">
         <span class="pa-avatar">${esc(inicial)}</span>
         <span class="pa-username">${esc(nome.split(' ')[0])}</span>

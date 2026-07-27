@@ -603,11 +603,11 @@ function gerarRadar(scores) {
 
   const svg = `
     <svg viewBox="-10 -10 340 340" class="radar-svg" xmlns="http://www.w3.org/2000/svg">
-      <g stroke="#DDD6C5" fill="none" stroke-width="1">${gradesHtml}</g>
-      <g stroke="#C3BBA8" stroke-width="1">${linhasHtml}</g>
-      <polygon points="${pontosData}" fill="rgba(61,77,63,0.18)" stroke="#3D4D3F" stroke-width="2.5"/>
-      <g fill="#2A3A2C">${circulosHtml}</g>
-      <g font-family="Inter Tight, sans-serif" font-size="9" fill="#4A524C" font-weight="600">${labelsHtml}</g>
+      <g stroke="#E6E8EB" fill="none" stroke-width="1">${gradesHtml}</g>
+      <g stroke="#D8DEE5" stroke-width="1">${linhasHtml}</g>
+      <polygon points="${pontosData}" fill="rgba(24,185,132,0.18)" stroke="#18B984" stroke-width="2.5"/>
+      <g fill="#167C57">${circulosHtml}</g>
+      <g font-family="Inter, sans-serif" font-size="9" fill="#667085" font-weight="600">${labelsHtml}</g>
     </svg>
   `;
 

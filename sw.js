@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// NutriMap · Service Worker (PWA do aluno)
+// Evollo · Service Worker (PWA do aluno)
 // ═══════════════════════════════════════════════════════════
 // Cache-first para o "app shell" (mesma origem, GET). Requisições ao Supabase
 // (outra origem) e não-GET passam direto pela rede — nunca são cacheadas.
@@ -11,6 +11,8 @@ const SHELL = [
   'app.html',
   'manifest.webmanifest',
   'icons/icon.svg',
+  'css/tokens.css',
+  'css/brand.css',
   'js/paciente-ui.js',
   'js/paciente-data.js',
   'js/push.js',
@@ -63,7 +65,7 @@ self.addEventListener('push', (event) => {
   try { data = event.data ? event.data.json() : {}; }
   catch { data = { body: event.data ? event.data.text() : '' }; }
 
-  const title = data.title || 'NutriMap';
+  const title = data.title || 'Evollo';
   const options = {
     body: data.body || 'Seu treino foi atualizado.',
     icon: '/icons/icon.svg',

@@ -1,0 +1,16 @@
+<!-- Evollo · lockup vertical (símbolo acima da marca nominal). Provisório:
+     ver a observação sobre <text> em logo-horizontal.svg. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 116" width="160" height="116" role="img" aria-label="Evollo">
+  <g transform="translate(56,0) scale(0.09375)">
+    <rect width="512" height="512" rx="112" fill="#18B984"/>
+    <g fill="#FFFFFF">
+      <rect x="176" y="152" width="40"  height="208" rx="8"/>
+      <rect x="176" y="152" width="160" height="40"  rx="8"/>
+      <rect x="176" y="236" width="132" height="40"  rx="8"/>
+      <rect x="176" y="320" width="160" height="40"  rx="8"/>
+    </g>
+  </g>
+  <text x="80" y="94" text-anchor="middle"
+        font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+        font-size="27" font-weight="700" letter-spacing="-0.8" fill="#1D2939">Evollo</text>
+</svg>

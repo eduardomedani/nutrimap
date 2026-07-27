@@ -1,20 +1,44 @@
 {
-  "name": "NutriMap — Aluno",
-  "short_name": "NutriMap",
+  "name": "Evollo — Aluno",
+  "short_name": "Evollo",
   "description": "Seu treino e sua progressão de carga.",
   "start_url": "app.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#F4F1EA",
-  "theme_color": "#2A3A2C",
+  "background_color": "#F7F7F6",
+  "theme_color": "#18B984",
   "lang": "pt-BR",
   "icons": [
     {
       "src": "icons/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

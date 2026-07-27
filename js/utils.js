@@ -43,8 +43,8 @@ export function mostrarToast(mensagem, duracaoMs = 2000) {
     position: fixed;
     bottom: 24px;
     right: 24px;
-    background: var(--moss-deep, #2A3A2C);
-    color: var(--cream, #F8F1DD);
+    background: var(--text-primary, #1D2939);
+    color: var(--text-on-primary, #FFFFFF);
     padding: 12px 18px;
     border-radius: 10px;
     font-size: 13px;
@@ -71,7 +71,7 @@ export function mostrarErro(mensagem, duracaoMs = 6000) {
     bottom: 24px;
     right: 24px;
     max-width: 380px;
-    background: #C0392B;
+    background: var(--error, #EF4444);
     color: #fff;
     padding: 12px 18px;
     border-radius: 10px;
@@ -96,7 +96,7 @@ export function mostrarToastDesfazer(mensagem, aoDesfazer, duracaoMs = 6000) {
   toast.style.cssText = `
     position: fixed; bottom: 24px; right: 24px; z-index: 10000;
     display: flex; align-items: center; gap: 14px;
-    background: var(--moss-deep, #2A3A2C); color: var(--cream, #F8F1DD);
+    background: var(--text-primary, #1D2939); color: var(--text-on-primary, #FFFFFF);
     padding: 10px 12px 10px 18px; border-radius: 10px;
     font-family: 'Nunito', sans-serif; font-size: 13px;
     box-shadow: 0 8px 30px rgba(0,0,0,0.15);
@@ -156,7 +156,7 @@ export function confirmar(opcoes = {}) {
 
     const caixa = document.createElement('div');
     caixa.style.cssText = `
-      background: var(--bg-card, #FDFBF7);
+      background: var(--surface, #FFFFFF);
       border-radius: 16px; padding: 24px;
       width: 100%; max-width: 420px;
       box-shadow: 0 20px 60px rgba(0,0,0,0.25);
@@ -165,11 +165,11 @@ export function confirmar(opcoes = {}) {
 
     const h = document.createElement('div');
     h.textContent = titulo;
-    h.style.cssText = `font-size: 17px; font-weight: 800; color: var(--ink, #1A1F1B); margin-bottom: 8px;`;
+    h.style.cssText = `font-size: 17px; font-weight: 800; color: var(--text-primary, #1D2939); margin-bottom: 8px;`;
 
     const p = document.createElement('div');
     p.textContent = mensagem;   // textContent, não innerHTML: a mensagem pode conter nome digitado pelo usuário
-    p.style.cssText = `font-size: 14px; line-height: 1.5; color: var(--ink-soft, #4A544B); margin-bottom: 20px; white-space: pre-wrap;`;
+    p.style.cssText = `font-size: 14px; line-height: 1.5; color: var(--text-secondary, #667085); margin-bottom: 20px; white-space: pre-wrap;`;
 
     const acoes = document.createElement('div');
     acoes.style.cssText = `display: flex; gap: 10px; justify-content: flex-end;`;
@@ -179,7 +179,7 @@ export function confirmar(opcoes = {}) {
     btnCancelar.style.cssText = `
       font-family: 'Nunito', sans-serif; font-size: 13.5px; font-weight: 700; cursor: pointer;
       padding: 9px 16px; border-radius: 100px;
-      border: 1.5px solid var(--line, #DDD6C5); background: transparent; color: var(--ink, #1A1F1B);
+      border: 1.5px solid var(--border, #E6E8EB); background: transparent; color: var(--text-primary, #1D2939);
     `;
 
     const btnOk = document.createElement('button');
@@ -187,7 +187,7 @@ export function confirmar(opcoes = {}) {
     btnOk.style.cssText = `
       font-family: 'Nunito', sans-serif; font-size: 13.5px; font-weight: 700; cursor: pointer;
       padding: 9px 16px; border-radius: 100px; border: 1.5px solid transparent; color: #fff;
-      background: ${perigo ? '#C0392B' : 'var(--moss, #3D4D3F)'};
+      background: ${perigo ? 'var(--error, #EF4444)' : 'var(--primary, #18B984)'};
     `;
 
     acoes.append(btnCancelar, btnOk);

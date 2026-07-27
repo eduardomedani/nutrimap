@@ -1,4 +1,7 @@
-<!-- Evollo · ícone do app (purpose "any"): cantos arredondados próprios. -->
+<!-- Evollo · símbolo provisório.
+     O "E" é geometria pura, não texto: renderiza idêntico em qualquer
+     ambiente, sem depender de fonte instalada. Substituir pelo símbolo
+     definitivo mantendo o viewBox 512 e o nome do arquivo. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Evollo">
   <rect width="512" height="512" rx="112" fill="#18B984"/>
   <g fill="#FFFFFF">
