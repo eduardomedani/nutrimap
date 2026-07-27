@@ -80,6 +80,33 @@ h3, .evo-h3 {
 /* Se algum lugar preferir passar a arte explicitamente, continua funcionando. */
 .evo-logo-mark > img, .evo-logo-mark > svg { width: 100%; height: 100%; display: block; }
 
+/* ── MAPA DE ARQUIVOS DA MARCA ────────────────────────────────────────────
+   Os caminhos aparecem SÓ aqui. Para trocar a marca, substitua os arquivos
+   abaixo e nada mais precisa mudar em nenhuma página:
+
+     símbolo ................. icons/icon-192.png        (.evo-logo-mark)
+     lockup p/ fundo claro ... assets/brand/logo-light.svg   (.evo-logo-full)
+     lockup p/ fundo escuro .. assets/brand/logo-dark.svg    (.evo-logo-full--light)
+
+   Cuidado com o nome dos arquivos: "logo-dark.svg" é a versão PARA fundo
+   escuro (nominal branca), e "logo-light.svg" é PARA fundo claro (nominal
+   escura) — é o contrário do que o nome sugere à primeira leitura.
+
+   Uso:
+     <span class="evo-logo-mark" aria-hidden="true"></span>          símbolo
+     <span class="evo-logo-full" role="img" aria-label="Evollo"></span>
+     <span class="evo-logo-full evo-logo-full--light" role="img" aria-label="Evollo"></span>
+   ─────────────────────────────────────────────────────────────────────── */
+.evo-logo-full {
+  display: inline-block;
+  width: var(--evo-full-w, 152px);
+  height: var(--evo-full-h, 41px);
+  background: url('../assets/brand/logo-light.svg') left center / contain no-repeat;
+}
+.evo-logo-full--light { background-image: url('../assets/brand/logo-dark.svg'); }
+.evo-logo-full--sm { --evo-full-w: 118px; --evo-full-h: 32px; }
+.evo-logo-full--lg { --evo-full-w: 190px; --evo-full-h: 51px; }
+
 .evo-logo-name {
   font-family: var(--font-sans);
   font-size: var(--evo-name-size, 20px);
