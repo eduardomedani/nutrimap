@@ -1276,8 +1276,25 @@
                     grid-template-columns: minmax(0,1.3fr) minmax(0,1fr) 92px 88px 110px 32px; }
   .cal-ativ-cab { margin-bottom: 6px; font-size: 10.5px; font-weight: 700; color: var(--ink-mute);
                   text-transform: uppercase; letter-spacing: 0.04em; }
-  .cal-ativ-fator { max-width: 320px; margin-top: 12px; }
-  .cal-ativ-fator label { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); margin-bottom: 6px; }
+  .cal-ativ-fator, .cal-ativ-base { max-width: 320px; margin-top: 12px; }
+  .cal-ativ-fator label, .cal-ativ-base label { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); margin-bottom: 6px; }
+  .cal-ativ-base { margin-bottom: 16px; }
+
+  /* Importação da anamnese: bloco informativo, some quando não há nada. */
+  .cal-import { margin-top: 12px; padding: 12px 14px; border-radius: 12px;
+                background: var(--success-soft); border: 1px solid color-mix(in srgb, var(--success) 26%, transparent);
+                font-size: 12.5px; line-height: 1.5; color: var(--text-primary); }
+  .cal-import-vazio { background: var(--surface-subtle); border-color: var(--border); color: var(--text-secondary); }
+  .cal-import-hd { display: flex; align-items: center; gap: 7px; font-weight: 700;
+                   color: var(--color-primary-800); margin-bottom: 5px; }
+  .cal-import svg { width: 15px; height: 15px; flex-shrink: 0; }
+  .cal-import-avisos { margin: 8px 0 0; padding-left: 18px; color: var(--text-secondary); }
+  .cal-import-avisos li { margin-bottom: 3px; }
+  .cal-import-rec { display: flex; align-items: flex-start; gap: 7px; margin-top: 10px;
+                    padding-top: 9px; border-top: 1px solid color-mix(in srgb, var(--success) 22%, transparent);
+                    color: var(--text-secondary); }
+  #calImportInfo:empty { display: none; }
+  #calImportar { margin-top: 4px; }
   .cal-ativ-kcal { font-size: 12.5px; font-weight: 700; color: var(--moss-deep);
                    text-align: right; font-variant-numeric: tabular-nums; }
   .cal-ativ-x { display: grid; place-items: center; width: 32px; height: 40px; padding: 0;

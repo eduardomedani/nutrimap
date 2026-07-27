@@ -19,6 +19,9 @@ import {
   catalogoParaGerador, faltandoNoCatalogo,
 } from './dieta.js';
 import { TEMPLATES } from './dieta-grupos.js';
+import { mapearAtividadeFisica } from './anamnese-calorias.js';
+import { buscarRespostasModulo } from './respostas.js';
+import { buscarCache as buscarRecordatorio } from './recordatorio-ia.js';
 import { mostrarToast, confirmar } from './utils.js';
 
 let _nutriId = null;
@@ -42,6 +45,12 @@ const estadoInicial = () => ({
   // fator que veio da avaliação, sem inventar nada.
   modoAtiv: null,
   atividades: [],
+  // Base do modelo aditivo: o quanto a rotina SEM exercício já gasta. Era
+  // fixa em 1,2 (sedentário) e invisível; virou campo porque quem trabalha
+  // em pé não tem o mesmo gasto de quem fica sentado, e a anamnese pergunta
+  // exatamente isso (q10_neat). Continua em 1,2 por padrão, então nenhum
+  // cálculo existente muda sozinho.
+  fatorBase: FATOR_PADRAO,
   ajuste: OBJETIVOS.find(o => o.v === OBJ_PADRAO).ajuste,
   modo: 'gkg',
   gkg: { proteina: 2, carboidrato: 3, gordura: 1 },
@@ -216,8 +225,8 @@ function cardEnergetico() {
 
 /**
  * Modo aditivo: cada atividade entra separada e o gasto médio diário é somado
- * ao GET. Com ele ligado o fator vira 1,2 e sai de cena — os dois modelos
- * contariam o exercício duas vezes se somados.
+ * ao GET. Com ele ligado o fator da rotina sai de cena e entra a BASE sem
+ * exercício — os dois modelos contariam o treino duas vezes se somados.
  */
 function blocoAtividades() {
   const met = _form.modoAtiv === 'met';
@@ -230,7 +239,12 @@ function blocoAtividades() {
           <button type="button" data-modoativ="fator" aria-pressed="${fat}">Fator único</button>
           <button type="button" data-modoativ="met" aria-pressed="${met}">Somar atividades</button>
         </div>
+        <button type="button" class="btn btn-sm-secondary" id="calImportar"
+                title="Preenche a partir do módulo de atividade física da anamnese">
+          <i data-lucide="download"></i> Importar da anamnese
+        </button>
       </div>
+      <div id="calImportInfo"></div>
       <div class="cal-ativ-fator" ${fat ? '' : 'hidden'}>
         <label for="calFator">Nível de atividade da rotina</label>
         <select id="calFator" class="cal-input" data-campo="fator">
@@ -239,13 +253,19 @@ function blocoAtividades() {
       </div>
 
       <div class="cal-ativ-corpo" ${met ? '' : 'hidden'}>
+        <div class="cal-ativ-base">
+          <label for="calFatorBase">Rotina sem exercício (dia a dia)</label>
+          <select id="calFatorBase" class="cal-input" data-campo="fatorBase">
+            ${FATORES.map(f => `<option value="${f.v}">${f.label} (${String(f.v).replace('.', ',')})</option>`).join('')}
+          </select>
+        </div>
         <div class="cal-ativ-cab" aria-hidden="true">
           <span>Atividade</span><span>Intensidade</span><span>Tempo (min)</span><span>×/semana</span><span></span><span></span>
         </div>
         <div class="cal-ativ-lista" id="calAtivLista"></div>
         <button type="button" class="btn" id="calAtivAdd"><i data-lucide="plus"></i> Adicionar atividade</button>
         <div class="cal-ativ-total" id="calAtivTotal"></div>
-        <p class="cal-hint">Fator fixo em 1,2 (rotina sem treino); o gasto de cada atividade é somado ao GET.</p>
+        <p class="cal-hint">A base cobre trabalho, casa e deslocamento — o exercício NÃO entra nela, vem somado das atividades abaixo.</p>
       </div>
     </div>`;
 }
@@ -384,10 +404,13 @@ function ligarEventos() {
         if (o) { _form.ajuste = o.ajuste; _root.querySelector('#calAjuste').value = o.ajuste; }
       }
       if (c === 'fator') _form.fator = num(el.value) || FATOR_PADRAO;   // select devolve string
-      if (c === 'peso' || c === 'formula' || c === 'fator') recalcularGet();
+      if (c === 'fatorBase') _form.fatorBase = num(el.value) || FATOR_PADRAO;
+      if (c === 'peso' || c === 'formula' || c === 'fator' || c === 'fatorBase') recalcularGet();
       pintar();
     });
   });
+
+  _root.querySelector('#calImportar')?.addEventListener('click', importarDaAnamnese);
 
   _root.querySelectorAll('[data-macro-input]').forEach(el => {
     el.addEventListener('input', () => {
@@ -509,8 +532,12 @@ function recalcularGet() {
   const nota = _root.querySelector('#calTmbNota');
   if (!_av) { if (nota) nota.textContent = 'Sem avaliação: informe o GET manualmente.'; return; }
 
-  // No modo aditivo o fator volta a 1,2: o multiplicador já embutiria o treino.
-  const fator = _form.modoAtiv === 'met' ? FATOR_PADRAO : (num(_form.fator) || FATOR_PADRAO);
+  // No modo aditivo o fator de rotina NÃO pode ser o mesmo do modo único: o
+  // multiplicador de lá já embute o treino, e o treino aqui entra somado.
+  // Usa-se a base sem exercício (--fatorBase, 1,2 por padrão).
+  const fator = _form.modoAtiv === 'met'
+    ? (num(_form.fatorBase) || FATOR_PADRAO)
+    : (num(_form.fator) || FATOR_PADRAO);
   const tmb = tmbPorFormula(_form.formula, {
     peso: num(_form.peso),
     alturaCm: num(_av.altura) * 100,   // altura vem em metros no banco
@@ -557,6 +584,7 @@ function pintar() {
   setV('#calAjuste', _form.ajuste);
   const fEl = q('#calFormula'); if (fEl) fEl.value = _form.formula;
   const aEl = q('#calFator'); if (aEl) aEl.value = String(_form.fator);
+  const bEl = q('#calFatorBase'); if (bEl) bEl.value = String(_form.fatorBase);
   pintarAtividades(q);
   // o objetivo virou grupo de rádios: marca o que corresponde ao estado
   const oEl = q(`input[name="calObjetivo"][value="${_form.objetivo}"]`);
@@ -752,6 +780,94 @@ function pintarStatusSalvo() {
 // ───────────────────────────────────────────────────────────
 // AÇÕES
 // ───────────────────────────────────────────────────────────
+
+/**
+ * Traz o que a anamnese já sabe sobre a rotina do paciente: nível do dia a dia
+ * e as atividades praticadas (frequência + intensidade).
+ *
+ * NÃO salva nada — preenche o formulário para o profissional conferir e
+ * corrigir. É de propósito: a anamnese é auto-relato, e a duração da sessão
+ * nem sequer é perguntada lá (entra estimada).
+ */
+async function importarDaAnamnese() {
+  const btn = _root.querySelector('#calImportar');
+  const caixa = _root.querySelector('#calImportInfo');
+  const orig = btn.innerHTML;
+  btn.disabled = true; btn.textContent = 'Buscando...';
+  try {
+    const m10 = await buscarRespostasModulo(_paciente.id, 'm10');
+    const r = mapearAtividadeFisica(m10);
+
+    if (!r.respondeu) {
+      caixa.innerHTML = `<div class="cal-import cal-import-vazio">
+        <i data-lucide="info"></i> Este paciente ainda não respondeu o módulo de atividade física da anamnese.</div>`;
+      return;
+    }
+
+    // Sobrescrever a lista atual é destrutivo: confirma antes.
+    if (_form.atividades.length && r.atividades.length) {
+      const ok = await confirmar({
+        titulo: 'Substituir atividades',
+        mensagem: `A tela já tem ${_form.atividades.length} atividade(s) lançada(s). Importar da anamnese vai substituí-las.`,
+        textoOk: 'Substituir',
+      });
+      if (!ok) return;
+    }
+
+    if (r.neat.fator) _form.fatorBase = r.neat.fator;
+    if (r.atividades.length) {
+      _form.atividades = clonar(r.atividades);
+      _form.modoAtiv = 'met';
+    } else if (r.neat.fator) {
+      // Não pratica exercício: o nível do dia a dia é a resposta inteira.
+      _form.fator = r.neat.fator;
+      _form.modoAtiv = 'fator';
+    }
+
+    // O recordatório é REFERÊNCIA, não meta: mostra o que a pessoa come hoje,
+    // para o profissional comparar com o GET calculado. Sub-relato é comum.
+    let rec = null;
+    try { rec = await buscarRecordatorio(_paciente.id); } catch (e) { /* opcional */ }
+
+    render();
+    recalcularGet();
+    pintar();
+
+    const infoNeat = r.neat.rotulo
+      ? `Dia a dia: <strong>${esc(r.neat.rotulo)}</strong> (fator ${String(r.neat.fator).replace('.', ',')}).`
+      : 'A anamnese não trouxe o nível de atividade diária.';
+    const infoAtiv = r.atividades.length
+      ? `${r.atividades.length} atividade(s) importada(s).`
+      : (r.praticaRegularmente ? 'Nenhuma atividade pôde ser traduzida.' : 'Não pratica exercício regularmente.');
+    const infoRec = rec?.kcal_total
+      ? `<div class="cal-import-rec"><i data-lucide="utensils"></i>
+           Recordatório da anamnese: <strong>${fmtKcal(rec.kcal_total)} kcal/dia</strong>
+           (P ${Math.round(rec.prot_g)} · C ${Math.round(rec.carb_g)} · G ${Math.round(rec.gord_g)}).
+           É o consumo relatado, não a meta — compare com o GET ao lado.</div>`
+      : '';
+
+    _root.querySelector('#calImportInfo').innerHTML = `
+      <div class="cal-import">
+        <div class="cal-import-hd"><i data-lucide="circle-check"></i> Importado da anamnese</div>
+        <div class="cal-import-linha">${infoNeat} ${esc(infoAtiv)}</div>
+        ${r.avisos.length ? `<ul class="cal-import-avisos">${
+          r.avisos.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
+        ${infoRec}
+      </div>`;
+    window.renderIcons?.();
+    mostrarToast('✓ Dados da anamnese carregados — confira antes de salvar');
+  } catch (e) {
+    _root.querySelector('#calImportInfo').innerHTML =
+      `<div class="cal-import cal-import-vazio"><i data-lucide="triangle-alert"></i> Não foi possível ler a anamnese.</div>`;
+    window.renderIcons?.();
+  } finally {
+    // Re-consulta: render() troca o DOM, e o `btn` capturado no início pode
+    // estar apontando para um nó já descartado.
+    const atual = _root.querySelector('#calImportar');
+    if (atual) { atual.disabled = false; atual.innerHTML = orig; }
+    window.renderIcons?.();
+  }
+}
 
 async function salvar() {
   const s = estado();
