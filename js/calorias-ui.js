@@ -19,7 +19,7 @@ import {
   catalogoParaGerador, faltandoNoCatalogo,
 } from './dieta.js';
 import { TEMPLATES } from './dieta-grupos.js';
-import { mapearAtividadeFisica } from './anamnese-calorias.js';
+import { mapearAtividadeFisica, mapearAntropometria } from './anamnese-calorias.js';
 import { buscarRespostasModulo } from './respostas.js';
 import { buscarCache as buscarRecordatorio } from './recordatorio-ia.js';
 import { mostrarToast, confirmar } from './utils.js';
@@ -27,6 +27,12 @@ import { mostrarToast, confirmar } from './utils.js';
 let _nutriId = null;
 let _paciente = null;
 let _av = null;
+// Fonte dos dados que a TMB consome (altura, idade, sexo, %gordura). Separado
+// de _av de propósito: a avaliação física é a medição clínica e continua
+// mandando; quando ela não existe, a anamnese pode preencher — e o cabeçalho
+// não pode dizer "Avaliação" onde não houve nenhuma.
+//   { alturaCm, idade, sexo, pctGordura, origem: 'avaliacao' | 'anamnese' }
+let _antropo = null;
 let _root = null;
 let _salvoEm = null;           // timestamp do último salvamento
 let _tickSalvo = null;
@@ -87,6 +93,13 @@ export async function initCaloriasUIParaPaciente(nutriId, paciente, mountId) {
   } catch (e) { _av = null; }
   if (_av?.peso) _form.peso = String(_av.peso);
   if (_av?.fator_atividade) _form.fator = num(_av.fator_atividade) || FATOR_PADRAO;
+  _antropo = _av ? {
+    alturaCm: num(_av.altura) * 100,     // altura vem em metros no banco
+    idade: num(_av.idade),
+    sexo: _av.sexo,
+    pctGordura: num(_av.pct_gordura),
+    origem: 'avaliacao',
+  } : null;
 
   // Retoma as metas do plano ativo: sem isto a tela abriria sempre nos
   // padrões e "Descartar" não teria a que voltar.
@@ -143,9 +156,13 @@ function render() {
 }
 
 function barraAcoes() {
+  // A origem dos dados fica visível: medição de consulta e auto-relato do
+  // paciente não têm o mesmo peso, e quem lê a tela precisa saber qual é.
   const av = _av?.data_avaliacao
     ? `Avaliação ${_av.numero} · ${fmtData(_av.data_avaliacao)}`
-    : 'Sem avaliação registrada';
+    : _antropo?.origem === 'anamnese'
+      ? 'Sem avaliação · dados informados pelo paciente na anamnese'
+      : 'Sem avaliação registrada';
   return `
     <div class="cal-head">
       <div class="cal-ident">
@@ -530,7 +547,12 @@ function passo(macro, dir) {
 
 function recalcularGet() {
   const nota = _root.querySelector('#calTmbNota');
-  if (!_av) { if (nota) nota.textContent = 'Sem avaliação: informe o GET manualmente.'; return; }
+  if (!_antropo) {
+    if (nota) nota.textContent = _av
+      ? 'Sem avaliação: informe o GET manualmente.'
+      : 'Sem avaliação física. Use "Importar da anamnese" se o paciente já respondeu, ou informe o GET manualmente.';
+    return;
+  }
 
   // No modo aditivo o fator de rotina NÃO pode ser o mesmo do modo único: o
   // multiplicador de lá já embute o treino, e o treino aqui entra somado.
@@ -540,10 +562,10 @@ function recalcularGet() {
     : (num(_form.fator) || FATOR_PADRAO);
   const tmb = tmbPorFormula(_form.formula, {
     peso: num(_form.peso),
-    alturaCm: num(_av.altura) * 100,   // altura vem em metros no banco
-    idade: num(_av.idade),
-    sexo: _av.sexo,
-    pctGordura: num(_av.pct_gordura),
+    alturaCm: _antropo.alturaCm,
+    idade: _antropo.idade,
+    sexo: _antropo.sexo,
+    pctGordura: _antropo.pctGordura,
   });
 
   if (tmb == null) {
@@ -795,10 +817,15 @@ async function importarDaAnamnese() {
   const orig = btn.innerHTML;
   btn.disabled = true; btn.textContent = 'Buscando...';
   try {
-    const m10 = await buscarRespostasModulo(_paciente.id, 'm10');
+    const [m10, m1, m4] = await Promise.all([
+      buscarRespostasModulo(_paciente.id, 'm10'),
+      buscarRespostasModulo(_paciente.id, 'm1'),
+      buscarRespostasModulo(_paciente.id, 'm4'),
+    ]);
     const r = mapearAtividadeFisica(m10);
+    const antro = mapearAntropometria(m1, m4);
 
-    if (!r.respondeu) {
+    if (!r.respondeu && !antro.completa) {
       caixa.innerHTML = `<div class="cal-import cal-import-vazio">
         <i data-lucide="info"></i> Este paciente ainda não respondeu o módulo de atividade física da anamnese.</div>`;
       return;
@@ -812,6 +839,19 @@ async function importarDaAnamnese() {
         textoOk: 'Substituir',
       });
       if (!ok) return;
+    }
+
+    // Antropometria: SÓ preenche se não há avaliação física. A avaliação é
+    // medição de consulta e continua mandando — auto-relato não a sobrescreve.
+    let antroImportada = false;
+    if (!_av && antro.completa) {
+      _antropo = {
+        alturaCm: antro.alturaCm, idade: antro.idade, sexo: antro.sexo,
+        pctGordura: null,          // a anamnese não mede dobras
+        origem: 'anamnese',
+      };
+      _form.peso = String(antro.peso);
+      antroImportada = true;
     }
 
     if (r.neat.fator) _form.fatorBase = r.neat.fator;
@@ -833,6 +873,21 @@ async function importarDaAnamnese() {
     recalcularGet();
     pintar();
 
+    const infoAntro = antroImportada
+      ? `<div class="cal-import-linha"><i data-lucide="ruler"></i>
+           <span>Antropometria da anamnese: <strong>${antro.peso} kg</strong> · ${antro.alturaCm} cm ·
+           ${antro.idade} anos · ${antro.sexo === 'M' ? 'masculino' : 'feminino'}.
+           São dados <strong>informados pelo paciente</strong> — confirme na avaliação física.</span></div>`
+      : (!_av && !antro.completa)
+        ? `<div class="cal-import-linha"><i data-lucide="triangle-alert"></i>
+             <span>Sem avaliação física e a anamnese não tem peso/altura/idade/sexo completos —
+             o GET precisa ser informado à mão.</span></div>`
+        : (_av && antro.completa)
+          ? `<div class="cal-import-linha"><i data-lucide="ruler"></i>
+               <span>Peso e altura vieram da <strong>avaliação física</strong>, que tem precedência
+               sobre o que o paciente informou na anamnese.</span></div>`
+          : '';
+
     const infoNeat = r.neat.rotulo
       ? `Dia a dia: <strong>${esc(r.neat.rotulo)}</strong> (fator ${String(r.neat.fator).replace('.', ',')}).`
       : 'A anamnese não trouxe o nível de atividade diária.';
@@ -849,6 +904,7 @@ async function importarDaAnamnese() {
     _root.querySelector('#calImportInfo').innerHTML = `
       <div class="cal-import">
         <div class="cal-import-hd"><i data-lucide="circle-check"></i> Importado da anamnese</div>
+        ${infoAntro}
         <div class="cal-import-linha">${infoNeat} ${esc(infoAtiv)}</div>
         ${r.avisos.length ? `<ul class="cal-import-avisos">${
           r.avisos.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
@@ -857,6 +913,9 @@ async function importarDaAnamnese() {
     window.renderIcons?.();
     mostrarToast('✓ Dados da anamnese carregados — confira antes de salvar');
   } catch (e) {
+    // Sem o console.warn a mensagem genérica esconderia erro de programação
+    // (foi assim que um import faltando virou "não foi possível ler").
+    console.warn('Importar da anamnese falhou:', e);
     _root.querySelector('#calImportInfo').innerHTML =
       `<div class="cal-import cal-import-vazio"><i data-lucide="triangle-alert"></i> Não foi possível ler a anamnese.</div>`;
     window.renderIcons?.();

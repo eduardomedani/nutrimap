@@ -69,6 +69,46 @@ export const NEAT_FATOR = {
   'Ativo':      1.725,
 };
 
+/**
+ * Antropometria da anamnese: o que a TMB precisa e o paciente já informou.
+ *
+ * É AUTO-RELATO — vale como ponto de partida quando não existe avaliação
+ * física, nunca como substituto dela. Quem chama decide a precedência.
+ *
+ *   m1.q1_4  nascimento (YYYY-MM-DD)   m4.q4_1  peso atual (kg)
+ *   m1.q1_5  sexo (Feminino/Masculino) m4.q4_2  altura (cm)
+ *                                      m4.q4_3  peso habitual no último ano
+ *                                      m4.q4_4  peso desejado
+ *
+ * @param {Date} [hoje] injetável para o cálculo da idade ser testável.
+ */
+export function mapearAntropometria(m1, m4, hoje = new Date()) {
+  const n = v => { const x = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(x) ? x : null; };
+
+  const sexoBruto = (m1?.q1_5 || '').trim().toLowerCase();
+  const sexo = sexoBruto.startsWith('m') ? 'M' : sexoBruto.startsWith('f') ? 'F' : null;
+
+  let idade = null;
+  const nasc = m1?.q1_4 ? new Date(m1.q1_4 + 'T00:00:00') : null;   // DATE puro: sem hora vira UTC e volta um dia
+  if (nasc && !isNaN(nasc)) {
+    idade = hoje.getFullYear() - nasc.getFullYear();
+    const m = hoje.getMonth() - nasc.getMonth();
+    if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) idade--;
+    if (idade < 0 || idade > 130) idade = null;
+  }
+
+  const peso = n(m4?.q4_1);
+  const alturaCm = n(m4?.q4_2);
+
+  return {
+    peso, alturaCm, idade, sexo,
+    pesoHabitual: n(m4?.q4_3),
+    pesoDesejado: n(m4?.q4_4),
+    // A TMB de Mifflin/Harris precisa dos quatro; sem isso não há cálculo.
+    completa: !!(peso && alturaCm && idade && sexo),
+  };
+}
+
 /** Intensidade do motor cujo MET é o mais próximo do alvo. */
 export function intensidadeMaisProxima(nomeMotor, metAlvo) {
   const at = atividadePorNome(nomeMotor);
