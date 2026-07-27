@@ -161,7 +161,10 @@ function barraAcoes() {
   const av = _av?.data_avaliacao
     ? `Avaliação ${_av.numero} · ${fmtData(_av.data_avaliacao)}`
     : _antropo?.origem === 'anamnese'
-      ? 'Sem avaliação · dados informados pelo paciente na anamnese'
+      // Curto porque a barra é estreita; a ressalva completa ("informados
+      // pelo paciente, confirme na avaliação") fica no bloco de importação,
+      // logo abaixo e sempre visível.
+      ? 'Sem avaliação · dados da anamnese'
       : 'Sem avaliação registrada';
   return `
     <div class="cal-head">
@@ -172,6 +175,10 @@ function barraAcoes() {
       <div class="cal-head-r">
         <span class="cal-status" id="calStatus" role="status" aria-live="polite"></span>
         <button class="btn" id="calDescartar" disabled>Descartar</button>
+        <button class="btn" id="calImportar"
+                title="Preenche a partir da anamnese: peso, altura e atividade física">
+          <i data-lucide="download"></i> Importar da anamnese
+        </button>
         <button class="btn primary" id="calSalvar" disabled>
           <i data-lucide="save"></i> Salvar alterações
         </button>
@@ -256,11 +263,9 @@ function blocoAtividades() {
           <button type="button" data-modoativ="fator" aria-pressed="${fat}">Fator único</button>
           <button type="button" data-modoativ="met" aria-pressed="${met}">Somar atividades</button>
         </div>
-        <button type="button" class="btn btn-sm-secondary" id="calImportar"
-                title="Preenche a partir do módulo de atividade física da anamnese">
-          <i data-lucide="download"></i> Importar da anamnese
-        </button>
       </div>
+      <!-- O botão de importar vive na barra de ações do topo; aqui fica só o
+           resultado, perto dos campos que ele preencheu. -->
       <div id="calImportInfo"></div>
       <div class="cal-ativ-fator" ${fat ? '' : 'hidden'}>
         <label for="calFator">Nível de atividade da rotina</label>
