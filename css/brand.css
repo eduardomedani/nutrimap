@@ -58,9 +58,13 @@ h3, .evo-h3 {
 }
 
 /* ── LOGO ─────────────────────────────────────────────────────────────────
-   Componente único. Toda página monta a marca com estas classes; trocar o
-   símbolo provisório pelo SVG definitivo é editar .evo-logo-mark aqui e mais
-   nada. Enquanto o SVG oficial não chega, o símbolo é a letra "E".          */
+   Componente único. Toda página monta a marca com estas classes.
+
+   O símbolo é a arte oficial (icons/icon-192.png), aplicada como background
+   em vez de <img>: assim as páginas escrevem só a <div class="evo-logo-mark">
+   vazia e trocar a arte é uma linha AQUI — nenhum HTML muda. A arte já traz
+   o fundo verde e os cantos arredondados, então o componente não desenha
+   fundo nem raio próprio.                                                   */
 .evo-logo {
   display: inline-flex; align-items: center; gap: 10px;
   text-decoration: none; color: inherit;
@@ -68,19 +72,13 @@ h3, .evo-h3 {
 .evo-logo-mark {
   display: grid; place-items: center; flex-shrink: 0;
   width: var(--evo-mark-size, 40px); height: var(--evo-mark-size, 40px);
-  background: var(--color-primary-600);
-  border-radius: calc(var(--evo-mark-size, 40px) * 0.28);   /* squircle: proporcional ao tamanho */
-  color: #FFFFFF;
-  font-family: var(--font-sans);
-  font-size: calc(var(--evo-mark-size, 40px) * 0.52);
-  font-weight: 700; font-style: normal;
-  letter-spacing: -0.04em; line-height: 1;
-  box-shadow: var(--shadow-xs);
+  background: url('../icons/icon-192.png') center / contain no-repeat;
+  /* O texto "E" das páginas continua no HTML como alternativa, mas fica
+     invisível: se a imagem falhar, o espaço reservado permanece correto. */
+  font-size: 0; color: transparent;
 }
-/* Quando o SVG oficial chegar: .evo-logo-mark > img|svg ocupa o quadrado e a
-   letra sai de cena sem mexer em nenhuma página. */
+/* Se algum lugar preferir passar a arte explicitamente, continua funcionando. */
 .evo-logo-mark > img, .evo-logo-mark > svg { width: 100%; height: 100%; display: block; }
-.evo-logo-mark:has(> img), .evo-logo-mark:has(> svg) { background: none; box-shadow: none; }
 
 .evo-logo-name {
   font-family: var(--font-sans);
@@ -103,20 +101,10 @@ h3, .evo-h3 {
    o `inline-flex` do componente encolheria a caixa e jogaria o logo à esquerda. */
 .auth-brand.evo-logo, .pa-brand.evo-logo { display: flex; }
 
-/* As marcas antigas (.brand-mark, .sidebar-brand-mark, .pa-brand-mark) passam
-   a herdar o mesmo símbolo, para não existirem dois logos no projeto. */
-.brand-mark, .sidebar-brand-mark, .pa-brand-mark {
-  background: var(--color-primary-600) !important;
-  color: #FFFFFF !important;
-  font-family: var(--font-sans) !important;
-  font-style: normal !important;
-  font-weight: 700 !important;
-  letter-spacing: -0.04em;
-  box-shadow: var(--shadow-xs);
-}
-.brand-mark          { border-radius: 13px; }
-.sidebar-brand-mark  { border-radius: 10px; }
-.pa-brand-mark       { border-radius: 16px; }
+/* As marcas antigas (.brand-mark, .sidebar-brand-mark, .pa-brand-mark,
+   .pa-topmark) não são mais usadas por nenhum markup — todo logo do sistema
+   passa por .evo-logo-mark. As regras delas seguem inertes no <style> das
+   páginas; podem sair numa limpeza, mas não pintam nada hoje. */
 .brand-name, .brand-name-large, .pa-brand-name {
   font-family: var(--font-sans);
   font-weight: 700; font-style: normal;

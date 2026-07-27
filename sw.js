@@ -10,7 +10,7 @@ const CACHE = 'nutrimap-aluno-v4';
 const SHELL = [
   'app.html',
   'manifest.webmanifest',
-  'icons/icon.svg',
+  'icons/icon-192.png',
   'css/tokens.css',
   'css/brand.css',
   'js/paciente-ui.js',
@@ -68,8 +68,11 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'Evollo';
   const options = {
     body: data.body || 'Seu treino foi atualizado.',
-    icon: '/icons/icon.svg',
-    badge: '/icons/icon.svg',
+    // Relativo ao escopo do SW: em subpasta (GitHub Pages, /nutrimap/) o
+    // caminho absoluto resolvia para a raiz do domínio e dava 404 — a
+    // notificação chegava sem ícone.
+    icon: 'icons/icon-192.png',
+    badge: 'icons/icon-192.png',
     tag: data.tag || 'treino-atualizado',
     renotify: true,
     data: { url: data.url || '/app.html' },
