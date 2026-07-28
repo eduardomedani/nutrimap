@@ -155,6 +155,21 @@ export async function criarTreino(nutriId, dados) {
     .insert({ ...dados, nutri_id: nutriId })
     .select().single();
   if (error) throw error;
+
+  // Modelo da biblioteca não gera evento; prescrição de aluno sim (e
+  // prescreverModeloParaPaciente passa por aqui, então também é coberta).
+  if (data.paciente_id) {
+    const { registrarEvento } = await import('./timeline.js');
+    await registrarEvento({
+      pacienteId: data.paciente_id,
+      tipo: 'WORKOUT_CREATED',
+      descricao: `Treino "${data.nome || 'sem nome'}" criado${data.divisao ? ` · divisão ${data.divisao}` : ''}.`,
+      entidadeTipo: 'treino',
+      entidadeId: data.id,
+      metadata: { workout_name: data.nome, divisao: data.divisao },
+      chaveDedup: `WORKOUT_CREATED:${data.id}`,
+    });
+  }
   return data;
 }
 

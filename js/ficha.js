@@ -126,6 +126,16 @@ export async function abrirFichaPaciente(pacienteId, nutriId, onVoltar, abaInici
 }
 
 /**
+ * Navega para outra aba da ficha por código (usado pelas ações da visão geral).
+ * Passa pelo clique do menu para reaproveitar as travas já existentes.
+ */
+function irParaAba(abaId) {
+  const item = document.querySelector(`#fichaMenu .fm-item[data-aba="${abaId}"]`);
+  if (!item || item.classList.contains('soon')) return;
+  item.click();
+}
+
+/**
  * Renderiza o conteúdo de uma aba.
  */
 async function renderAba(abaId) {
@@ -136,14 +146,27 @@ async function renderAba(abaId) {
   if (p?.id) { try { history.replaceState(null, '', '#ficha/' + p.id + '/' + abaId); } catch (e) {} }
 
   // Abas prontas
+  // "Dados do Cliente" é a visão geral do paciente: resumo do acompanhamento,
+  // dados pessoais (recolhidos), próximas ações e a linha do tempo. O formulário
+  // de dados continua o mesmo — só passa a morar dentro do bloco recolhível.
   if (abaId === 'dados') {
-    cont.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando dados...</div>`;
+    cont.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando visão geral...</div>`;
     let m1 = {};
     try {
       const resp = await buscarRespostasModulo(p.id, 'm1');
       m1 = resp || {};
     } catch (e) { /* segue */ }
-    renderDadosView(cont, p, m1, false);
+    try {
+      const { initVisaoGeral } = await import('./timeline-ui.js');
+      await initVisaoGeral({ cont, paciente: p, irParaAba });
+      const mount = document.getElementById('dadosPessoaisMount');
+      if (mount) renderDadosView(mount, p, m1, false);
+    } catch (e) {
+      // Timeline indisponível não pode esconder os dados do paciente.
+      console.error('[ficha] visão geral:', e);
+      cont.innerHTML = '';
+      renderDadosView(cont, p, m1, false);
+    }
     return;
   }
 

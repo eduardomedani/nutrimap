@@ -356,6 +356,21 @@ export async function criarPlano(nutriId, dados) {
     .insert({ ...dados, nutri_id: nutriId })
     .select().single();
   if (error) throw error;
+
+  // Modelo da biblioteca não é acompanhamento de paciente: sem evento.
+  // Prescrever um modelo passa por aqui, então a prescrição também é coberta.
+  if (data.paciente_id) {
+    const { registrarEvento } = await import('./timeline.js');
+    await registrarEvento({
+      pacienteId: data.paciente_id,
+      tipo: 'MEAL_PLAN_CREATED',
+      descricao: `Plano "${data.nome || 'sem nome'}" criado${data.kcal_meta ? ` com meta de ${Math.round(data.kcal_meta)} kcal` : ''}.`,
+      entidadeTipo: 'plano',
+      entidadeId: data.id,
+      metadata: { plan_name: data.nome, target_calories: data.kcal_meta, objetivo: data.objetivo },
+      chaveDedup: `MEAL_PLAN_CREATED:${data.id}`,
+    });
+  }
   return data;
 }
 

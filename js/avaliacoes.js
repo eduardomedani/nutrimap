@@ -293,7 +293,77 @@ export async function criarAvaliacao(nutriId, pacienteId, registro) {
     .insert({ ...registro, ...resultados, nutri_id: nutriId, paciente_id: pacienteId, numero })
     .select().single();
   if (error) throw error;
+
+  await registrarEventosDaAvaliacao(pacienteId, data);
   return data;
+}
+
+/**
+ * Timeline da avaliação: a avaliação em si (com a variação de peso desde a
+ * anterior) e, quando há peso, o registro de peso — dois fatos distintos que o
+ * profissional acompanha separado. Roda depois do insert e nunca lança.
+ */
+async function registrarEventosDaAvaliacao(pacienteId, aval) {
+  const { registrarEvento } = await import('./timeline.js');
+
+  let anterior = null;
+  try {
+    const anteriores = await listarAvaliacoes(pacienteId);
+    anterior = anteriores.find(a => a.id !== aval.id && (a.numero ?? 0) < (aval.numero ?? 0)) || null;
+  } catch (e) { /* segue sem comparativo */ }
+
+  const peso = numOuNull(aval.peso);
+  const pesoAnt = numOuNull(anterior?.peso);
+  const dif = (peso != null && pesoAnt != null) ? Number((peso - pesoAnt).toFixed(1)) : null;
+  // Sem protocolo de dobras o cálculo devolve 0 — que não é "0% de gordura",
+  // é "não medido". Zero aqui viraria um dado falso na timeline.
+  const pctG = numOuNull(aval.pct_gordura);
+  const pctGPct = pctG ? Number((pctG * 100).toFixed(1)) : null;
+
+  const partes = [];
+  if (peso != null) partes.push(`Peso: ${peso} kg`);
+  if (dif != null) partes.push(`variação desde a anterior: ${dif > 0 ? '+' : ''}${dif} kg`);
+  if (pctGPct != null) partes.push(`gordura: ${pctGPct}%`);
+
+  await registrarEvento({
+    pacienteId,
+    tipo: 'PHYSICAL_ASSESSMENT_CREATED',
+    titulo: `Avaliação física realizada (AV ${aval.numero})`,
+    descricao: partes.join(' · ') || 'Avaliação registrada.',
+    entidadeTipo: 'avaliacao',
+    entidadeId: aval.id,
+    dataEvento: aval.data_avaliacao || undefined,
+    metadata: {
+      numero: aval.numero,
+      weight: peso,
+      previous_weight: pesoAnt,
+      weight_difference: dif,
+      body_fat_percentage: pctGPct,
+      imc: numOuNull(aval.imc),
+    },
+    chaveDedup: `PHYSICAL_ASSESSMENT_CREATED:${aval.id}`,
+  });
+
+  if (peso != null) {
+    await registrarEvento({
+      pacienteId,
+      tipo: 'BODY_WEIGHT_RECORDED',
+      descricao: dif != null
+        ? `${peso} kg — ${dif > 0 ? '+' : ''}${dif} kg desde a avaliação anterior.`
+        : `${peso} kg registrados na avaliação.`,
+      entidadeTipo: 'avaliacao',
+      entidadeId: aval.id,
+      dataEvento: aval.data_avaliacao || undefined,
+      metadata: { weight: peso, previous_weight: pesoAnt, weight_difference: dif },
+      chaveDedup: `BODY_WEIGHT_RECORDED:${aval.id}`,
+    });
+  }
+}
+
+function numOuNull(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 export async function atualizarAvaliacao(id, registro) {

@@ -27,6 +27,7 @@ import {
   fmtKcal, fmtG, fmtQtd, num, arredonda,
 } from './dieta-calc.js';
 import { sb } from './supabase.js';
+import { registrarEvento } from './timeline.js';
 import { mostrarToast, mostrarToastDesfazer, mostrarErro, confirmar } from './utils.js';
 
 function debounce(fn, ms) {
@@ -249,6 +250,7 @@ async function aplicarModelo(modeloId, btn) {
     const novo = await prescreverModeloParaPaciente(modeloId, _paciente.id, {});
     mostrarToast('✓ Plano criado a partir do modelo');
     await abrirEditor(novo);
+    if (novo.ativo) await eventoPlanoPublicado();   // prescrever um modelo = publicar
   } catch (e) {
     mostrarErro('Erro: ' + e.message);
     btn.disabled = false; btn.innerHTML = orig;
@@ -512,6 +514,9 @@ async function salvarDados(override = {}) {
       const atualizado = await atualizarPlano(_plano.id, dados);
       _plano = { ..._plano, ...atualizado };
       mostrarToast('✓ Plano atualizado');
+      // Publicação registra o próprio evento; aqui é só edição do plano.
+      // Um evento por dia agrupa vários salvamentos seguidos em uma linha só.
+      if (_modo === 'paciente' && override.ativo !== true) await eventoPlanoAtualizado();
       await abrirEditor(_plano);   // recolhe o card de dados e volta à prescrição
     } else {
       const nutriId = await getNutriId();
@@ -1317,6 +1322,55 @@ async function publicarPlano() {
   const sel = qs('plAtivo');
   if (sel) sel.value = '1';
   await salvarDados({ ativo: true });   // força ativo mesmo com o card de dados recolhido
+  if (_modo === 'paciente' && _plano?.ativo) await eventoPlanoPublicado();
+}
+
+// ── Timeline do plano ──────────────────────────────────────
+// O que vale para o acompanhamento é a publicação (o plano que passou a valer)
+// e a revisão do plano — nunca cada alimento ou cada gram a mais.
+
+/** Números reais da prescrição, para o metadata do evento. */
+function resumoDoPlano() {
+  // Plano ainda vazio soma zero — e zero aqui seria um dado falso, não um dado.
+  const m = macrosPlano(_refeicoes) || {};
+  return {
+    plan_name: _plano?.nome,
+    calories: m.kcal ? arredonda(m.kcal, 0) : null,
+    target_calories: _plano?.kcal_meta ? arredonda(Number(_plano.kcal_meta), 0) : null,
+    meals: _refeicoes.length || null,
+    protein: m.prot ? arredonda(m.prot, 1) : null,
+    carbohydrate: m.carb ? arredonda(m.carb, 1) : null,
+    fat: m.gord ? arredonda(m.gord, 1) : null,
+    objetivo: _plano?.objetivo,
+  };
+}
+
+async function eventoPlanoPublicado() {
+  const r = resumoDoPlano();
+  const partes = [];
+  if (r.meals) partes.push(`${r.meals} ${r.meals === 1 ? 'refeição' : 'refeições'}`);
+  if (r.calories) partes.push(`${fmtKcal(r.calories)} kcal prescritas`);
+  await registrarEvento({
+    pacienteId: _paciente.id,
+    tipo: 'MEAL_PLAN_PUBLISHED',
+    descricao: `Plano "${_plano?.nome || 'sem nome'}" publicado${partes.length ? ' · ' + partes.join(' · ') : ''}.`,
+    entidadeTipo: 'plano',
+    entidadeId: _plano.id,
+    metadata: r,
+    dedupPorDia: true,
+  });
+}
+
+async function eventoPlanoAtualizado() {
+  await registrarEvento({
+    pacienteId: _paciente.id,
+    tipo: 'MEAL_PLAN_UPDATED',
+    descricao: 'Calorias, metas de macronutrientes e composição das refeições foram ajustadas.',
+    entidadeTipo: 'plano',
+    entidadeId: _plano.id,
+    metadata: resumoDoPlano(),
+    dedupPorDia: true,
+  });
 }
 
 async function salvarCampoRefeicao(el) {

@@ -17,6 +17,7 @@ import {
   listarModelos, prescreverModeloParaPaciente, salvarComoModelo,
 } from './treinos.js';
 import { sb } from './supabase.js';
+import { registrarEvento } from './timeline.js';
 import { mostrarToast, mostrarErro, confirmar } from './utils.js';
 
 // Debounce simples: só dispara `fn` depois de `ms` sem novas chamadas.
@@ -309,6 +310,7 @@ async function aplicarModelo(modeloId) {
     const novo = await prescreverModeloParaPaciente(modeloId, _paciente.id, {});
     mostrarToast('✓ Treino criado a partir do modelo');
     await abrirEditor(novo);
+    if (novo.ativo) await eventoTreino('WORKOUT_PUBLISHED');   // prescrever = publicar
   } catch (e) {
     mostrarErro('Erro ao aplicar modelo: ' + e.message);
     btn.disabled = false; btn.innerHTML = orig;
@@ -745,6 +747,30 @@ function ligarAutocalculoDatas(t) {
   if (t && ini?.value && fim?.value) calcNum();
 }
 
+// ── Timeline do treino ─────────────────────────────────────
+// Só marcos do acompanhamento: publicar, revisar e desativar. Trocar carga de
+// um exercício não vira evento (isso é o histórico do próprio treino).
+const DESC_TREINO = {
+  WORKOUT_PUBLISHED: 'Treino publicado para o aluno.',
+  WORKOUT_UPDATED:   'Estrutura do treino (dias, exercícios e prescrição) foi revisada.',
+  WORKOUT_ARCHIVED:  'Treino desativado — deixou de valer para o aluno.',
+};
+
+async function eventoTreino(tipo) {
+  if (!_paciente?.id || !_treino?.id) return;
+  const dias = (_treino.divisao || '').length || null;
+  const nome = _treino.nome || 'sem nome';
+  await registrarEvento({
+    pacienteId: _paciente.id,
+    tipo,
+    descricao: `"${nome}"${dias ? ` · ${dias} ${dias === 1 ? 'dia' : 'dias'} por semana` : ''} — ${DESC_TREINO[tipo] || ''}`,
+    entidadeTipo: 'treino',
+    entidadeId: _treino.id,
+    metadata: { workout_name: nome, divisao: _treino.divisao || null, weekly_sessions: dias },
+    dedupPorDia: true,
+  });
+}
+
 async function salvarDados() {
   const nome = (document.getElementById('trNome').value || '').trim();
   if (!nome) { mostrarToast('Informe o nome do treino'); return; }
@@ -781,9 +807,16 @@ async function salvarDados() {
       }))) {
         btn.disabled = false; btn.innerHTML = orig; return;
       }
+      const eraAtivo = !!_treino.ativo;
       const atualizado = await atualizarTreino(_treino.id, dados);
       _treino = { ..._treino, ...atualizado };
       mostrarToast('✓ Treino atualizado');
+      // Passar de inativo para ativo é publicação; o resto é revisão do treino.
+      if (_modo === 'paciente') {
+        if (!eraAtivo && _treino.ativo) await eventoTreino('WORKOUT_PUBLISHED');
+        else if (eraAtivo && !_treino.ativo) await eventoTreino('WORKOUT_ARCHIVED');
+        else await eventoTreino('WORKOUT_UPDATED');
+      }
       await abrirEditor(_treino);
     } else {
       const nutriId = await getNutriId();
@@ -791,6 +824,8 @@ async function salvarDados() {
       const criado = await criarTreino(nutriId, { ...dados, ...extra });
       mostrarToast(_modo === 'modelo' ? '✓ Modelo criado' : '✓ Treino criado');
       await abrirEditor(criado);
+      // Treino já nasce ativo: para o paciente isso é o treino publicado.
+      if (_modo === 'paciente' && criado.ativo) await eventoTreino('WORKOUT_PUBLISHED');
     }
   } catch (e) {
     mostrarErro('Erro ao salvar: ' + e.message);

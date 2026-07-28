@@ -3,6 +3,11 @@
 // ═══════════════════════════════════════════════════════════
 
 import { sb } from './supabase.js';
+import { registrarEvento, camposAlterados } from './timeline.js';
+
+// Campos cuja mudança é digna de virar evento. Ajuste de endereço, Instagram
+// ou profissão é manutenção de cadastro — não entra na timeline clínica.
+const CAMPOS_RELEVANTES = ['nome', 'nascimento', 'sexo', 'email', 'telefone', 'status'];
 
 /**
  * Lista todos os pacientes do nutri logado
@@ -73,6 +78,19 @@ export async function criarPaciente({ nome, email, telefone }) {
     .single();
 
   if (error) throw error;
+
+  // Timeline depois da operação confirmada — e sem poder derrubá-la.
+  await registrarEvento({
+    pacienteId: data.id,
+    tipo: 'PATIENT_CREATED',
+    descricao: 'Cadastro criado no NutriMap.',
+    entidadeTipo: 'paciente',
+    entidadeId: data.id,
+    metadata: { codigo: data.codigo },
+    dataEvento: data.criado_em,
+    chaveDedup: `PATIENT_CREATED:${data.id}`,
+  });
+
   return data;
 }
 
@@ -80,6 +98,10 @@ export async function criarPaciente({ nome, email, telefone }) {
  * Atualiza dados de um paciente
  */
 export async function atualizarPaciente(id, dados) {
+  // Estado anterior: sem ele não dá para saber se a mudança foi relevante.
+  let antes = null;
+  try { antes = await buscarPacientePorId(id); } catch (e) { /* segue sem comparar */ }
+
   const { data, error } = await sb
     .from('pacientes')
     .update(dados)
@@ -88,6 +110,22 @@ export async function atualizarPaciente(id, dados) {
     .single();
 
   if (error) throw error;
+
+  // Um evento por dia por paciente, e só se mudou algo que importa: salvar o
+  // formulário três vezes seguidas não vira três linhas na timeline.
+  const mudou = antes ? camposAlterados(antes, data, CAMPOS_RELEVANTES) : [];
+  if (mudou.length) {
+    await registrarEvento({
+      pacienteId: id,
+      tipo: 'PATIENT_UPDATED',
+      descricao: 'Dados cadastrais do paciente foram atualizados.',
+      entidadeTipo: 'paciente',
+      entidadeId: id,
+      metadata: { campos: mudou },
+      dedupPorDia: true,
+    });
+  }
+
   return data;
 }
 
