@@ -13,10 +13,15 @@ import { carregarResumo, invalidarResumo } from './paciente-resumo.js';
 import { alertasDoPaciente, PRIORIDADES } from './paciente-alertas.js';
 import { montarTimelineRecente } from './timeline-ui.js';
 import { moduloAtivo } from './paciente-modulos.js';
+import { listarTarefas, criarTarefa, concluirTarefa, tarefaDeAlerta, diasDePrazo, CATEGORIAS_TAREFA } from './paciente-tarefas.js';
+import { listarMetas, situacaoDaMeta, TIPOS_META } from './paciente-metas.js';
+import { mostrarToast, mostrarErro } from './utils.js';
 
 let _paciente = null;
 let _irParaAba = null;
 let _alertas = [];
+let _tarefas = [];
+let _metas = [];
 let _verTodos = false;
 let _cont = null;
 
@@ -43,6 +48,12 @@ export async function initPainel360({ cont, paciente, irParaAba, aoCarregar }) {
   try {
     const r = await carregarResumo(paciente);
     aoCarregar?.(r);
+    // Tarefas e metas são opcionais: se as tabelas ainda não existirem no
+    // banco deste ambiente, o painel continua de pé sem elas.
+    [_tarefas, _metas] = await Promise.all([
+      moduloAtivo('tarefas') ? listarTarefas(paciente.id).catch(() => []) : [],
+      moduloAtivo('metas') ? listarMetas(paciente.id).catch(() => []) : [],
+    ]);
     renderPainel(r);
   } catch (e) {
     console.error('[painel]', e);
@@ -108,6 +119,7 @@ function renderPainel(r) {
       <div class="pv-col">
         ${planoHtml(r)}
         ${treinoHtml(r)}
+        ${metasHtml(r)}
       </div>
       <div class="pv-col">
         ${acoesHtml()}
@@ -244,38 +256,113 @@ function treinoHtml(r) {
 
 const linha = (l, v) => `<div class="pv-linha"><span>${esc(l)}</span><b>${esc(v)}</b></div>`;
 
-// ── Próximas ações / alertas ───────────────────────────────
-function acoesHtml() {
-  if (!_alertas.length) {
+// ── Metas (resumo; a gestão fica na aba Evolução) ──────────
+function metasHtml(r) {
+  if (!moduloAtivo('metas')) return '';
+  const ativas = _metas.filter(m => m.status !== 'cancelada' && m.status !== 'pausada');
+  if (!ativas.length) {
     return `
       <section class="pv-card">
-        <div class="pv-card-head"><h3><i data-lucide="list-checks"></i> Próximas ações</h3></div>
-        <div class="pv-tudo-ok"><i data-lucide="check"></i> Tudo em dia com este paciente.</div>
+        <div class="pv-card-head"><h3><i data-lucide="target"></i> Metas</h3></div>
+        <div class="pv-vazio">
+          <p>Nenhuma meta definida.</p>
+          <button class="btn-sm" data-pv-aba="evolucao">Definir meta</button>
+        </div>
       </section>`;
   }
-  const visiveis = _verTodos ? _alertas : _alertas.slice(0, 3);
-  const resto = _alertas.length - visiveis.length;
   return `
     <section class="pv-card">
       <div class="pv-card-head">
-        <h3><i data-lucide="list-checks"></i> Próximas ações</h3>
-        <span class="pv-contador">${_alertas.length}</span>
+        <h3><i data-lucide="target"></i> Metas</h3>
+        <button class="pv-link" data-pv-aba="evolucao">Ver todas</button>
       </div>
-      <div class="pv-acoes">
-        ${visiveis.map(a => `
-          <div class="pv-acao prio-${a.prioridade}">
-            <span class="pv-acao-ic"><i data-lucide="${a.icone || 'circle-dot'}"></i></span>
-            <div class="pv-acao-txt">
-              <div class="pv-acao-tit">${esc(a.titulo)}
-                <span class="pv-prio prio-${a.prioridade}">${esc(PRIORIDADES[a.prioridade]?.label || '')}</span>
+      <div class="pv-metas">
+        ${ativas.slice(0, 3).map(m => {
+          const s = situacaoDaMeta(m, r.metricas);
+          const cfg = TIPOS_META[m.tipo] || {};
+          return `
+            <div class="pv-meta">
+              <div class="pv-meta-topo">
+                <span>${esc(m.titulo || cfg.label || m.tipo)}</span>
+                <b class="tom-${s.tom}">${s.progresso != null ? s.progresso + '%' : esc(s.statusLabel)}</b>
               </div>
-              <div class="pv-acao-sub">${esc(a.descricao)}</div>
-            </div>
-            ${a.acao ? `<button class="btn-sm btn-sm-secondary" data-pv-aba="${esc(a.acao.aba)}">${esc(a.acao.label)}</button>` : ''}
-          </div>`).join('')}
-        ${resto > 0 ? `<button class="pv-link" data-pv-ver-todas>Ver todas as pendências (${_alertas.length})</button>` : ''}
+              ${s.progresso != null ? `<div class="pv-meta-bar"><span style="width:${Math.min(100, s.progresso)}%"></span></div>` : ''}
+              <div class="pv-meta-sub">${s.atual != null ? `${fmt(s.atual)}${s.unidade} de ${fmt(s.alvo)}${s.unidade}` : (s.medida ? 'Sem medida atual' : 'Acompanhada manualmente')}</div>
+            </div>`;
+        }).join('')}
       </div>
     </section>`;
+}
+
+// ── Próximas ações: tarefas registradas + alertas automáticos ──
+// A tarefa é uma decisão guardada; o alerta é uma leitura do estado que some
+// quando a causa acaba. Aparecem juntos, com a origem sempre visível.
+function acoesHtml() {
+  const total = _tarefas.length + _alertas.length;
+  const cabecalho = `
+    <div class="pv-card-head">
+      <h3><i data-lucide="list-checks"></i> Próximas ações</h3>
+      <div class="pv-card-head-dir">
+        ${total ? `<span class="pv-contador">${total}</span>` : ''}
+        ${moduloAtivo('tarefas') ? `<button class="pv-link" data-tarefa-nova>Nova tarefa</button>` : ''}
+      </div>
+    </div>`;
+
+  if (!total) {
+    return `<section class="pv-card">${cabecalho}
+      <div class="pv-tudo-ok"><i data-lucide="check"></i> Tudo em dia com este paciente.</div></section>`;
+  }
+
+  const itens = [
+    ..._tarefas.map(t => ({ tarefa: t })),
+    ..._alertas.map(a => ({ alerta: a })),
+  ];
+  const visiveis = _verTodos ? itens : itens.slice(0, 4);
+  const resto = itens.length - visiveis.length;
+
+  return `
+    <section class="pv-card">${cabecalho}
+      <div class="pv-acoes">
+        ${visiveis.map(i => i.tarefa ? tarefaHtml(i.tarefa) : alertaHtml(i.alerta)).join('')}
+        ${resto > 0 ? `<button class="pv-link" data-pv-ver-todas>Ver todas as pendências (${itens.length})</button>` : ''}
+      </div>
+    </section>`;
+}
+
+function tarefaHtml(t) {
+  const dias = diasDePrazo(t);
+  const prazo = dias == null ? '' :
+    dias < 0 ? `Atrasada ${Math.abs(dias)} ${Math.abs(dias) === 1 ? 'dia' : 'dias'}` :
+    dias === 0 ? 'Para hoje' : `Em ${dias} ${dias === 1 ? 'dia' : 'dias'}`;
+  const prio = t.prioridade === 'alta' ? 'importante' : t.prioridade === 'baixa' ? 'informativo' : 'atencao';
+  return `
+    <div class="pv-acao prio-${prio} pv-acao-tarefa">
+      <button class="pv-check" data-tarefa-ok="${t.id}" title="Concluir tarefa" aria-label="Concluir: ${esc(t.titulo)}"><i data-lucide="check"></i></button>
+      <div class="pv-acao-txt">
+        <div class="pv-acao-tit">${esc(t.titulo)}
+          <span class="pv-prio">Tarefa</span>
+          ${prazo ? `<span class="pv-prio ${dias < 0 ? 'prio-importante' : ''}">${esc(prazo)}</span>` : ''}
+        </div>
+        ${t.descricao ? `<div class="pv-acao-sub">${esc(t.descricao)}</div>` : ''}
+      </div>
+    </div>`;
+}
+
+function alertaHtml(a) {
+  return `
+    <div class="pv-acao prio-${a.prioridade}">
+      <span class="pv-acao-ic"><i data-lucide="${a.icone || 'circle-dot'}"></i></span>
+      <div class="pv-acao-txt">
+        <div class="pv-acao-tit">${esc(a.titulo)}
+          <span class="pv-prio prio-${a.prioridade}">${esc(PRIORIDADES[a.prioridade]?.label || '')}</span>
+        </div>
+        <div class="pv-acao-sub">${esc(a.descricao)}</div>
+      </div>
+      <div class="pv-acao-btns">
+        ${a.acao ? `<button class="btn-sm btn-sm-secondary" data-pv-aba="${esc(a.acao.aba)}">${esc(a.acao.label)}</button>` : ''}
+        ${moduloAtivo('tarefas') ? `<button class="pv-link" data-alerta-tarefa="${esc(a.id)}" title="Guardar como tarefa com prazo">Virar tarefa</button>` : ''}
+      </div>
+    </div>`;
 }
 
 // ───────────────────────────────────────────────────────────
@@ -288,6 +375,33 @@ function ligar(corpo, r) {
     renderPainel(r);
   });
 
+  // Concluir tarefa direto do painel: um clique, sem sair da visão geral.
+  corpo.querySelectorAll('[data-tarefa-ok]').forEach(b =>
+    b.addEventListener('click', async () => {
+      b.disabled = true;
+      try {
+        await concluirTarefa(b.dataset.tarefaOk);
+        _tarefas = _tarefas.filter(t => t.id !== b.dataset.tarefaOk);
+        mostrarToast('✓ Tarefa concluída');
+        renderPainel(r);
+      } catch (e) { b.disabled = false; mostrarErro('Não foi possível concluir: ' + (e.message || e)); }
+    }));
+
+  // Alerta vira tarefa: deixa de ser aviso repetido e passa a ter prazo.
+  corpo.querySelectorAll('[data-alerta-tarefa]').forEach(b =>
+    b.addEventListener('click', async () => {
+      const alerta = _alertas.find(a => a.id === b.dataset.alertaTarefa);
+      if (!alerta) return;
+      b.disabled = true;
+      try {
+        const nova = await tarefaDeAlerta(_paciente.id, alerta, _tarefas);
+        if (nova) { _tarefas = [nova, ..._tarefas]; mostrarToast('✓ Tarefa criada'); renderPainel(r); }
+        else { b.disabled = false; mostrarToast('Já existe uma tarefa para isso'); }
+      } catch (e) { b.disabled = false; mostrarErro('Não foi possível criar a tarefa: ' + (e.message || e)); }
+    }));
+
+  corpo.querySelector('[data-tarefa-nova]')?.addEventListener('click', () => abrirModalTarefa(r));
+
   const btn = corpo.querySelector('[data-pv-criterios]');
   const box = corpo.querySelector('[data-pv-criterios-box]');
   btn?.addEventListener('click', () => {
@@ -295,6 +409,76 @@ function ligar(corpo, r) {
     box.hidden = !abrir;
     btn.setAttribute('aria-expanded', String(abrir));
     btn.textContent = abrir ? 'Ocultar critérios' : 'Como é calculado';
+  });
+}
+
+// ── Modal de tarefa ────────────────────────────────────────
+function abrirModalTarefa(r) {
+  const fundo = document.createElement('div');
+  fundo.className = 'tl-modal-fundo';
+  fundo.innerHTML = `
+    <div class="tl-modal" role="dialog" aria-modal="true" aria-labelledby="tfTit">
+      <div class="tl-modal-head">
+        <h3 id="tfTit">Nova tarefa</h3>
+        <button class="tl-modal-x" data-fechar aria-label="Fechar"><i data-lucide="x"></i></button>
+      </div>
+      <div class="tl-modal-body">
+        <label class="tl-campo"><span>O que precisa ser feito</span>
+          <input type="text" id="tfTitulo" class="np-input" maxlength="120" placeholder="Ex.: Solicitar exames de rotina"></label>
+        <label class="tl-campo"><span>Detalhes</span>
+          <textarea id="tfDesc" class="np-input" rows="2"></textarea></label>
+        <div class="tl-campo-linha">
+          <label class="tl-campo"><span>Categoria</span>
+            <select id="tfCat" class="np-input">${CATEGORIAS_TAREFA.map(c => `<option>${esc(c)}</option>`).join('')}</select></label>
+          <label class="tl-campo"><span>Prioridade</span>
+            <select id="tfPrio" class="np-input">
+              <option value="normal" selected>Normal</option>
+              <option value="alta">Alta</option>
+              <option value="baixa">Baixa</option>
+            </select></label>
+          <label class="tl-campo"><span>Prazo</span>
+            <input type="date" id="tfPrazo" class="np-input"></label>
+        </div>
+        <div class="tl-modal-erro" data-erro role="alert"></div>
+      </div>
+      <div class="tl-modal-foot">
+        <button class="btn" data-fechar>Cancelar</button>
+        <button class="btn primary" data-salvar>Criar tarefa</button>
+      </div>
+    </div>`;
+  document.body.appendChild(fundo);
+
+  const fechar = () => { fundo.remove(); document.removeEventListener('keydown', onEsc); };
+  const onEsc = (e) => { if (e.key === 'Escape') fechar(); };
+  document.addEventListener('keydown', onEsc);
+  fundo.addEventListener('click', (e) => { if (e.target === fundo) fechar(); });
+  fundo.querySelectorAll('[data-fechar]').forEach(b => b.addEventListener('click', fechar));
+  setTimeout(() => fundo.querySelector('#tfTitulo')?.focus(), 30);
+
+  fundo.querySelector('[data-salvar]').addEventListener('click', async () => {
+    const titulo = fundo.querySelector('#tfTitulo').value.trim();
+    const erro = fundo.querySelector('[data-erro]');
+    if (!titulo) { erro.textContent = 'Descreva a tarefa.'; return; }
+    erro.textContent = '';
+    const btn = fundo.querySelector('[data-salvar]');
+    btn.disabled = true; btn.textContent = 'Salvando...';
+    try {
+      const nova = await criarTarefa(_paciente.id, {
+        titulo,
+        descricao: fundo.querySelector('#tfDesc').value.trim() || null,
+        categoria: fundo.querySelector('#tfCat').value,
+        prioridade: fundo.querySelector('#tfPrio').value,
+        prazo: fundo.querySelector('#tfPrazo').value || null,
+        origem: 'manual',
+      });
+      _tarefas = [nova, ..._tarefas];
+      fechar();
+      mostrarToast('✓ Tarefa criada');
+      renderPainel(r);
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Criar tarefa';
+      erro.textContent = 'Não foi possível salvar: ' + (e.message || e);
+    }
   });
 }
 

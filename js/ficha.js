@@ -129,6 +129,15 @@ async function renderAba(abaId) {
     return;
   }
 
+  if (abaId === 'evolucao') {
+    cont.innerHTML = '';
+    try {
+      const { initEvolucao } = await import('./paciente-evolucao.js');
+      await initEvolucao({ cont, paciente: p, irParaAba });
+    } catch (e) { erroAba(cont, 'Não foi possível carregar a evolução.', e); }
+    return;
+  }
+
   if (abaId === 'anamnese') {
     cont.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando relatório...</div>`;
     try {

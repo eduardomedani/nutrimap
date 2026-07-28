@@ -23,10 +23,11 @@ export const FUNDACOES = {
   calorias:     true,    // cálculo de gasto energético
   timeline:     true,    // paciente_eventos (publicado)
 
+  evolucao:     true,    // gráficos + comparação de avaliações + metas
+  metas:        true,    // paciente_metas
+  tarefas:      true,    // paciente_tarefas
+
   // Fases seguintes — sem tabela/serviço hoje, então não aparecem no Hub.
-  evolucao:     false,   // Fase 1B: gráficos + comparação de avaliações
-  metas:        false,   // Fase 1B: patient_goals
-  tarefas:      false,   // Fase 1B: patient_tasks
   consultas:    false,   // Fase 2
   checkins:     false,   // Fase 3 (aderência depende disto)
   documentos:   false,   // Fase 4 (depende de storage privado)
