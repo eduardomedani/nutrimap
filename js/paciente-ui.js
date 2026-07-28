@@ -358,8 +358,7 @@ function renderListaDias() {
     b.addEventListener('click', () => {
       marcarTreinoVisto(treinoAtual);
       _diaSel = b.dataset.abrir;
-      if (!cronAtivo(_diaSel)) cronIniciar(_treinoSel, _diaSel);   // abrir o treino = começar a contar
-      _view = 'treino';
+      _view = 'treino';      // abrir é só ver; a contagem começa no "Iniciar treino"
       renderTreino();
     }));
   const btnVisto = app().querySelector('[data-visto]');
@@ -400,7 +399,7 @@ function cardDia(dia, proximo, treinadoHoje) {
           <div class="pa-dc-grupos">${esc(grupos || 'Exercícios variados')}</div>
           <div class="pa-dc-conta">${conta}</div>
         </div>
-        <button class="pa-dc-cta" data-abrir="${dia}">${emAndamento ? 'Continuar treino' : 'Começar treino'} <i data-lucide="arrow-right"></i></button>
+        <button class="pa-dc-cta" data-abrir="${dia}">${emAndamento ? 'Continuar treino' : 'Ver treino'} <i data-lucide="arrow-right"></i></button>
       </div>`;
   }
 
@@ -510,6 +509,41 @@ function textoFinalizar(r) {
   return (r.total && r.feitos >= r.total) ? 'Concluir treino' : 'Finalizar treino';
 }
 
+// Ação principal da barra inferior: iniciar antes de começar, finalizar depois.
+// Abrir o treino é só consulta — o cronômetro só roda por decisão do aluno.
+function barraAcaoInner(r) {
+  return cronAtivo()
+    ? `<button class="pa-btn pa-finalizar" data-finalizar><i data-lucide="flag"></i> <span data-finalizar-txt>${textoFinalizar(r)}</span></button>`
+    : `<button class="pa-btn pa-iniciar" data-iniciar><i data-lucide="play"></i> Iniciar treino</button>`;
+}
+
+function ligarBarraAcao() {
+  document.querySelector('[data-finalizar]')?.addEventListener('click', finalizarTreino);
+  document.querySelector('[data-iniciar]')?.addEventListener('click', iniciarSessao);
+}
+
+function atualizarBarraAcao() {
+  const bar = document.querySelector('[data-acaobar]');
+  if (!bar) return;
+  bar.innerHTML = barraAcaoInner(resumoDia(_diaSel));
+  ligarBarraAcao();
+}
+
+// Começa a contar. Troca só o cronômetro e a barra — o que já estiver aberto
+// ou digitado na tela permanece como está.
+function iniciarSessao() {
+  if (cronAtivo()) return;
+  cronIniciar(_treinoSel, _diaSel);
+  const abertoAgora = [..._progAbertas][0];
+  if (abertoAgora) cronSetAberto(abertoAgora);
+  const slot = document.querySelector('[data-cron-slot]');
+  if (slot) slot.innerHTML = cronBloco(resumoDia(_diaSel));
+  atualizarBarraAcao();
+  ligarTique();
+  mostrarToast('⏱ Treino iniciado — bom treino!');
+  anunciar('Treino iniciado. O cronômetro está contando.');
+}
+
 // ── TELA B: treino em andamento (cabeçalho fixo + lista de exercícios) ──
 function renderTreinoDia() {
   const tabs = _dias.length > 1
@@ -530,7 +564,7 @@ function renderTreinoDia() {
             <h1 class="pa-runbar-title">Treino ${esc(_diaSel)}</h1>
             ${nomeTreino ? `<div class="pa-runbar-sub">${esc(nomeTreino)}</div>` : ''}
           </div>
-          ${cronBloco(r)}
+          <div data-cron-slot>${cronBloco(r)}</div>
         </div>
         <div class="pa-runbar-prog">
           <span data-hero-count><b>${r.feitos}</b> de ${r.total} ${r.total === 1 ? 'exercício concluído' : 'exercícios concluídos'}</span>
@@ -547,14 +581,12 @@ function renderTreinoDia() {
     </main>
 
     <div class="pa-finishbar">
-      <div class="pa-finishbar-in">
-        <button class="pa-btn pa-finalizar" data-finalizar><i data-lucide="flag"></i> <span data-finalizar-txt>${textoFinalizar(r)}</span></button>
-      </div>
+      <div class="pa-finishbar-in" data-acaobar>${barraAcaoInner(r)}</div>
     </div>
     ${bottomNav()}`;
 
   document.querySelector('[data-voltar]').addEventListener('click', () => { _view = 'lista'; renderTreino(); });
-  document.querySelector('[data-finalizar]').addEventListener('click', finalizarTreino);
+  ligarBarraAcao();
   app().querySelectorAll('.pa-dia').forEach(b =>
     b.addEventListener('click', () => { _diaSel = b.dataset.dia; renderTreinoDia(); }));
   ligarShell();

@@ -4,7 +4,7 @@
 // Cache-first para o "app shell" (mesma origem, GET). Requisições ao Supabase
 // (outra origem) e não-GET passam direto pela rede — nunca são cacheadas.
 
-const CACHE = 'nutrimap-aluno-v6';
+const CACHE = 'nutrimap-aluno-v7';
 // Caminhos relativos ao escopo do SW — funcionam tanto na raiz (localhost)
 // quanto numa subpasta (GitHub Pages: /nutrimap/).
 const SHELL = [
