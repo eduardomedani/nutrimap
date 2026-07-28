@@ -266,6 +266,7 @@ async function abrirTreino() {
     _treinos = await meusTreinos(_paciente?.id);
     _treinosCarregados = true;
     if (!_treinos.length) { renderSemTreino(); return; }
+    _cron = cronCarregar();          // retoma a contagem de um treino em andamento
 
     if (!_treinoSel || !_treinos.some(t => t.id === _treinoSel)) {
       _treinoSel = _treinos[0].id;
@@ -354,12 +355,19 @@ function renderListaDias() {
     ${bottomNav()}`;
 
   app().querySelectorAll('[data-abrir]').forEach(b =>
-    b.addEventListener('click', () => { marcarTreinoVisto(treinoAtual); _diaSel = b.dataset.abrir; _view = 'treino'; renderTreino(); }));
+    b.addEventListener('click', () => {
+      marcarTreinoVisto(treinoAtual);
+      _diaSel = b.dataset.abrir;
+      if (!cronAtivo(_diaSel)) cronIniciar(_treinoSel, _diaSel);   // abrir o treino = começar a contar
+      _view = 'treino';
+      renderTreino();
+    }));
   const btnVisto = app().querySelector('[data-visto]');
   if (btnVisto) btnVisto.addEventListener('click', () => { marcarTreinoVisto(treinoAtual); renderListaDias(); });
   const sel = document.getElementById('paTreinoSel');
   if (sel) sel.addEventListener('change', () => { _treinoSel = sel.value; _diaSel = 'A'; _view = 'lista'; abrirTreino(); });
   ligarShell();
+  ligarTique();
 }
 
 // Card de um dia na lista de seleção.
@@ -367,40 +375,114 @@ function cardDia(dia, proximo, treinadoHoje) {
   const n = contarDia(dia);
   const grupos = gruposDoDia(dia).slice(0, 3).join(' · ');
   const feito = dia === treinadoHoje;
-  const isProx = dia === proximo && !feito;
+  const emAndamento = cronAtivo(dia);
+  // Com treino em andamento, o destaque é dele; senão, do próximo sugerido.
+  const isProx = emAndamento || (cronAtivo() ? false : dia === proximo && !feito);
+  const min = resumoDia(dia).minutos;
+  const exercicios = `${n} ${n === 1 ? 'exercício' : 'exercícios'}`;
 
   // Card em destaque: o treino do dia (PRÓXIMO) — principal ponto de ação.
   if (isProx) {
-    const min = resumoDia(dia).minutos;
-    const conta = `${n} ${n === 1 ? 'exercício' : 'exercícios'}${min ? ` · aproximadamente ${min} min` : ''}`;
+    const conta = `${exercicios}${min ? ` · aproximadamente ${min} min` : ''}`;
+    const badge = emAndamento
+      ? `<span class="pa-dc-badge andamento"><span class="pa-cron-dot" aria-hidden="true"></span> <span data-cron-tempo>${fmtCron(cronDecorridoMs())}</span></span>`
+      : `<span class="pa-dc-badge prox">Próximo</span>`;
     return `
       <div class="pa-diacard prox featured">
         <div class="pa-dc-head">
           <span class="pa-dc-letra">${dia}</span>
           <div class="pa-dc-headtext">
             <span class="pa-dc-nome">Treino ${dia}</span>
-            <span class="pa-dc-badge prox">Próximo</span>
+            ${badge}
           </div>
         </div>
         <div class="pa-dc-info">
           <div class="pa-dc-grupos">${esc(grupos || 'Exercícios variados')}</div>
           <div class="pa-dc-conta">${conta}</div>
         </div>
-        <button class="pa-dc-cta" data-abrir="${dia}">Começar treino <i data-lucide="arrow-right"></i></button>
+        <button class="pa-dc-cta" data-abrir="${dia}">${emAndamento ? 'Continuar treino' : 'Começar treino'} <i data-lucide="arrow-right"></i></button>
       </div>`;
   }
 
-  // Demais cards: layout compacto com seta (inalterado).
+  // Demais cards: layout compacto com seta.
   const badge = feito ? `<span class="pa-dc-badge feito">✓ Feito hoje</span>` : '';
   return `
     <button class="pa-diacard" data-abrir="${dia}">
       <span class="pa-dc-letra">${dia}</span>
       <span class="pa-dc-body">
         <span class="pa-dc-top"><span class="pa-dc-nome">Treino ${dia}</span>${badge}</span>
-        <span class="pa-dc-sub">${esc(grupos || 'Exercícios variados')} · ${n} ${n === 1 ? 'exercício' : 'exercícios'}</span>
+        <span class="pa-dc-sub">${esc(grupos || 'Exercícios variados')}</span>
+        <span class="pa-dc-meta"><i data-lucide="clock"></i> ${min ? `≈${min} min · ` : ''}${exercicios}</span>
       </span>
       <span class="pa-dc-arrow"><i data-lucide="chevron-right"></i></span>
     </button>`;
+}
+
+// ── Cronômetro do treino ────────────────────────────────────
+// Conta o tempo real da sessão: começa ao abrir um treino e para no
+// "Finalizar treino". Fica no localStorage para sobreviver a recarregar
+// a página / trocar de aba — uma sessão esquecida é descartada em 6h.
+const CRON_KEY = 'nm_treino_cron';
+const CRON_MAX_MS = 6 * 60 * 60 * 1000;
+let _cron = null;        // { treinoId, dia, inicio } — sessão em andamento
+let _cronTimer = null;   // setInterval do tique visual
+
+function cronCarregar() {
+  try {
+    const c = JSON.parse(localStorage.getItem(CRON_KEY) || 'null');
+    if (!c || !c.inicio || Date.now() - c.inicio > CRON_MAX_MS) { localStorage.removeItem(CRON_KEY); return null; }
+    return c;
+  } catch { return null; }
+}
+function cronIniciar(treinoId, dia) {
+  _cron = { treinoId, dia, inicio: Date.now() };
+  try { localStorage.setItem(CRON_KEY, JSON.stringify(_cron)); } catch {}
+}
+// Para a contagem e devolve o tempo total decorrido (ms).
+function cronParar() {
+  const ms = cronDecorridoMs();
+  _cron = null;
+  pararTique();
+  try { localStorage.removeItem(CRON_KEY); } catch {}
+  return ms;
+}
+function cronAtivo(dia) {
+  return !!_cron && _cron.treinoId === _treinoSel && (dia === undefined || _cron.dia === dia);
+}
+function cronDecorridoMs() { return _cron ? Math.max(0, Date.now() - _cron.inicio) : 0; }
+
+// mm:ss até 1h; depois h:mm:ss.
+function fmtCron(ms) {
+  const t = Math.floor(ms / 1000);
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  const mm = String(m).padStart(2, '0'), ss = String(s).padStart(2, '0');
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+function pararTique() {
+  if (_cronTimer) { clearInterval(_cronTimer); _cronTimer = null; }
+}
+// Liga o tique de 1s nos mostradores da tela atual; se some da tela, para sozinho.
+function ligarTique() {
+  pararTique();
+  if (!_cron) return;
+  const pintar = () => {
+    const els = document.querySelectorAll('[data-cron-tempo]');
+    if (!els.length) { pararTique(); return; }
+    const txt = fmtCron(cronDecorridoMs());
+    els.forEach(el => { el.textContent = txt; });
+  };
+  pintar();
+  _cronTimer = setInterval(pintar, 1000);
+}
+
+// Chip do cronômetro no hero da página do treino.
+function cronChip() {
+  if (!cronAtivo()) return '';
+  return `<div class="pa-cron" role="timer" aria-label="Tempo de treino">
+      <span class="pa-cron-dot" aria-hidden="true"></span>
+      <span class="pa-cron-tempo" data-cron-tempo>${fmtCron(cronDecorridoMs())}</span>
+    </div>`;
 }
 
 // ── TELA B: página de um treino (voltar + seletor de dia + finalizar) ──
@@ -416,7 +498,10 @@ function renderTreinoDia() {
 
       <section class="pa-hero">
         <div class="pa-hero-hi">Treino do dia</div>
-        <div class="pa-hero-title">Treino ${esc(_diaSel)}</div>
+        <div class="pa-hero-topline">
+          <div class="pa-hero-title">Treino ${esc(_diaSel)}</div>
+          ${cronChip()}
+        </div>
         <div class="pa-hero-bar" data-hero-bar><span style="width:${r.pct}%"></span></div>
         <div class="pa-hero-meta">
           <span class="pa-hero-count" data-hero-count><b>${r.feitos}</b>/${r.total} exercícios</span>
@@ -435,12 +520,14 @@ function renderTreinoDia() {
   app().querySelectorAll('.pa-dia').forEach(b =>
     b.addEventListener('click', () => { _diaSel = b.dataset.dia; renderTreinoDia(); }));
   ligarShell();
+  ligarTique();
 
   renderDia();
 }
 
 function finalizarTreino() {
-  mostrarToast('✓ Treino concluído! 💪');
+  const ms = cronAtivo() ? cronParar() : 0;
+  mostrarToast(ms ? `✓ Treino concluído em ${fmtCron(ms)} 💪` : '✓ Treino concluído! 💪');
   _view = 'lista';
   renderTreino();
 }
