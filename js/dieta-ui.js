@@ -993,11 +993,11 @@ function ligarBarra(cont) {
 }
 
 // "Editar cálculo" → salta para a aba Cálculo de Calorias (onde as metas moram).
-// Só existe na ficha do paciente; a navegação é o próprio menu lateral da ficha.
+// A navegação é a do Hub do paciente; fora dele, apenas orienta.
 function irParaCalculo() {
-  const item = document.querySelector('#fichaMenu .fm-item[data-aba="calorias"]');
-  if (item) { item.click(); return; }
-  mostrarToast('Abra a aba "Cálculo de Calorias" para editar as metas.');
+  const aba = document.querySelector('.hub-tab[data-aba="calorias"]');
+  if (aba) { aba.click(); return; }
+  mostrarToast('Abra a aba "Calorias" para editar as metas.');
 }
 
 function ligarNovaRefeicao(cont) {

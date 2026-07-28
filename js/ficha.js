@@ -1,189 +1,142 @@
 // ═══════════════════════════════════════════════════════════
-// FICHA DO PACIENTE — navegação centralizada (modelo WebDiet)
-// Fase 1: esqueleto (cabeçalho + menu lateral 9 abas).
-// "Dados do Paciente" funcional; demais abas: Anamnese e
-// Avaliações plugam módulos existentes; resto "em breve".
+// HUB DO PACIENTE — orquestração das abas
 // ═══════════════════════════════════════════════════════════
+// A ficha deixou de ser um menu lateral de módulos soltos: agora é o Hub, com
+// o paciente sempre no contexto (cabeçalho + navegação fixos) e só o conteúdo
+// da aba trocando. Cada aba carrega seu módulo por import dinâmico — nada é
+// baixado antes de ser aberto.
+//
+// Quem decide QUAIS abas existem é paciente-modulos.js: módulo sem fundação
+// (consultas, check-ins, exames, fotos) não aparece, em vez de virar uma aba
+// cinza "em breve" dentro do prontuário.
 
 import { buscarPacientePorId, atualizarPaciente } from './pacientes.js';
 import { dadosBasicosDaAnamnese } from './avaliacoes.js';
 import { buscarRespostasModulo } from './respostas.js';
 import { gerarRelatorio, ativarConduta } from './relatorio.js';
 import { processarRecordatorioIA } from './recordatorio-ia.js';
-import { QUESTIONARIO_URL } from './supabase.js';
-import { copiarParaClipboard, gerarLinkWhatsapp, montarMensagemQuestionario, mostrarErro, confirmar } from './utils.js';
-// Fase 3 ligará as Avaliações dentro da ficha.
+import { hubShellHtml, ligarHub, marcarAba, preencherContexto } from './paciente-hub.js';
+import { normalizarAba, moduloExiste } from './paciente-modulos.js';
+import { invalidarResumo } from './paciente-resumo.js';
+import { mostrarErro, confirmar } from './utils.js';
 
 let _pacienteAtual = null;
 let _nutriId = null;
 let _dados = { sexo: null, idade: null };
 let _calorias = null;         // módulo carregado, p/ checar edições pendentes
-
-// Definição das abas (id, ícone, label, estado)
-const ABAS = [
-  { id: 'dados',        icone: '<i data-lucide="user"></i>',          label: 'Dados do Cliente', pronta: true },
-  { id: 'evolucao',     icone: '<i data-lucide="trending-up"></i>',   label: 'Evolução',          pronta: false },
-  { id: 'anamnese',     icone: '<i data-lucide="clipboard-list"></i>', label: 'Anamnese geral',    pronta: true },
-  { id: 'exames',       icone: '<i data-lucide="flask-conical"></i>', label: 'Exames laboratoriais', pronta: false },
-  { id: 'avaliacoes',   icone: '<i data-lucide="ruler"></i>',         label: 'Avaliações Físicas', pronta: true },
-  { id: 'treinos',      icone: '<i data-lucide="dumbbell"></i>',      label: 'Treinos',            pronta: true },
-  { id: 'calorias',     icone: '<i data-lucide="flame"></i>',         label: 'Cálculo de Calorias', pronta: true },
-  { id: 'planejamento', icone: '<i data-lucide="salad"></i>',         label: 'Planejamento Alimentar', pronta: true },
-  { id: 'manipulados',  icone: '<i data-lucide="pill"></i>',          label: 'Prescrição de Manipulados', pronta: false },
-  { id: 'orientacoes',  icone: '<i data-lucide="file-pen"></i>',      label: 'Orientações Nutricionais', pronta: false },
-];
+let _abaAtual = 'visao';
+let _m1 = {};                 // respostas do módulo 1 da anamnese (dados pessoais)
 
 /**
- * Abre a ficha de um paciente. Chamado ao clicar "Ver" na lista.
- * @param {string} pacienteId
- * @param {string} nutriId
- * @param {function} onVoltar - callback pra voltar à lista
+ * Abre o Hub de um paciente. Assinatura mantida: index.html continua chamando
+ * abrirFichaPaciente(id, nutriId, onVoltar, aba) e as URLs #ficha/<id>/<aba>
+ * seguem funcionando (as abas antigas caem nos apelidos de paciente-modulos).
  */
-export async function abrirFichaPaciente(pacienteId, nutriId, onVoltar, abaInicial = 'dados') {
+export async function abrirFichaPaciente(pacienteId, nutriId, onVoltar, abaInicial = 'visao') {
   _nutriId = nutriId;
   const page = document.getElementById('page-ficha');
   if (!page) { console.error('page-ficha não existe'); return; }
 
-  // Aba inicial válida (existe e está pronta), senão cai em "dados".
-  const abaOk = ABAS.find(a => a.id === abaInicial && a.pronta) ? abaInicial : 'dados';
-
-  page.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando ficha...</div>`;
+  page.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando paciente...</div>`;
 
   try {
     _pacienteAtual = await buscarPacientePorId(pacienteId);
     _dados = await dadosBasicosDaAnamnese(pacienteId);
+    _m1 = {};
   } catch (e) {
-    page.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro ao carregar: ${e.message}</div>`;
+    page.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro ao carregar: ${esc(e.message)}</div>`;
     return;
   }
 
   const p = _pacienteAtual;
-  const sexoLabel = _dados.sexo === 'M' ? 'Masculino' : _dados.sexo === 'F' ? 'Feminino' : '—';
-  const idadeLabel = _dados.idade != null ? `${_dados.idade} anos` : '—';
-  const statusLabel = (p.status || 'aguardando');
+  _abaAtual = normalizarAba(abaInicial);
 
-  page.innerHTML = `
-    <span class="ficha-voltar" id="fichaVoltar"><i data-lucide="arrow-left"></i> Voltar para a lista de clientes</span>
-
-    <div class="ficha-head">
-      <div class="ficha-avatar">${iniciais(p.nome)}</div>
-      <div>
-        <div class="ficha-nome">${esc(p.nome || '(sem nome)')}</div>
-        <div class="ficha-meta">${sexoLabel} · ${idadeLabel} · Cadastrado em ${fmtData(p.criado_em)}</div>
-      </div>
-      <div class="ficha-head-right">
-        ${botaoLinks(p)}
-        <div class="ficha-badges">
-          <span class="ficha-badge badge-cod">${p.codigo}</span>
-          <span class="ficha-badge badge-${statusLabel === 'completo' ? 'ok' : 'wait'}">${statusLabel}</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="ficha-body">
-      <div class="ficha-menu" id="fichaMenu">
-        ${ABAS.map(a => `
-          <div class="fm-item ${a.id === abaOk ? 'active' : ''} ${a.pronta ? '' : 'soon'}" data-aba="${a.id}">
-            <span>${a.icone}</span><span>${a.label}</span>
-          </div>`).join('')}
-      </div>
-      <div class="ficha-conteudo" id="fichaConteudo"></div>
-    </div>
-  `;
-
-  // Voltar
-  document.getElementById('fichaVoltar').addEventListener('click', () => {
-    if (typeof onVoltar === 'function') onVoltar();
+  page.innerHTML = hubShellHtml(p, _dados, _abaAtual);
+  ligarHub(page, p, {
+    onVoltar: () => onVoltar?.(),
+    irParaAba,
+    onObservacao: async () => {
+      const { abrirRegistroManual } = await import('./timeline-ui.js');
+      abrirRegistroManual(p, () => { if (_abaAtual === 'visao') renderAba('visao'); });
+    },
   });
 
-  // Links de acesso (copiar / WhatsApp)
-  ligarLinksAcesso(page, p);
+  renderAba(_abaAtual);
+}
 
-  // Navegação entre abas
-  document.querySelectorAll('#fichaMenu .fm-item').forEach(item => {
-    item.addEventListener('click', async () => {
-      if (item.classList.contains('soon')) return;   // abas não prontas: sem funcionalidade
-      // Trocar de aba substitui o innerHTML e levaria junto o formulário do
-      // cálculo. Confirma antes, em vez de descartar em silêncio.
-      if (_calorias?.caloriasSujo?.()) {
-        const ok = await confirmar({
-          titulo: 'Sair do cálculo',
-          mensagem: 'Há alterações não salvas. Trocar de aba agora descarta essas mudanças.',
-          textoOk: 'Sair sem salvar',
-        });
-        if (!ok) return;
-      }
-      _calorias?.encerrarCalorias?.();
-      _calorias = null;
-      document.querySelectorAll('#fichaMenu .fm-item').forEach(i => i.classList.remove('active'));
-      item.classList.add('active');
-      renderAba(item.dataset.aba);
+/**
+ * Troca de aba sem recarregar o Hub: cabeçalho e navegação permanecem.
+ * Passa pela mesma trava de edição pendente do cálculo de calorias.
+ */
+export async function irParaAba(abaId) {
+  const alvo = moduloExiste(abaId) ? abaId : normalizarAba(abaId);
+  if (alvo === _abaAtual) return;
+
+  if (_calorias?.caloriasSujo?.()) {
+    const ok = await confirmar({
+      titulo: 'Sair do cálculo',
+      mensagem: 'Há alterações não salvas. Trocar de aba agora descarta essas mudanças.',
+      textoOk: 'Sair sem salvar',
     });
-  });
+    if (!ok) return;
+  }
+  _calorias?.encerrarCalorias?.();
+  _calorias = null;
 
-  // Abre a aba inicial (restaurada da URL ou "dados")
-  renderAba(abaOk);
+  _abaAtual = alvo;
+  marcarAba(document.getElementById('page-ficha'), alvo);
+  renderAba(alvo);
 }
 
-/**
- * Navega para outra aba da ficha por código (usado pelas ações da visão geral).
- * Passa pelo clique do menu para reaproveitar as travas já existentes.
- */
-function irParaAba(abaId) {
-  const item = document.querySelector(`#fichaMenu .fm-item[data-aba="${abaId}"]`);
-  if (!item || item.classList.contains('soon')) return;
-  item.click();
-}
-
-/**
- * Renderiza o conteúdo de uma aba.
- */
+/** Renderiza o conteúdo da aba ativa. */
 async function renderAba(abaId) {
+  const page = document.getElementById('page-ficha');
   const cont = document.getElementById('fichaConteudo');
   const p = _pacienteAtual;
+  if (!cont || !p) return;
 
-  // Grava a rota na URL (sem poluir o histórico) p/ o F5 manter cliente + aba.
-  if (p?.id) { try { history.replaceState(null, '', '#ficha/' + p.id + '/' + abaId); } catch (e) {} }
+  // Rota na URL (sem poluir o histórico): F5 mantém paciente + aba.
+  try { history.replaceState(null, '', '#ficha/' + p.id + '/' + abaId); } catch (e) {}
 
-  // Abas prontas
-  // "Dados do Cliente" é a visão geral do paciente: resumo do acompanhamento,
-  // dados pessoais (recolhidos), próximas ações e a linha do tempo. O formulário
-  // de dados continua o mesmo — só passa a morar dentro do bloco recolhível.
-  if (abaId === 'dados') {
-    cont.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando visão geral...</div>`;
-    let m1 = {};
+  if (abaId === 'visao') {
+    cont.innerHTML = '';
     try {
-      const resp = await buscarRespostasModulo(p.id, 'm1');
-      m1 = resp || {};
-    } catch (e) { /* segue */ }
-    try {
-      const { initVisaoGeral } = await import('./timeline-ui.js');
-      await initVisaoGeral({ cont, paciente: p, irParaAba });
+      const { initPainel360 } = await import('./paciente-painel.js');
+      await initPainel360({
+        cont, paciente: p, irParaAba,
+        aoCarregar: (resumo) => preencherContexto(page, resumo),
+      });
+      // O formulário de dados pessoais continua o mesmo — agora recolhido.
       const mount = document.getElementById('dadosPessoaisMount');
-      if (mount) renderDadosView(mount, p, m1, false);
+      if (mount) {
+        if (!Object.keys(_m1).length) {
+          try { _m1 = (await buscarRespostasModulo(p.id, 'm1')) || {}; } catch (e) { _m1 = {}; }
+        }
+        renderDadosView(mount, p, _m1, false);
+      }
     } catch (e) {
-      // Timeline indisponível não pode esconder os dados do paciente.
-      console.error('[ficha] visão geral:', e);
-      cont.innerHTML = '';
-      renderDadosView(cont, p, m1, false);
+      erroAba(cont, 'Não foi possível carregar a visão geral.', e);
     }
+    return;
+  }
+
+  if (abaId === 'timeline') {
+    cont.innerHTML = '';
+    try {
+      const { initTimeline } = await import('./timeline-ui.js');
+      await initTimeline({ cont, paciente: p, irParaAba });
+    } catch (e) { erroAba(cont, 'Não foi possível carregar o histórico.', e); }
     return;
   }
 
   if (abaId === 'anamnese') {
     cont.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando relatório...</div>`;
     try {
-      const html = await gerarRelatorio(p.id);
-      cont.innerHTML = html;
-      // Dispara o cálculo do recordatório por IA (com cache)
+      cont.innerHTML = await gerarRelatorio(p.id);
       processarRecordatorioIA(p.id).catch(e => console.warn('recordatorio ia:', e));
-      // Liga os cards clicáveis de PSQI e Cronotipo
       ativarConduta(cont);
-      // Remove o botão "voltar" interno do relatório (a ficha já tem o seu)
       cont.querySelectorAll('[data-relatorio-action="voltar"]').forEach(b => b.remove());
-    } catch (e) {
-      cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro no relatório: ${e.message}</div>`;
-    }
+    } catch (e) { erroAba(cont, 'Não foi possível carregar a anamnese.', e); }
     return;
   }
 
@@ -192,9 +145,7 @@ async function renderAba(abaId) {
     try {
       const { initAvaliacoesUIParaPaciente } = await import('./avaliacoes-ui.js');
       await initAvaliacoesUIParaPaciente(_nutriId, p, 'avaliacoesFichaMount');
-    } catch (e) {
-      cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro nas avaliações: ${e.message}</div>`;
-    }
+    } catch (e) { erroAba(cont, 'Não foi possível carregar as avaliações.', e); }
     return;
   }
 
@@ -203,9 +154,7 @@ async function renderAba(abaId) {
     try {
       const { initTreinosUIParaPaciente } = await import('./treinos-ui.js');
       await initTreinosUIParaPaciente(_nutriId, p, 'treinosFichaMount');
-    } catch (e) {
-      cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro nos treinos: ${e.message}</div>`;
-    }
+    } catch (e) { erroAba(cont, 'Não foi possível carregar os treinos.', e); }
     return;
   }
 
@@ -215,9 +164,7 @@ async function renderAba(abaId) {
       const mod = await import('./calorias-ui.js');
       _calorias = mod;
       await mod.initCaloriasUIParaPaciente(_nutriId, p, 'caloriasFichaMount');
-    } catch (e) {
-      cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro no cálculo de calorias: ${e.message}</div>`;
-    }
+    } catch (e) { erroAba(cont, 'Não foi possível carregar o cálculo de calorias.', e); }
     return;
   }
 
@@ -226,23 +173,29 @@ async function renderAba(abaId) {
     try {
       const { initDietaUIParaPaciente } = await import('./dieta-ui.js');
       await initDietaUIParaPaciente(_nutriId, p, 'dietaFichaMount');
-    } catch (e) {
-      cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro no planejamento: ${e.message}</div>`;
-    }
+    } catch (e) { erroAba(cont, 'Não foi possível carregar o planejamento.', e); }
     return;
   }
 
-  // Abas futuras
-  const aba = ABAS.find(a => a.id === abaId);
-  cont.innerHTML = `
-    <div class="ficha-em-breve">
-      <div class="feb-ico">${aba.icone}</div>
-      <div class="feb-t">${aba.label}</div>
-      <div class="feb-s">Esta funcionalidade ainda está em desenvolvimento.</div>
-    </div>`;
+  // Aba desconhecida (URL antiga de módulo removido): cai na visão geral.
+  _abaAtual = 'visao';
+  marcarAba(page, 'visao');
+  renderAba('visao');
 }
 
-// ─── Aba Dados: um só layout; editar muda os balões in-place ───
+/** Falha de um módulo não derruba o Hub: cabeçalho e abas continuam de pé. */
+function erroAba(cont, msg, e) {
+  console.error('[hub]', msg, e);
+  cont.innerHTML = `
+    <div class="empty-state">
+      <div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>
+      <div>${esc(msg)}</div>
+      <button class="btn-sm" style="margin-top:12px" data-hub-retry>Tentar novamente</button>
+    </div>`;
+  cont.querySelector('[data-hub-retry]')?.addEventListener('click', () => renderAba(_abaAtual));
+}
+
+// ─── Dados pessoais: um só layout; editar muda os balões in-place ───
 function renderDadosView(cont, p, m1, editando) {
   const nome = p.nome || m1.q1_1 || '';
   const email = p.email || m1.q1_2 || '';
@@ -340,6 +293,7 @@ function renderDadosView(cont, p, m1, editando) {
       try {
         const atualizado = await atualizarPaciente(p.id, dados);
         _pacienteAtual = { ...p, ...atualizado };
+        invalidarResumo(p.id);            // o cabeçalho e o painel releem no próximo acesso
         renderDadosView(cont, _pacienteAtual, m1, false);
       } catch (e) {
         btn.disabled = false; btn.innerHTML = '<i data-lucide="save"></i> Salvar';
@@ -352,94 +306,12 @@ function renderDadosView(cont, p, m1, editando) {
 }
 
 // ─── Helpers ───
-function campo(label, valor) {
-  return `<div class="ficha-campo"><div class="fc-l">${label}</div><div class="fc-v">${esc(valor)}</div></div>`;
-}
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const iniciais = nome => {
-  if (!nome) return '?';
-  const parts = nome.trim().split(/\s+/);
-  return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '?';
-};
 const fmtData = d => {
   if (!d) return '—';
   try { return new Date(d).toLocaleDateString('pt-BR'); } catch { return '—'; }
 };
 
-// ───────────────────────────────────────────────────────────
-// LINKS DE ACESSO (anamnese + app do aluno) — home fixa na ficha
-// Os links derivam do código do paciente, então ficam sempre disponíveis.
-// ───────────────────────────────────────────────────────────
-function linksDoPaciente(p) {
-  return {
-    anamnese: `${QUESTIONARIO_URL}anamnese.html?p=${p.codigo}`,
-    app:      `${QUESTIONARIO_URL}app.html?codigo=${p.codigo}`,
-  };
-}
-
-// Botão "Links de acesso" no cabeçalho (junto ao nome/código) que abre o menu.
-function botaoLinks(p) {
-  const l = linksDoPaciente(p);
-  return `
-    <div class="ficha-links-wrap">
-      <button class="ficha-links-btn" data-links-toggle aria-expanded="false" aria-haspopup="true">
-        <i data-lucide="link"></i> <span>Links de acesso</span> <i data-lucide="chevron-down" class="flb-chev"></i>
-      </button>
-      <div class="ficha-links-pop" data-links-pop hidden>
-        <div class="fl-pop-head"><i data-lucide="link"></i> Links de acesso</div>
-        ${linkRow('Anamnese', 'Questionário pré-consulta', l.anamnese, 'anamnese')}
-        ${linkRow('App do aluno', 'Treino + registro de carga', l.app, 'app')}
-      </div>
-    </div>`;
-}
-
-function linkRow(titulo, sub, url, key) {
-  return `
-    <div class="fl-row">
-      <div class="fl-info">
-        <div class="fl-titulo">${titulo} <span class="fl-sub">· ${sub}</span></div>
-        <div class="fl-url">${esc(url)}</div>
-      </div>
-      <div class="fl-acoes">
-        <button class="btn-sm" data-flcopy="${key}"><i data-lucide="copy"></i> Copiar</button>
-        <button class="btn-sm btn-sm-secondary" data-flwa="${key}"><i data-lucide="message-circle"></i> WhatsApp</button>
-      </div>
-    </div>`;
-}
-
-function ligarLinksAcesso(page, p) {
-  const l = linksDoPaciente(p);
-  const btn = page.querySelector('[data-links-toggle]');
-  const pop = page.querySelector('[data-links-pop]');
-  const fechar = () => { if (pop) pop.hidden = true; btn?.setAttribute('aria-expanded', 'false'); };
-  if (btn && pop) {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const abrir = pop.hidden;
-      pop.hidden = !abrir;
-      btn.setAttribute('aria-expanded', String(abrir));
-    });
-    pop.addEventListener('click', (e) => e.stopPropagation());   // clique dentro não fecha
-    document.addEventListener('click', fechar);                  // clique fora fecha
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fechar(); });
-  }
-  page.querySelectorAll('[data-flcopy]').forEach(b =>
-    b.addEventListener('click', () => { copiarParaClipboard(l[b.dataset.flcopy], '✓ Link copiado'); fechar(); }));
-  page.querySelectorAll('[data-flwa]').forEach(b =>
-    b.addEventListener('click', () => {
-      const key = b.dataset.flwa;
-      const msg = key === 'app'
-        ? montarMensagemApp(p.nome, l.app)
-        : montarMensagemQuestionario(p.nome, l.anamnese);
-      window.open(gerarLinkWhatsapp(msg, p.telefone || ''), '_blank');
-      fechar();
-    }));
-}
-
-function montarMensagemApp(nome, link) {
-  const primeiro = nome ? nome.split(' ')[0] + ', ' : '';
-  return `Oi ${primeiro}seu treino está no app 💪\n\nAcesse por aqui:\n${link}\n\nÉ só criar sua conta (email e senha) — seu treino já aparece. Dá pra instalar na tela inicial do celular. 🌿`;
-}
 function calcularIdade(nascimento) {
   if (!nascimento) return null;
   const nasc = new Date(nascimento);
