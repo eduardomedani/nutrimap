@@ -138,13 +138,49 @@
   .pa-hero-count b { color: var(--moss-deep); font-weight: 800; }
   .pa-hero-time { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-mute); }
   .pa-hero-time svg { width: 14px; height: 14px; }
-  .pa-hero-topline { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  /* ══════════════════════════════════════════════════════════════════════
+     TREINO EM ANDAMENTO — cabeçalho fixo, cronômetro e barra de finalizar
+     ══════════════════════════════════════════════════════════════════════ */
+  /* Altura da topbar (12 + avatar 30 + 12) e da navegação inferior. */
+  :root { --pa-top-h: 54px; --pa-nav-h: 57px; }
 
-  /* ── Cronômetro da sessão (começa ao abrir o treino, para ao finalizar) ── */
-  .pa-cron { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; border-radius: 100px; background: var(--moss); color: var(--cream); font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; box-shadow: var(--shadow); }
-  .pa-cron-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: paPulse 1.6s ease-in-out infinite; }
-  @keyframes paPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+  .pa-main-run { max-width: 720px; padding-bottom: 150px; }
+
+  /* Cabeçalho do treino: acompanha a rolagem, logo abaixo da topbar. */
+  .pa-runbar { position: sticky; top: calc(var(--pa-top-h) + env(safe-area-inset-top)); z-index: 15;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 12px 14px 13px; margin-bottom: 14px; box-shadow: var(--shadow-sm); }
+  .pa-runbar-row { display: flex; align-items: center; gap: 10px; }
+  .pa-runbar-back { flex: 0 0 auto; width: 34px; height: 34px; margin-left: -4px; display: flex; align-items: center; justify-content: center; border: none; border-radius: 10px; background: none; color: var(--text-secondary); cursor: pointer; }
+  .pa-runbar-back:hover { background: var(--surface-subtle); color: var(--text-primary); }
+  .pa-runbar-back svg { width: 20px; height: 20px; }
+  .pa-runbar-id { flex: 1 1 auto; min-width: 0; }
+  .pa-runbar-title { font-size: 19px; font-weight: 800; color: var(--text-primary); line-height: 1.15; letter-spacing: var(--tracking-snug); }
+  .pa-runbar-sub { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pa-runbar-prog { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 12px; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
+  .pa-runbar-prog b { color: var(--text-primary); font-weight: 800; }
+  .pa-runbar-pct { font-size: 12.5px; font-weight: 800; color: var(--primary); font-variant-numeric: tabular-nums; }
+  .pa-runbar .pa-hero-bar { margin-top: 6px; height: 6px; background: var(--surface-subtle); }
+  .pa-runbar .pa-hero-bar > span { background: var(--primary); }
+
+  /* Cronômetro (ou, antes de começar, o tempo estimado). */
+  .pa-cron { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; padding: 5px 11px; border-radius: 12px; background: var(--color-primary-100); }
+  .pa-cron-lab { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-primary-700); }
+  .pa-cron-tempo { font-size: 19px; font-weight: 800; line-height: 1.1; color: var(--color-primary-900); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  .pa-cron-off { background: var(--surface-subtle); }
+  .pa-cron-off .pa-cron-lab { color: var(--text-secondary); }
+  .pa-cron-off .pa-cron-tempo { font-size: 16px; color: var(--text-primary); }
+  .pa-cron-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); animation: paPulse 1.8s ease-in-out infinite; }
+  @keyframes paPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
   @media (prefers-reduced-motion: reduce) { .pa-cron-dot { animation: none; } }
+
+  /* Barra de finalizar: fica acima do menu inferior, sem cobri-lo. */
+  .pa-finishbar { position: fixed; left: 0; right: 0; bottom: calc(var(--pa-nav-h) + env(safe-area-inset-bottom)); z-index: 25;
+    background: linear-gradient(to top, var(--background) 62%, color-mix(in srgb, var(--background) 0%, transparent)); pointer-events: none; }
+  .pa-finishbar-in { max-width: 720px; margin: 0 auto; padding: 14px 16px 10px; pointer-events: auto; }
+  .pa-finishbar .pa-btn { margin-top: 0; min-height: 48px; box-shadow: var(--shadow-md); }
 
   /* ── Indicadores de evolução (topo): sequência + recordes ── */
   .pa-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
@@ -197,21 +233,58 @@
   .pa-back:hover { color: var(--moss); }
   .pa-finalizar { margin-top: 18px; }
 
-  .pa-dias { display: flex; gap: 9px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 20px; -webkit-overflow-scrolling: touch; }
-  .pa-dia { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 14px; border: 1px solid var(--hair); background: var(--bg-card); color: var(--ink-soft); font-size: 17px; font-weight: 700; cursor: pointer; transition: all 0.18s; }
-  .pa-dia.active { background: var(--moss); color: var(--cream); border-color: var(--moss); box-shadow: var(--shadow); }
+  .pa-dias { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 12px; -webkit-overflow-scrolling: touch; }
+  .pa-dia { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 13px; border: 1px solid var(--border); background: var(--surface); color: var(--text-secondary); font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.18s; }
+  .pa-dia.active { background: var(--primary); color: #FFFFFF; border-color: var(--primary); }
 
-  /* ── Card de exercício ── */
-  .pa-ex { background: var(--bg-card); border: 1px solid var(--hair); border-radius: var(--radius); padding: 16px 16px; margin-bottom: 14px; box-shadow: var(--shadow); }
+  /* ══════════════════════════════════════════════════════════════════════
+     CARD DE EXERCÍCIO — acordeão: fechado é só o resumo; aberto, a execução
+     ══════════════════════════════════════════════════════════════════════ */
+  #paDiaConteudo { display: flex; flex-direction: column; gap: 8px; }
+  .pa-ex { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-xs); transition: border-color var(--duration-base) var(--ease), box-shadow var(--duration-base) var(--ease); }
 
-  /* 1 · Cabeçalho */
-  .pa-ex-top { display: flex; align-items: flex-start; gap: 12px; }
-  .pa-ex-num { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; background: var(--cream); color: var(--moss-deep); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; margin-top: 1px; }
-  .pa-ex-nome { font-size: 17px; font-weight: 800; color: var(--ink); line-height: 1.18; letter-spacing: -0.01em; }
-  .pa-ex-grupo { font-size: 11px; color: var(--moss); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; margin-top: 3px; }
+  /* Cabeçalho clicável (estado fechado ≈ 76px) */
+  .pa-exh { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 64px; padding: 9px 12px; background: none; border: none; border-radius: 14px; text-align: left; font-family: inherit; cursor: pointer; }
+  .pa-exh:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+  .pa-ex-status { flex: 0 0 auto; width: 29px; height: 29px; border-radius: 50%; border: 1.5px solid var(--border-strong); background: var(--surface); color: var(--text-secondary); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; }
+  .pa-ex-status svg { width: 17px; height: 17px; }
+  .pa-exh-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+  .pa-exh-nome { font-size: 14.5px; font-weight: 700; color: var(--text-primary); line-height: 1.25; letter-spacing: var(--tracking-snug); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pa-exh-grupo { font-size: 10px; font-weight: 800; color: var(--color-primary-700); text-transform: uppercase; letter-spacing: 0.06em; line-height: 1.4; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pa-exh-resumo { font-size: 12px; font-weight: 600; color: var(--text-secondary); line-height: 1.35; margin-top: 1px; }
+  .pa-exh-estado { flex: 0 0 auto; }
+  .pa-ex-tag { display: none; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+  .pa-ex-tag svg { width: 12px; height: 12px; }
+  .pa-exh-chev { flex: 0 0 auto; display: flex; color: var(--text-muted); transition: transform var(--duration-base) var(--ease); }
+  .pa-exh-chev svg { width: 19px; height: 19px; }
+
+  /* A · Pendente (padrão) · destaque discreto no próximo da fila */
+  .pa-ex.next { border-color: var(--color-primary-300); }
+  .pa-ex.next .pa-ex-status { border-color: var(--color-primary-400); color: var(--color-primary-700); }
+
+  /* B · Em andamento (aberto) */
+  .pa-ex.open { border-color: var(--primary); box-shadow: var(--shadow-md); }
+  .pa-ex.open .pa-ex-status { border-color: var(--primary); background: var(--color-primary-100); color: var(--color-primary-700); }
+  .pa-ex.open .pa-exh-chev { transform: rotate(180deg); }
+  .pa-ex.open .pa-tag-run { display: inline-flex; background: var(--color-primary-100); color: var(--color-primary-700); }
+  .pa-ex.open .pa-exh-resumo { display: none; }
+
+  /* C · Concluído (verde da marca — nunca laranja) */
+  .pa-ex.done .pa-ex-status { background: var(--primary); border-color: var(--primary); color: #FFFFFF; }
+  .pa-ex.done:not(.open) .pa-tag-done { display: inline-flex; background: var(--color-primary-100); color: var(--color-primary-700); }
+  .pa-ex.done:not(.open) .pa-exh-nome { color: var(--text-primary); }
+  .pa-ex.done:not(.open) .pa-exh-grupo,
+  .pa-ex.done:not(.open) .pa-exh-resumo { color: var(--text-muted); }
+  .pa-ex.done.open .pa-tag-run { display: inline-flex; }
+
+  /* Conteúdo expandido */
+  .pa-ex-body { padding: 2px 14px 14px; border-top: 1px solid var(--border); margin: 0 0 0; }
+  .pa-ex-body[hidden] { display: none; }
+  .pa-ex-body > :first-child { margin-top: 13px; }
+  @media (max-width: 380px) { .pa-ex-tag { display: none !important; } }
 
   /* 2 · Linha compacta de prescrição */
-  .pa-ex-spec { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 9px; margin-top: 13px; font-size: 13.5px; color: var(--ink-soft); font-weight: 600; }
+  .pa-ex-spec { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 9px; font-size: 13.5px; color: var(--ink-soft); font-weight: 600; }
   .pa-ex-spec b { color: var(--ink); font-weight: 800; }
   .pa-ex-spec .sep { color: #CBCBC7; }
   .pa-ex-tec { display: inline-flex; align-items: center; gap: 4px; background: color-mix(in srgb, var(--warning) 13%, transparent); color: #927023; padding: 2px 9px; border-radius: 100px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
@@ -224,7 +297,7 @@
   .pa-obs-tec { color: var(--ink-mute); }
 
   /* 3-4 · Último treino + evolução (painel sem contorno, só um leve tom verde) */
-  .pa-ex-last { margin-top: 15px; background: rgba(60,77,63,0.05); border-radius: 14px; padding: 11px 13px; }
+  .pa-ex-last { margin-top: 15px; background: var(--surface-subtle); border-radius: 12px; padding: 11px 13px; }
   .pa-last-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .pa-last-lab { font-size: 10px; font-weight: 800; color: var(--ink-mute); text-transform: uppercase; letter-spacing: 0.07em; }
   .pa-last-val { margin-top: 5px; font-size: 13.5px; color: var(--ink-soft); font-weight: 600; }
@@ -236,16 +309,10 @@
   .pa-evo.up { color: var(--moss); }
   .pa-evo.flat, .pa-evo.down { color: var(--ink-mute); }
 
-  /* 5 · Rodapé / ação principal */
-  .pa-ex-foot { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
-  .pa-video { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--moss); text-decoration: none; padding: 8px 12px; border-radius: 10px; background: var(--bg-warm); }
+  /* 5 · Vídeo do exercício (dentro do card aberto) */
+  .pa-ex-foot { display: flex; align-items: center; gap: 10px; margin-top: 13px; }
+  .pa-video { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; font-size: 13px; font-weight: 700; color: var(--moss); text-decoration: none; padding: 8px 12px; border-radius: 10px; background: var(--bg-warm); }
   .pa-video svg { width: 15px; height: 15px; }
-  .pa-carga-btn { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; padding: 10px 16px; border: none; border-radius: 12px; background: var(--moss); color: var(--cream); font-size: 13.5px; font-weight: 800; cursor: pointer; transition: background 0.2s, transform 0.15s; }
-  .pa-carga-btn:hover { background: var(--moss-deep); transform: translateY(-1px); }
-  .pa-carga-btn svg { width: 16px; height: 16px; }
-  /* Exercício concluído hoje — botão dourado */
-  .pa-carga-btn.pa-carga-btn-done { background: var(--gold); color: #fff; box-shadow: 0 2px 10px color-mix(in srgb, var(--warning) 30%, transparent); }
-  .pa-carga-btn.pa-carga-btn-done:hover { background: #a67f38; }
 
   /* ── Progressão ── */
   .pa-prog { margin-top: 16px; border-top: 1px solid var(--hair); padding-top: 16px; }
@@ -254,7 +321,8 @@
   .pa-prog-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
   .pa-mini { padding: 10px 12px; font-size: 16px; }   /* 16px evita zoom automático no iOS */
   .pa-prog-form [data-p="obs"] { grid-column: 1 / -1; }
-  .pa-btn-mini { grid-column: 1 / -1; margin-top: 2px; padding: 11px; font-size: 14px; }
+  .pa-btn-mini { grid-column: 1 / -1; margin-top: 2px; min-height: 48px; padding: 12px; font-size: 14.5px; font-weight: 700; }
+  .pa-btn-mini.is-loading { opacity: 0.75; cursor: progress; }
 
   .pa-prog-list { display: flex; flex-direction: column; gap: 6px; }
   .pa-prog-row { display: grid; grid-template-columns: auto auto auto 1fr auto; gap: 8px; align-items: center; background: var(--bg); border-radius: 9px; padding: 8px 10px; font-size: 13px; }
@@ -280,8 +348,8 @@
   .pa-serie-check svg { width: 17px; height: 17px; }
   .pa-serie-check:hover { border-color: var(--sage); color: var(--moss); }
   /* Série concluída — a classe `done` fica no bloco (.pa-serie-block) */
-  .pa-serie-block.done .pa-serie-check { background: var(--moss); border-color: var(--moss); color: var(--cream); }
-  .pa-serie-block.done .pa-serie-num { color: var(--sage); }
+  .pa-serie-block.done .pa-serie-check { background: var(--primary); border-color: var(--primary); color: #FFFFFF; }
+  .pa-serie-block.done .pa-serie-num { color: var(--color-primary-500); }
   .pa-serie-block.done .pa-serie .pa-mini { border-color: transparent; background: color-mix(in srgb, var(--color-primary-400) 12%, transparent); color: var(--moss-deep); font-weight: 700; }
   .pa-series-prog { font-size: 12px; font-weight: 700; color: var(--ink-mute); margin: 2px 0 12px 2px; }
   .pa-series-prog b { color: var(--moss); }
@@ -327,7 +395,7 @@
     cursor: pointer; font: inherit; min-height: 44px; }
   .pa-serie-block.drop-done .pa-serie-resumo { display: flex; }
   .pa-res-check { display: inline-flex; width: 22px; height: 22px; border-radius: 50%; flex: none;
-    background: var(--gold); color: #fff; align-items: center; justify-content: center; }
+    background: var(--primary); color: #fff; align-items: center; justify-content: center; }
   .pa-res-check svg { width: 14px; height: 14px; }
   .pa-res-main { font-size: 13px; color: var(--moss-deep); font-weight: 700; }
   .pa-res-drop { display: inline-flex; align-items: center; gap: 4px; margin-left: auto;
@@ -349,8 +417,7 @@
   .pa-biset-selo { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 8px; background: rgba(60,77,63,0.10); color: var(--moss-deep); font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
   .pa-biset-selo svg { width: 14px; height: 14px; }
   .pa-biset-n { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--ink-mute); }
-  .pa-biset .pa-ex { box-shadow: none; border: 1px solid var(--hair); margin-bottom: 0; }
-  .pa-biset .pa-ex .pa-ex-num { background: linear-gradient(135deg, var(--sage), var(--moss-light)); color: var(--cream); }
+  .pa-biset .pa-ex { box-shadow: none; border: 1px solid var(--border); margin-bottom: 0; }
   .pa-biset-conector { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 9px 0; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: var(--olive); }
   .pa-biset-conector svg { width: 14px; height: 14px; }
   .pa-biset-descanso { display: flex; align-items: center; gap: 7px; margin-top: 11px; padding: 10px 13px; border-radius: 12px; background: var(--bg-warm); font-size: 13px; font-weight: 600; color: var(--ink-soft); }

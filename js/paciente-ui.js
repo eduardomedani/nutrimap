@@ -424,7 +424,7 @@ function cardDia(dia, proximo, treinadoHoje) {
 // a página / trocar de aba — uma sessão esquecida é descartada em 6h.
 const CRON_KEY = 'nm_treino_cron';
 const CRON_MAX_MS = 6 * 60 * 60 * 1000;
-let _cron = null;        // { treinoId, dia, inicio } — sessão em andamento
+let _cron = null;        // { treinoId, dia, inicio, exAberto } — sessão em andamento
 let _cronTimer = null;   // setInterval do tique visual
 
 function cronCarregar() {
@@ -434,9 +434,18 @@ function cronCarregar() {
     return c;
   } catch { return null; }
 }
-function cronIniciar(treinoId, dia) {
-  _cron = { treinoId, dia, inicio: Date.now() };
+function cronGravar() {
   try { localStorage.setItem(CRON_KEY, JSON.stringify(_cron)); } catch {}
+}
+function cronIniciar(treinoId, dia) {
+  _cron = { treinoId, dia, inicio: Date.now(), exAberto: null };
+  cronGravar();
+}
+// Guarda qual exercício ficou aberto, para reabrir só ele ao voltar/recarregar.
+function cronSetAberto(id) {
+  if (!_cron) return;
+  _cron.exAberto = id;
+  cronGravar();
 }
 // Para a contagem e devolve o tempo total decorrido (ms).
 function cronParar() {
@@ -451,12 +460,16 @@ function cronAtivo(dia) {
 }
 function cronDecorridoMs() { return _cron ? Math.max(0, Date.now() - _cron.inicio) : 0; }
 
-// mm:ss até 1h; depois h:mm:ss.
+// Mostrador do cronômetro: sempre HH:MM:SS (largura estável, sem "pulo").
 function fmtCron(ms) {
   const t = Math.floor(ms / 1000);
-  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
-  const mm = String(m).padStart(2, '0'), ss = String(s).padStart(2, '0');
-  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+  const p = (v) => String(v).padStart(2, '0');
+  return `${p(Math.floor(t / 3600))}:${p(Math.floor((t % 3600) / 60))}:${p(t % 60)}`;
+}
+// Duração por extenso, para o resumo final ("47 min", "1 h 12 min").
+function fmtDuracao(ms) {
+  const min = Math.max(1, Math.round(ms / 60000));
+  return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')} min`;
 }
 
 function pararTique() {
@@ -476,43 +489,68 @@ function ligarTique() {
   _cronTimer = setInterval(pintar, 1000);
 }
 
-// Chip do cronômetro no hero da página do treino.
-function cronChip() {
-  if (!cronAtivo()) return '';
-  return `<div class="pa-cron" role="timer" aria-label="Tempo de treino">
-      <span class="pa-cron-dot" aria-hidden="true"></span>
-      <span class="pa-cron-tempo" data-cron-tempo>${fmtCron(cronDecorridoMs())}</span>
+// Mostrador do tempo no cabeçalho: cronômetro rodando ou estimativa do dia.
+// Depois que o treino começa, a estimativa some — o que vale é a duração real.
+function cronBloco(r) {
+  if (cronAtivo()) {
+    return `<div class="pa-cron" role="timer" aria-label="Tempo de treino">
+        <span class="pa-cron-lab"><span class="pa-cron-dot" aria-hidden="true"></span> Tempo de treino</span>
+        <span class="pa-cron-tempo" data-cron-tempo>${fmtCron(cronDecorridoMs())}</span>
+      </div>`;
+  }
+  if (!r.minutos) return '';
+  return `<div class="pa-cron pa-cron-off">
+      <span class="pa-cron-lab">Tempo estimado</span>
+      <span class="pa-cron-tempo">≈${r.minutos} min</span>
     </div>`;
 }
 
-// ── TELA B: página de um treino (voltar + seletor de dia + finalizar) ──
+// Texto do botão de finalizar: "Concluir" quando não falta nenhum exercício.
+function textoFinalizar(r) {
+  return (r.total && r.feitos >= r.total) ? 'Concluir treino' : 'Finalizar treino';
+}
+
+// ── TELA B: treino em andamento (cabeçalho fixo + lista de exercícios) ──
 function renderTreinoDia() {
-  const tabs = _dias.map(d =>
-    `<button class="pa-dia ${d === _diaSel ? 'active' : ''}" data-dia="${d}">${d}</button>`).join('');
+  const tabs = _dias.length > 1
+    ? `<div class="pa-dias" role="tablist" aria-label="Dias do treino">${_dias.map(d =>
+        `<button class="pa-dia ${d === _diaSel ? 'active' : ''}" data-dia="${d}" role="tab"
+           aria-selected="${d === _diaSel}" aria-label="Treino ${d}">${d}</button>`).join('')}</div>`
+    : '';
   const r = resumoDia(_diaSel);
+  const nomeTreino = (_treinos.find(t => t.id === _treinoSel)?.nome || '').trim();
 
   app().innerHTML = `
     ${topo()}
-    <main class="pa-main">
-      <button class="pa-back" data-voltar><i data-lucide="chevron-left"></i> Treinos</button>
-
-      <section class="pa-hero">
-        <div class="pa-hero-hi">Treino do dia</div>
-        <div class="pa-hero-topline">
-          <div class="pa-hero-title">Treino ${esc(_diaSel)}</div>
-          ${cronChip()}
+    <main class="pa-main pa-main-run">
+      <header class="pa-runbar">
+        <div class="pa-runbar-row">
+          <button class="pa-runbar-back" data-voltar aria-label="Voltar para a lista de treinos"><i data-lucide="chevron-left"></i></button>
+          <div class="pa-runbar-id">
+            <h1 class="pa-runbar-title">Treino ${esc(_diaSel)}</h1>
+            ${nomeTreino ? `<div class="pa-runbar-sub">${esc(nomeTreino)}</div>` : ''}
+          </div>
+          ${cronBloco(r)}
         </div>
-        <div class="pa-hero-bar" data-hero-bar><span style="width:${r.pct}%"></span></div>
-        <div class="pa-hero-meta">
-          <span class="pa-hero-count" data-hero-count><b>${r.feitos}</b>/${r.total} exercícios</span>
-          ${r.minutos ? `<span class="pa-hero-time"><i data-lucide="clock"></i> ≈${r.minutos} min</span>` : ''}
+        <div class="pa-runbar-prog">
+          <span data-hero-count><b>${r.feitos}</b> de ${r.total} ${r.total === 1 ? 'exercício concluído' : 'exercícios concluídos'}</span>
+          <span class="pa-runbar-pct" data-hero-pct>${r.pct}%</span>
         </div>
-      </section>
+        <div class="pa-hero-bar" data-hero-bar
+             role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${r.pct}"
+             aria-label="Progresso do treino"><span style="width:${r.pct}%"></span></div>
+      </header>
 
-      <div class="pa-dias">${tabs}</div>
+      ${tabs}
       <div id="paDiaConteudo"></div>
-      <button class="pa-btn pa-finalizar" data-finalizar><i data-lucide="flag"></i> Finalizar treino</button>
+      <p class="sr-only" role="status" aria-live="polite" data-live></p>
     </main>
+
+    <div class="pa-finishbar">
+      <div class="pa-finishbar-in">
+        <button class="pa-btn pa-finalizar" data-finalizar><i data-lucide="flag"></i> <span data-finalizar-txt>${textoFinalizar(r)}</span></button>
+      </div>
+    </div>
     ${bottomNav()}`;
 
   document.querySelector('[data-voltar]').addEventListener('click', () => { _view = 'lista'; renderTreino(); });
@@ -525,9 +563,23 @@ function renderTreinoDia() {
   renderDia();
 }
 
-function finalizarTreino() {
+// Avisa o leitor de tela (série registrada, exercício concluído).
+function anunciar(msg) {
+  const el = document.querySelector('[data-live]');
+  if (el) el.textContent = msg;
+}
+
+async function finalizarTreino() {
+  const r = resumoDia(_diaSel);
+  const pend = Math.max(0, r.total - r.feitos);
+  if (pend > 0 && !(await confirmar({
+    titulo: 'Finalizar treino',
+    mensagem: `Há ${pend} ${pend === 1 ? 'exercício pendente' : 'exercícios pendentes'}. Deseja finalizar mesmo assim?`,
+    textoOk: 'Finalizar',
+  }))) return;
+
   const ms = cronAtivo() ? cronParar() : 0;
-  mostrarToast(ms ? `✓ Treino concluído em ${fmtCron(ms)} 💪` : '✓ Treino concluído! 💪');
+  mostrarToast(ms ? `✓ Treino concluído em ${fmtDuracao(ms)} 💪` : '✓ Treino concluído! 💪');
   _view = 'lista';
   renderTreino();
 }
@@ -746,14 +798,20 @@ function resumoDia(dia) {
   return { total, feitos, pct, minutos };
 }
 
-// Atualiza barra + contador do hero sem re-renderizar a tela toda.
+// Atualiza barra + contador do cabeçalho sem re-renderizar a tela toda.
 function atualizarHero() {
-  const bar = document.querySelector('[data-hero-bar] > span');
+  const barra = document.querySelector('[data-hero-bar]');
   const count = document.querySelector('[data-hero-count]');
-  if (!bar && !count) return;
+  if (!barra && !count) return;
   const r = resumoDia(_diaSel);
+  const bar = barra?.querySelector('span');
   if (bar) bar.style.width = r.pct + '%';
-  if (count) count.innerHTML = `<b>${r.feitos}</b>/${r.total} exercícios`;
+  if (barra) barra.setAttribute('aria-valuenow', String(r.pct));
+  if (count) count.innerHTML = `<b>${r.feitos}</b> de ${r.total} ${r.total === 1 ? 'exercício concluído' : 'exercícios concluídos'}`;
+  const pct = document.querySelector('[data-hero-pct]');
+  if (pct) pct.textContent = r.pct + '%';
+  const fin = document.querySelector('[data-finalizar-txt]');
+  if (fin) fin.textContent = textoFinalizar(r);
 }
 
 function renderDia() {
@@ -777,18 +835,38 @@ function renderDia() {
   cont.querySelectorAll('[data-carga]').forEach(b =>
     b.addEventListener('click', () => toggleProg(b.dataset.carga)));
 
-  // Reabre painéis que estavam abertos
-  _progAbertas.forEach(id => {
-    const box = cont.querySelector(`[data-prog-box="${id}"]`);
-    if (box) { box.hidden = false; carregarProg(id); }
-  });
+  // Todos começam fechados. Reabre só o exercício que estava em andamento —
+  // o desta sessão (ao voltar da lista) ou o salvo no cronômetro (ao recarregar).
+  const alvo = [..._progAbertas][0] || (cronAtivo() ? _cron.exAberto : null);
+  _progAbertas.clear();
+  if (alvo && cont.querySelector(`.pa-ex[data-ex="${alvo}"]`)) abrirEx(alvo, { rolar: false });
+  else destacarProximoPendente();
 }
 
+// Marca o próximo exercício pendente (destaque discreto, sem abrir).
+// Com `depoisDe`, procura primeiro à frente do exercício recém-concluído.
+function destacarProximoPendente(depoisDe) {
+  const cont = document.getElementById('paDiaConteudo');
+  if (!cont) return null;
+  cont.querySelectorAll('.pa-ex.next').forEach(c => c.classList.remove('next'));
+  const cards = [...cont.querySelectorAll('.pa-ex')];
+  const pendente = c => !c.classList.contains('done') && !c.classList.contains('open');
+  const iAtual = depoisDe ? cards.findIndex(c => c.dataset.ex === depoisDe) : -1;
+  const prox = (iAtual >= 0 ? cards.slice(iAtual + 1).find(pendente) : null) || cards.find(pendente);
+  if (prox) prox.classList.add('next');
+  return prox || null;
+}
+
+// Card recolhível de um exercício.
+//   fechado → número/estado, nome, grupo e o resumo da prescrição (~72px);
+//   aberto  → prescrição completa, técnica, observações, último treino,
+//             registro das séries e "Concluir exercício".
 function cardExercicio(it, i, opts = {}) {
   const ex = it.exercicio || {};
   const grupo = ex.grupo_muscular ? esc(ex.grupo_muscular) : '';
   const mi = opts.ocultarMetodo ? null : metodoInfo(it.metodo);
   const marcador = opts.marcador != null ? opts.marcador : (i + 1);
+  const feito = itemFeitoHoje(it.id);
 
   // 2 · Linha compacta de prescrição — só mostra o que existe.
   const specParts = [];
@@ -800,6 +878,12 @@ function cardExercicio(it, i, opts = {}) {
   const specLine = (specParts.length || tec)
     ? `<div class="pa-ex-spec">${specParts.join('<span class="sep">·</span>')}${tec}</div>` : '';
 
+  // Resumo do estado fechado: "3 séries · 12 reps" (sem histórico).
+  const resumo = [
+    (it.series != null && it.series !== '') ? `${esc(it.series)} ${Number(it.series) === 1 ? 'série' : 'séries'}` : '',
+    it.repeticoes ? `${esc(fmtReps(it.repeticoes))} reps` : '',
+  ].filter(Boolean).join(' · ');
+
   // 3-4 · Último treino + evolução (do cache já pré-carregado).
   const regs = _progCache.get(it.id) || [];
 
@@ -808,29 +892,40 @@ function cardExercicio(it, i, opts = {}) {
     : '';
 
   return `
-    <div class="pa-ex">
-      <div class="pa-ex-top">
-        <span class="pa-ex-num">${esc(String(marcador))}</span>
-        <div class="pa-ex-id">
-          <div class="pa-ex-nome">${esc(ex.nome || '(exercício)')}</div>
-          ${grupo ? `<div class="pa-ex-grupo">${grupo}</div>` : ''}
-        </div>
+    <div class="pa-ex${feito ? ' done' : ''}" data-ex="${it.id}">
+      <button type="button" class="pa-exh" data-carga="${it.id}"
+              aria-expanded="false" aria-controls="pa-exb-${it.id}">
+        <span class="pa-ex-status" data-ex-status data-num="${esc(String(marcador))}" aria-hidden="true">${statusInner(feito, marcador)}</span>
+        <span class="pa-exh-txt">
+          <span class="pa-exh-nome">${esc(ex.nome || '(exercício)')}</span>
+          ${grupo ? `<span class="pa-exh-grupo">${grupo}</span>` : ''}
+          ${resumo ? `<span class="pa-exh-resumo">${resumo}</span>` : ''}
+        </span>
+        <span class="pa-exh-estado">
+          <span class="pa-ex-tag pa-tag-run">Em andamento</span>
+          <span class="pa-ex-tag pa-tag-done"><i data-lucide="check"></i> Concluído</span>
+          <span class="sr-only" data-ex-sr>${feito ? 'Concluído' : 'Pendente'}</span>
+        </span>
+        <span class="pa-exh-chev" aria-hidden="true"><i data-lucide="chevron-down"></i></span>
+      </button>
+
+      <div class="pa-ex-body" id="pa-exb-${it.id}" hidden>
+        ${specLine}
+        ${mi ? `<div class="pa-metodo"><i data-lucide="lightbulb"></i> ${esc(mi.desc)}</div>` : ''}
+        ${it.observacao ? `<div class="pa-obs"><i data-lucide="sticky-note"></i> ${esc(it.observacao)}</div>` : ''}
+        ${ex.observacoes ? `<div class="pa-obs pa-obs-tec"><i data-lucide="info"></i> ${esc(ex.observacoes)}</div>` : ''}
+        ${video ? `<div class="pa-ex-foot">${video}</div>` : ''}
+
+        <div class="pa-ex-last">${lastBlockInner(regs)}</div>
+
+        <div class="pa-prog" data-prog-box="${it.id}"></div>
       </div>
-
-      ${specLine}
-      ${mi ? `<div class="pa-metodo"><i data-lucide="lightbulb"></i> ${esc(mi.desc)}</div>` : ''}
-      ${it.observacao ? `<div class="pa-obs"><i data-lucide="sticky-note"></i> ${esc(it.observacao)}</div>` : ''}
-      ${ex.observacoes ? `<div class="pa-obs pa-obs-tec"><i data-lucide="info"></i> ${esc(ex.observacoes)}</div>` : ''}
-
-      <div class="pa-ex-last">${lastBlockInner(regs)}</div>
-
-      <div class="pa-ex-foot">
-        ${video}
-        <button class="pa-carga-btn${itemFeitoHoje(it.id) ? ' pa-carga-btn-done' : ''}" data-carga="${it.id}">${footBtnInner(itemFeitoHoje(it.id))}</button>
-      </div>
-
-      <div class="pa-prog" data-prog-box="${it.id}" hidden></div>
     </div>`;
+}
+
+// Conteúdo do círculo de estado: número quando pendente, check quando feito.
+function statusInner(feito, marcador) {
+  return feito ? `<i data-lucide="check"></i>` : esc(String(marcador));
 }
 
 // Agrupa os itens de um dia em unidades (single | grupo Bi-set).
@@ -890,20 +985,16 @@ function itemFeitoHoje(id) {
   return (_progCache.get(id) || []).some(r => r.data === h);
 }
 
-// Conteúdo do botão do rodapé conforme o exercício esteja concluído ou não.
-function footBtnInner(feito) {
-  return feito
-    ? `<i data-lucide="circle-check-big"></i> Exercício concluído`
-    : `<i data-lucide="chart-line"></i> Registrar séries`;
-}
-
-// Atualiza o botão do rodapé (dourado + "Exercício concluído" quando feito hoje).
+// Reflete o estado (pendente/concluído) no cabeçalho do card, sem re-render.
 function atualizarBotaoFeito(id) {
-  const btn = document.querySelector(`.pa-carga-btn[data-carga="${id}"]`);
-  if (!btn) return;
+  const card = document.querySelector(`.pa-ex[data-ex="${id}"]`);
+  if (!card) return;
   const feito = itemFeitoHoje(id);
-  btn.classList.toggle('pa-carga-btn-done', feito);
-  btn.innerHTML = footBtnInner(feito);
+  card.classList.toggle('done', feito);
+  const status = card.querySelector('[data-ex-status]');
+  if (status) status.innerHTML = statusInner(feito, status.dataset.num || '');
+  const sr = card.querySelector('[data-ex-sr]');
+  if (sr) sr.textContent = feito ? 'Concluído' : 'Pendente';
 }
 
 // Resumo da última sessão: peso representativo + reps por série + data curta.
@@ -950,24 +1041,59 @@ function evolucaoBadge(regs) {
 // PROGRESSÃO DE CARGA
 // ═══════════════════════════════════════════════════════════
 function toggleProg(id) {
-  const box = document.querySelector(`[data-prog-box="${id}"]`);
-  if (!box) return;
-  if (box.hidden) {
-    box.hidden = false;
-    _progAbertas.add(id);
-    carregarProg(id);
-  } else {
-    recolherProg(id);
-  }
+  const card = document.querySelector(`.pa-ex[data-ex="${id}"]`);
+  if (!card) return;
+  if (card.classList.contains('open')) recolherProg(id);
+  else abrirEx(id);
 }
 
-// Recolhe (fecha) o painel de séries de um exercício.
+// Abre um exercício. Só um por vez: abrir outro recolhe o anterior (sem
+// descartar nada — o conteúdo fica no DOM, com os valores já digitados).
+function abrirEx(id, { rolar = true } = {}) {
+  const card = document.querySelector(`.pa-ex[data-ex="${id}"]`);
+  if (!card) return;
+  [..._progAbertas].forEach(outro => { if (outro !== id) recolherProg(outro); });
+
+  const body = card.querySelector('.pa-ex-body');
+  const head = card.querySelector('.pa-exh');
+  if (!body) return;
+  card.classList.add('open');
+  card.classList.remove('next');
+  body.hidden = false;
+  head?.setAttribute('aria-expanded', 'true');
+  _progAbertas.add(id);
+  cronSetAberto(id);
+
+  // Monta as séries na primeira abertura; depois é só reexibir o que já existe.
+  const box = card.querySelector(`[data-prog-box="${id}"]`);
+  if (box && !box.dataset.pronto) carregarProg(id);
+  if (rolar) requestAnimationFrame(() => rolarAteCard(card));
+}
+
+// Recolhe (fecha) um exercício, preservando o que já foi preenchido.
 function recolherProg(id) {
-  const box = document.querySelector(`[data-prog-box="${id}"]`);
-  if (!box) return;
-  box.hidden = true;
-  box.innerHTML = '';
+  const card = document.querySelector(`.pa-ex[data-ex="${id}"]`);
   _progAbertas.delete(id);
+  if (_cron && _cron.exAberto === id) cronSetAberto(null);
+  if (!card) return;
+  card.classList.remove('open');
+  const body = card.querySelector('.pa-ex-body');
+  if (body) body.hidden = true;
+  card.querySelector('.pa-exh')?.setAttribute('aria-expanded', 'false');
+}
+
+// Altura do que está fixo no topo (topbar + cabeçalho do treino).
+function alturaFixaTopo() {
+  const t = document.querySelector('.pa-topbar')?.offsetHeight || 0;
+  const r = document.querySelector('.pa-runbar')?.offsetHeight || 0;
+  return t + r;
+}
+
+// Posiciona o card logo abaixo do cabeçalho fixo, sem movimento exagerado.
+function rolarAteCard(card) {
+  if (!card) return;
+  const y = card.getBoundingClientRect().top + window.scrollY - alturaFixaTopo() - 10;
+  window.scrollTo({ top: Math.max(0, y), behavior: prefereMenosMovimento() ? 'auto' : 'smooth' });
 }
 
 // Pré-carrega a progressão de TODOS os itens do treino numa consulta só.
@@ -1042,9 +1168,10 @@ function renderProg(box, id, regs) {
       ${linhasSeries}
     </div>
     <div class="pa-series-prog" data-sprog><b>0</b>/${nSeries} séries concluídas</div>
-    <button class="pa-btn pa-btn-mini" data-ssave><i data-lucide="circle-check-big"></i> Concluir exercício</button>
+    <button class="pa-btn pa-btn-mini" data-ssave><i data-lucide="check"></i> <span data-ssave-txt>Concluir exercício</span></button>
     ${hist}`;
 
+  box.dataset.pronto = '1';   // já montado: fechar e reabrir não remonta (nem perde o digitado)
   box.querySelector('[data-ssave]').addEventListener('click', () => salvarSeriesUI(id, nSeries));
   box.querySelectorAll('[data-sdone]').forEach(b =>
     b.addEventListener('click', () => toggleSerie(box, Number(b.dataset.sdone), nSeries)));
@@ -1190,6 +1317,7 @@ function toggleSerie(box, i, nSeries) {
     return;
   }
   atualizarSeriesProg(box, nSeries);
+  anunciar(`Série ${i + 1} registrada.`);
   focarProxima(box, i);
 }
 
@@ -1223,6 +1351,7 @@ function toggleDrop(box, i, nSeries) {
   bl.classList.add('drop-done');
   preencherResumo(box, i);
   atualizarSeriesProg(box, nSeries);
+  anunciar(`Série ${i + 1} com drop registrada.`);
   focarProxima(box, i);
 }
 
@@ -1318,16 +1447,30 @@ async function salvarSeriesUI(id, nSeries) {
     mostrarToast('Preencha ao menos uma série.');
     return;
   }
+
+  const btn = box.querySelector('[data-ssave]');
+  if (btn?.disabled) return;                       // trava o duplo clique
+  const txt = btn?.querySelector('[data-ssave-txt]');
+  if (btn) { btn.disabled = true; btn.classList.add('is-loading'); }
+  if (txt) txt.textContent = 'Salvando...';
   try {
     await salvarSeries({ treinoExercicioId: id, series });
     mostrarToast('✓ Exercício concluído');
+    anunciar('Exercício concluído.');
     _progCache.set(id, await progressaoDoItem(id));  // atualiza o cache com o que acabou de salvar
-    recolherProg(id);               // recolhe o painel de séries
-    atualizarBotaoFeito(id);        // botão do rodapé fica dourado → "Exercício concluído"
+    recolherProg(id);               // recolhe o card do exercício
+    atualizarBotaoFeito(id);        // círculo do cabeçalho vira check verde
     atualizarUltimo(id);            // reflete no resumo "Último treino" do card
     atualizarHero();                // atualiza progresso (feitos/total) do dia
     atualizarStats();               // sequência + recordes podem ter mudado
-  } catch (e) { mostrarToast('Erro: ' + traduzirErro(e.message)); }
+    const prox = destacarProximoPendente(id);       // destaca e leva ao próximo
+    if (prox) requestAnimationFrame(() => rolarAteCard(prox));
+  } catch (e) {
+    mostrarToast('Erro: ' + traduzirErro(e.message));
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove('is-loading'); }
+    if (txt) txt.textContent = 'Concluir exercício';
+  }
 }
 
 async function removerCarga(regId, itemId) {
