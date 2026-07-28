@@ -38,6 +38,17 @@ export async function carregarResumo(paciente, { forcar = false } = {}) {
     listarTreinosDoPaciente(paciente.id).catch(() => []),
   ]);
 
+  const resumo = montarResumo(paciente, { avaliacoes, planos, treinos });
+  _cache.set(paciente.id, resumo);
+  return resumo;
+}
+
+/**
+ * Monta o resumo a partir de dados JÁ carregados — sem tocar na rede.
+ * O dashboard usa isto para avaliar dezenas de pacientes com poucas consultas
+ * agregadas, reaproveitando exatamente as mesmas regras da ficha.
+ */
+export function montarResumo(paciente, { avaliacoes = [], planos = [], treinos = [] } = {}) {
   const avs = [...(avaliacoes || [])].sort((a, b) => (a.numero || 0) - (b.numero || 0));
   const primeira = avs[0] || null;
   const ultima = avs[avs.length - 1] || null;
@@ -64,7 +75,6 @@ export async function carregarResumo(paciente, { forcar = false } = {}) {
 
   resumo.score = calcularScore(resumo);
   resumo.status = calcularStatus(resumo);
-  _cache.set(paciente.id, resumo);
   return resumo;
 }
 
