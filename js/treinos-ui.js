@@ -19,6 +19,9 @@ import {
 import { sb } from './supabase.js';
 import { registrarEvento } from './timeline.js';
 import { mostrarToast, mostrarErro, confirmar } from './utils.js';
+import {
+  DESCANSO_OPCOES, RIR_MODOS, segDescanso, fmtSegLongo, parseCadencia, fraseFase,
+} from './execucao-core.js';
 
 // Debounce simples: só dispara `fn` depois de `ms` sem novas chamadas.
 function debounce(fn, ms) {
@@ -110,13 +113,34 @@ function metodoInfo(metodo) {
   return nome ? { nome, desc: MET_DESC[nome] } : null;
 }
 
-// Campos editáveis de cada exercício (além de Observação, que é textarea)
+// Opções de descanso: o que o app do aluno usa para cronometrar a sessão.
+// `vazio` é o fallback ("Padrão do treino" / "Igual às demais").
+function opcoesDescanso(vazio) {
+  return [{ v: '', label: vazio }]
+    .concat(DESCANSO_OPCOES.map(s => ({ v: `${s}s`, label: fmtSegLongo(s) })));
+}
+
+// Descanso do TREINO: vale para todo exercício que não definir o seu.
+// Vazio mantém o comportamento antigo (o aluno só vê cronômetro onde há
+// descanso prescrito no próprio exercício).
+function opcoesDescansoPadrao(atual) {
+  const raw = atual == null ? '' : String(atual);
+  const ops = opcoesDescanso('Sem padrão');
+  if (raw && !ops.some(o => o.v === raw)) ops.push({ v: raw, label: `${raw} (personalizado)` });
+  return ops.map(o =>
+    `<option value="${esc(o.v)}" ${o.v === raw ? 'selected' : ''}>${esc(o.label)}</option>`).join('');
+}
+
+// Campos editáveis de cada exercício (além de Observação, que é textarea).
+// A cadência saiu daqui: virou um bloco próprio, com liga/desliga (ver cadenciaHtml).
 const CAMPOS_ITEM = [
   { k: 'series',     label: 'Séries',      type: 'number', ph: '3' },
   { k: 'repeticoes', label: 'Repetições',  type: 'text',   ph: '8-12' },
   { k: 'carga',      label: 'Carga',       type: 'text',   ph: '20kg' },
+  { k: 'descanso',       label: 'Descanso entre séries', opcoes: opcoesDescanso('Padrão do treino'), seg: true },
+  { k: 'descanso_final', label: 'Após a última série',   opcoes: opcoesDescanso('Igual às demais'),  seg: true },
+  { k: 'rir_modo',   label: 'Perguntar esforço', opcoes: RIR_MODOS },
   { k: 'cadencia',   label: 'Cadência',    type: 'text',   ph: '2-0-2' },
-  { k: 'descanso',   label: 'Descanso',    type: 'text',   ph: '60s' },
   { k: 'metodo',     label: 'Método',      select: true,   options: METODOS },
 ];
 
@@ -674,6 +698,10 @@ function renderEditor() {
           <label>Divisão (nº de dias)</label>
           <select id="trDivisao" class="np-input">${opcoesDiv.join('')}</select>
         </div>
+        <div class="av-field">
+          <label>Descanso padrão</label>
+          <select id="trDescansoPadrao" class="np-input">${opcoesDescansoPadrao(t?.descanso_padrao)}</select>
+        </div>
         ${_modo === 'paciente' ? `
         <div class="av-field">
           <label>Status</label>
@@ -784,11 +812,13 @@ async function salvarDados() {
     mostrarToast('A data de término não pode ser antes do início');
     return;
   }
+  const descPadraoEl = document.getElementById('trDescansoPadrao');
   const dados = {
     nome,
     data_inicio: dataInicio,
     data_fim: dataFim,
     divisao: LETRAS.slice(0, n).join(''),      // ex.: "ABC"
+    descanso_padrao: (descPadraoEl?.value || '') || null,
     ativo: ativoEl ? (ativoEl.value === '1') : true,
   };
 
@@ -894,6 +924,14 @@ function renderDia() {
   cont.querySelectorAll('[data-item-prog]').forEach(b =>
     b.addEventListener('click', () => toggleProg(b.dataset.itemProg)));
 
+  // ── Cadência (liga/desliga + os 4 tempos) ──
+  cont.querySelectorAll('[data-cad-on]').forEach(chk =>
+    chk.addEventListener('change', () => salvarCadencia(chk.dataset.cadOn)));
+  cont.querySelectorAll('[data-cad-seg]').forEach(inp => {
+    inp.addEventListener('input', () => pintarCadencia(inp.dataset.cadSeg));
+    inp.addEventListener('change', () => salvarCadencia(inp.dataset.cadSeg));
+  });
+
   // ── Bi-set ──
   cont.querySelectorAll('[data-biset-del]').forEach(b =>
     b.addEventListener('click', () => excluirBiset(b.dataset.bisetDel)));
@@ -929,6 +967,25 @@ function campoHtml(k, it, labelOverride) {
   const c = CAMPOS_ITEM.find(x => x.k === k);
   if (!c) return '';
   const label = esc(labelOverride || c.label);
+
+  // Lista fixa de opções ({v,label}) — descanso e modo do RIR.
+  // Valor antigo fora da lista é preservado como opção "personalizado":
+  // ninguém perde um "1min30" digitado antes de existirem estas opções.
+  if (c.opcoes) {
+    const raw = it[c.k] == null ? '' : String(it[c.k]);
+    const ops = c.opcoes.slice();
+    let atual = ops.find(o => o.v === raw);
+    if (!atual && raw && c.seg) {
+      const s = segDescanso(raw);
+      atual = s != null ? ops.find(o => segDescanso(o.v) === s) : null;
+    }
+    if (!atual && raw) { atual = { v: raw, label: `${raw} (personalizado)` }; ops.push(atual); }
+    const html = ops.map(o =>
+      `<option value="${esc(o.v)}" ${o === atual ? 'selected' : ''}>${esc(o.label)}</option>`).join('');
+    return `<div class="av-field"><label>${label}</label>
+      <select data-item-campo="${c.k}" data-item-id="${it.id}" class="np-input">${html}</select></div>`;
+  }
+
   if (c.select) {
     const cur = String(it[c.k] || '');
     const opts = c.options.slice();
@@ -948,11 +1005,49 @@ function camposHtml(it, chaves) {
   return chaves.map(k => campoHtml(k, it)).join('');
 }
 
+// ── Cadência: bloco com liga/desliga ────────────────────────
+// Fora do grid porque não é um campo: é uma prescrição opcional que, quando
+// ligada, o aluno vê como metrônomo. Desligada (campo vazio), some dos dois lados.
+const CAD_PADRAO = [3, 1, 2, 0];
+
+function cadenciaHtml(it) {
+  const cad = parseCadencia(it.cadencia);
+  const segs = cad ? cad.fases.map(f => f.seg) : CAD_PADRAO;
+  const campos = ['Descida', 'Pausa', 'Subida', 'Topo'].map((lab, i) => `
+    <label class="tr-cad-campo">
+      <span>${lab}</span>
+      <input type="number" min="0" max="20" step="1" class="np-input"
+        data-cad-seg="${it.id}" data-cad-i="${i}" value="${segs[i]}"
+        aria-label="${lab} — segundos da cadência">
+    </label>`).join('');
+
+  return `
+    <div class="tr-cad" data-cad-box="${it.id}">
+      <label class="tr-cad-toggle">
+        <input type="checkbox" data-cad-on="${it.id}" ${cad ? 'checked' : ''}>
+        <span>Utilizar cadência</span>
+      </label>
+      <div class="tr-cad-body" data-cad-body="${it.id}" ${cad ? '' : 'hidden'}>
+        <div class="tr-cad-campos">${campos}</div>
+        <div class="tr-cad-prev" data-cad-prev="${it.id}">${cadenciaPreviewHtml(cad)}</div>
+      </div>
+    </div>`;
+}
+
+// Leitura didática da cadência + o formato técnico, para quem já domina.
+function cadenciaPreviewHtml(cad) {
+  if (!cad) return '';
+  const linhas = cad.fases.map(f =>
+    `<span class="tr-cad-fase${f.seg ? '' : ' off'}">${esc(fraseFase(f))}</span>`).join('');
+  return `${linhas}<span class="tr-cad-tec">${esc(cad.tec)}</span>`;
+}
+
 function itemHtml(it, i, total) {
   const nome = it.exercicio?.nome || '(exercício)';
   const grupo = it.exercicio?.grupo_muscular ? ` · ${esc(it.exercicio.grupo_muscular)}` : '';
   const mi = metodoInfo(it.metodo);
-  const campos = camposHtml(it, ['series', 'repeticoes', 'carga', 'cadencia', 'descanso', 'metodo']);
+  const campos = camposHtml(it,
+    ['series', 'repeticoes', 'carga', 'descanso', 'descanso_final', 'rir_modo', 'metodo']);
 
   // Campo "Drop set em" — só visível quando o método é Drop-set.
   const dropCur = String(it.drop_ultimas ?? '0');
@@ -975,6 +1070,7 @@ function itemHtml(it, i, total) {
         </div>
       </div>
       <div class="av-grid tr-ex-grid">${campos}${dropCampo}</div>
+      ${cadenciaHtml(it)}
       <div class="tr-metodo-desc" data-metodo-desc="${it.id}"${mi ? '' : ' style="display:none"'}>${mi ? `<i data-lucide="lightbulb"></i> <strong>${esc(mi.nome)}</strong> — ${esc(mi.desc)}` : ''}</div>
       <div class="av-field" style="margin-top:10px;">
         <label>Observação</label>
@@ -1118,6 +1214,42 @@ async function salvarCampoItem(el) {
     }
     if (campo === 'metodo') atualizarDescMetodo(el);
     mostrarToast('✓ Salvo');
+  } catch (e) { mostrarErro('Erro ao salvar: ' + e.message); }
+}
+
+// ── Cadência: ler da tela, redesenhar a leitura didática e salvar ──
+// O valor gravado continua sendo o texto canônico "3-1-2-0" na coluna
+// `cadencia`. Desligar grava null — é assim que o app do aluno sabe que
+// não deve mostrar metrônomo nenhum.
+function lerCadencia(id) {
+  const box = document.querySelector(`[data-cad-box="${id}"]`);
+  if (!box) return null;
+  if (!box.querySelector(`[data-cad-on="${id}"]`)?.checked) return null;
+  const segs = [0, 1, 2, 3].map(i => {
+    const v = parseInt(box.querySelector(`[data-cad-seg="${id}"][data-cad-i="${i}"]`)?.value, 10);
+    return Number.isFinite(v) && v >= 0 ? Math.min(v, 20) : 0;
+  });
+  return segs.some(n => n > 0) ? segs.join('-') : null;
+}
+
+function pintarCadencia(id) {
+  const box = document.querySelector(`[data-cad-box="${id}"]`);
+  if (!box) return;
+  const ligada = !!box.querySelector(`[data-cad-on="${id}"]`)?.checked;
+  const body = box.querySelector(`[data-cad-body="${id}"]`);
+  if (body) body.hidden = !ligada;
+  const prev = box.querySelector(`[data-cad-prev="${id}"]`);
+  if (prev) prev.innerHTML = ligada ? cadenciaPreviewHtml(parseCadencia(lerCadencia(id))) : '';
+}
+
+async function salvarCadencia(id) {
+  pintarCadencia(id);
+  const valor = lerCadencia(id);
+  try {
+    await atualizarItem(id, { cadencia: valor });
+    const it = _itens.find(x => x.id === id);
+    if (it) it.cadencia = valor;
+    mostrarToast(valor ? '✓ Cadência salva' : '✓ Cadência desligada');
   } catch (e) { mostrarErro('Erro ao salvar: ' + e.message); }
 }
 
@@ -1349,7 +1481,8 @@ function grupoCardHtml(u, i, total) {
   const blocoA = `
     <div class="tr-biset-ex">
       <div class="tr-biset-ex-head"><span class="tr-biset-mark">A</span> <span class="tr-biset-ex-nome">${esc(nomeA)}${grupoA}</span></div>
-      <div class="av-grid tr-ex-grid">${camposHtml(a, ['series', 'repeticoes', 'carga', 'cadencia'])}${campoHtml('metodo', a)}</div>
+      <div class="av-grid tr-ex-grid">${camposHtml(a, ['series', 'repeticoes', 'carga', 'rir_modo'])}${campoHtml('metodo', a)}</div>
+      ${cadenciaHtml(a)}
       <div class="av-field" style="margin-top:10px;"><label>Observação do Exercício A</label>
         <input type="text" placeholder="Ex.: extensão completa sem tirar o quadril do banco."
           value="${esc(a.observacao ?? '')}" data-item-campo="observacao" data-item-id="${a.id}" class="np-input"></div>
@@ -1372,7 +1505,8 @@ function grupoCardHtml(u, i, total) {
             <button class="tr-biset-link danger" data-biset-remb="${a.id}" type="button"><i data-lucide="x"></i> Remover do Bi-set</button>
           </div>
         </div>
-        <div class="av-grid tr-ex-grid">${camposHtml(b, ['series', 'repeticoes', 'carga', 'cadencia'])}</div>
+        <div class="av-grid tr-ex-grid">${camposHtml(b, ['series', 'repeticoes', 'carga'])}</div>
+        ${cadenciaHtml(b)}
         <div class="av-field" style="margin-top:10px;"><label>Observação do Exercício B</label>
           <input type="text" placeholder="Ex.: manter o joelho alinhado."
             value="${esc(b.observacao ?? '')}" data-item-campo="observacao" data-item-id="${b.id}" class="np-input"></div>
@@ -1401,6 +1535,7 @@ function grupoCardHtml(u, i, total) {
   const descanso = `
     <div class="tr-biset-descanso">
       ${campoHtml('descanso', a, 'Descanso após o Bi-set')}
+      ${campoHtml('descanso_final', a, 'Após o último conjunto')}
       <div class="tr-biset-aux">Aplicado após concluir os exercícios A e B.</div>
     </div>`;
 

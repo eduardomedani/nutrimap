@@ -200,28 +200,31 @@ export async function prescreverModeloParaPaciente(modeloId, pacienteId, extras 
   const itens  = await listarItensDoTreino(modeloId);
 
   const novo = await criarTreino(modelo.nutri_id, {
-    nome:        modelo.nome,
-    divisao:     modelo.divisao,
-    data_inicio: extras.data_inicio ?? modelo.data_inicio ?? null,
-    ativo:       extras.ativo ?? true,
-    paciente_id: pacienteId,
+    nome:            modelo.nome,
+    divisao:         modelo.divisao,
+    descanso_padrao: modelo.descanso_padrao ?? null,
+    data_inicio:     extras.data_inicio ?? modelo.data_inicio ?? null,
+    ativo:           extras.ativo ?? true,
+    paciente_id:     pacienteId,
   });
 
   if (itens.length) {
     const copias = itens.map((it) => ({
-      nutri_id:     modelo.nutri_id,
-      treino_id:    novo.id,
-      exercicio_id: it.exercicio_id,
-      dia:          it.dia,
-      ordem:        it.ordem,
-      series:       it.series,
-      repeticoes:   it.repeticoes,
-      carga:        it.carga,
-      cadencia:     it.cadencia,
-      descanso:     it.descanso,
-      rir:          it.rir,
-      metodo:       it.metodo,
-      observacao:   it.observacao,
+      nutri_id:       modelo.nutri_id,
+      treino_id:      novo.id,
+      exercicio_id:   it.exercicio_id,
+      dia:            it.dia,
+      ordem:          it.ordem,
+      series:         it.series,
+      repeticoes:     it.repeticoes,
+      carga:          it.carga,
+      cadencia:       it.cadencia,
+      descanso:       it.descanso,
+      descanso_final: it.descanso_final,
+      rir:            it.rir,
+      rir_modo:       it.rir_modo,
+      metodo:         it.metodo,
+      observacao:     it.observacao,
     }));
     const { error } = await sb.from('treino_exercicios').insert(copias);
     if (error) throw error;
@@ -240,28 +243,31 @@ export async function salvarComoModelo(treinoId, extras = {}) {
   const itens  = await listarItensDoTreino(treinoId);
 
   const modelo = await criarTreino(origem.nutri_id, {
-    nome:        extras.nome ?? origem.nome,
-    divisao:     origem.divisao,
-    data_inicio: null,     // modelo não tem data de início
-    ativo:       true,
-    paciente_id: null,     // <- vai para a biblioteca
+    nome:            extras.nome ?? origem.nome,
+    divisao:         origem.divisao,
+    descanso_padrao: origem.descanso_padrao ?? null,
+    data_inicio:     null,     // modelo não tem data de início
+    ativo:           true,
+    paciente_id:     null,     // <- vai para a biblioteca
   });
 
   if (itens.length) {
     const copias = itens.map((it) => ({
-      nutri_id:     origem.nutri_id,
-      treino_id:    modelo.id,
-      exercicio_id: it.exercicio_id,
-      dia:          it.dia,
-      ordem:        it.ordem,
-      series:       it.series,
-      repeticoes:   it.repeticoes,
-      carga:        it.carga,
-      cadencia:     it.cadencia,
-      descanso:     it.descanso,
-      rir:          it.rir,
-      metodo:       it.metodo,
-      observacao:   it.observacao,
+      nutri_id:       origem.nutri_id,
+      treino_id:      modelo.id,
+      exercicio_id:   it.exercicio_id,
+      dia:            it.dia,
+      ordem:          it.ordem,
+      series:         it.series,
+      repeticoes:     it.repeticoes,
+      carga:          it.carga,
+      cadencia:       it.cadencia,
+      descanso:       it.descanso,
+      descanso_final: it.descanso_final,
+      rir:            it.rir,
+      rir_modo:       it.rir_modo,
+      metodo:         it.metodo,
+      observacao:     it.observacao,
     }));
     const { error } = await sb.from('treino_exercicios').insert(copias);
     if (error) throw error;

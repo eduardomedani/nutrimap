@@ -15,6 +15,8 @@ import {
 } from './paciente-data.js';
 import { mostrarToast, mostrarErro, confirmar } from './utils.js';
 import { pushSuportado, pushAtivo, ativarNotificacoes, desativarNotificacoes, traduzirPush } from './push.js';
+import * as Exec from './paciente-execucao.js';
+import { descansoDoItem, parseCadencia, fmtSegLongo } from './execucao-core.js';
 
 // ── Estado ──
 let _paciente = null;
@@ -81,6 +83,7 @@ const app = () => document.getElementById('app');
 // ═══════════════════════════════════════════════════════════
 export async function iniciarApp() {
   ligarBotaoNotificacoes();
+  ligarExecucao();
   renderCarregando('Abrindo...');
   try {
     const sessao = await sessaoAtual();
@@ -109,6 +112,50 @@ export async function iniciarApp() {
   } catch (e) {
     renderErro(traduzirErro(e.message));
   }
+}
+
+// ── Ligações do motor de execução (uma vez por sessão do app) ──
+// O módulo de execução conta o descanso; aqui a gente reage: mostra o tempo
+// no cabeçalho, contabiliza o descanso do exercício e leva o aluno adiante.
+let _execLigada = false;
+function ligarExecucao() {
+  if (_execLigada) return;
+  _execLigada = true;
+  Exec.configurarDescanso({
+    aoTick: (est, resta) => {
+      const mini = est ? document.querySelector('[data-rest-mini]') : null;
+      if (mini) mini.textContent = Exec.fmtRelogio(resta);
+      else atualizarHero();          // primeira vez (ou fim): redesenha a linha
+    },
+    aoTerminar: (est) => {
+      if (!est) return;
+      const gasto = est.pulado
+        ? Math.max(0, est.dur * 1000 - Math.max(0, est.fim - Date.now()))
+        : est.dur * 1000;
+      exSomarDescanso(est.itemId, gasto);
+      atualizarHero();
+      if (est.pulado) { seguirDepoisDoDescanso(est); return; }
+      anunciar(est.ultima ? 'Descanso concluído.' : 'Hora da próxima série.');
+    },
+    aoContinuar: (est) => seguirDepoisDoDescanso(est),
+  });
+}
+
+// Depois do descanso (terminado ou pulado): devolve o foco para onde o
+// aluno precisa agir — a próxima série, ou o resumo do exercício.
+function seguirDepoisDoDescanso(est) {
+  atualizarHero();
+  if (!est) return;
+  const box = document.querySelector(`[data-prog-box="${est.itemId}"]`);
+  if (!box) return;
+  marcarProximaSerie(box);
+  if (est.ultima) {
+    box.querySelector('[data-resumo-prox]')?.scrollIntoView({
+      block: 'center', behavior: prefereMenosMovimento() ? 'auto' : 'smooth',
+    });
+    return;
+  }
+  focarProxima(box, est.serie);
 }
 
 // Código embutido no link de convite (?codigo=XYZ), se houver.
@@ -267,6 +314,7 @@ async function abrirTreino() {
     _treinosCarregados = true;
     if (!_treinos.length) { renderSemTreino(); return; }
     _cron = cronCarregar();          // retoma a contagem de um treino em andamento
+    if (!_cron) Exec.encerrarDescanso();   // sem sessão, descanso guardado é lixo
 
     if (!_treinoSel || !_treinos.some(t => t.id === _treinoSel)) {
       _treinoSel = _treinos[0].id;
@@ -437,9 +485,29 @@ function cronGravar() {
   try { localStorage.setItem(CRON_KEY, JSON.stringify(_cron)); } catch {}
 }
 function cronIniciar(treinoId, dia) {
-  _cron = { treinoId, dia, inicio: Date.now(), exAberto: null };
+  _cron = { treinoId, dia, inicio: Date.now(), exAberto: null, ex: {} };
   cronGravar();
 }
+
+// ── Contabilidade por exercício (tempo gasto e descanso acumulado) ──
+// Vive dentro do cronômetro da sessão: some junto com ela ao finalizar.
+function exSessao(id) {
+  if (!_cron) return null;
+  if (!_cron.ex) _cron.ex = {};
+  if (!_cron.ex[id]) { _cron.ex[id] = { ini: Date.now(), desc: 0 }; cronGravar(); }
+  return _cron.ex[id];
+}
+function exSomarDescanso(id, ms) {
+  const e = exSessao(id);
+  if (!e || !ms) return;
+  e.desc += Math.max(0, Math.round(ms));
+  cronGravar();
+}
+function exTempoMs(id) {
+  const e = _cron?.ex?.[id];
+  return e ? Math.max(0, Date.now() - e.ini) : 0;
+}
+function exDescansoMs(id) { return _cron?.ex?.[id]?.desc || 0; }
 // Guarda qual exercício ficou aberto, para reabrir só ele ao voltar/recarregar.
 function cronSetAberto(id) {
   if (!_cron) return;
@@ -451,6 +519,8 @@ function cronParar() {
   const ms = cronDecorridoMs();
   _cron = null;
   pararTique();
+  Exec.encerrarDescanso();
+  Exec.pararMetronomo();
   try { localStorage.removeItem(CRON_KEY); } catch {}
   return ms;
 }
@@ -504,6 +574,25 @@ function cronBloco(r) {
     </div>`;
 }
 
+// Linha de contexto do cabeçalho: tempo restante (ou o descanso em curso)
+// e o volume já levantado. Duas informações, uma linha — sem poluir.
+function metaRunbar(r) {
+  const vol = r.volume
+    ? `<span class="pa-runbar-vol"><i data-lucide="dumbbell"></i> ${fmtVolume(r.volume)}</span>` : '';
+  if (Exec.descansando()) {
+    return `<span class="pa-runbar-rest"><span class="pa-cron-dot" aria-hidden="true"></span>
+        Descansando · <b data-rest-mini>${Exec.fmtRelogio(Exec.restanteSeg())}</b></span>${vol}`;
+  }
+  if (!cronAtivo() || !r.minRestante) return vol ? `<span></span>${vol}` : '';
+  return `<span>Restam aproximadamente <b>${r.minRestante} min</b></span>${vol}`;
+}
+
+// Volume em kg, com "t" a partir de 1000 kg (2.480 kg → 2,5 t).
+function fmtVolume(kg) {
+  if (!kg) return '0 kg';
+  return kg >= 1000 ? `${(kg / 1000).toFixed(1).replace('.', ',')} t` : `${kg} kg`;
+}
+
 // Texto do botão de finalizar: "Concluir" quando não falta nenhum exercício.
 function textoFinalizar(r) {
   return (r.total && r.feitos >= r.total) ? 'Concluir treino' : 'Finalizar treino';
@@ -539,6 +628,7 @@ function iniciarSessao() {
   const slot = document.querySelector('[data-cron-slot]');
   if (slot) slot.innerHTML = cronBloco(resumoDia(_diaSel));
   atualizarBarraAcao();
+  atualizarHero();     // a estimativa dá lugar ao "restam ~X min" da sessão
   ligarTique();
   mostrarToast('⏱ Treino iniciado — bom treino!');
   anunciar('Treino iniciado. O cronômetro está contando.');
@@ -573,6 +663,7 @@ function renderTreinoDia() {
         <div class="pa-hero-bar" data-hero-bar
              role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${r.pct}"
              aria-label="Progresso do treino"><span style="width:${r.pct}%"></span></div>
+        <div class="pa-runbar-meta" data-runbar-meta>${metaRunbar(r)}</div>
       </header>
 
       ${tabs}
@@ -611,7 +702,10 @@ async function finalizarTreino() {
   }))) return;
 
   const ms = cronAtivo() ? cronParar() : 0;
-  mostrarToast(ms ? `✓ Treino concluído em ${fmtDuracao(ms)} 💪` : '✓ Treino concluído! 💪');
+  Exec.encerrarDescanso();
+  Exec.pararMetronomo();
+  const vol = r.volume ? ` · ${fmtVolume(r.volume)} de volume` : '';
+  mostrarToast(ms ? `✓ Treino concluído em ${fmtDuracao(ms)}${vol} 💪` : '✓ Treino concluído! 💪');
   _view = 'lista';
   renderTreino();
 }
@@ -812,22 +906,56 @@ function saudacao() {
   return 'Boa noite';
 }
 
-// Resumo do dia p/ o hero: total, feitos hoje, % e tempo estimado (min).
+// Segundos que um exercício ainda consome: as séries que faltam, com o
+// descanso de cada uma (a última usa o descanso pós-exercício).
+// EXEC_SEG é o tempo médio de execução de uma série — o que não dá para medir.
+const EXEC_SEG = 35;
+const SETUP_SEG = 20;
+function restanteDoItem(it) {
+  const n = nSeriesDoItem(it);
+  const feitas = Math.min(seriesFeitasHoje(it.id), n);
+  const faltam = n - feitas;
+  if (faltam <= 0) return 0;
+  let seg = feitas ? 0 : SETUP_SEG;               // setup só se ainda nem começou
+  for (let i = feitas; i < n; i++) {
+    seg += EXEC_SEG + (descansoDaSerie(it, i === n - 1) || 45);
+  }
+  return seg;
+}
+
+// Volume realizado hoje (kg levantados) — soma peso × reps de todas as séries.
+function volumeDia(dia) {
+  let total = 0;
+  for (const it of _itens.filter(x => x.dia === dia)) {
+    const r = regHoje(it.id);
+    if (!r) continue;
+    for (const s of (r.series_realizadas || [])) {
+      total += (Number(s?.peso) || 0) * (Number(s?.reps) || 0);
+      if (s?.drop) total += (Number(s.drop.peso) || 0) * (Number(s.drop.reps) || 0);
+    }
+  }
+  return Math.round(total);
+}
+
+// Resumo do dia: total, feitos, %, tempo estimado, tempo restante e volume.
+// O restante desconta o que já foi feito e soma o descanso em andamento —
+// por isso ele cai a cada série concluída, e não só com o relógio.
 function resumoDia(dia) {
   const doDia = _itens.filter(it => it.dia === dia);
   const total = doDia.length;
-  const hojeStr = hoje();
-  let feitos = 0, seg = 0;
+  let feitos = 0, seg = 0, restante = 0;
   for (const it of doDia) {
-    const regs = _progCache.get(it.id) || [];
-    if (regs.some(r => r.data === hojeStr)) feitos++;
-    const series = Math.max(Number(it.series) || 3, 1);
-    const descanso = parseInt(String(it.descanso ?? '').replace(/\D/g, ''), 10) || 60;
-    seg += 30 + series * (35 + descanso);   // ~30s setup + séries (execução + descanso)
+    if (itemFeitoHoje(it.id)) feitos++;
+    const series = nSeriesDoItem(it);
+    const descanso = descansoDaSerie(it, false) || 60;
+    seg += SETUP_SEG + series * (EXEC_SEG + descanso);
+    restante += restanteDoItem(it);
   }
+  if (Exec.descansando()) restante += Exec.restanteSeg();
   const pct = total ? Math.round(feitos / total * 100) : 0;
   const minutos = total ? Math.max(5, Math.round(seg / 60 / 5) * 5) : 0;
-  return { total, feitos, pct, minutos };
+  const minRestante = restante ? Math.max(1, Math.round(restante / 60)) : 0;
+  return { total, feitos, pct, minutos, minRestante, volume: volumeDia(dia) };
 }
 
 // Atualiza barra + contador do cabeçalho sem re-renderizar a tela toda.
@@ -842,6 +970,8 @@ function atualizarHero() {
   if (count) count.innerHTML = `<b>${r.feitos}</b> de ${r.total} ${r.total === 1 ? 'exercício concluído' : 'exercícios concluídos'}`;
   const pct = document.querySelector('[data-hero-pct]');
   if (pct) pct.textContent = r.pct + '%';
+  const meta = document.querySelector('[data-runbar-meta]');
+  if (meta) meta.innerHTML = metaRunbar(r);
   const fin = document.querySelector('[data-finalizar-txt]');
   if (fin) fin.textContent = textoFinalizar(r);
 }
@@ -872,7 +1002,7 @@ function renderDia() {
   const alvo = [..._progAbertas][0] || (cronAtivo() ? _cron.exAberto : null);
   _progAbertas.clear();
   if (alvo && cont.querySelector(`.pa-ex[data-ex="${alvo}"]`)) abrirEx(alvo, { rolar: false });
-  else destacarProximoPendente();
+  else { destacarProximoPendente(); reancorarDescanso(); }
 }
 
 // Marca o próximo exercício pendente (destaque discreto, sem abrir).
@@ -881,12 +1011,21 @@ function destacarProximoPendente(depoisDe) {
   const cont = document.getElementById('paDiaConteudo');
   if (!cont) return null;
   cont.querySelectorAll('.pa-ex.next').forEach(c => c.classList.remove('next'));
-  const cards = [...cont.querySelectorAll('.pa-ex')];
-  const pendente = c => !c.classList.contains('done') && !c.classList.contains('open');
-  const iAtual = depoisDe ? cards.findIndex(c => c.dataset.ex === depoisDe) : -1;
-  const prox = (iAtual >= 0 ? cards.slice(iAtual + 1).find(pendente) : null) || cards.find(pendente);
+  const prox = acharProximoPendente(depoisDe);
   if (prox) prox.classList.add('next');
   return prox || null;
+}
+
+// Próximo card ainda pendente (a partir de `depoisDe`, se informado).
+// Só lê a tela — quem destaca é destacarProximoPendente.
+function acharProximoPendente(depoisDe) {
+  const cont = document.getElementById('paDiaConteudo');
+  if (!cont) return null;
+  const cards = [...cont.querySelectorAll('.pa-ex')];
+  const pendente = c => !c.classList.contains('done') && c.dataset.ex !== depoisDe;
+  const iAtual = depoisDe ? cards.findIndex(c => c.dataset.ex === depoisDe) : -1;
+  return (iAtual >= 0 ? cards.slice(iAtual + 1).find(pendente) : null)
+      || cards.find(pendente) || null;
 }
 
 // Card recolhível de um exercício.
@@ -905,10 +1044,19 @@ function cardExercicio(it, i, opts = {}) {
   if (it.series != null && it.series !== '')
     specParts.push(`<span><b>${esc(it.series)}</b> ${Number(it.series) === 1 ? 'série' : 'séries'}</span>`);
   if (it.repeticoes) specParts.push(`<span><b>${esc(fmtReps(it.repeticoes))}</b> reps</span>`);
-  if (!opts.ocultarDescanso && it.descanso) specParts.push(`<span>${esc(fmtDescanso(it.descanso))} descanso</span>`);
+  // Descanso: agora é o que o cronômetro vai contar, então vale mostrar por extenso.
+  if (!opts.ocultarDescanso) {
+    const entre = descansoDaSerie(it, false);
+    const fim = descansoDaSerie(it, true);
+    if (entre) specParts.push(`<span><b>${esc(fmtSegLongo(entre))}</b> de descanso</span>`);
+    if (fim && fim !== entre) specParts.push(`<span>${esc(fmtSegLongo(fim))} após a última</span>`);
+  }
   const tec = (!opts.ocultarMetodo && it.metodo) ? `<span class="pa-ex-tec"><i data-lucide="zap"></i> ${esc(it.metodo)}</span>` : '';
   const specLine = (specParts.length || tec)
     ? `<div class="pa-ex-spec">${specParts.join('<span class="sep">·</span>')}${tec}</div>` : '';
+
+  // Cadência: só existe na tela quando o profissional prescreveu.
+  const cad = parseCadencia(it.cadencia);
 
   // Resumo do estado fechado: "3 séries · 12 reps" (sem histórico).
   const resumo = [
@@ -943,12 +1091,13 @@ function cardExercicio(it, i, opts = {}) {
 
       <div class="pa-ex-body" id="pa-exb-${it.id}" hidden>
         ${specLine}
+        ${Exec.cadenciaHtml(cad)}
         ${mi ? `<div class="pa-metodo"><i data-lucide="lightbulb"></i> ${esc(mi.desc)}</div>` : ''}
         ${it.observacao ? `<div class="pa-obs"><i data-lucide="sticky-note"></i> ${esc(it.observacao)}</div>` : ''}
         ${ex.observacoes ? `<div class="pa-obs pa-obs-tec"><i data-lucide="info"></i> ${esc(ex.observacoes)}</div>` : ''}
         ${video ? `<div class="pa-ex-foot">${video}</div>` : ''}
 
-        <div class="pa-ex-last">${lastBlockInner(regs)}</div>
+        <div class="pa-ex-last">${lastBlockInner(regs, it.id)}</div>
 
         <div class="pa-prog" data-prog-box="${it.id}"></div>
       </div>
@@ -978,7 +1127,10 @@ function unidadesDia(doDia) {
 // guiado de execução). Cada exercício mantém sua própria área de registro.
 function cardBisetAluno(u, i) {
   const { a, b } = u;
-  const descanso = a.descanso ? fmtDescanso(a.descanso) : null;
+  // O descanso do conjunto tem lugar próprio no rodapé do bloco — não repete
+  // dentro dos cards A e B.
+  const seg = descansoDaSerie(a, false);
+  const descanso = seg ? fmtSegLongo(seg) : (a.descanso ? fmtDescanso(a.descanso) : null);
   const corpoB = b
     ? cardExercicio(b, i, { marcador: 'B', ocultarMetodo: true, ocultarDescanso: true })
     : `<div class="pa-biset-incompleto"><i data-lucide="alert-triangle"></i> Segundo exercício ainda não definido pelo seu treinador.</div>`;
@@ -988,33 +1140,88 @@ function cardBisetAluno(u, i) {
         <span class="pa-biset-selo"><i data-lucide="repeat-2"></i> Bi-set</span>
         <span class="pa-biset-n">${i + 1}</span>
       </div>
-      ${cardExercicio(a, i, { marcador: 'A', ocultarMetodo: true })}
+      ${cardExercicio(a, i, { marcador: 'A', ocultarMetodo: true, ocultarDescanso: true })}
       <div class="pa-biset-conector"><i data-lucide="arrow-down"></i> Sem descanso entre A e B</div>
       ${corpoB}
       ${descanso ? `<div class="pa-biset-descanso"><i data-lucide="timer"></i> Descanso após o conjunto: <b>${esc(descanso)}</b></div>` : ''}
     </div>`;
 }
 
-// Conteúdo interno do bloco "Último treino" (reaproveitado ao salvar/excluir).
-function lastBlockInner(regs) {
-  const ult = ultimoResumo(regs);
+// Conteúdo interno do bloco "Última execução": agora série a série, com a
+// data e o indicador de evolução — e não mais só "4 / 6 / 8 / 10".
+function lastBlockInner(regs, id) {
+  const ant = id ? regAnterior(id) : (regs || [])[0];
   const evo = evolucaoBadge(regs);
-  return `<div class="pa-last-top"><span class="pa-last-lab">Último treino</span>${evo}</div>` +
-    (ult
-      ? `<div class="pa-last-val"><b>${esc(ult.pesoTxt)}</b>${ult.repsTxt ? ` · ${esc(ult.repsTxt)}` : ''}${ult.dataTxt ? ` <span class="pa-last-date">· ${esc(ult.dataTxt)}</span>` : ''}</div>`
-      : `<div class="pa-last-vazio">Sem registros anteriores</div>`);
+  const data = ant?.data ? `<span class="pa-last-date">${esc(fmtData(ant.data))}</span>` : '';
+  return `<div class="pa-last-top"><span class="pa-last-lab">Última execução</span>${data}${evo}</div>` +
+    Exec.ultimaExecucaoHtml(ant);
 }
 
-// Reaproveita o cache para reescrever só o bloco "Último treino" de um card.
+// Reaproveita o cache para reescrever só o bloco "Última execução" de um card.
 function atualizarUltimo(id) {
   const last = document.querySelector(`[data-prog-box="${id}"]`)?.closest('.pa-ex')?.querySelector('.pa-ex-last');
-  if (last) last.innerHTML = lastBlockInner(_progCache.get(id) || []);
+  if (last) last.innerHTML = lastBlockInner(_progCache.get(id) || [], id);
 }
 
-// O exercício foi concluído hoje? (há registro salvo com a data de hoje)
-function itemFeitoHoje(id) {
+// ── Estado de execução de um exercício ──────────────────────
+// Quantas séries o exercício tem (prescritas, com teto de 12).
+function nSeriesDoItem(it) {
+  const ultima = (_progCache.get(it?.id) || [])[0];
+  const salvas = ultima?.series_realizadas?.length || 0;
+  return Math.min(Math.max(Number(it?.series) || salvas || 1, 1), 12);
+}
+
+// Registro de hoje (o que está sendo construído série a série).
+function regHoje(id) {
   const h = hoje();
-  return (_progCache.get(id) || []).some(r => r.data === h);
+  return (_progCache.get(id) || []).find(r => r.data === h) || null;
+}
+
+// Última execução ANTERIOR a hoje — é ela que serve de comparação.
+function regAnterior(id) {
+  const h = hoje();
+  return (_progCache.get(id) || []).find(r => r.data !== h) || null;
+}
+
+const serieVazia = s => !s || (s.peso == null && s.reps == null);
+
+// Séries já concluídas hoje.
+function seriesFeitasHoje(id) {
+  const r = regHoje(id);
+  if (!r) return 0;
+  const arr = r.series_realizadas || [];
+  if (!arr.length) return 1;                     // registro antigo (carga única)
+  return arr.filter(s => !serieVazia(s)).length;
+}
+
+// O exercício foi concluído hoje? Antes bastava existir registro; agora que
+// cada série é salva na hora, "concluído" é ter TODAS as séries preenchidas.
+function itemFeitoHoje(id) {
+  const r = regHoje(id);
+  if (!r) return false;
+  const arr = r.series_realizadas || [];
+  if (!arr.length) return true;                  // registro antigo: mantém o comportamento
+  const it = _itens.find(x => x.id === id);
+  return arr.filter(s => !serieVazia(s)).length >= (it ? nSeriesDoItem(it) : arr.length);
+}
+
+// ── Descanso prescrito ──────────────────────────────────────
+// No Bi-set quem manda é o exercício âncora (A): o descanso do conjunto.
+function ancoraDoItem(it) {
+  if (!it) return null;
+  if (it.grupo_pos === 'B' && it.grupo_id) return _itens.find(x => x.id === it.grupo_id) || it;
+  return it;
+}
+function ehBisetA(it) {
+  return String(it?.metodo || '').trim().toLowerCase() === 'bi-set' && it.grupo_pos !== 'B';
+}
+function parceiroB(it) {
+  return _itens.find(x => x.grupo_id === it?.id && x.grupo_pos === 'B') || null;
+}
+function descansoDaSerie(it, ehUltima) {
+  const treino = _treinos.find(t => t.id === _treinoSel) || null;
+  const { entre, final } = descansoDoItem(ancoraDoItem(it), treino);
+  return ehUltima ? final : entre;
 }
 
 // Reflete o estado (pendente/concluído) no cabeçalho do card, sem re-render.
@@ -1027,27 +1234,6 @@ function atualizarBotaoFeito(id) {
   if (status) status.innerHTML = statusInner(feito, status.dataset.num || '');
   const sr = card.querySelector('[data-ex-sr]');
   if (sr) sr.textContent = feito ? 'Concluído' : 'Pendente';
-}
-
-// Resumo da última sessão: peso representativo + reps por série + data curta.
-function ultimoResumo(regs) {
-  const u = regs && regs[0];
-  if (!u) return null;
-  const arr = u.series_realizadas || [];
-  let pesoTxt = '', repsTxt = '';
-  if (arr.length) {
-    const pesos = arr.map(s => s.peso).filter(v => v != null).map(Number);
-    if (pesos.length) {
-      const uniq = [...new Set(pesos)];
-      pesoTxt = uniq.length === 1 ? `${uniq[0]} kg` : `${Math.min(...pesos)}–${Math.max(...pesos)} kg`;
-    }
-    repsTxt = arr.map(s => (s.reps != null ? s.reps : '–')).join(' / ');
-  } else {
-    if (u.carga_realizada != null) pesoTxt = `${u.carga_realizada} kg`;
-    if (u.reps_realizadas != null) repsTxt = String(u.reps_realizadas);
-  }
-  if (!pesoTxt && !repsTxt) return null;
-  return { pesoTxt: pesoTxt || '—', repsTxt, dataTxt: fmtDataCurta(u.data) };
 }
 
 // Carga representativa de uma sessão (maior peso da sessão), p/ comparar evolução.
@@ -1096,10 +1282,28 @@ function abrirEx(id, { rolar = true } = {}) {
   _progAbertas.add(id);
   cronSetAberto(id);
 
+  // Abrir um exercício marca o começo dele na sessão (para o tempo do resumo).
+  if (cronAtivo()) exSessao(id);
+
   // Monta as séries na primeira abertura; depois é só reexibir o que já existe.
   const box = card.querySelector(`[data-prog-box="${id}"]`);
   if (box && !box.dataset.pronto) carregarProg(id);
+
+  // Cadência (quando prescrita) e o descanso que já estava correndo neste card.
+  const it = _itens.find(x => x.id === id);
+  Exec.ligarCadencia(card, parseCadencia(it?.cadencia));
+  reancorarDescanso();
+
   if (rolar) requestAnimationFrame(() => rolarAteCard(card));
+}
+
+// Recoloca o cronômetro de descanso dentro do card certo depois de qualquer
+// re-render. Sem o card na tela ele continua contando no cabeçalho.
+function reancorarDescanso() {
+  // Sem `if (estado)`: numa recarga de página o estado ainda está só no
+  // localStorage, e é aqui que ele volta a viver.
+  Exec.retomarDescanso(e => document.querySelector(
+    `[data-prog-box="${e.itemId}"] .pa-serie-block[data-block="${e.serie}"]`));
 }
 
 // Recolhe (fecha) um exercício, preservando o que já foi preenchido.
@@ -1107,6 +1311,7 @@ function recolherProg(id) {
   const card = document.querySelector(`.pa-ex[data-ex="${id}"]`);
   _progAbertas.delete(id);
   if (_cron && _cron.exAberto === id) cronSetAberto(null);
+  Exec.pararMetronomo();
   if (!card) return;
   card.classList.remove('open');
   const body = card.querySelector('.pa-ex-body');
@@ -1168,21 +1373,28 @@ async function carregarProg(id, force = false) {
 function renderProg(box, id, regs) {
   const it = _itens.find(x => x.id === id) || {};
   const alvoReps = it.repeticoes || '';
-  const ultima = regs[0] || null;               // sessão mais recente (regs vem data desc)
-  const ultimaSeries = (ultima && ultima.series_realizadas) || [];
+  const doHoje = regs.find(r => r.data === hoje()) || null;      // o que já foi feito hoje
+  const anterior = regs.find(r => r.data !== hoje()) || null;    // a sessão de comparação
+  const feitasHoje = (doHoje && doHoje.series_realizadas) || [];
+  const antSeries = (anterior && anterior.series_realizadas) || [];
 
-  // Nº de séries: o prescrito; senão o que veio salvo; senão 1. Teto de 12.
-  const nSeries = Math.min(
-    Math.max(Number(it.series) || ultimaSeries.length || 1, 1), 12);
+  const nSeries = nSeriesDoItem(it);
 
-  const linhasSeries = Array.from({ length: nSeries }, (_, i) =>
-    blocoSerieHTML(i, ultimaSeries[i] || {},
-      { alvoReps, temDrop: serieTemDrop(it, i, nSeries) })).join('');
+  // Os campos já vêm preenchidos: com o de hoje se a série foi feita, senão
+  // com o da última vez (sugestão de carga). Só conta como CONCLUÍDA a série
+  // registrada hoje — é o ✓ do aluno que dispara o descanso.
+  const linhasSeries = Array.from({ length: nSeries }, (_, i) => {
+    const feita = !serieVazia(feitasHoje[i]);
+    return blocoSerieHTML(i, feita ? feitasHoje[i] : (antSeries[i] || {}), {
+      alvoReps, feita, anterior: antSeries[i] || null,
+      temDrop: serieTemDrop(it, i, nSeries),
+    });
+  }).join('');
 
-  const quando = ultima ? `Última vez: ${fmtData(ultima.data)}` : 'Primeiro registro';
+  const quando = anterior ? `Última vez: ${fmtData(anterior.data)}` : 'Primeiro registro';
 
-  // Histórico das sessões anteriores (a mais recente já está no formulário)
-  const anteriores = regs.slice(1);
+  // Histórico: o que não está nem no formulário (hoje) nem em "Última execução".
+  const anteriores = regs.filter(r => r !== doHoje && r !== anterior);
   const hist = anteriores.length
     ? `<div class="pa-hist-head">Histórico</div>` + anteriores.map(r => `
         <div class="pa-hist-row">
@@ -1201,6 +1413,7 @@ function renderProg(box, id, regs) {
     </div>
     <div class="pa-series-prog" data-sprog><b>0</b>/${nSeries} séries concluídas</div>
     <button class="pa-btn pa-btn-mini" data-ssave><i data-lucide="check"></i> <span data-ssave-txt>Concluir exercício</span></button>
+    <div data-resumo-slot></div>
     ${hist}`;
 
   box.dataset.pronto = '1';   // já montado: fechar e reabrir não remonta (nem perde o digitado)
@@ -1223,18 +1436,32 @@ function renderProg(box, id, regs) {
   box.querySelectorAll('[data-pdel]').forEach(b =>
     b.addEventListener('click', () => removerCarga(b.dataset.pdel, id)));
 
-  // Estado inicial: séries já registradas aparecem concluídas (resumo compacto).
-  box.querySelectorAll('.pa-serie-block').forEach(bl => preencherResumo(box, Number(bl.dataset.block)));
+  // Estado inicial: séries já registradas aparecem concluídas (resumo compacto),
+  // com a comparação contra a última vez já pintada.
+  box.querySelectorAll('.pa-serie-block').forEach(bl => {
+    const i = Number(bl.dataset.block);
+    preencherResumo(box, i);
+    pintarComparacao(box, i);
+  });
   atualizarSeriesProg(box, nSeries);
+
+  // Reabrir um exercício já terminado devolve o resumo; um descanso em curso
+  // volta para dentro do card.
+  if ([...box.querySelectorAll('.pa-serie-block')].every(blocoConcluido)) {
+    mostrarResumoExercicio(box, id);
+  }
+  reancorarDescanso();
 }
 
 // ── "Componentes" de série (HTML) ──────────────────────────────
 // Uma série = linha principal + (se houver técnica) selo, painel do drop e
 // resumo compacto. Reaproveita os estilos .pa-serie / .pa-mini / .pa-serie-check.
-function blocoSerieHTML(i, s, { alvoReps, temDrop }) {
+function blocoSerieHTML(i, s, { alvoReps, temDrop, feita = false, anterior = null }) {
   const d = (s && s.drop) || {};
-  const principalOk = s && s.peso != null && s.reps != null;
-  const dropOk = temDrop && d.peso != null && d.reps != null;
+  // `feita` = registrada HOJE. Valores vindos da última sessão são só
+  // sugestão de carga: ficam nos campos, mas a série continua pendente.
+  const principalOk = feita && s && (s.peso != null || s.reps != null);
+  const dropOk = feita && temDrop && d.peso != null && d.reps != null;
   const cls = [
     'pa-serie-block',
     temDrop ? 'has-drop' : '',
@@ -1293,8 +1520,35 @@ function blocoSerieHTML(i, s, { alvoReps, temDrop }) {
       ${selo}
       ${painel}
       ${resumo}
+      <div class="pa-serie-comp" data-comp="${i}"
+        data-ant="${anterior ? esc(JSON.stringify({ peso: anterior.peso ?? null, reps: anterior.reps ?? null })) : ''}"
+        >${hintAnteriorHtml(anterior)}</div>
       <div class="pa-field-err" data-err="${i}" role="alert" aria-live="polite"></div>
     </div>`;
+}
+
+// Pista discreta do que foi feito nesta série da última vez.
+function hintAnteriorHtml(ant) {
+  if (!ant || (ant.peso == null && ant.reps == null)) return '';
+  const p = ant.peso != null ? `${String(ant.peso).replace('.', ',')} kg` : '—';
+  const r = ant.reps != null ? ` × ${ant.reps}` : '';
+  return `<span class="pa-serie-comp-ant">Última vez: ${esc(p + r)}</span>`;
+}
+
+// Depois do ✓, a pista vira comparação: "Última vez 60 kg · ▲ +2 kg".
+function pintarComparacao(box, i) {
+  const alvo = box.querySelector(`[data-comp="${i}"]`);
+  if (!alvo) return;
+  let ant = null;
+  try { ant = alvo.dataset.ant ? JSON.parse(alvo.dataset.ant) : null; } catch {}
+  if (!ant) return;
+  const bl = box.querySelector(`.pa-serie-block[data-block="${i}"]`);
+  if (!bl?.classList.contains('done')) { alvo.innerHTML = hintAnteriorHtml(ant); return; }
+  const nOuNull = v => (v === '' || v == null || !Number.isFinite(Number(v)) ? null : Number(v));
+  alvo.innerHTML = Exec.comparacaoSerieHtml({
+    peso: nOuNull(val(box, `[data-s-peso="${i}"]`)),
+    reps: nOuNull(val(box, `[data-s-reps="${i}"]`)),
+  }, ant);
 }
 
 // ── Helpers do fluxo de séries / drop ──────────────────────────
@@ -1326,14 +1580,21 @@ function blocoConcluido(bl) {
 }
 
 // Marca/desmarca a série principal. Havendo drop, expande a etapa extra.
+// Concluir aqui é o centro da execução: salva a série e o descanso começa.
 function toggleSerie(box, i, nSeries) {
   const bl = box.querySelector(`.pa-serie-block[data-block="${i}"]`);
   if (!bl) return;
+  const id = box.dataset.progBox;
 
   if (bl.classList.contains('done')) {          // toque de novo = desfazer a série inteira
     bl.classList.remove('done', 'drop-open', 'drop-done');
     limparErro(box, i);
+    const est = Exec.estadoDescanso();
+    if (est && est.itemId === id && est.serie === i) Exec.encerrarDescanso();
+    esconderResumo(box);
+    pintarComparacao(box, i);
     atualizarSeriesProg(box, nSeries);
+    salvarAuto(id, coletarSeries(box, id, nSeries));
     return;
   }
 
@@ -1342,15 +1603,27 @@ function toggleSerie(box, i, nSeries) {
   if (!peso && !reps) { marcarErro(box, i, `[data-s-peso="${i}"]`, 'Informe o peso ou as repetições'); return; }
   limparErro(box, i);
   bl.classList.add('done');
+  animarCheck(bl);
+  Exec.vibrar(Exec.VIB_SERIE);
+  pintarComparacao(box, i);
 
   if (bl.classList.contains('has-drop') && !bl.classList.contains('drop-done')) {
     abrirDrop(box, i);                          // expande o drop e foca o peso reduzido
     atualizarSeriesProg(box, nSeries);
-    return;
+    return;                                     // o descanso só começa depois do drop
   }
   atualizarSeriesProg(box, nSeries);
   anunciar(`Série ${i + 1} registrada.`);
-  focarProxima(box, i);
+  concluirSerie(box, id, i, nSeries);
+}
+
+// Pulso do ✓: 200 ms, some sozinho. Respeita "reduzir movimento".
+function animarCheck(bl) {
+  const btn = bl.querySelector('.pa-serie-check');
+  if (!btn || prefereMenosMovimento()) return;
+  btn.classList.remove('pulsa');
+  void btn.offsetWidth;                          // reinicia a animação
+  btn.classList.add('pulsa');
 }
 
 // Expande o painel de drop, sugere o peso reduzido e leva o foco pra ele.
@@ -1383,8 +1656,9 @@ function toggleDrop(box, i, nSeries) {
   bl.classList.add('drop-done');
   preencherResumo(box, i);
   atualizarSeriesProg(box, nSeries);
+  Exec.vibrar(Exec.VIB_SERIE);
   anunciar(`Série ${i + 1} com drop registrada.`);
-  focarProxima(box, i);
+  concluirSerie(box, box.dataset.progBox, i, nSeries);
 }
 
 // Reabre uma série concluída para edição (principal + drop).
@@ -1421,10 +1695,204 @@ function focarProxima(box, i) {
 }
 
 function atualizarSeriesProg(box, nSeries) {
-  const done = [...box.querySelectorAll('.pa-serie-block')].filter(blocoConcluido).length;
+  const blocos = [...box.querySelectorAll('.pa-serie-block')];
+  const done = blocos.filter(blocoConcluido).length;
   const el = box.querySelector('[data-sprog]');
   if (el) el.innerHTML = `<b>${done}</b>/${nSeries} séries concluídas`;
   box.querySelector('[data-ssave]')?.classList.toggle('pa-btn-ready', done > 0 && done === nSeries);
+  marcarProximaSerie(box);
+}
+
+// Estado "é a sua vez": destaca a primeira série ainda pendente.
+function marcarProximaSerie(box) {
+  const blocos = [...box.querySelectorAll('.pa-serie-block')];
+  blocos.forEach(b => b.classList.remove('is-next'));
+  if (Exec.descansando()) return;               // durante o descanso quem manda é o cronômetro
+  blocos.find(b => !blocoConcluido(b))?.classList.add('is-next');
+}
+
+// ═══════════════════════════════════════════════════════════
+// FLUXO GUIADO — o que acontece depois do ✓
+// ═══════════════════════════════════════════════════════════
+// 1. a série vira JSON e é salva (sem bloquear a tela);
+// 2. na última série, o esforço é perguntado ali mesmo, se prescrito;
+// 3. o cronômetro de descanso começa dentro do próprio card;
+// 4. terminando as séries, aparece o resumo do exercício.
+
+// Lê as séries da tela. Só entra no banco o que foi concluído HOJE —
+// número em campo de série pendente é sugestão da última vez, não execução.
+function coletarSeries(box, id, nSeries, { tudoQuePreenchido = false } = {}) {
+  const jaHoje = (regHoje(id)?.series_realizadas) || [];
+  const agora = new Date().toISOString();
+  const out = [];
+  for (let i = 0; i < nSeries; i++) {
+    const bl = box.querySelector(`.pa-serie-block[data-block="${i}"]`);
+    const peso = val(box, `[data-s-peso="${i}"]`);
+    const reps = val(box, `[data-s-reps="${i}"]`);
+    const concluida = !!bl?.classList.contains('done');
+    if (!concluida && !(tudoQuePreenchido && (peso || reps))) { out.push({ peso: null, reps: null }); continue; }
+
+    const prev = jaHoje[i] || {};
+    const s = {
+      peso: peso === '' ? null : Number(peso),
+      reps: reps === '' ? null : parseInt(reps, 10),
+      t: prev.t || agora,
+    };
+    if (prev.rir != null) s.rir = prev.rir;
+    if (bl?.classList.contains('has-drop')) {
+      const dp = val(box, `[data-d-peso="${i}"]`);
+      const dr = val(box, `[data-d-reps="${i}"]`);
+      s.drop = (dp === '' && dr === '')
+        ? null
+        : { peso: dp === '' ? null : Number(dp), reps: dr === '' ? null : parseInt(dr, 10) };
+    }
+    out.push(s);
+  }
+  return out;
+}
+
+// Espelha o que acabou de ser salvo no cache local, para que progresso,
+// volume e tempo restante reajam na hora — sem esperar a rede.
+function aplicarSeriesNoCache(id, series) {
+  const arr = (_progCache.get(id) || []).slice();
+  const h = hoje();
+  const pesos = series.map(s => s?.peso).filter(v => v != null).map(Number);
+  const idx = arr.findIndex(r => r.data === h);
+  const base = idx >= 0 ? arr[idx] : { id: `local-${id}`, treino_exercicio_id: id, data: h };
+  const reg = {
+    ...base,
+    series_realizadas: series,
+    carga_realizada: pesos.length ? Math.max(...pesos) : null,
+  };
+  if (idx >= 0) arr[idx] = reg; else arr.unshift(reg);
+  _progCache.set(id, arr);
+}
+
+// Uma fila de gravação por exercício: dois ✓ seguidos não brigam pelo mesmo
+// registro do dia (a RPC faz upsert por (item, data)).
+const _filaSalvar = new Map();
+
+function salvarAuto(id, series) {
+  aplicarSeriesNoCache(id, series);
+  atualizarBotaoFeito(id);
+  atualizarUltimo(id);
+  atualizarHero();
+  atualizarStats();
+
+  const anterior = _filaSalvar.get(id) || Promise.resolve();
+  const p = anterior
+    .catch(() => {})
+    .then(() => salvarSeries({ treinoExercicioId: id, series }))
+    .then(() => true)
+    .catch(e => { mostrarToast('Não deu para salvar: ' + traduzirErro(e.message)); return false; });
+  _filaSalvar.set(id, p);
+  return p;
+}
+
+// Passo seguinte ao ✓ de uma série (já com o drop resolvido, quando houver).
+function concluirSerie(box, id, i, nSeries) {
+  const it = _itens.find(x => x.id === id) || {};
+  const ehUltima = i >= nSeries - 1;
+  const modo = String(it.rir_modo || '').trim();
+
+  const gravar = (esforco) => {
+    const series = coletarSeries(box, id, nSeries);
+    if (esforco != null && series[i]) series[i].rir = esforco;
+    salvarAuto(id, series);
+  };
+
+  // Última série com esforço prescrito: pergunta antes de mandar descansar.
+  if (ehUltima && modo) {
+    const bl = box.querySelector(`.pa-serie-block[data-block="${i}"]`);
+    Exec.perguntarEsforco({
+      ancora: bl, modo,
+      onEscolha: (v) => { gravar(v); seguirAposSerie(box, id, i, nSeries); },
+    });
+    return;
+  }
+  gravar(null);
+  seguirAposSerie(box, id, i, nSeries);
+}
+
+function seguirAposSerie(box, id, i, nSeries) {
+  const it = _itens.find(x => x.id === id) || {};
+  const ehUltima = i >= nSeries - 1;
+  const todas = [...box.querySelectorAll('.pa-serie-block')].every(blocoConcluido);
+  if (todas) mostrarResumoExercicio(box, id);
+
+  // Bi-set: entre A e B não existe descanso — o conjunto é que descansa.
+  if (ehBisetA(it) && parceiroB(it)) {
+    anunciar('Sem descanso: vá direto para o exercício B.');
+    mostrarToast('Sem descanso — siga direto para o B');
+    if (!todas) focarProxima(box, i);
+    atualizarHero();
+    return;
+  }
+
+  const seg = descansoDaSerie(it, ehUltima);
+  if (!seg) {                                   // sem descanso prescrito: segue o fluxo antigo
+    if (!todas) focarProxima(box, i);
+    atualizarHero();
+    return;
+  }
+
+  const bl = box.querySelector(`.pa-serie-block[data-block="${i}"]`);
+  // O título fica dentro do anel (96 px): "Descanso" e ponto. Que este é o
+  // descanso pós-exercício, quem conta é o texto ao lado ("Próximo exercício").
+  Exec.iniciarDescanso({
+    itemId: id, serie: i, seg, ancora: bl,
+    ultima: ehUltima,
+    proxima: ehUltima ? null : { n: i + 2, reps: it.repeticoes ? fmtReps(it.repeticoes) : '' },
+  });
+  marcarProximaSerie(box);
+  atualizarHero();
+}
+
+// Resumo de fechamento do exercício (volume, melhor série, comparação…).
+function mostrarResumoExercicio(box, id) {
+  const slot = box.querySelector('[data-resumo-slot]');
+  if (!slot) return;
+  const it = _itens.find(x => x.id === id) || {};
+  const reg = regHoje(id);
+  const series = (reg?.series_realizadas || []).filter(s => !serieVazia(s));
+  if (!series.length) return;
+  const ant = regAnterior(id);
+  const esforco = series.map(s => s?.rir).filter(v => v != null).pop() ?? null;
+
+  slot.innerHTML = Exec.resumoExercicioHtml({
+    series,
+    anteriores: ant?.series_realizadas || [],
+    tempoMs: exTempoMs(id),
+    descansoMs: exDescansoMs(id),
+    esforco, modoEsforco: it.rir_modo,
+    temProximo: !!acharProximoPendente(id),
+  });
+  box.querySelector('[data-ssave]')?.setAttribute('hidden', '');
+  slot.querySelector('[data-resumo-prox]')
+    ?.addEventListener('click', () => irParaProximoExercicio(id));
+  anunciar('Exercício concluído.');
+}
+
+function esconderResumo(box) {
+  const slot = box.querySelector('[data-resumo-slot]');
+  if (slot) slot.innerHTML = '';
+  box.querySelector('[data-ssave]')?.removeAttribute('hidden');
+}
+
+// Fecha o exercício atual e abre o próximo pendente — a "condução" do treino.
+function irParaProximoExercicio(id) {
+  Exec.encerrarDescanso();
+  Exec.pararMetronomo();
+  recolherProg(id);
+  atualizarBotaoFeito(id);
+  const prox = destacarProximoPendente(id);
+  if (prox) {
+    abrirEx(prox.dataset.ex);
+  } else {
+    mostrarToast('✓ Todos os exercícios concluídos!');
+    document.querySelector('[data-finalizar]')?.focus();
+  }
+  atualizarHero();
 }
 
 // Resumo compacto de uma sessão para o histórico.
@@ -1448,37 +1916,42 @@ function resumoSeries(r) {
   return c + rp;
 }
 
+// "Concluir exercício" — a saída manual, para quem preencheu tudo de uma vez
+// sem usar o ✓ de cada série. Fecha o que estiver preenchido e cai no mesmo
+// fluxo do guiado (salva, resume e leva ao próximo).
 async function salvarSeriesUI(id, nSeries) {
   const box = document.querySelector(`[data-prog-box="${id}"]`);
   if (!box) return;
-  const series = [];
+
+  // Série com drop iniciada mas com o drop incompleto → bloqueia a finalização.
   for (let i = 0; i < nSeries; i++) {
     const bl = box.querySelector(`.pa-serie-block[data-block="${i}"]`);
-    const peso = val(box, `[data-s-peso="${i}"]`);
-    const reps = val(box, `[data-s-reps="${i}"]`);
-    const s = {
-      peso: peso === '' ? null : Number(peso),
-      reps: reps === '' ? null : parseInt(reps, 10),
-    };
-    if (bl?.classList.contains('has-drop')) {
-      const dp = val(box, `[data-d-peso="${i}"]`);
-      const dr = val(box, `[data-d-reps="${i}"]`);
-      s.drop = (dp === '' && dr === '')
-        ? null
-        : { peso: dp === '' ? null : Number(dp), reps: dr === '' ? null : parseInt(dr, 10) };
-      // Série com drop iniciada mas com o drop incompleto → bloqueia a finalização.
-      if ((s.peso != null || s.reps != null) && (!s.drop || s.drop.peso == null || s.drop.reps == null)) {
-        abrirDrop(box, i);
-        marcarErro(box, i, `[data-d-peso="${i}"]`, 'Conclua o Drop Set antes de finalizar a série');
-        return;
-      }
+    if (!bl?.classList.contains('has-drop')) continue;
+    const temPrincipal = val(box, `[data-s-peso="${i}"]`) || val(box, `[data-s-reps="${i}"]`);
+    const dp = val(box, `[data-d-peso="${i}"]`);
+    const dr = val(box, `[data-d-reps="${i}"]`);
+    if (temPrincipal && (!dp || !dr)) {
+      abrirDrop(box, i);
+      marcarErro(box, i, `[data-d-peso="${i}"]`, 'Conclua o Drop Set antes de finalizar a série');
+      return;
     }
-    series.push(s);
   }
+
+  const series = coletarSeries(box, id, nSeries, { tudoQuePreenchido: true });
   if (series.every(s => s.peso == null && s.reps == null)) {
     mostrarToast('Preencha ao menos uma série.');
     return;
   }
+
+  // O que estava preenchido passa a contar como concluído também na tela.
+  series.forEach((s, i) => {
+    if (s.peso == null && s.reps == null) return;
+    const bl = box.querySelector(`.pa-serie-block[data-block="${i}"]`);
+    bl?.classList.add('done');
+    if (bl?.classList.contains('has-drop')) { bl.classList.remove('drop-open'); bl.classList.add('drop-done'); preencherResumo(box, i); }
+    pintarComparacao(box, i);
+  });
+  atualizarSeriesProg(box, nSeries);
 
   const btn = box.querySelector('[data-ssave]');
   if (btn?.disabled) return;                       // trava o duplo clique
@@ -1486,19 +1959,12 @@ async function salvarSeriesUI(id, nSeries) {
   if (btn) { btn.disabled = true; btn.classList.add('is-loading'); }
   if (txt) txt.textContent = 'Salvando...';
   try {
-    await salvarSeries({ treinoExercicioId: id, series });
+    const ok = await salvarAuto(id, series);
+    if (!ok) return;
     mostrarToast('✓ Exercício concluído');
-    anunciar('Exercício concluído.');
-    _progCache.set(id, await progressaoDoItem(id));  // atualiza o cache com o que acabou de salvar
-    recolherProg(id);               // recolhe o card do exercício
-    atualizarBotaoFeito(id);        // círculo do cabeçalho vira check verde
-    atualizarUltimo(id);            // reflete no resumo "Último treino" do card
-    atualizarHero();                // atualiza progresso (feitos/total) do dia
-    atualizarStats();               // sequência + recordes podem ter mudado
-    const prox = destacarProximoPendente(id);       // destaca e leva ao próximo
-    if (prox) requestAnimationFrame(() => rolarAteCard(prox));
-  } catch (e) {
-    mostrarToast('Erro: ' + traduzirErro(e.message));
+    _progCache.set(id, await progressaoDoItem(id));  // reconcilia com o que o banco gravou
+    atualizarUltimo(id);
+    mostrarResumoExercicio(box, id);
   } finally {
     if (btn) { btn.disabled = false; btn.classList.remove('is-loading'); }
     if (txt) txt.textContent = 'Concluir exercício';
@@ -1625,11 +2091,4 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '
 const fmtData = d => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
 // "6-8" → "6–8" (traço tipográfico, só entre dígitos).
 const fmtReps = r => String(r ?? '').replace(/(\d)\s*-\s*(\d)/g, '$1–$2');
-// Data curta pt-BR: "10 jul.".
-const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-function fmtDataCurta(d) {
-  if (!d) return '';
-  const dt = new Date(d + 'T00:00:00');
-  return `${dt.getDate()} ${MESES[dt.getMonth()]}.`;
-}
 const hoje = () => new Date().toISOString().slice(0, 10);

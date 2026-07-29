@@ -1,0 +1,359 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   EVOLLO · EXECUÇÃO GUIADA DO TREINO (app do aluno)
+   ---------------------------------------------------------------------------
+   Só o que nasceu com a condução da sessão: cronômetro de descanso, metrônomo
+   de cadência, pergunta de esforço, comparação série a série e resumo do
+   exercício. Nada de cor nova — tudo vem de tokens.css. Carregado DEPOIS de
+   brand.css, então vence as regras de componente do <style> do app.html.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Cabeçalho: linha de contexto (tempo restante / descanso / volume) ── */
+.pa-runbar-meta {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--text-secondary);
+  min-height: 16px;
+}
+.pa-runbar-meta:empty { display: none; }
+.pa-runbar-meta b { color: var(--text-primary); font-weight: 800; font-variant-numeric: tabular-nums; }
+.pa-runbar-vol { display: inline-flex; align-items: center; gap: 5px; color: var(--text-muted); white-space: nowrap; }
+.pa-runbar-vol svg { width: 13px; height: 13px; }
+.pa-runbar-rest {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--color-primary-700); font-weight: 700;
+}
+.pa-runbar-rest b { color: var(--color-primary-700); }
+
+/* ═══════════════════════════════════════════════════════════
+   ESTADOS DA SÉRIE
+   ═══════════════════════════════════════════════════════════ */
+/* "É a sua vez": a próxima série pendente ganha um trilho verde à esquerda.
+   Discreto de propósito — o card inteiro já é o foco da tela. */
+.pa-serie-block { position: relative; padding-left: 0; transition: padding-left var(--duration-base) var(--ease); }
+.pa-serie-block.is-next { padding-left: 9px; }
+.pa-serie-block.is-next::before {
+  content: ''; position: absolute; left: 0; top: 2px; bottom: 2px; width: 3px;
+  border-radius: 999px; background: var(--primary);
+  animation: paNextIn var(--duration-slow) var(--ease);
+}
+@keyframes paNextIn { from { opacity: 0; transform: scaleY(0.4); } to { opacity: 1; transform: none; } }
+
+/* Pulso do ✓ — 200 ms, exatamente uma vez. */
+.pa-serie-check.pulsa { animation: paCheckPop 200ms var(--ease); }
+@keyframes paCheckPop {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+.pa-serie-block.done .pa-serie .pa-mini { transition: background var(--duration-base) var(--ease), color var(--duration-base) var(--ease); }
+
+/* ── Comparação com a última vez ── */
+.pa-serie-comp {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+  margin: 6px 0 0 42px; font-size: 11.5px; font-weight: 600; color: var(--text-muted);
+}
+.pa-serie-comp:empty { display: none; }
+.pa-serie-comp-ant { font-variant-numeric: tabular-nums; }
+.pa-delta {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 11.5px; font-weight: 800; font-variant-numeric: tabular-nums;
+  padding: 1px 7px; border-radius: 999px; white-space: nowrap;
+}
+.pa-delta svg { width: 12px; height: 12px; }
+.pa-delta.sobe  { color: var(--color-primary-700); background: var(--color-primary-100); }
+.pa-delta.desce { color: var(--text-secondary); background: var(--surface-subtle); }
+.pa-delta.igual { color: var(--text-muted); background: transparent; padding-left: 0; }
+
+/* ═══════════════════════════════════════════════════════════
+   CRONÔMETRO DE DESCANSO
+   ═══════════════════════════════════════════════════════════ */
+.pa-rest {
+  margin: 12px 0 4px; padding: 16px 16px 14px;
+  border: 1px solid var(--color-primary-200); border-radius: var(--radius-lg);
+  background: linear-gradient(160deg, var(--color-primary-100) 0%, var(--surface) 78%);
+  box-shadow: var(--shadow-sm);
+}
+/* Dentro da lista de séries (que já tem `gap`), a margem própria some. */
+.pa-series > .pa-rest,
+.pa-series > .pa-esforco { margin-top: 2px; margin-bottom: 2px; }
+.pa-rest-main { display: flex; align-items: center; gap: 16px; }
+
+.pa-rest-ring { position: relative; flex: 0 0 auto; width: 96px; height: 96px; }
+.pa-rest-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.pa-rest-trilho { fill: none; stroke: color-mix(in srgb, var(--primary) 16%, transparent); stroke-width: 7; }
+.pa-rest-arco {
+  fill: none; stroke: var(--primary); stroke-width: 7; stroke-linecap: round;
+  transition: stroke var(--duration-base) var(--ease);
+}
+.pa-rest-nums {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 1px;
+}
+.pa-rest-lab {
+  font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--color-primary-700);
+}
+.pa-rest-tempo {
+  font-size: 25px; font-weight: 800; line-height: 1; letter-spacing: var(--tracking-tight);
+  color: var(--color-primary-900); font-variant-numeric: tabular-nums;
+}
+
+.pa-rest-prox { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pa-rest-prox-lab {
+  font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text-muted);
+}
+.pa-rest-prox-val { font-size: 17px; font-weight: 800; color: var(--text-primary); letter-spacing: var(--tracking-snug); }
+.pa-rest-prox-reps { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+
+.pa-rest-acoes { display: flex; gap: 8px; margin-top: 14px; }
+.pa-rest-btn {
+  flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  min-height: 42px; padding: 9px 10px;
+  border: 1px solid var(--color-primary-200); border-radius: var(--radius-md);
+  background: var(--surface); color: var(--color-primary-700);
+  font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: background var(--duration-fast) var(--ease), transform var(--duration-fast) var(--ease);
+}
+.pa-rest-btn svg { width: 15px; height: 15px; }
+.pa-rest-btn:hover { background: var(--color-primary-100); }
+.pa-rest-btn:active { transform: translateY(1px); }
+.pa-rest-btn-forte { background: var(--primary); border-color: var(--primary); color: var(--text-on-primary); }
+.pa-rest-btn-forte:hover { background: var(--primary-hover); }
+
+/* Últimos 5 segundos: o anel respira e o número cresce um pouco. */
+.pa-rest.quase .pa-rest-arco { stroke: var(--warning); }
+.pa-rest.quase .pa-rest-tempo { animation: paQuase 1s var(--ease) infinite; }
+@keyframes paQuase {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.07); }
+}
+.pa-rest.pausado { background: var(--surface); border-color: var(--border); }
+.pa-rest.pausado .pa-rest-arco { stroke: var(--text-muted); }
+.pa-rest.pausado .pa-rest-tempo { opacity: 0.55; }
+
+/* Fim do descanso — o convite para a próxima série. */
+.pa-rest-fim { display: flex; align-items: center; gap: 12px; }
+.pa-rest-fim-ic {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--primary); color: var(--text-on-primary);
+  animation: paFimPop var(--duration-slow) var(--ease);
+}
+.pa-rest-fim-ic svg { width: 20px; height: 20px; }
+@keyframes paFimPop { from { transform: scale(0.7); opacity: 0; } to { transform: none; opacity: 1; } }
+.pa-rest-fim-txt { display: flex; flex-direction: column; min-width: 0; }
+.pa-rest-fim-txt b { font-size: 15px; font-weight: 800; color: var(--text-primary); letter-spacing: var(--tracking-snug); }
+.pa-rest-fim-txt span { font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
+.pa-rest-continuar {
+  margin-left: auto; flex: 0 0 auto; min-height: 42px; padding: 10px 18px;
+  border: none; border-radius: var(--radius-md);
+  background: var(--primary); color: var(--text-on-primary);
+  font-family: inherit; font-size: 14px; font-weight: 800; cursor: pointer;
+  transition: background var(--duration-fast) var(--ease);
+}
+.pa-rest-continuar:hover { background: var(--primary-hover); }
+
+/* ═══════════════════════════════════════════════════════════
+   CADÊNCIA + METRÔNOMO VISUAL
+   ═══════════════════════════════════════════════════════════ */
+.pa-cad {
+  margin-top: 13px; padding: 12px 14px;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+}
+.pa-cad-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.pa-cad-tit {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text-secondary);
+}
+.pa-cad-tit svg { width: 14px; height: 14px; color: var(--primary); }
+.pa-cad-tec {
+  font-family: var(--font-mono); font-size: 12px; font-weight: 700;
+  color: var(--text-secondary); letter-spacing: 0.06em;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 2px 8px;
+}
+
+.pa-cad-fases { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; padding: 0; }
+.pa-cad-fase {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  padding: 4px 10px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.pa-cad-fase-nome { font-size: 12px; font-weight: 700; color: var(--text-primary); }
+.pa-cad-fase-seg { font-size: 11.5px; font-weight: 600; color: var(--text-secondary); }
+.pa-cad-fase.off { background: transparent; border-style: dashed; }
+.pa-cad-fase.off .pa-cad-fase-nome { color: var(--text-muted); font-weight: 600; }
+
+/* Metrônomo: uma barra vertical e um marcador que desce e sobe. Sem som. */
+.pa-cad-metro { display: flex; align-items: center; gap: 14px; margin-top: 12px; }
+.pa-cad-barra {
+  position: relative; flex: 0 0 auto; width: 8px; height: 84px;
+  border-radius: 999px; background: color-mix(in srgb, var(--primary) 14%, transparent);
+  overflow: hidden;
+}
+.pa-cad-mark {
+  position: absolute; left: 0; right: 0; top: 0; height: 26px;
+  border-radius: 999px; background: var(--primary);
+  will-change: transform;
+}
+/* O marcador percorre a altura útil da barra (84 - 26 = 58px). */
+.pa-cad-barra { --pa-cad-curso: 58px; }
+.pa-cad-mark { transform: translateY(0); }
+.pa-cad [data-metro-mark] { transition: none; }
+
+.pa-cad-agora { display: flex; flex-direction: column; gap: 2px; }
+.pa-cad-agora-fase { font-size: 15px; font-weight: 800; color: var(--text-primary); letter-spacing: var(--tracking-snug); }
+.pa-cad-agora-num {
+  font-size: 30px; font-weight: 800; line-height: 1; color: var(--primary);
+  font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-tight);
+}
+.pa-cad[data-fase="pausa"] .pa-cad-agora-num,
+.pa-cad[data-fase="topo"] .pa-cad-agora-num { color: var(--warning); }
+
+.pa-cad-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; min-height: 40px; margin-top: 12px; padding: 9px 12px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-md);
+  background: var(--surface); color: var(--text-primary);
+  font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: background var(--duration-fast) var(--ease), border-color var(--duration-fast) var(--ease);
+}
+.pa-cad-btn svg { width: 15px; height: 15px; }
+.pa-cad-btn:hover { background: var(--surface-subtle); }
+.pa-cad-btn.rodando { border-color: var(--primary); color: var(--color-primary-700); background: var(--color-primary-100); }
+
+/* ═══════════════════════════════════════════════════════════
+   ESFORÇO (RIR / escala subjetiva)
+   ═══════════════════════════════════════════════════════════ */
+.pa-esforco {
+  margin: 12px 0 4px; padding: 14px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--surface); box-shadow: var(--shadow-sm);
+}
+.pa-esforco-perg {
+  font-size: 14px; font-weight: 700; color: var(--text-primary);
+  line-height: 1.35; letter-spacing: var(--tracking-snug);
+}
+.pa-esforco-ops { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.pa-esforco-op {
+  flex: 1 1 56px; min-height: 46px; padding: 10px 8px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-md);
+  background: var(--surface); color: var(--text-primary);
+  font-family: inherit; font-size: 14px; font-weight: 800; cursor: pointer;
+  transition: all var(--duration-fast) var(--ease);
+}
+.pa-esforco-op:hover { border-color: var(--primary); background: var(--color-primary-100); color: var(--color-primary-700); }
+.pa-esforco-op:active { transform: translateY(1px); }
+.pa-esforco-pular {
+  display: block; width: 100%; margin-top: 10px; padding: 6px;
+  background: none; border: none; color: var(--text-muted);
+  font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.pa-esforco-pular:hover { color: var(--text-secondary); }
+
+/* ═══════════════════════════════════════════════════════════
+   RESUMO DO EXERCÍCIO
+   ═══════════════════════════════════════════════════════════ */
+.pa-resumo {
+  margin-top: 14px; padding: 15px 15px 13px;
+  border: 1px solid var(--color-primary-200); border-radius: var(--radius-lg);
+  background: linear-gradient(165deg, var(--color-primary-100) 0%, var(--surface) 70%);
+  animation: paResumoIn var(--duration-slow) var(--ease);
+}
+@keyframes paResumoIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.pa-resumo-head { display: flex; align-items: center; gap: 11px; }
+.pa-resumo-ic {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--primary); color: var(--text-on-primary);
+}
+.pa-resumo-ic svg { width: 18px; height: 18px; }
+.pa-resumo-head > div { display: flex; flex-direction: column; min-width: 0; }
+.pa-resumo-head b { font-size: 15px; font-weight: 800; color: var(--text-primary); letter-spacing: var(--tracking-snug); }
+.pa-resumo-head span { font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
+
+.pa-res-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  margin-top: 13px;
+}
+.pa-res-tile {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 10px 11px; border-radius: var(--radius-md);
+  background: var(--surface); border: 1px solid var(--border);
+}
+.pa-res-lab {
+  font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-muted); line-height: 1.3;
+}
+.pa-res-val {
+  font-size: 16px; font-weight: 800; color: var(--text-primary);
+  letter-spacing: var(--tracking-tight); font-variant-numeric: tabular-nums;
+}
+
+.pa-res-esforco {
+  display: flex; align-items: center; gap: 6px; margin-top: 11px;
+  font-size: 12.5px; font-weight: 600; color: var(--text-secondary);
+}
+.pa-res-esforco svg { width: 14px; height: 14px; color: var(--primary); }
+.pa-res-esforco b { color: var(--text-primary); font-weight: 800; }
+
+.pa-resumo-btn { margin-top: 13px; min-height: 48px; }
+
+/* ═══════════════════════════════════════════════════════════
+   ÚLTIMA EXECUÇÃO — série a série
+   ═══════════════════════════════════════════════════════════ */
+.pa-last-lista { list-style: none; display: flex; flex-direction: column; gap: 4px; margin: 8px 0 0; padding: 0; }
+.pa-last-serie {
+  display: grid; grid-template-columns: 26px minmax(56px, auto) minmax(58px, auto) 1fr;
+  align-items: baseline; gap: 8px;
+  font-size: 12.5px; font-variant-numeric: tabular-nums;
+}
+.pa-last-n { font-weight: 800; color: var(--text-muted); }
+.pa-last-peso { font-weight: 800; color: var(--text-primary); }
+.pa-last-reps { font-weight: 600; color: var(--text-secondary); }
+.pa-last-drop {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 11.5px; font-weight: 700; color: var(--plum);
+}
+.pa-last-drop svg { width: 12px; height: 12px; }
+.pa-ex-last .pa-last-date { font-size: 11.5px; font-weight: 700; color: var(--text-muted); margin-left: auto; }
+.pa-ex-last .pa-last-top { gap: 10px; }
+
+/* ═══════════════════════════════════════════════════════════
+   RESPONSIVO
+   ═══════════════════════════════════════════════════════════ */
+@media (max-width: 400px) {
+  .pa-rest { padding: 14px 12px 12px; }
+  .pa-rest-main { gap: 12px; }
+  .pa-rest-ring { width: 82px; height: 82px; }
+  .pa-rest-tempo { font-size: 21px; }
+  .pa-rest-prox-val { font-size: 15px; }
+  .pa-rest-acoes { flex-wrap: wrap; }
+  .pa-rest-btn-forte { flex-basis: 100%; }
+  .pa-res-grid { grid-template-columns: repeat(2, 1fr); }
+  .pa-serie-comp { margin-left: 0; }
+}
+@media (min-width: 560px) {
+  .pa-res-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* O teclado aberto encolhe a viewport: o cronômetro não pode virar um bloco
+   gigante entre o campo e o botão. */
+@media (max-height: 560px) {
+  .pa-rest-ring { width: 74px; height: 74px; }
+  .pa-rest-tempo { font-size: 19px; }
+  .pa-cad-barra { height: 62px; }
+  .pa-cad-agora-num { font-size: 24px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pa-rest.quase .pa-rest-tempo,
+  .pa-rest-fim-ic,
+  .pa-resumo,
+  .pa-serie-block.is-next::before,
+  .pa-serie-check.pulsa { animation: none; }
+  .pa-serie-block { transition: none; }
+}

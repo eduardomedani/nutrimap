@@ -621,6 +621,20 @@
   .tr-metodo-desc { background: color-mix(in srgb, var(--color-primary-400) 12%, transparent); border-left: 3px solid var(--sage); color: var(--moss-deep); padding: 8px 12px; border-radius: 8px; font-size: 12.5px; margin-top: 10px; }
   .tr-metodo-desc strong { color: var(--moss-deep); }
 
+  /* ── Cadência (opcional): liga/desliga + os 4 tempos ── */
+  .tr-cad { margin-top: 12px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-subtle); }
+  .tr-cad-toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--ink-soft); cursor: pointer; user-select: none; }
+  .tr-cad-toggle input { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+  .tr-cad-body { margin-top: 11px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+  .tr-cad-campos { display: grid; grid-template-columns: repeat(4, 62px); gap: 8px; }
+  .tr-cad-campo { display: flex; flex-direction: column; gap: 4px; }
+  .tr-cad-campo span { font-size: 10.5px; font-weight: 700; color: var(--ink-mute); text-transform: uppercase; letter-spacing: 0.04em; }
+  .tr-cad-campo input { text-align: center; padding: 8px 6px !important; }
+  .tr-cad-prev { flex: 1 1 220px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .tr-cad-fase { font-size: 12px; font-weight: 600; color: var(--moss-deep); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+  .tr-cad-fase.off { color: var(--ink-mute); font-weight: 500; }
+  .tr-cad-tec { font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--ink-soft); letter-spacing: 0.04em; margin-left: auto; }
+
   /* ── Bi-set (grupo A + B) ── */
   .tr-biset-card { border: 1.5px solid var(--sage); background: linear-gradient(180deg, color-mix(in srgb, var(--color-primary-400) 5%, transparent), transparent 120px); }
   .tr-biset-head { align-items: center; }
