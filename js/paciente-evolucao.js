@@ -1,17 +1,20 @@
 // ═══════════════════════════════════════════════════════════
 // EVOLUÇÃO — gráficos, comparação de avaliações e metas
 // ═══════════════════════════════════════════════════════════
-// Tudo desenhado com o que as avaliações já registram. Sem biblioteca de
-// gráficos: SVG inline, uma série por vez (misturar kg e % no mesmo eixo
-// mente sobre a escala).
+// Tudo desenhado com o que as avaliações já registram.
 //
-// A leitura de "melhorou/piorou" respeita o OBJETIVO do plano ativo: perder
-// massa magra não é vitória em emagrecimento, e perder peso não é vitória em
-// hipertrofia. Sem objetivo declarado, mostra a direção sem julgar.
+// O catálogo de séries, o desenho do gráfico e a regra de "melhorou/piorou"
+// moram em evolucao-core.js — compartilhados com o Modo Apresentação, para que
+// as duas telas não discordem sobre o que é uma boa notícia.
 
 import { carregarResumo, invalidarResumo } from './paciente-resumo.js';
 import { listarMetas, criarMeta, atualizarMeta, excluirMeta, situacaoDaMeta, estimativa, TIPOS_META, STATUS_META } from './paciente-metas.js';
 import { mostrarToast, mostrarErro, confirmar } from './utils.js';
+import {
+  SERIES, SERIES_ABA, PERIODOS, COMPARAR,
+  pontosDaSerie, marcosDePlano, svgLinha, interpretar,
+  esc, num, fmt, fmtData,
+} from './evolucao-core.js';
 
 let _cont = null;
 let _paciente = null;
@@ -21,38 +24,6 @@ let _serie = 'peso';
 let _periodo = 180;      // dias; 0 = todo o período
 let _cmpDe = null;
 let _cmpPara = null;
-
-// Séries do gráfico: campo na avaliação, escala e unidade.
-const SERIES = {
-  peso:        { label: 'Peso',          campo: 'peso',        unidade: 'kg', escala: 1,   meta: 'peso' },
-  gordura:     { label: '% de gordura',  campo: 'pct_gordura', unidade: '%',  escala: 100, meta: 'gordura' },
-  massa_magra: { label: 'Massa magra',   campo: 'peso_magro',  unidade: 'kg', escala: 1,   meta: 'massa_magra' },
-  cintura:     { label: 'Cintura',       campo: 'per_cintura', unidade: 'cm', escala: 1,   meta: 'cintura' },
-  imc:         { label: 'IMC',           campo: 'imc',         unidade: '',   escala: 1,   meta: null },
-};
-
-const PERIODOS = [
-  { id: 30,  label: '30 dias' },
-  { id: 90,  label: '90 dias' },
-  { id: 180, label: '6 meses' },
-  { id: 365, label: '1 ano' },
-  { id: 0,   label: 'Tudo' },
-];
-
-// Indicadores da comparação, na ordem clínica de leitura.
-const COMPARAR = [
-  { campo: 'peso',                     label: 'Peso',            unidade: 'kg', escala: 1 },
-  { campo: 'imc',                      label: 'IMC',             unidade: '',   escala: 1 },
-  { campo: 'pct_gordura',              label: '% de gordura',    unidade: '%',  escala: 100 },
-  { campo: 'peso_gordura',             label: 'Massa gorda',     unidade: 'kg', escala: 1 },
-  { campo: 'peso_magro',               label: 'Massa magra',     unidade: 'kg', escala: 1 },
-  { campo: 'per_cintura',              label: 'Cintura',         unidade: 'cm', escala: 1 },
-  { campo: 'per_abdomen',              label: 'Abdômen',         unidade: 'cm', escala: 1 },
-  { campo: 'per_quadril',              label: 'Quadril',         unidade: 'cm', escala: 1 },
-  { campo: 'per_braco_direito',        label: 'Braço D',         unidade: 'cm', escala: 1 },
-  { campo: 'per_coxa_direita',         label: 'Coxa D',          unidade: 'cm', escala: 1 },
-  { campo: 'per_panturrilha_direita',  label: 'Panturrilha D',   unidade: 'cm', escala: 1 },
-];
 
 export async function initEvolucao({ cont, paciente, irParaAba }) {
   _cont = cont; _paciente = paciente; _metas = [];
@@ -105,7 +76,7 @@ function render() {
 // ───────────────────────────────────────────────────────────
 function graficoSecaoHtml() {
   const s = SERIES[_serie];
-  const pontos = pontosDaSerie(_serie, _periodo);
+  const pontos = pontosDaSerie(_resumo.avaliacoes, _serie, _periodo);
   const metaSerie = s.meta ? _metas.find(m => m.tipo === s.meta && m.status !== 'cancelada') : null;
 
   return `
@@ -118,10 +89,10 @@ function graficoSecaoHtml() {
         </div>
       </div>
       <div class="ev-series">
-        ${Object.entries(SERIES).map(([id, cfg]) => {
-          const temDado = pontosDaSerie(id, 0).length > 0;
+        ${SERIES_ABA.map(id => {
+          const temDado = pontosDaSerie(_resumo.avaliacoes, id, 0).length > 0;
           if (!temDado) return '';   // série sem nenhuma medida não vira botão morto
-          return `<button class="ev-serie ${id === _serie ? 'ativa' : ''}" data-ev-serie="${id}">${cfg.label}</button>`;
+          return `<button class="ev-serie ${id === _serie ? 'ativa' : ''}" data-ev-serie="${id}">${SERIES[id].label}</button>`;
         }).join('')}
       </div>
       ${pontos.length >= 2
@@ -140,15 +111,16 @@ function desenharGrafico() {
   const box = _cont?.querySelector('[data-ev-canvas]');
   if (!box) return;
   const s = SERIES[_serie];
-  const pontos = pontosDaSerie(_serie, _periodo);
+  const pontos = pontosDaSerie(_resumo.avaliacoes, _serie, _periodo);
   if (pontos.length < 2) return;
   const metaSerie = s.meta ? _metas.find(m => m.tipo === s.meta && m.status !== 'cancelada') : null;
   const largura = Math.max(320, Math.round(box.clientWidth || 640));
   box.innerHTML = svgLinha(pontos, {
     unidade: s.unidade,
     meta: metaSerie ? Number(metaSerie.valor_alvo) : null,
-    marcos: marcosDePlano(_periodo),
+    marcos: marcosDePlano(_resumo.planos, _periodo),
     largura,
+    rotulo: s.label,
   });
 }
 
@@ -165,79 +137,6 @@ function ligarResize() {
       desenharGrafico();
     }, 160);
   });
-}
-
-function pontosDaSerie(serieId, periodoDias) {
-  const cfg = SERIES[serieId];
-  const limite = periodoDias ? Date.now() - periodoDias * 86400000 : null;
-  return _resumo.avaliacoes
-    .filter(a => a.data_avaliacao && num(a[cfg.campo]) != null)
-    .map(a => ({ data: new Date(`${a.data_avaliacao}T12:00:00`), valor: num(a[cfg.campo]) * cfg.escala, av: a }))
-    .filter(p => !limite || p.data.getTime() >= limite)
-    .sort((a, b) => a.data - b.data);
-}
-
-/** Início dos planos alimentares no período — marca no gráfico. */
-function marcosDePlano(periodoDias) {
-  const limite = periodoDias ? Date.now() - periodoDias * 86400000 : null;
-  return (_resumo.planos || [])
-    .map(p => ({ data: new Date(p.data_inicio ? `${p.data_inicio}T12:00:00` : p.criado_em), nome: p.nome }))
-    .filter(m => !isNaN(m.data.getTime()) && (!limite || m.data.getTime() >= limite));
-}
-
-/** Gráfico de linha em SVG. Sem dependência, sem enfeite. */
-function svgLinha(pontos, { unidade, meta, marcos = [], largura = 640 }) {
-  const W = largura, H = 210, ml = 46, mr = 16, mt = 16, mb = 28;
-  const vals = pontos.map(p => p.valor);
-  if (meta != null) vals.push(meta);
-  let min = Math.min(...vals), max = Math.max(...vals);
-  if (min === max) { min -= 1; max += 1; }
-  const folga = (max - min) * 0.12;
-  min -= folga; max += folga;
-
-  // O eixo vai até HOJE, não até a última medida: assim o intervalo sem
-  // avaliação fica visível (a linha simplesmente para no meio) e as mudanças
-  // de plano recentes cabem no gráfico.
-  const t0 = pontos[0].data.getTime();
-  const t1 = Math.max(pontos[pontos.length - 1].data.getTime(), Date.now());
-  const x = (d) => ml + (t1 === t0 ? 0.5 : (Math.min(Math.max(d.getTime(), t0), t1) - t0) / (t1 - t0)) * (W - ml - mr);
-  const y = (v) => mt + (1 - (v - min) / (max - min)) * (H - mt - mb);
-
-  const linha = pontos.map((p, i) => `${i ? 'L' : 'M'}${x(p.data).toFixed(1)},${y(p.valor).toFixed(1)}`).join(' ');
-  const area = `${linha} L${x(pontos[pontos.length - 1].data).toFixed(1)},${H - mb} L${x(pontos[0].data).toFixed(1)},${H - mb} Z`;
-
-  const marcasY = [max - folga, (min + max) / 2, min + folga].map(v => `
-    <line x1="${ml}" y1="${y(v).toFixed(1)}" x2="${W - mr}" y2="${y(v).toFixed(1)}" class="ev-grade"/>
-    <text x="${ml - 7}" y="${(y(v) + 3.5).toFixed(1)}" class="ev-eixo" text-anchor="end">${fmt(v)}</text>`).join('');
-
-  const linhaMeta = meta != null ? `
-    <line x1="${ml}" y1="${y(meta).toFixed(1)}" x2="${W - mr}" y2="${y(meta).toFixed(1)}" class="ev-meta-linha"/>
-    <text x="${W - mr}" y="${(y(meta) - 6).toFixed(1)}" class="ev-meta-txt" text-anchor="end">meta ${fmt(meta)}${unidade}</text>` : '';
-
-  const linhasMarco = marcos.map(m => {
-    const px = x(m.data);
-    if (px < ml || px > W - mr) return '';
-    return `<line x1="${px.toFixed(1)}" y1="${mt}" x2="${px.toFixed(1)}" y2="${H - mb}" class="ev-marco">
-              <title>Plano: ${esc(m.nome || 'sem nome')} · ${m.data.toLocaleDateString('pt-BR')}</title></line>`;
-  }).join('');
-
-  const bolinhas = pontos.map(p => `
-    <circle cx="${x(p.data).toFixed(1)}" cy="${y(p.valor).toFixed(1)}" r="3.5" class="ev-ponto">
-      <title>${p.data.toLocaleDateString('pt-BR')} · ${fmt(p.valor)}${unidade}${p.av?.numero ? ` (AV ${p.av.numero})` : ''}</title>
-    </circle>`).join('');
-
-  const datas = `
-    <text x="${ml}" y="${H - 8}" class="ev-eixo">${pontos[0].data.toLocaleDateString('pt-BR')}</text>
-    <text x="${W - mr}" y="${H - 8}" class="ev-eixo" text-anchor="end">${new Date(t1).toLocaleDateString('pt-BR')}</text>`;
-
-  return `
-    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" class="ev-svg" role="img"
-         aria-label="Evolução de ${esc(SERIES[_serie].label)} em ${pontos.length} medidas">
-      ${marcasY}${linhasMarco}
-      <path d="${area}" class="ev-area"/>
-      <path d="${linha}" class="ev-linha"/>
-      ${linhaMeta}${bolinhas}${datas}
-    </svg>`;
 }
 
 function legendaHtml(pontos, s, meta) {
@@ -314,31 +213,6 @@ function comparacaoSecaoHtml() {
         ? `Leitura orientada pelo objetivo do plano ativo (${esc(objetivo)}). Não é diagnóstico.`
         : 'Sem objetivo definido no plano ativo: as mudanças aparecem sem julgamento de valor.'}</p>
     </section>`;
-}
-
-/**
- * Uma queda não é boa por si só: depende do objetivo.
- * Sem objetivo declarado, devolve tom neutro.
- */
-function interpretar(campo, dif, objetivo) {
-  if (dif == null || Math.abs(dif) < 0.05 || !objetivo) return { tom: '' };
-  const o = objetivo.toLowerCase();
-  const emagrecer = /emagre|perda|redu|gordura|definic/.test(o);
-  const ganhar = /hipertrof|ganho|massa|volume/.test(o);
-  if (!emagrecer && !ganhar) return { tom: '' };
-
-  const desce = dif < 0;
-  if (campo === 'peso_magro') return { tom: desce ? 'atencao' : 'bom' };
-  if (campo === 'pct_gordura' || campo === 'peso_gordura') return { tom: desce ? 'bom' : 'atencao' };
-  if (campo.startsWith('per_')) {
-    if (emagrecer) return { tom: desce ? 'bom' : 'atencao' };
-    return { tom: '' };            // em hipertrofia, medida maior pode ser músculo
-  }
-  if (campo === 'peso' || campo === 'imc') {
-    if (emagrecer) return { tom: desce ? 'bom' : 'atencao' };
-    return { tom: desce ? 'atencao' : 'bom' };
-  }
-  return { tom: '' };
 }
 
 // ───────────────────────────────────────────────────────────
@@ -530,20 +404,3 @@ function abrirModalMeta(meta = null) {
   });
 }
 
-// ── Helpers ────────────────────────────────────────────────
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-function num(v) {
-  if (v === null || v === undefined || v === '') return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-function fmt(v, casas = 1) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return '—';
-  return n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: casas });
-}
-function fmtData(d) {
-  if (!d) return '—';
-  const dt = new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(d)) ? `${d}T12:00:00` : d);
-  return isNaN(dt.getTime()) ? '—' : dt.toLocaleDateString('pt-BR');
-}

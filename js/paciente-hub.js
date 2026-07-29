@@ -59,6 +59,11 @@ export function hubShellHtml(p, dados, abaAtiva) {
       </div>
 
       <div class="hub-acoes">
+        <!-- Só aparece com 2+ avaliações: sem duas medidas não há evolução para
+             apresentar. Quem libera é atualizarApresentar(), depois do resumo. -->
+        <button class="btn-sm hub-apresentar" data-hub-apresentar hidden>
+          <i data-lucide="presentation"></i> Apresentar evolução
+        </button>
         ${destaques.map(a => `
           <button class="btn-sm btn-sm-secondary hub-acao" data-hub-acao="${a.id}">
             <i data-lucide="${a.icone}"></i> ${esc(a.label)}
@@ -111,6 +116,34 @@ export function ligarHub(page, p, handlers = {}) {
       if (acao.evento === 'observacao') handlers.onObservacao?.();
       else if (acao.aba) handlers.irParaAba?.(acao.aba);
     }));
+
+  // ── Apresentar evolução ──
+  // O modo inteiro entra por import dinâmico: quem nunca clica não baixa nada.
+  const btnAp = page.querySelector('[data-hub-apresentar]');
+  if (btnAp) {
+    btnAp.addEventListener('click', async () => {
+      btnAp.disabled = true;
+      try {
+        const { abrirApresentacao } = await import('./apresentacao.js');
+        await abrirApresentacao(p, { origem: btnAp });
+      } catch (e) {
+        console.error('[hub] apresentação', e);
+      } finally {
+        btnAp.disabled = false;
+      }
+    });
+
+    // Revela o botão só quando há o que apresentar. Fica aqui (e não no
+    // preencherContexto) porque aquele só roda na aba Visão — abrir a ficha
+    // direto em Avaliações não pode esconder o botão.
+    (async () => {
+      try {
+        const { carregarResumo, temEvolucao } = await import('./paciente-resumo.js');
+        const r = await carregarResumo(p);
+        if (temEvolucao(r) && page.isConnected) btnAp.hidden = false;
+      } catch (e) { /* sem resumo, o botão simplesmente não aparece */ }
+    })();
+  }
 
   const btnMenu = page.querySelector('[data-hub-menu]');
   const pop = page.querySelector('[data-hub-menu-pop]');

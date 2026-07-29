@@ -78,6 +78,8 @@ export const TIPOS = {
   PHYSICAL_ASSESSMENT_CREATED: { label: 'Avaliação física realizada', icone: 'ruler',        tom: 'sucesso', modulo: 'avaliacoes', importancia: 'alta',   acao: ACAO.avaliacao },
   BODY_WEIGHT_RECORDED:        { label: 'Peso registrado',           icone: 'scale',        tom: 'info',    modulo: 'avaliacoes', importancia: 'normal', acao: ACAO.avaliacao },
   BODY_MEASUREMENTS_RECORDED:  { label: 'Medidas registradas',       icone: 'ruler',        tom: 'info',    modulo: 'avaliacoes', importancia: 'normal', acao: ACAO.avaliacao },
+  // Evolução apresentada ao paciente na consulta (Modo Apresentação).
+  EVOLUTION_PRESENTED:         { label: 'Evolução apresentada',      icone: 'presentation', tom: 'sucesso', modulo: 'avaliacoes', importancia: 'alta',   acao: ACAO.avaliacao },
   PROGRESS_PHOTOS_ADDED:       { label: 'Fotos de progresso',        icone: 'image',        tom: 'info',    modulo: 'avaliacoes', importancia: 'normal' },
 
   // ── Exames e documentos (módulo ainda não existe) ─────────

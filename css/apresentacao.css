@@ -1,0 +1,553 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   EVOLLO · MODO APRESENTAÇÃO
+   ---------------------------------------------------------------------------
+   Tela cheia usada DURANTE a consulta, com o paciente olhando junto. As regras
+   aqui são o oposto das telas de trabalho: muito espaço em branco, um assunto
+   por tela, tipografia grande, quase nenhuma borda.
+
+   Nenhuma cor literal — tudo sai de tokens.css. Vermelho não aparece em
+   variação nenhuma: quem lê esta tela é o paciente.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Trava a rolagem de trás enquanto a apresentação está aberta. */
+body.ap-aberto { overflow: hidden; }
+
+.ap {
+  position: fixed; inset: 0; z-index: 9000;
+  display: flex; flex-direction: column;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  overscroll-behavior: contain;
+}
+
+.ap-carregando { flex: 1; display: flex; align-items: center; justify-content: center; }
+
+/* ── Cromo: sair, setas, rodapé ─────────────────────────────────────────── */
+.ap-sair {
+  position: absolute; top: 20px; right: 22px; z-index: 2;
+  width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%; background: transparent;
+  color: var(--text-muted); cursor: pointer;
+  transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
+}
+.ap-sair:hover { background: var(--surface-subtle); color: var(--text-primary); }
+.ap-sair svg { width: 22px; height: 22px; }
+
+.ap-seta {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
+  width: 52px; height: 52px; display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 50%;
+  background: var(--surface); color: var(--text-secondary); cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: opacity var(--duration-base) var(--ease), background var(--duration-fast) var(--ease);
+  opacity: 0.5;
+}
+.ap-seta:hover:not(:disabled) { opacity: 1; background: var(--surface-subtle); }
+.ap-seta:disabled { opacity: 0; pointer-events: none; }
+.ap-seta svg { width: 24px; height: 24px; }
+.ap-seta-ant  { left: 22px; }
+.ap-seta-prox { right: 22px; }
+
+.ap-palco {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 56px 96px 24px;
+  overflow-y: auto;
+}
+
+.ap-rodape {
+  flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center; gap: 18px;
+  padding: 16px 24px calc(18px + env(safe-area-inset-bottom));
+}
+.ap-pontos { display: flex; align-items: center; gap: 2px; }
+/* O botão é o alvo de toque (28×28); o ponto visível é o ::after. Num tablet,
+   um alvo de 8px é impossível de acertar com o dedo. */
+.ap-ponto {
+  width: 28px; height: 28px; padding: 0; border: none; background: none;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.ap-ponto::after {
+  content: ''; width: 8px; height: 8px; border-radius: 999px;
+  background: var(--border-strong);
+  transition: width var(--duration-base) var(--ease), background var(--duration-base) var(--ease);
+}
+.ap-ponto:hover::after { background: var(--text-muted); }
+.ap-ponto.ativo::after { width: 26px; background: var(--primary); }
+.ap-ponto:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; border-radius: 8px; }
+.ap-contador {
+  font-size: 12px; font-weight: 700; color: var(--text-muted);
+  font-variant-numeric: tabular-nums; letter-spacing: 0.04em;
+}
+
+/* ── Slide ──────────────────────────────────────────────────────────────── */
+.ap-slide { width: 100%; max-width: 1080px; }
+.ap-centro { display: flex; flex-direction: column; align-items: center; text-align: center; }
+
+@keyframes apEntraDir { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes apEntraEsq { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+.ap-slide.entra-dir { animation: apEntraDir var(--duration-slow) var(--ease); }
+.ap-slide.entra-esq { animation: apEntraEsq var(--duration-slow) var(--ease); }
+
+.ap-titulo {
+  font-size: clamp(38px, 5.2vw, 62px); font-weight: 700; line-height: 1.05;
+  letter-spacing: var(--tracking-tight); color: var(--text-primary);
+}
+.ap-subtitulo {
+  margin-top: 12px; font-size: clamp(17px, 1.8vw, 22px); font-weight: 400;
+  color: var(--text-secondary);
+}
+.ap-secao-tit {
+  font-size: clamp(24px, 3vw, 36px); font-weight: 700;
+  letter-spacing: var(--tracking-tight); color: var(--text-primary);
+  margin-bottom: 40px;
+}
+
+/* ── Slide 1 · Boas-vindas ──────────────────────────────────────────────── */
+.ap-avatar {
+  width: 92px; height: 92px; margin-bottom: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: var(--color-primary-100);
+  color: var(--color-primary-700);
+  font-size: 32px; font-weight: 700; letter-spacing: var(--tracking-snug);
+}
+.ap-intervalo {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  margin-top: 44px;
+}
+.ap-intervalo-ponta { display: flex; flex-direction: column; gap: 3px; }
+.ap-intervalo-lab {
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.09em;
+  color: var(--text-muted);
+}
+.ap-intervalo-val { font-size: 22px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.ap-intervalo-seta { color: var(--color-primary-400); display: flex; }
+.ap-intervalo-seta svg { width: 20px; height: 20px; }
+.ap-tempo { margin-top: 36px; font-size: clamp(20px, 2.4vw, 28px); font-weight: 400; color: var(--text-secondary); }
+.ap-tempo b { font-weight: 800; color: var(--color-primary-700); }
+
+/* ── Slide 2 · Números grandes ──────────────────────────────────────────── */
+/* Flex e não grid: com um número ímpar de cartões, a última linha fica
+   centralizada em vez de deixar um órfão encostado à esquerda. */
+.ap-nums {
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: 20px; width: 100%;
+}
+.ap-num {
+  flex: 1 1 210px; max-width: 300px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 28px 20px; border-radius: var(--radius-lg);
+  background: var(--surface-subtle);
+}
+.ap-num-lab {
+  font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text-muted); line-height: 1.3;
+}
+.ap-num-val {
+  display: inline-flex; align-items: baseline; gap: 4px;
+  font-size: clamp(34px, 4.4vw, 52px); font-weight: 800;
+  letter-spacing: var(--tracking-tight); font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.ap-num-val svg { width: 0.5em; height: 0.5em; align-self: center; }
+.ap-num-un { font-size: 0.45em; font-weight: 700; }
+.ap-num-de-para { font-size: 13px; font-weight: 600; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* Redução → verde · aumento → azul · piora (pelo objetivo) → âmbar.
+   Nunca vermelho: esta tela é vista pelo paciente. */
+.ap-num.tom-bom     .ap-num-val { color: var(--color-primary-700); }
+.ap-num.tom-subiu   .ap-num-val { color: var(--info); }
+.ap-num.tom-atencao .ap-num-val { color: var(--warning); }
+.ap-num.tom-igual   .ap-num-val { color: var(--text-secondary); }
+.ap-num.tom-bom     { background: var(--color-primary-100); }
+.ap-num.tom-atencao { background: var(--warning-soft); }
+.ap-num.tom-subiu   { background: var(--info-soft); }
+
+/* ── Slide 3 · Composição corporal ──────────────────────────────────────── */
+.ap-comps {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  gap: 18px 32px; width: 100%; text-align: left;
+}
+.ap-comp { display: flex; flex-direction: column; gap: 8px; }
+.ap-comp-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ap-comp-nome { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.ap-comp-delta {
+  font-size: 12.5px; font-weight: 800; font-variant-numeric: tabular-nums;
+  padding: 2px 9px; border-radius: 999px;
+}
+.ap-comp-delta.tom-bom     { background: var(--color-primary-100); color: var(--color-primary-700); }
+.ap-comp-delta.tom-subiu   { background: var(--info-soft);    color: var(--info); }
+.ap-comp-delta.tom-atencao { background: var(--warning-soft); color: #8a6d1e; }
+.ap-comp-delta.tom-igual   { background: var(--surface-subtle); color: var(--text-muted); }
+
+.ap-comp-linha { display: grid; grid-template-columns: 52px 1fr 88px; align-items: center; gap: 10px; }
+.ap-comp-lab {
+  font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.ap-comp-trilho { height: 14px; border-radius: 999px; background: var(--surface-subtle); overflow: hidden; }
+.ap-comp-barra {
+  display: block; height: 100%; width: 0; border-radius: 999px;
+  transition: width var(--duration-slow) var(--ease);
+}
+.ap-comp-antes { background: var(--border-strong); }
+.ap-comp-agora { background: var(--primary); }
+/* Valor de referência (peso ideal): cinza, para não parecer conquista. */
+.ap-comp-agora.tom-igual { background: var(--text-muted); }
+.ap-comp-agora.tom-subiu   { background: var(--info); }
+.ap-comp-agora.tom-atencao { background: var(--warning); }
+.ap-comp-val {
+  font-size: 15px; font-weight: 800; color: var(--text-primary);
+  font-variant-numeric: tabular-nums; text-align: right;
+}
+.ap-comp-val small { font-size: 11px; font-weight: 700; color: var(--text-muted); margin-left: 2px; }
+
+/* ── Slide 4 · Linha do tempo ───────────────────────────────────────────── */
+.ap-tl {
+  list-style: none; display: flex; align-items: stretch; gap: 0;
+  margin: 0 0 32px; padding: 0; width: 100%;
+}
+.ap-tl-item { flex: 1 1 0; min-width: 0; position: relative; }
+/* O fio que liga um ponto ao outro. */
+.ap-tl-item::before {
+  content: ''; position: absolute; top: 13px; left: 0; right: 0; height: 2px;
+  background: var(--border); z-index: 0;
+}
+.ap-tl-item:first-child::before { left: 50%; }
+.ap-tl-item:last-child::before  { right: 50%; }
+
+.ap-tl-ponto {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  width: 100%; padding: 4px 6px 10px; border: none; background: none;
+  font-family: inherit; cursor: pointer; color: var(--text-secondary);
+}
+.ap-tl-bolha {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: var(--surface); border: 2.5px solid var(--border-strong);
+  transition: all var(--duration-base) var(--ease);
+}
+.ap-tl-ponto:hover .ap-tl-bolha { border-color: var(--color-primary-400); }
+.ap-tl-item.ativo .ap-tl-bolha {
+  background: var(--primary); border-color: var(--primary);
+  box-shadow: 0 0 0 5px var(--color-primary-100);
+}
+.ap-tl-av {
+  font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.ap-tl-item.ativo .ap-tl-av { color: var(--color-primary-700); }
+.ap-tl-data { font-size: 12px; font-weight: 600; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.ap-tl-vals { display: flex; flex-direction: column; gap: 1px; font-variant-numeric: tabular-nums; }
+.ap-tl-vals b { font-size: 14px; font-weight: 800; color: var(--text-primary); }
+.ap-tl-vals span { font-size: 12px; color: var(--text-muted); }
+
+.ap-tl-detalhe {
+  width: 100%; padding: 22px 24px; border-radius: var(--radius-lg);
+  background: var(--surface-subtle); text-align: left;
+}
+.ap-tl-cab {
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text-muted); margin-bottom: 14px;
+}
+.ap-tl-cels { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
+.ap-tl-cel { display: flex; flex-direction: column; gap: 2px; }
+.ap-tl-cel-lab { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.ap-tl-cel-val {
+  font-size: 26px; font-weight: 800; color: var(--text-primary);
+  letter-spacing: var(--tracking-tight); font-variant-numeric: tabular-nums;
+}
+.ap-tl-cel-val small { font-size: 13px; font-weight: 700; color: var(--text-muted); margin-left: 2px; }
+.ap-tl-cel-dif { font-size: 11.5px; font-weight: 600; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.ap-tl-dica { margin-top: 14px; font-size: 12.5px; color: var(--text-muted); }
+
+/* ── Slide 5 · Gráficos ─────────────────────────────────────────────────── */
+.ap-gr { width: 100%; }
+.ap-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 22px; }
+.ap-chips-fim { margin-bottom: 0; }
+.ap-chip {
+  padding: 8px 15px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface); color: var(--text-secondary);
+  font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: all var(--duration-fast) var(--ease);
+}
+.ap-chip:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.ap-chip.ativo { background: var(--primary); border-color: var(--primary); color: var(--text-on-primary); }
+.ap-chip-sm { padding: 6px 12px; font-size: 12px; }
+
+/* O SVG é o mesmo da aba Evolução (classes .ev-* declaradas no index.html);
+   aqui ele só cresce — traço e pontos ganham corpo para ser visto de longe. */
+.ap-gr-caixa { width: 100%; min-height: 340px; display: flex; align-items: center; justify-content: center; }
+.ap-gr-caixa .ev-svg { width: 100%; height: auto; }
+.ap-gr-caixa .ev-linha { stroke-width: 3; }
+.ap-gr-caixa .ev-ponto { stroke-width: 2.5; r: 5; }
+.ap-gr-caixa .ev-eixo { font-size: 12px; }
+.ap-gr-caixa .ev-meta-txt { font-size: 12px; }
+.ap-gr-vazio { font-size: 15px; color: var(--text-muted); }
+.ap-gr-rodape {
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  flex-wrap: wrap; margin-top: 14px; width: 100%;
+}
+.ap-gr-legenda { font-size: 13.5px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.ap-gr-legenda b { color: var(--text-primary); font-weight: 800; }
+.ap-sep { color: var(--border-strong); margin: 0 6px; }
+
+/* ── Slide 6 · Mapa corporal ────────────────────────────────────────────── */
+.ap-corpo-wrap {
+  display: grid; grid-template-columns: minmax(260px, 1fr) minmax(320px, 420px);
+  gap: 40px; align-items: center; width: 100%;
+}
+.ap-corpo-col { display: flex; flex-direction: column; align-items: center; }
+.ap-corpo-tit { margin-bottom: 18px; }
+.ap-corpo-vistas { margin-bottom: 14px; }
+.ap-corpo-svg { width: 100%; max-width: 300px; }
+.ap-corpo { width: 100%; height: auto; max-height: 52vh; display: block; }
+
+.ap-corpo-silhueta { fill: var(--surface-subtle); }
+
+.ap-regiao {
+  fill: var(--color-primary-300); opacity: 0.62; cursor: pointer;
+  transition: opacity var(--duration-base) var(--ease), fill var(--duration-base) var(--ease);
+}
+.ap-regiao:hover, .ap-regiao.ativa { opacity: 1; }
+.ap-regiao:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.ap-regiao.ativa { stroke: var(--text-primary); stroke-width: 2; }
+
+/* Reduziu → verde · aumentou → azul · piorou (pelo objetivo) → âmbar.
+   Vermelho não entra: quem olha esta tela é o paciente. */
+.ap-regiao.tom-bom     { fill: var(--color-primary-500); }
+.ap-regiao.tom-subiu   { fill: var(--info); }
+.ap-regiao.tom-atencao { fill: var(--warning); }
+.ap-regiao.tom-igual   { fill: var(--border-strong); }
+/* Não medido ≠ ausente: contorno tracejado, sem preenchimento. Sem isso, um
+   paciente que só teve o lado direito medido parece ter meio corpo. */
+.ap-regiao.sem-dado,
+.ap-regiao.tom-sem-dado {
+  fill: none; stroke: var(--border-strong); stroke-width: 1.5; stroke-dasharray: 4 4;
+  opacity: 0.9; cursor: default; pointer-events: none;
+}
+
+/* O anel na cor do fundo separa a dobra da faixa embaixo dela e, de quebra,
+   amplia a área de toque. `pointer-events: all` faz o traço contar como alvo
+   mesmo onde ele é só respiro — sem isso, o dedo tem que acertar 18 px. */
+.ap-regiao-dobra { stroke: var(--surface); stroke-width: 10; paint-order: stroke; pointer-events: all; }
+
+.ap-corpo-legenda {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; margin-top: 16px;
+  font-size: 12px; font-weight: 600; color: var(--text-secondary);
+}
+.ap-corpo-legenda span { display: inline-flex; align-items: center; gap: 6px; }
+.ap-bolinha { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.ap-bolinha.tom-bom     { background: var(--color-primary-500); }
+.ap-bolinha.tom-subiu   { background: var(--info); }
+.ap-bolinha.tom-atencao { background: var(--warning); }
+
+.ap-corpo-lado { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.ap-corpo-atalhos { display: flex; flex-wrap: wrap; gap: 6px; }
+.ap-atalho {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  min-height: 30px; padding: 6px 11px;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface); color: var(--text-secondary);
+  font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all var(--duration-fast) var(--ease);
+}
+.ap-atalho b { font-weight: 800; font-variant-numeric: tabular-nums; }
+.ap-atalho:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.ap-atalho.ativo { border-color: var(--text-primary); color: var(--text-primary); }
+.ap-atalho.tom-bom b     { color: var(--color-primary-700); }
+.ap-atalho.tom-subiu b   { color: var(--info); }
+.ap-atalho.tom-atencao b { color: #8a6d1e; }
+
+.ap-corpo-painel { text-align: left; }
+.ap-det {
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 26px 26px 24px; border-radius: var(--radius-lg);
+  background: var(--surface-subtle);
+  border-left: 4px solid var(--border-strong);
+}
+.ap-det.tom-bom     { background: var(--color-primary-100); border-left-color: var(--primary); }
+.ap-det.tom-subiu   { background: var(--info-soft);    border-left-color: var(--info); }
+.ap-det.tom-atencao { background: var(--warning-soft); border-left-color: var(--warning); }
+.ap-det-lab {
+  font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text-secondary);
+}
+.ap-det-valores { display: flex; flex-direction: column; gap: 6px; }
+.ap-det-ponta { display: flex; flex-direction: column; gap: 1px; }
+.ap-det-quando {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.ap-det-num {
+  font-size: 34px; font-weight: 800; line-height: 1; color: var(--text-secondary);
+  letter-spacing: var(--tracking-tight); font-variant-numeric: tabular-nums;
+}
+.ap-det-num small { font-size: 14px; font-weight: 700; margin-left: 3px; }
+.ap-det-agora .ap-det-num { color: var(--text-primary); font-size: 44px; }
+.ap-det-seta { color: var(--text-muted); display: flex; }
+.ap-det-seta svg { width: 18px; height: 18px; }
+.ap-det-dif {
+  font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+.ap-det.tom-bom     .ap-det-dif { color: var(--color-primary-700); }
+.ap-det.tom-subiu   .ap-det-dif { color: var(--info); }
+.ap-det.tom-atencao .ap-det-dif { color: #8a6d1e; }
+.ap-det-leitura { font-size: 13.5px; line-height: 1.5; color: var(--text-secondary); }
+.ap-det-vazio { background: var(--surface-subtle); border-left-color: var(--border); }
+
+/* ── Slide 7 · O que melhorou ───────────────────────────────────────────── */
+.ap-cq-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 22px; width: 100%; text-align: left; align-items: start;
+}
+.ap-cq-bloco { display: flex; flex-direction: column; gap: 10px; }
+.ap-cq-tit {
+  font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text-muted);
+}
+.ap-cq-lista { list-style: none; display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; }
+.ap-cq {
+  display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 11px;
+  padding: 13px 15px; border-radius: var(--radius-md); background: var(--surface-subtle);
+}
+.ap-cq-ic {
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--border); color: var(--text-secondary);
+}
+.ap-cq-ic svg { width: 15px; height: 15px; }
+.ap-cq-txt { font-size: 14.5px; font-weight: 600; color: var(--text-primary); line-height: 1.35; }
+.ap-cq-dif {
+  font-size: 13.5px; font-weight: 800; color: var(--text-secondary);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.ap-cq.tom-bom     { background: var(--color-primary-100); }
+.ap-cq.tom-bom     .ap-cq-ic { background: var(--primary); color: var(--text-on-primary); }
+.ap-cq.tom-bom     .ap-cq-dif { color: var(--color-primary-700); }
+.ap-cq.tom-atencao { background: var(--warning-soft); }
+.ap-cq.tom-atencao .ap-cq-ic { background: var(--warning); color: #fff; }
+.ap-cq.tom-atencao .ap-cq-dif { color: #8a6d1e; }
+.ap-cq.tom-subiu   .ap-cq-ic { background: var(--info); color: #fff; }
+.ap-cq-resto { margin-top: 2px; padding: 0 4px; font-size: 12.5px; line-height: 1.5; color: var(--text-muted); }
+.ap-cq-nota { margin-top: 26px; font-size: 12.5px; color: var(--text-muted); max-width: 640px; }
+
+/* ── Slide 8 · Metas e ações ────────────────────────────────────────────── */
+.ap-metas { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; width: 100%; }
+.ap-meta {
+  display: flex; flex-direction: column; gap: 10px; text-align: left;
+  padding: 22px; border-radius: var(--radius-lg); background: var(--surface-subtle);
+}
+.ap-meta-topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ap-meta-nome { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.ap-meta-status {
+  font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 3px 9px; border-radius: 999px; white-space: nowrap;
+  background: var(--surface); color: var(--text-secondary);
+}
+.ap-meta-status.tom-positivo { background: var(--color-primary-100); color: var(--color-primary-700); }
+.ap-meta-status.tom-alerta   { background: var(--warning-soft); color: #8a6d1e; }
+.ap-meta-alvo { display: flex; align-items: baseline; gap: 10px; font-variant-numeric: tabular-nums; }
+.ap-meta-atual { font-size: 20px; font-weight: 600; color: var(--text-secondary); }
+.ap-meta-seta { color: var(--text-muted); }
+.ap-meta-valor { font-size: 30px; font-weight: 800; color: var(--text-primary); letter-spacing: var(--tracking-tight); }
+.ap-barra { height: 8px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.ap-barra-fill {
+  display: block; height: 100%; width: 0; border-radius: 999px; background: var(--primary);
+  transition: width var(--duration-slow) var(--ease);
+}
+.ap-meta-pct { font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
+.ap-meta-pct b { color: var(--text-primary); font-weight: 800; }
+.ap-meta-prev { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-muted); }
+.ap-meta-prev svg { width: 14px; height: 14px; }
+
+.ap-acoes-bloco { width: 100%; max-width: 720px; margin-top: 34px; text-align: left; }
+.ap-acoes-lab {
+  display: block; margin-bottom: 8px;
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text-muted);
+}
+.ap-acoes {
+  width: 100%; padding: 14px 16px; resize: vertical;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-md);
+  background: var(--surface); color: var(--text-primary);
+  font-family: inherit; font-size: 15px; line-height: 1.55;
+}
+.ap-acoes:focus { outline: none; border-color: var(--primary); box-shadow: var(--shadow-focus); }
+.ap-acoes-dica { margin-top: 7px; font-size: 12px; color: var(--text-muted); }
+
+/* ── Slide final · Fechamento ───────────────────────────────────────────── */
+.ap-fech-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px; width: 100%; text-align: left;
+}
+.ap-fech-bloco { padding: 22px; border-radius: var(--radius-lg); background: var(--surface-subtle); }
+.ap-fech-tit {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+  font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--text-muted);
+}
+.ap-fech-tit svg { width: 15px; height: 15px; color: var(--primary); }
+.ap-fech-lista { list-style: none; display: flex; flex-direction: column; gap: 9px; margin: 0; padding: 0; }
+.ap-fech-lista li { font-size: 14.5px; line-height: 1.45; color: var(--text-secondary); }
+.ap-fech-lista b { color: var(--text-primary); font-weight: 800; }
+.ap-fech-texto { font-size: 14.5px; line-height: 1.55; color: var(--text-secondary); white-space: pre-wrap; }
+
+.ap-fech-botoes { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 36px; }
+.ap-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: 46px; padding: 12px 20px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-md);
+  background: var(--surface); color: var(--text-primary);
+  font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+  transition: background var(--duration-fast) var(--ease), border-color var(--duration-fast) var(--ease);
+}
+.ap-btn svg { width: 16px; height: 16px; }
+.ap-btn:hover:not(:disabled) { background: var(--surface-subtle); }
+.ap-btn:disabled { opacity: 0.55; cursor: default; }
+.ap-btn-forte { background: var(--primary); border-color: var(--primary); color: var(--text-on-primary); }
+.ap-btn-forte:hover:not(:disabled) { background: var(--primary-hover); }
+
+/* ── Botão de entrada, no cabeçalho do Hub ──────────────────────────────── */
+.hub-apresentar {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--primary); border-color: var(--primary); color: var(--text-on-primary);
+}
+.hub-apresentar:hover { background: var(--primary-hover); }
+.hub-apresentar[hidden] { display: none; }
+
+/* ── Tablet ─────────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .ap-palco { padding: 48px 64px 20px; }
+  .ap-seta { width: 46px; height: 46px; }
+  .ap-seta-ant { left: 12px; } .ap-seta-prox { right: 12px; }
+}
+@media (max-width: 820px) {
+  /* No toque, o gesto substitui as setas — elas só ocupariam espaço. */
+  .ap-seta { display: none; }
+  .ap-palco { padding: 52px 24px 16px; }
+  .ap-nums { gap: 14px; }
+  .ap-num { flex-basis: 150px; padding: 20px 14px; }
+}
+
+/* ── Impressão / PDF ────────────────────────────────────────────────────── */
+/* Imprimir desenrola a apresentação: cada slide vira uma página. Como só o
+   slide corrente existe no DOM, o que sai é a tela atual — é o comportamento
+   esperado de "gerar PDF" a partir de um slide. */
+@media print {
+  body.ap-aberto > *:not(.ap) { display: none !important; }
+  .ap { position: static; height: auto; background: #fff; }
+  .ap-sair, .ap-seta, .ap-rodape, .ap-nao-imprime { display: none !important; }
+  .ap-palco { padding: 0; overflow: visible; display: block; }
+  .ap-slide { max-width: none; break-inside: avoid; animation: none !important; }
+  .ap-num, .ap-meta, .ap-fech-bloco { break-inside: avoid; background: #fff; border: 1px solid #e6e8eb; }
+}
+
+/* ── Movimento reduzido ─────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .ap-slide.entra-dir, .ap-slide.entra-esq { animation: none; }
+  .ap-barra-fill { transition: none; }
+  .ap-ponto { transition: none; }
+}
