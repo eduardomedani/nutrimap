@@ -16,8 +16,9 @@ import { copiarParaClipboard, gerarLinkWhatsapp, montarMensagemQuestionario } fr
 // exame, agendar retorno e enviar material entram quando as fases 2, 4 e 6
 // forem construídas — botão que não leva a lugar nenhum não entra.
 const ACOES = [
+  { id: 'consulta',  label: 'Registrar consulta',  icone: 'stethoscope', aba: 'consultas',    destaque: true },
   { id: 'avaliacao', label: 'Registrar avaliação', icone: 'ruler',       aba: 'avaliacoes',   destaque: true },
-  { id: 'plano',     label: 'Revisar plano',       icone: 'utensils',    aba: 'planejamento', destaque: true },
+  { id: 'plano',     label: 'Revisar plano',       icone: 'utensils',    aba: 'planejamento' },
   { id: 'observacao', label: 'Adicionar observação', icone: 'notebook-pen', evento: 'observacao' },
   { id: 'treino',    label: 'Abrir treino',        icone: 'dumbbell',    aba: 'treinos' },
   { id: 'calorias',  label: 'Cálculo de calorias', icone: 'flame',       aba: 'calorias' },

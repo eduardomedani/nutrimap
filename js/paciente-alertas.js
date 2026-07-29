@@ -155,8 +155,46 @@ export function alertasDoPaciente(r) {
     });
   }
 
+  // ── Consultas ───────────────────────────────────────────
+  if (moduloAtivo('consultas')) {
+    if (r.consultaAberta) {
+      add({
+        id: 'consulta-aberta', tipo: 'CONSULTATION_OPEN', origem: 'consultas',
+        titulo: r.consultaAberta.status === 'em_andamento' ? 'Consulta em andamento' : 'Consulta em aberto',
+        descricao: r.consultaAberta.status === 'em_andamento'
+          ? 'Há um atendimento iniciado e ainda não finalizado.'
+          : `Consulta registrada para ${fmtData(r.consultaAberta.data_hora)} sem finalização.`,
+        prioridade: 'atencao', icone: 'stethoscope',
+        acao: { label: 'Abrir consulta', aba: 'consultas' },
+      });
+    }
+    const dRet = r.dias.retornoEm;
+    if (dRet != null && dRet <= 7) {
+      add({
+        id: 'retorno', tipo: 'FOLLOWUP_DUE', origem: 'consultas',
+        titulo: dRet < 0 ? 'Retorno atrasado' : 'Retorno próximo',
+        descricao: dRet < 0
+          ? `O retorno sugerido era ${fmtData(r.retornoSugerido)}.`
+          : `Retorno sugerido para ${fmtData(r.retornoSugerido)}.`,
+        prioridade: dRet < 0 ? 'importante' : 'informativo',
+        icone: 'calendar-clock', prazo: r.retornoSugerido,
+        acao: { label: 'Registrar consulta', aba: 'consultas' },
+      });
+    }
+    const dCons = r.dias.ultimaConsulta;
+    if (r.ultimaConsulta && dCons != null && dCons >= 90 && dRet == null) {
+      add({
+        id: 'sem-consulta', tipo: 'CONSULTATION_STALE', origem: 'consultas',
+        titulo: 'Sem consulta há bastante tempo',
+        descricao: `O último atendimento foi há ${dCons} dias.`,
+        prioridade: 'atencao', icone: 'stethoscope',
+        acao: { label: 'Registrar consulta', aba: 'consultas' },
+      });
+    }
+  }
+
   // ── Regras que dependem de módulos ainda não construídos ─
-  // (check-ins aguardando análise, retorno não agendado, exame pendente...)
+  // (check-ins aguardando análise, exame pendente...)
   // Entram aqui quando as fundações existirem — a UI não muda.
   if (moduloAtivo('checkins')) { /* Fase 3 */ }
   if (moduloAtivo('agendamentos')) { /* Fase 6 */ }

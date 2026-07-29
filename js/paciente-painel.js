@@ -182,9 +182,20 @@ function indicadoresHtml(r) {
       sub: m.kcalPlano ? `meta de ${fmt(m.kcalPlano, 0)} kcal` : '' },
     { lab: 'Última avaliação', val: r.ultima ? fmtData(r.ultima.data_avaliacao) : null,
       sub: r.dias.ultimaAv != null ? `há ${r.dias.ultimaAv} dias` : '', vazio: 'Aguardando primeira avaliação' },
+    // Consultas: só aparecem porque o módulo existe (Fase 2A).
+    ...(moduloAtivo('consultas') ? [
+      { lab: 'Última consulta', val: r.ultimaConsulta ? fmtData(r.ultimaConsulta.data_hora) : null,
+        sub: r.dias.ultimaConsulta != null ? `há ${r.dias.ultimaConsulta} dias` : '',
+        vazio: 'Nenhuma consulta registrada' },
+      { lab: 'Próximo retorno', val: r.retornoSugerido ? fmtData(r.retornoSugerido) : null,
+        sub: r.dias.retornoEm != null
+          ? (r.dias.retornoEm < 0 ? `atrasado ${Math.abs(r.dias.retornoEm)} dias` : `em ${r.dias.retornoEm} dias`)
+          : '',
+        tom: r.dias.retornoEm != null && r.dias.retornoEm < 0 ? 'atencao' : '',
+        vazio: 'Não definido' },
+    ] : []),
   ];
-  // Aderência, última consulta e próximo retorno entram quando os módulos de
-  // check-ins, consultas e agenda existirem.
+  // Aderência entra quando o módulo de check-ins existir (Fase 3).
   return inds.map(i => {
     const tem = i.val !== null && i.val !== undefined && i.val !== '';
     return `

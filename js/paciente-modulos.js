@@ -28,7 +28,7 @@ export const FUNDACOES = {
   tarefas:      true,    // paciente_tarefas
 
   // Fases seguintes — sem tabela/serviço hoje, então não aparecem no Hub.
-  consultas:    false,   // Fase 2
+  consultas:    true,    // módulo-base de consultas (Fase 2A)
   checkins:     false,   // Fase 3 (aderência depende disto)
   documentos:   false,   // Fase 4 (depende de storage privado)
   exames:       false,   // Fase 4

@@ -11,6 +11,7 @@
 import { listarAvaliacoes } from './avaliacoes.js';
 import { listarPlanosDoPaciente } from './dieta.js';
 import { listarTreinosDoPaciente } from './treinos.js';
+import { listarConsultas } from './consultas.js';
 import { moduloAtivo } from './paciente-modulos.js';
 
 const DIA_MS = 86400000;
@@ -32,13 +33,14 @@ export async function carregarResumo(paciente, { forcar = false } = {}) {
 
   // Uma rodada de consultas, em paralelo. Cada uma cai para lista vazia se
   // falhar: um módulo fora do ar não pode derrubar o Hub inteiro.
-  const [avaliacoes, planos, treinos] = await Promise.all([
+  const [avaliacoes, planos, treinos, consultas] = await Promise.all([
     listarAvaliacoes(paciente.id).catch(() => []),
     listarPlanosDoPaciente(paciente.id).catch(() => []),
     listarTreinosDoPaciente(paciente.id).catch(() => []),
+    moduloAtivo('consultas') ? listarConsultas(paciente.id).catch(() => []) : Promise.resolve([]),
   ]);
 
-  const resumo = montarResumo(paciente, { avaliacoes, planos, treinos });
+  const resumo = montarResumo(paciente, { avaliacoes, planos, treinos, consultas });
   _cache.set(paciente.id, resumo);
   return resumo;
 }
@@ -48,7 +50,7 @@ export async function carregarResumo(paciente, { forcar = false } = {}) {
  * O dashboard usa isto para avaliar dezenas de pacientes com poucas consultas
  * agregadas, reaproveitando exatamente as mesmas regras da ficha.
  */
-export function montarResumo(paciente, { avaliacoes = [], planos = [], treinos = [] } = {}) {
+export function montarResumo(paciente, { avaliacoes = [], planos = [], treinos = [], consultas = [] } = {}) {
   const avs = [...(avaliacoes || [])].sort((a, b) => (a.numero || 0) - (b.numero || 0));
   const primeira = avs[0] || null;
   const ultima = avs[avs.length - 1] || null;
@@ -56,13 +58,22 @@ export function montarResumo(paciente, { avaliacoes = [], planos = [], treinos =
   const planoAtivo = (planos || []).find(p => p.ativo) || null;
   const treinoAtivo = (treinos || []).find(t => t.ativo) || null;
 
+  // Só consulta FINALIZADA conta como atendimento; agendada é compromisso.
+  const cs = [...(consultas || [])].sort((a, b) => new Date(b.data_hora) - new Date(a.data_hora));
+  const ultimaConsulta = cs.find(c => c.status === 'finalizada') || null;
+  const consultaAberta = cs.filter(c => c.status === 'agendada' || c.status === 'em_andamento').pop() || null;
+  // Enquanto não há agenda, o "próximo retorno" é o que a última consulta sugeriu.
+  const retornoSugerido = ultimaConsulta?.retorno_sugerido || null;
+
   const resumo = {
     paciente,
     avaliacoes: avs,
     planos: planos || [],
     treinos: treinos || [],
+    consultas: cs,
     primeira, ultima, anterior,
     planoAtivo, treinoAtivo,
+    ultimaConsulta, consultaAberta, retornoSugerido,
     metricas: calcularMetricas({ primeira, ultima, anterior, planoAtivo }),
     dias: {
       cadastro:      diasDesde(paciente.criado_em),
@@ -70,6 +81,8 @@ export function montarResumo(paciente, { avaliacoes = [], planos = [], treinos =
       planoPublicado: planoAtivo ? diasDesde(planoAtivo.data_inicio || planoAtivo.criado_em) : null,
       treinoAte:     treinoAtivo ? diasAte(treinoAtivo.data_fim) : null,
       planoAte:      planoAtivo ? diasAte(planoAtivo.data_fim) : null,
+      ultimaConsulta: ultimaConsulta ? diasDesde(ultimaConsulta.data_hora) : null,
+      retornoEm:     retornoSugerido ? diasAte(retornoSugerido) : null,
     },
   };
 
@@ -160,6 +173,17 @@ function calcularScore(r) {
       : 'Nenhum treino ativo',
   });
 
+  // Consultas: só entra no cálculo se o módulo existir e houver histórico —
+  // um paciente antigo, sem consulta registrada, não deve ser punido por isso.
+  if (moduloAtivo('consultas') && r.ultimaConsulta) {
+    const d = r.dias.ultimaConsulta ?? 0;
+    criterios.push({
+      id: 'consulta', label: 'Consulta recente', peso: 1.5,
+      nota: faixa(d, 45, 120),
+      detalhe: `Último atendimento há ${d} ${d === 1 ? 'dia' : 'dias'}`,
+    });
+  }
+
   // Evolução registrada (duas ou mais avaliações = há acompanhamento medido)
   if (r.avaliacoes.length) {
     criterios.push({
@@ -179,7 +203,9 @@ function calcularScore(r) {
     valor,
     criterios: validos,
     // Aderência, check-ins e consultas entram no cálculo quando esses módulos existirem.
-    base: 'Calculado com base em anamnese, avaliações, plano, treino e evolução registrada.',
+    base: moduloAtivo('consultas')
+      ? 'Calculado com base em anamnese, consultas, avaliações, plano, treino e evolução registrada.'
+      : 'Calculado com base em anamnese, avaliações, plano, treino e evolução registrada.',
   };
 }
 

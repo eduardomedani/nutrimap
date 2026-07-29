@@ -138,6 +138,15 @@ async function renderAba(abaId) {
     return;
   }
 
+  if (abaId === 'consultas') {
+    cont.innerHTML = '';
+    try {
+      const { initConsultas } = await import('./consultas-ui.js');
+      await initConsultas({ cont, paciente: p, irParaAba });
+    } catch (e) { erroAba(cont, 'Não foi possível carregar as consultas.', e); }
+    return;
+  }
+
   if (abaId === 'anamnese') {
     cont.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando relatório...</div>`;
     try {
