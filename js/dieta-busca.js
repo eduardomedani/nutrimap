@@ -76,6 +76,11 @@ let _ativo = -1;
 let _buscando = false;
 let _favoritos = new Set();
 let _erro = null;
+// Estados POR RESULTADO: adicionar um alimento não pode travar a busca inteira,
+// e o "Adicionado" precisa aparecer no botão que foi clicado.
+let _adicionando = null;      // food_id em voo
+let _adicionado = null;       // food_id recém-adicionado (some sozinho)
+let _timerAdicionado = null;
 
 /** Só para os testes e para quem precisa saber se o drawer está aberto. */
 export const estadoBusca = () => ({
@@ -107,16 +112,32 @@ export function fecharBusca() {
 }
 
 // ── HTML ────────────────────────────────────────────────────
-export function drawerHtml(nomeRefeicao) {
+/**
+ * Dois modos, mesmo conteúdo:
+ *
+ *   painel  (padrão)  entra pela direita, sobre a tela — usado quando a busca
+ *                     é chamada da rotina, sem refeição aberta.
+ *   inline            fica DENTRO do drawer da refeição, logo abaixo do botão
+ *                     "+ Alimento". Um painel lateral por cima de outro painel
+ *                     lateral empilha duas camadas para uma ação que pertence
+ *                     à refeição que já está aberta.
+ */
+export function drawerHtml(nomeRefeicao, { inline = false } = {}) {
   return `
-    <div class="di-drawer-fundo" id="diDrawerFundo"></div>
-    <aside class="di-drawer" id="diDrawer" role="dialog" aria-modal="true" aria-label="Adicionar alimento">
+    ${inline ? '' : '<div class="di-drawer-fundo" id="diDrawerFundo"></div>'}
+    <aside class="di-drawer ${inline ? 'di-drawer-inline' : ''}" id="diDrawer"
+           role="${inline ? 'region' : 'dialog'}" ${inline ? '' : 'aria-modal="true"'}
+           aria-label="Adicionar alimento">
       <div class="di-dw-hd">
-        <div>
-          <div class="di-dw-eyebrow">Adicionar em</div>
-          <div class="di-dw-tit">${esc(nomeRefeicao || 'refeição')}</div>
+        <div class="di-dw-hd-txt">
+          <!-- A ação é o título; a refeição é o contexto. Antes o "ADICIONAR
+               EM" em caixa alta era o maior elemento da área. -->
+          <div class="di-dw-tit">Adicionar alimento</div>
+          <div class="di-dw-eyebrow">Em ${esc(nomeRefeicao || 'refeição')}</div>
         </div>
-        <button class="di-iact" id="diDwFechar" title="Fechar (Esc)" aria-label="Fechar"><i data-lucide="x"></i></button>
+        <button class="di-iact di-dw-x" id="diDwFechar" title="Fechar (Esc)" aria-label="Fechar busca">
+          <kbd>Esc</kbd><i data-lucide="x"></i>
+        </button>
       </div>
 
       <div class="di-dw-abas" role="tablist">
@@ -126,9 +147,9 @@ export function drawerHtml(nomeRefeicao) {
       </div>
 
       <div class="di-dw-busca">
-        <i data-lucide="search"></i>
+        <i data-lucide="search" aria-hidden="true"></i>
         <input type="text" id="diDwInput" autocomplete="off"
-               placeholder="Busque por alimento, marca ou código de barras"
+               placeholder="Buscar alimento, marca, receita ou código de barras"
                aria-label="Buscar alimento">
       </div>
 
@@ -142,6 +163,7 @@ export function drawerHtml(nomeRefeicao) {
       </div>
 
       <div class="di-dw-lista" id="diDwLista" role="listbox" aria-label="Resultados"></div>
+      <span class="sr" role="status" aria-live="polite" id="diDwAviso"></span>
 
       <div class="di-dw-ft">
         <span><kbd>↑</kbd><kbd>↓</kbd> navegar</span>
@@ -175,24 +197,57 @@ function resultadoHtml(a, i, ativo) {
         <div class="di-res-kcal">${fmtKcal(a.calorias)} kcal</div>
         <div class="di-res-pcg">P ${fmtG(a.proteina)} · C ${fmtG(a.carboidrato)} · G ${fmtG(a.gordura)}</div>
       </div>
-      <button class="btn di-res-add" data-res-add="${i}" aria-label="Adicionar ${esc(a.nome)}">Adicionar</button>
+      ${botaoAddHtml(a, i)}
     </div>`;
 }
 
+/**
+ * O botão de adicionar em três estados. O "em voo" e o "adicionado" são POR
+ * ITEM: travar a busca inteira a cada inclusão quebraria o fluxo de enfileirar
+ * vários alimentos seguidos, que é como a tela é usada.
+ */
+function botaoAddHtml(a, i) {
+  if (_adicionando === a.id) {
+    return `<button class="di-res-add carregando" disabled aria-label="Adicionando ${esc(a.nome)}">
+              <span class="spinner"></span> Adicionando
+            </button>`;
+  }
+  if (_adicionado === a.id) {
+    return `<button class="di-res-add feito" disabled aria-label="${esc(a.nome)} adicionado">
+              <i data-lucide="check"></i> Adicionado
+            </button>`;
+  }
+  return `<button class="di-res-add" data-res-add="${i}" aria-label="Adicionar ${esc(a.nome)}">
+            <i data-lucide="plus"></i> Adicionar
+          </button>`;
+}
+
+/** @returns {{titulo: string, sub: string, acao?: string}} */
 function vazioHtml() {
   const termo = (_api?.qs('diDwInput')?.value || '').trim();
+
   // Filtro ligado com resultado bruto não-vazio: o problema é o filtro, e dizer
   // "nada encontrado" mandaria o nutri procurar o erro no lugar errado.
   if (_filtros.size && _brutos.length) {
     const nomes = FILTROS.filter(f => _filtros.has(f.chave)).map(f => f.rotulo).join(', ');
-    return `${_brutos.length} ${_brutos.length === 1 ? 'resultado' : 'resultados'} escondidos pelo filtro ${esc(nomes)}.`;
+    return {
+      titulo: `${_brutos.length} ${_brutos.length === 1 ? 'resultado escondido' : 'resultados escondidos'} pelo filtro`,
+      sub: `Nenhum deles é ${esc(nomes)}.`,
+      acao: 'limpar',
+    };
   }
-  if (termo) return `Nenhum alimento encontrado para "${esc(termo)}".`;
+  if (termo) {
+    return {
+      titulo: 'Nenhum alimento encontrado.',
+      sub: _filtros.size ? 'Tente outro termo ou altere os filtros.' : 'Tente outro termo.',
+      acao: _filtros.size ? 'limpar' : null,
+    };
+  }
   switch (_aba) {
-    case 'favoritos':  return 'Você ainda não tem favoritos. Marque a estrela em qualquer resultado.';
-    case 'recentes':   return 'Nada por aqui ainda — os alimentos que você usar aparecem nesta aba.';
-    case 'maisusados': return 'Ainda não há alimentos prescritos o bastante para ranquear.';
-    default:           return 'Digite para buscar no catálogo.';
+    case 'favoritos':  return { titulo: 'Você ainda não tem favoritos.', sub: 'Marque a estrela em qualquer resultado da busca.' };
+    case 'recentes':   return { titulo: 'Nada por aqui ainda.', sub: 'Os alimentos que você usar aparecem nesta aba.' };
+    case 'maisusados': return { titulo: 'Ainda não há histórico suficiente.', sub: 'Os mais prescritos aparecem aqui conforme você trabalha.' };
+    default:           return { titulo: 'Comece a digitar.', sub: 'Ou escolha entre favoritos, recentes e mais usados.' };
   }
 }
 
@@ -209,7 +264,19 @@ export function pintarResultados() {
     return;
   }
   if (!_resultados.length) {
-    lista.innerHTML = `<div class="di-dw-vazio"><i data-lucide="search-x"></i>${vazioHtml()}</div>`;
+    const v = vazioHtml();
+    lista.innerHTML = `
+      <div class="di-dw-vazio">
+        <i data-lucide="search-x" aria-hidden="true"></i>
+        <div class="di-dw-vazio-t">${v.titulo}</div>
+        <div class="di-dw-vazio-s">${v.sub}</div>
+        ${v.acao === 'limpar' ? `<button class="di-dw-vazio-btn" data-dw-filtro-limpar>Limpar filtros</button>` : ''}
+      </div>`;
+    lista.querySelector('[data-dw-filtro-limpar]')?.addEventListener('click', () => {
+      _filtros.clear();
+      _api.rerender();
+      aplicarFiltro();
+    });
     return;
   }
 
@@ -337,9 +404,28 @@ function aplicarFiltro() {
 // Adiciona e MANTÉM o drawer aberto — a ideia é enfileirar vários alimentos.
 async function adicionar(i) {
   const al = _resultados[i];
-  if (!al || !_refId) return;
-  await _api.adicionar(_refId, al);
+  if (!al || !_refId || _adicionando) return;
+
+  _adicionando = al.id;
+  pintarResultados();                       // só o botão dele muda de estado
+  try {
+    await _api.adicionar(_refId, al);
+  } finally {
+    _adicionando = null;
+  }
+
+  // "Adicionado" por 1,6 s no botão que foi clicado, e o aviso ao leitor de
+  // tela — o toast some rápido demais para quem navega por teclado.
+  _adicionado = al.id;
+  clearTimeout(_timerAdicionado);
+  _timerAdicionado = setTimeout(() => { _adicionado = null; pintarResultados(); }, 1600);
+
+  const aviso = _api.qs('diDwAviso');
+  if (aviso) aviso.textContent = `${al.nome} adicionado`;
   mostrarToast(`✓ ${al.nome}`);
+
+  // Fluxo de adição inalterado: limpa o termo e volta às sugestões, pronto
+  // para o próximo alimento.
   const inp = _api.qs('diDwInput');
   if (inp) { inp.value = ''; inp.focus(); }
   _api.invalidarSugestoes();

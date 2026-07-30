@@ -55,6 +55,14 @@ export function macrosSoma(lista) {
 }
 
 export const macrosRefeicao = (r) => macrosSoma((r?.itens || []).map(macrosItem));
+
+/**
+ * Peso total da refeição, em gramas. ADITIVO: só soma o pesoDeItem que já
+ * existia, para o resumo do drawer não precisar multiplicar por 100 na mão.
+ * Nenhum valor existente muda por causa disto.
+ */
+export const pesoRefeicao = (r) =>
+  (r?.itens || []).reduce((total, item) => total + pesoDeItem(item), 0);
 export const macrosPlano = (refeicoes) => macrosSoma((refeicoes || []).map(macrosRefeicao));
 
 /**

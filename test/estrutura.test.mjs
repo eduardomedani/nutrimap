@@ -43,6 +43,41 @@ grupo('estrutura · CSS da dieta saiu do index.html', () => {
   const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../css/dieta.css', import.meta.url), 'utf8');
 
+  teste('o CSS é estruturalmente válido (chaves balanceadas)', () => {
+    // Regressão cara: remoções por linha apagaram a PRIMEIRA linha de regras
+    // multilinha, deixando as continuações órfãs terminadas em "}". O navegador
+    // descarta tudo a partir daí — os estilos novos simplesmente não valiam, e
+    // parecia que a correção não tinha sido aplicada.
+    const semCom = css.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
+    let abre = 0, fecha = 0;
+    for (const c of semCom) { if (c === '{') abre++; else if (c === '}') fecha++; }
+    igual(abre, fecha, 'número de { e } tem que bater');
+
+    let nivel = 0;
+    const orfaos = [];
+    semCom.split('\n').forEach((l, i) => {
+      for (const c of l) {
+        if (c === '{') nivel++;
+        else if (c === '}') { nivel--; if (nivel < 0) { orfaos.push(i + 1); nivel = 0; } }
+      }
+    });
+    igual(orfaos, [], `fechamento sem abertura nas linhas ${orfaos.join(', ')}`);
+  });
+
+  teste('nenhuma declaração solta fora de uma regra', () => {
+    const semCom = css.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
+    let nivel = 0;
+    const soltas = [];
+    semCom.split('\n').forEach((l, i) => {
+      const antes = nivel;
+      for (const c of l) { if (c === '{') nivel++; else if (c === '}') nivel = Math.max(0, nivel - 1); }
+      if (antes === 0 && /:/.test(l) && !l.includes('{') && l.trim() !== '' && !l.trim().startsWith('@')) {
+        soltas.push(`${i + 1}: ${l.trim().slice(0, 50)}`);
+      }
+    });
+    igual(soltas, [], 'declaração fora de bloco quebra o parser do navegador');
+  });
+
   teste('o index.html não tem mais regras .di-', () => {
     const dentroDoStyle = index.slice(index.indexOf('<style>'), index.indexOf('</style>'));
     const regras = dentroDoStyle.match(/^\s*\.di-[a-z-]+\s*\{/gm) || [];
@@ -63,16 +98,38 @@ grupo('estrutura · CSS da dieta saiu do index.html', () => {
     ok(iDieta < iTokens && iDieta < iBrand, 'dieta.css tem que vir antes de tokens/brand');
   });
 
-  teste('o CSS extraído tem as classes principais da prescrição', () => {
-    for (const classe of ['.di-tr', '.di-item', '.di-drawer', '.di-card', '.di-somas']) {
+  teste('o CSS tem as classes principais da prescrição', () => {
+    for (const classe of ['.di-drawer', '.di-somas', '.di-tb', '.rt-card', '.rf-drawer', '.al-lista']) {
       ok(css.includes(classe), `faltou ${classe} no css/dieta.css`);
     }
   });
 
-  teste('as peças novas têm estilo', () => {
-    for (const classe of ['.di-badge', '.di-sub-chip', '.di-subs', '.di-filtro', '.di-res-fav',
-                          '.di-it-obs', '.di-tb', '.di-tb-btn', '.di-somas', '.di-sb']) {
-      ok(css.includes(classe), `faltou ${classe} no css/dieta.css`);
+  teste('cada nível tem o seu estilo', () => {
+    const NIVEIS = {
+      'Nível 1 (rotina)':     ['.rt-card', '.rt-linha', '.rt-hora', '.rt-icone', '.rt-val', '.rt-bar'],
+      'Nível 2 (refeição)':   ['.rf-drawer', '.rf-secao', '.rf-resumo', '.rf-obs-toggle', '.al-item'],
+      'Nível 4 (busca)':      ['.di-drawer', '.di-filtro', '.di-res-fav'],
+      'substituições':        ['.di-sb', '.di-sub-chip', '.di-subs'],
+    };
+    for (const [nivel, classes] of Object.entries(NIVEIS)) {
+      for (const c of classes) ok(css.includes(c), `${nivel}: faltou ${c}`);
+    }
+  });
+
+  teste('o painel da refeição não bloqueia o resto da tela', () => {
+    // Regressão: um <div fixed inset:0> como backdrop cobria a barra de
+    // ferramentas e os outros cards. Todo clique fora virava "fechar" e a tela
+    // parecia travada — dava para editar só a refeição que já estava aberta.
+    const rf = readFileSync(new URL('../js/dieta-refeicao.js', import.meta.url), 'utf8');
+    ok(!rf.includes('rf-fundo'), 'o painel de edição não pode ter backdrop de tela cheia');
+    ok(!css.includes('.rf-fundo'), 'e nem o estilo dele');
+    // E a rotina precisa reservar espaço, senão fica escondida sob o painel.
+    ok(/\.di-rx:has\(~ \.rf-drawer\)/.test(css), 'a rotina tem que se estreitar quando o painel abre');
+  });
+
+  teste('a tabela de dez colunas saiu junto com o Nível 1 antigo', () => {
+    for (const morta of ['.di-tr ', '.di-th ', '.c-mac ', '.di-card-hd ']) {
+      ok(!css.includes(morta), `sobrou CSS da tabela antiga: ${morta.trim()}`);
     }
   });
 
@@ -96,8 +153,10 @@ grupo('estrutura · barra de ferramentas', () => {
   // Toda ação do dia a dia tem botão próprio E fiação. Botão renderizado sem
   // listener é o defeito clássico deste tipo de barra: parece pronto e não faz
   // nada. Aqui os dois lados são conferidos pelo mesmo id.
+  // Recolher/Expandir saíram: no Nível 1 não há nada para recolher — a tela
+  // mostra só o resumo, e a edição acontece no drawer.
   const ACOES = ['diAddRefeicao', 'diEditarCalc', 'diDuplicar', 'diPdf',
-                 'diRecolher', 'diExpandir', 'diAtalhos', 'diSalvarRasc', 'diPublicar', 'plDadosEditar'];
+                 'diAtalhos', 'diSalvarRasc', 'diPublicar', 'plDadosEditar'];
 
   for (const id of ACOES) {
     teste(`${id} é renderizado e ligado`, () => {
@@ -117,6 +176,18 @@ grupo('estrutura · barra de ferramentas', () => {
     for (const rotulo of ['Calorias', 'Proteína', 'Carboidrato', 'Gordura', 'Fibra', 'Meta']) {
       ok(ui.includes(`>${rotulo}<`) || ui.includes(`'${rotulo}'`), `faltou ${rotulo} na barra de somas`);
     }
+  });
+
+  teste('a linha da refeição tem as ações do briefing', () => {
+    // Editar, subir, descer e "mais ações" ficam à vista como botões quadrados
+    // independentes; duplicar/excluir/adicionar ficam no menu.
+    for (const acao of ['editar', 'subir', 'descer', 'menu', 'add', 'duplicar', 'excluir']) {
+      // As da linha vêm do helper acao('nome', ...); as do menu vêm literais.
+      const existe = ui.includes(`acao('${acao}'`) || ui.includes(`data-acao="${acao}"`);
+      ok(existe, `faltou a ação "${acao}" na linha da refeição`);
+      ok(ui.includes(`case '${acao}':`), `a ação "${acao}" não é tratada no despachante`);
+    }
+    ok(!ui.includes('rt-mover'), 'subir e descer são ações independentes — nada de controle segmentado');
   });
 
   teste('Ctrl+Enter adiciona alimento na refeição do cursor', () => {

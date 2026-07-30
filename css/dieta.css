@@ -12,7 +12,6 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
   /* ===== CONSTRUTOR DE PLANO ALIMENTAR (dieta-ui.js) ===== */
-  .di-refeicoes { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
 
   /* Cabeçalho da refeição (uma linha no desktop, empilha no mobile) */
   .di-ref-nome { flex: 1 1 150px; min-width: 110px; border: none; background: none; font-family: var(--font-sans); font-size: 16px; font-weight: 800; color: var(--moss-deep); padding: 4px 4px 4px 2px; border-radius: 6px; }
@@ -43,7 +42,6 @@
   .di-macro-val { font-family: var(--font-sans); color: var(--moss-deep); font-weight: 700; }
   .di-macro-val em { color: var(--ink-mute); font-style: normal; font-weight: 600; }
   .di-macro .di-bar { margin-top: 0; }
-  @media (max-width: 560px) { .di-macros-row { grid-template-columns: 1fr; gap: 8px; } }
   .di-metas summary { list-style: revert; }
   /* Metas (somente-leitura) — vêm do Cálculo de Calorias */
   .pl-status-ativo { border-color: var(--sage); color: var(--moss-deep); background: color-mix(in srgb, var(--color-primary-400) 15%, transparent); font-weight: 700; }
@@ -68,9 +66,14 @@
   /* Largura: a tela usa o que existe. O max-width de 1200px deixava um terço do
      monitor vazio enquanto o nome do alimento era cortado — a margem de conforto
      já vem do padding do .main (36px). */
-  .di-rx { margin: 10px 0 0; max-width: none; }
+  .di-rx { margin: 10px 0 0; max-width: none; transition: padding-right 0.22s ease; }
+
+  /* Com o painel da refeição aberto a rotina se estreita, em vez de ficar
+     escondida embaixo dele. O painel é `fixed`, então não empurra nada sozinho:
+     esta reserva é o que mantém os outros cards visíveis E clicáveis ao lado.
+     O valor espelha o tamanho do .rf-drawer. */
+  .di-rx:has(~ .rf-drawer) { padding-right: calc(clamp(460px, 52vw, 780px) + 20px); }
   .di-rx-main { min-width: 0; }
-  .di-refeicoes { display: flex; flex-direction: column; gap: 10px; }
 
   /* ── Card de dados administrativos (accordion) ── */
   .pl-dados-min { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
@@ -94,7 +97,6 @@
              font-family: var(--font-sans); font-size: 12.5px; font-weight: 700; color: var(--ink-soft); transition: all 0.15s; }
   .pl-chip:hover { border-color: var(--sage); color: var(--moss-deep); }
   .pl-chip.on { background: var(--moss); border-color: var(--moss); color: var(--cream); }
-
 
   /* Chip de estado do plano (ativo/inativo/modelo). */
   .di-chip { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 100px; background: var(--bg-warm); color: var(--ink-soft); }
@@ -189,23 +191,6 @@
   .di-menu button.perigo svg { color: var(--rose); }
 
   /* Card de refeição */
-  .di-card { background: var(--bg-card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: visible; }
-  .di-card-hd { display: flex; align-items: center; gap: 10px; padding: 9px 12px; }
-  .di-card.recolhida .di-card-hd { padding: 7px 12px; }
-  .di-toggle { flex: 0 0 auto; width: 28px; height: 28px; display: grid; place-items: center; border: none; background: none; cursor: pointer; color: var(--ink-mute); border-radius: 7px; }
-  .di-toggle:hover { background: var(--bg); color: var(--moss); }
-  .di-card-id { display: flex; align-items: center; gap: 8px; flex: 1 1 220px; min-width: 0; }
-  .di-hora { flex: 0 0 auto; width: 78px; padding: 5px 7px; font-family: var(--font-sans); font-size: 12.5px; font-weight: 700;
-             color: var(--moss); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; }
-  .di-nome { flex: 1 1 auto; min-width: 90px; padding: 5px 6px; border: 1px solid transparent; border-radius: 7px; background: none;
-             font-family: var(--font-sans); font-size: 15px; font-weight: 800; color: var(--moss-deep); }
-  .di-nome:hover { border-color: var(--line); }
-  .di-nome:focus, .di-hora:focus { outline: none; border-color: var(--sage); background: var(--bg); }
-  .di-card-stats { display: flex; align-items: baseline; gap: 10px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
-  .di-kcal { font-family: var(--font-sans); font-size: 14px; font-weight: 800; color: var(--moss-deep); white-space: nowrap; }
-  .di-macros { font-size: 11.5px; color: var(--ink-soft); white-space: nowrap; }
-  .di-conta { font-size: 11px; color: var(--ink-mute); white-space: nowrap; }
-  .di-card-acts { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
 
   /* Ações por ícone. Todos os ícones da tela têm 15px e o mesmo traço; o alvo
      de clique cresce por pseudo-elemento, sem inchar o botão na grade. */
@@ -217,46 +202,17 @@
   .di-iact-del:hover:not(:disabled) { background: rgba(184,103,74,0.12); color: var(--terracotta); }
   .di-iact svg { width: 15px; height: 15px; }
 
-  .di-card-body { border-top: 1px solid var(--line); }
-  .di-card-ft { padding: 6px 12px 10px; }
-  .di-add-link { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; border: none; background: none; cursor: pointer;
-                 font-family: var(--font-sans); font-size: 12.5px; font-weight: 700; color: var(--moss); border-radius: 7px; }
-  .di-add-link:hover { background: var(--bg); }
-  .di-add-link svg { width: 14px; height: 14px; }
-  .di-sem-itens { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 12px; font-size: 13px; color: var(--ink-mute); }
-
   /* Tabela de itens */
-  .di-tab { display: flex; flex-direction: column; }
   /* O nome manda: 4fr contra colunas numéricas fixas e estreitas. Peso, macros
      e kcal têm largura previsível (3 a 5 dígitos) — dar 70px a "0,2 g" era
      roubar espaço de "Pão, trigo, forma, integral". */
-  .di-tr { display: grid;
-           grid-template-columns: 28px minmax(280px,4fr) 78px minmax(120px,1.1fr) 56px 46px 46px 46px 58px 152px;
-           align-items: center; gap: 8px; padding: 4px 12px; }
 
   /* Linha com chips e observação fica alta; alinhar pelo topo mantém quantidade
      e macros na mesma linha visual do nome, em vez de flutuando no meio. */
-  .di-item { align-items: start; }
-  .di-item > .c-num, .di-item > .c-peso, .di-item > .c-mac, .di-item > .c-kcal { padding-top: 5px; }
-  .di-item > .c-qtd, .di-item > .c-med, .di-item > .c-acts { padding-top: 0; }
-  .di-inp-qtd { text-align: center; }
-  .di-inp-med { text-align: center; text-align-last: center; }
-  .di-th .c-qtd, .di-th .c-med { text-align: center; }
-  .di-th { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-mute); border-bottom: 1px solid var(--line); padding-bottom: 5px; }
-  .di-item { border-bottom: 1px solid rgba(230,232,235,0.5); }
-  .di-item:last-child { border-bottom: none; }
-  .di-item:hover { background: rgba(247,247,246,0.6); }
-  .c-num { font-size: 11px; color: var(--ink-mute); }
-  .c-mac, .c-kcal, .c-peso { font-size: 12px; color: var(--ink-soft); text-align: right; }
-  .c-kcal b, .c-peso b { font-family: var(--font-sans); font-weight: 800; color: var(--moss-deep); }
   /* Nome: até duas linhas antes de cortar. Cortar cedo obrigava o nutri a
      passar o mouse para saber o que prescreveu — "Arroz, tipo 1, cozido" e
      "Arroz, tipo 2, cozido" viravam a mesma linha truncada. */
-  .di-it-nome { font-size: 13.5px; font-weight: 700; color: var(--ink); line-height: 1.3;
-                display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .di-it-sub { display: flex; align-items: center; gap: 6px; margin-top: 2px; flex-wrap: wrap; }
   .di-it-fonte { font-size: 9.5px; font-weight: 700; letter-spacing: 0.03em; color: var(--moss); background: color-mix(in srgb, var(--color-primary-400) 15%, transparent); padding: 1px 6px; border-radius: 100px; white-space: nowrap; }
-  .di-it-marca { font-size: 10.5px; color: var(--ink-mute); }
 
   /* Badge de procedência do dado (fonte_dados). Discreto de propósito: é
      contexto, não informação de prescrição. Tom neutro para todas as fontes —
@@ -282,25 +238,15 @@
   .di-sub-chip em { font-style: normal; font-size: 9.5px; color: var(--ink-mute); }
   .di-sub-chip-mais { color: var(--ink-mute); background: none; border-style: dashed; }
 
-  .di-it-obs { display: flex; align-items: center; gap: 5px; margin-top: 4px; }
-  .di-it-obs svg { width: 12px; height: 12px; color: var(--ink-mute); flex-shrink: 0; }
   .di-obs { flex: 1 1 auto; min-width: 60px; padding: 1px 4px; border: 1px solid transparent; border-radius: 5px; background: none;
             font-family: var(--font-sans); font-size: 11px; color: var(--ink-mute); }
   .di-obs:hover { border-color: var(--line); }
   .di-obs:focus { outline: none; border-color: var(--sage); background: var(--bg-card); color: var(--ink); }
-  .di-inp { width: 100%; padding: 5px 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg-card);
-            font-family: var(--font-sans); font-size: 12.5px; color: var(--ink); }
-  .di-inp:focus { outline: none; border-color: var(--sage); box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary-400) 20%, transparent); }
-  .di-inp-qtd { text-align: right; }
 
   /* Ações da linha: visíveis, não escondidas atrás de um menu. Ficam em 45% de
      opacidade e acendem no hover/foco da linha — presentes o suficiente para
      saber que existem, discretas o suficiente para não competir com o alimento.
      Em telas de toque não há hover, então nunca somem de verdade. */
-  .c-acts { display: flex; justify-content: flex-end; align-items: center; gap: 0; }
-  .di-item .c-acts .di-iact { opacity: 0.45; transition: opacity 0.15s, background 0.15s, color 0.15s; }
-  .di-item:hover .c-acts .di-iact,
-  .di-item:focus-within .c-acts .di-iact { opacity: 1; }
   .di-iact.ativo { opacity: 1; color: var(--moss); }
   @media (hover: none) { .di-item .c-acts .di-iact { opacity: 1; } }
 
@@ -454,7 +400,6 @@
   .di-res-mac { text-align: right; flex-shrink: 0; }
   .di-res-kcal { font-family: var(--font-sans); font-size: 12.5px; font-weight: 800; color: var(--moss-deep); }
   .di-res-pcg { font-size: 10px; color: var(--ink-mute); white-space: nowrap; }
-  .di-res-add { flex-shrink: 0; padding: 5px 11px; font-size: 12px; }
   .di-dw-ft { display: flex; gap: 12px; justify-content: center; padding: 9px; border-top: 1px solid var(--line); font-size: 10.5px; color: var(--ink-mute); flex-wrap: wrap; }
   .di-dw-ft kbd { font-family: inherit; font-size: 9.5px; font-weight: 700; background: var(--bg-warm); border: 1px solid var(--line);
                   border-radius: 4px; padding: 1px 5px; margin-right: 2px; }
@@ -477,35 +422,14 @@
     .di-rs-mob-painel .di-rs { border: none; box-shadow: none; padding: 0; }
     .di-refeicoes, .di-nova { margin-bottom: 0; }
     .di-drawer { width: 52vw; min-width: 380px; }
-    .di-tr { grid-template-columns: 22px minmax(0,1fr) 56px 108px 56px 46px 44px; }
-    .di-th .c-mac:nth-of-type(6), .di-th .c-mac:nth-of-type(7), .di-th .c-mac:nth-of-type(8) { display: none; }
-    .di-item .c-mac { display: none; }      /* macros por item saem; kcal fica */
   }
 
   /* ── Mobile: tabela vira card empilhado ── */
   @media (max-width: 700px) {
     .di-drawer { width: 100vw; min-width: 0; border-left: none; }
     .di-nova-grid { grid-template-columns: 1fr; }
-    .di-card-hd { flex-wrap: wrap; }
-    .di-card-id { flex: 1 1 100%; order: 1; }
-    .di-toggle { order: 0; }
-    .di-card-acts { order: 2; margin-left: auto; }
-    .di-card-stats { order: 3; flex: 1 1 100%; justify-content: flex-start; margin-left: 0; }
 
     /* Sem rolagem horizontal: cada item vira um bloco */
-    .di-th { display: none; }
-    .di-tr { display: block; padding: 10px 12px; position: relative; }
-    .di-item { border-bottom: 1px solid var(--line); }
-    .c-num { position: absolute; top: 10px; right: 12px; }
-    .c-nome { margin-bottom: 8px; }
-    .di-item .c-qtd, .di-item .c-med, .di-item .c-peso { display: inline-block; vertical-align: middle; margin-right: 8px; }
-    .di-item .c-qtd { width: 68px; }
-    .di-item .c-med { width: 130px; }
-    .di-item .c-peso { font-size: 12.5px; }
-    .di-item .c-mac { display: inline-block; margin-right: 10px; font-size: 11.5px; }
-    .di-item .c-mac::before { content: attr(title) ': '; color: var(--ink-mute); }
-    .di-item .c-kcal { display: inline-block; }
-    .c-acts { justify-content: flex-start; margin-top: 8px; gap: 4px; }
   }
 
   /* ═══════════════════════════════════════════════════════════════════════
@@ -577,4 +501,668 @@
     .di-tb-edit { opacity: 1; }                /* sem hover no toque */
     .di-so-item { min-width: 0; }
     .di-so-val { font-size: 15px; }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     NÍVEL 1 — ROTINA ALIMENTAR
+     ═══════════════════════════════════════════════════════════════════════
+     A grade das colunas mora numa variável só. Cabeçalho e linhas leem a MESMA
+     definição, então é impossível uma coluna sair do lugar em relação à outra —
+     que era o problema de antes, quando cada refeição media o próprio conteúdo.
+
+     A área de ações fica FORA da grade, posicionada sobre a linha, e o botão da
+     linha reserva o espaço dela em padding-right. Assim os números nunca ficam
+     comprimidos contra os botões. */
+  .di-refeicoes {
+    --rt-cols: minmax(260px, 1fr) 108px 104px 104px 104px;
+    /* Respiro entre o último número e os botões. Deixou de ser reserva de
+       padding: agora é o gap do flex, então nunca fica dessincronizado da
+       largura real das ações. */
+    --rt-respiro: 80px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+
+  /* Linha e ações lado a lado. `align-items: center` é o que mantém os botões
+     no eixo vertical da linha, cresça ela o quanto crescer. */
+  .rt-topo { display: flex; align-items: center; gap: var(--rt-respiro); }
+
+  .rt-card { position: relative; background: var(--bg-card);
+             border: 1px solid rgba(216,222,229,0.55); border-radius: 12px;
+             transition: border-color 0.15s, box-shadow 0.2s; }
+  .rt-card:hover { border-color: rgba(216,222,229,1);
+                   box-shadow: 0 1px 2px rgba(16,24,40,0.04), 0 4px 14px rgba(16,24,40,0.05); }
+  .rt-card.aberta { border-color: rgba(216,222,229,1); box-shadow: 0 2px 6px rgba(16,24,40,0.06); }
+  .rt-card.editando { border-color: color-mix(in srgb, var(--color-primary-400) 55%, transparent);
+                      box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary-400) 14%, transparent); }
+
+  /* Toda linha recolhida tem a MESMA altura: a grade não depende do conteúdo. */
+  .rt-linha { flex: 1 1 auto; min-width: 0;
+              display: grid; grid-template-columns: var(--rt-cols); align-items: center; gap: 14px;
+              min-height: 66px; padding: 10px 0 10px 12px;
+              border: none; background: none; cursor: pointer; text-align: left; font: inherit;
+              border-radius: 11px; transition: background 0.15s; }
+  .rt-linha:hover { background: var(--bg-warm); }
+  .rt-linha:focus-visible { outline: 2px solid var(--sage); outline-offset: -2px; }
+  .rt-card.aberta .rt-linha { background: var(--bg-warm); border-radius: 11px 11px 0 0; }
+
+  .rt-ident { display: flex; align-items: center; gap: 11px; min-width: 0; }
+  .rt-seta { flex: 0 0 auto; display: grid; place-items: center; width: 18px; color: var(--ink-mute);
+             transition: transform 0.2s ease; }
+  .rt-seta svg { width: 15px; height: 15px; }
+  .rt-card.aberta .rt-seta { transform: rotate(90deg); color: var(--moss); }
+
+  .rt-hora { flex: 0 0 auto; width: 44px; font-family: var(--font-sans); font-size: 13.5px; font-weight: 800;
+             color: var(--moss-deep); font-variant-numeric: tabular-nums; }
+  .rt-icone { flex: 0 0 auto; width: 32px; height: 32px; display: grid; place-items: center;
+              border-radius: 9px; background: var(--bg-warm); color: var(--moss); }
+  .rt-card.aberta .rt-icone { background: var(--bg-card); }
+  .rt-icone svg { width: 16px; height: 16px; }
+
+  .rt-id { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .rt-nome { font-family: var(--font-sans); font-size: 15px; font-weight: 800; color: var(--moss-deep);
+             line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rt-contagens { display: flex; align-items: center; gap: 9px; flex-wrap: nowrap; overflow: hidden; }
+  .rt-conta { font-size: 11px; color: var(--ink-mute); white-space: nowrap; }
+  .rt-conta-obs { display: inline-flex; align-items: center; gap: 4px; }
+  .rt-conta-obs svg { width: 11px; height: 11px; }
+
+  /* Valores: alinhados à direita, tabular, unidade com largura previsível. */
+
+  /* ── Ações: botões quadrados INDEPENDENTES ──────────────────────────────
+     Cada um é uma ação diferente, então nada de controle segmentado. E sem a
+     área clicável estendida por ::after do .di-iact: com 26px de botão e halo
+     de 6px, os alvos vizinhos se sobrepunham e o clique caía no botão errado —
+     era por isso que "alguns botões não funcionavam". Aqui o alvo é o próprio
+     botão, de 34px, sem invasão. */
+  .rt-acts { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding-right: 10px; }
+  .rt-btn { width: 34px; height: 34px; display: grid; place-items: center; padding: 0;
+            border: 1px solid var(--line); border-radius: 9px; background: var(--bg-card);
+            color: var(--ink-mute); cursor: pointer;
+            transition: background 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s; }
+  .rt-btn svg { width: 16px; height: 16px; }
+  .rt-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--color-primary-400) 16%, transparent);
+                                 border-color: color-mix(in srgb, var(--color-primary-400) 45%, transparent);
+                                 color: var(--moss-deep); }
+  .rt-btn:focus-visible { outline: 2px solid var(--sage); outline-offset: 1px; }
+  .rt-btn:disabled { opacity: 0.35; cursor: default; }
+  .rt-btn[data-acao="editar"] { color: var(--moss); }
+
+  /* ── Resumo inline (somente leitura) ────────────────────────────────────
+     Expansão por grid-template-rows 0fr→1fr: anima sem altura fixa e sem
+     salto quando o conteúdo muda de tamanho. */
+  .rt-resumo { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 0.2s ease; }
+  .rt-resumo[hidden] { display: none; }
+  .rt-resumo-in { overflow: hidden; padding: 14px 14px 12px; border-top: 1px solid var(--line);
+                  background: var(--bg-card); border-radius: 0 0 11px 11px; }
+
+  .rt-resumo-obs { display: flex; align-items: flex-start; gap: 7px; margin: 12px 0 0; padding: 10px 12px;
+                   background: var(--bg-warm); border-radius: 9px; font-size: 12px; color: var(--ink-soft); line-height: 1.5; }
+  .rt-resumo-obs svg { width: 13px; height: 13px; flex-shrink: 0; margin-top: 2px; color: var(--ink-mute); }
+
+  .rt-vazio { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+              padding: 20px 16px; border-top: 1px solid var(--line); }
+  .rt-vazio-txt { display: flex; flex-direction: column; gap: 2px; }
+  .rt-vazio-txt strong { font-size: 13.5px; font-weight: 700; color: var(--ink-soft); }
+  .rt-vazio-txt span { font-size: 12px; color: var(--ink-mute); }
+
+  /* ── Responsivo ─────────────────────────────────────────────────────────
+     Nunca rolagem horizontal para salvar a grade: as colunas encolhem, depois
+     o resumo simplifica, depois a linha empilha. */
+  /* O respiro encolhe antes das colunas: é o primeiro espaço dispensável. */
+  @media (max-width: 1500px) {
+    .di-refeicoes { --rt-respiro: 56px; --rt-cols: minmax(240px, 1fr) 100px 96px 96px 96px; }
+  }
+  @media (max-width: 1300px) {
+    .di-refeicoes { --rt-respiro: 32px; --rt-cols: minmax(200px, 1fr) 92px 84px 84px 84px; }
+  }
+  @media (max-width: 1120px) {
+    .rt-contagens { display: none; }
+    .di-refeicoes { --rt-respiro: 20px; --rt-cols: minmax(160px, 1fr) 84px 74px 74px 74px; }
+    .rt-acts { gap: 4px; }
+    .rt-btn { width: 30px; height: 30px; }
+  }
+  @media (max-width: 940px) {
+    /* Tablet: nome na primeira linha, números na segunda, ações numa faixa
+       própria embaixo. Aqui os botões descem DE PROPÓSITO. */
+    .rt-topo { flex-direction: column; align-items: stretch; gap: 0; }
+    .rt-linha { grid-template-columns: repeat(4, 1fr); row-gap: 10px; min-height: 0; padding: 12px; }
+    .rt-ident { grid-column: 1 / -1; }
+    .rt-val { align-items: flex-start; }
+    .rt-acts { justify-content: flex-end; padding: 0 12px 12px; }
+  }
+  @media (max-width: 620px) {
+    .rt-linha { grid-template-columns: repeat(2, 1fr); }
+    .rt-vazio { flex-direction: column; align-items: stretch; }
+  }
+
+  /* ── Indicadores: valor forte, legenda discreta ─────────────────────────
+     A legenda saiu da faixa de cabeçalho e entrou na célula. O bloco tem
+     altura fixa em duas linhas, então todas as refeições ocupam exatamente o
+     mesmo espaço vertical, com ou sem valor. */
+  .rt-val { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; min-width: 0; }
+  .rt-val-num { display: inline-flex; align-items: baseline; gap: 3px;
+                font-family: var(--font-sans); font-size: 15px; font-weight: 800; color: var(--text-primary);
+                font-variant-numeric: tabular-nums; white-space: nowrap; line-height: 1.15; }
+  .rt-val-num em { font-style: normal; font-size: 10.5px; font-weight: 600; color: var(--ink-mute); }
+  .rt-val-lbl { display: inline-flex; align-items: center; gap: 4px; font-size: 9.5px; font-weight: 700;
+                text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-mute);
+                white-space: nowrap; opacity: 0.85; }
+  .rt-val-kcal .rt-val-num { font-size: 17px; color: var(--moss-deep); }
+  .rt-val-kcal .rt-val-lbl { opacity: 1; }
+
+  /* ── Lista de alimentos do resumo ───────────────────────────────────────
+     Lista, não tabela: sem cabeçalho de colunas, sem régua entre as linhas. O
+     que separa é o espaço, e o hover é o que dá o "onde estou". */
+  /* Uma definição de colunas para o cabeçalho E para as linhas. */
+  .rt-al-lista { --al-cols: minmax(220px, 1fr) 72px 150px 88px 118px 132px;
+                 list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+  .rt-al { display: grid; grid-template-columns: var(--al-cols);
+           align-items: center; gap: 14px; min-height: 46px; padding: 6px 10px; border-radius: 9px;
+           transition: background 0.15s; }
+  .rt-al:not(.rt-al-th):hover { background: var(--bg-warm); }
+
+  .rt-al-th { min-height: 0; padding-top: 2px; padding-bottom: 8px; }
+  .rt-al-th span { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+                   color: var(--ink-mute); opacity: 0.8; }
+  .rt-al-th span:nth-child(2), .rt-al-th span:nth-child(4) { text-align: right; }
+  .rt-al-th span:nth-child(5) { text-align: center; }
+
+  .rt-al-nome { font-size: 13.5px; font-weight: 700; color: var(--text-primary); line-height: 1.35;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rt-al-qtd { font-size: 13px; color: var(--text-primary); text-align: right;
+               font-variant-numeric: tabular-nums; }
+  .rt-al-med { font-size: 12.5px; color: var(--ink-soft);
+               white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rt-al-med-orfa { color: var(--terracotta); }
+  .rt-al-peso { font-family: var(--font-sans); font-size: 13px; font-weight: 800; color: var(--moss-deep);
+                text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .rt-al-subs { display: flex; justify-content: center; }
+  .rt-al-nulo { color: var(--ink-mute); opacity: 0.55; }
+
+  /* Chip de opções: é botão, abre o painel de substituições. */
+  .rt-al-chip { flex: 0 0 auto; padding: 2px 9px; border: 1px solid var(--line); border-radius: 100px;
+                background: var(--bg-card); cursor: pointer;
+                font-family: var(--font-sans); font-size: 10.5px; font-weight: 700; color: var(--ink-mute);
+                white-space: nowrap; transition: all 0.15s; }
+  .rt-al-chip:hover { border-color: color-mix(in srgb, var(--color-primary-400) 50%, transparent);
+                      background: color-mix(in srgb, var(--color-primary-400) 12%, transparent);
+                      color: var(--moss-deep); }
+  .rt-al-chip:focus-visible { outline: 2px solid var(--sage); outline-offset: 1px; }
+
+  /* Ações rápidas: só no hover/foco da linha, e o espaço é reservado sempre —
+     aparecer não pode empurrar nada. */
+  .rt-al-acts { display: flex; align-items: center; justify-content: flex-end; gap: 2px;
+                opacity: 0; transition: opacity 0.15s; }
+  .rt-al:hover .rt-al-acts, .rt-al:focus-within .rt-al-acts { opacity: 1; }
+  @media (hover: none) { .rt-al-acts { opacity: 1; } }
+  .rt-al-btn { width: 30px; height: 30px; display: grid; place-items: center; padding: 0;
+               border: 1px solid transparent; border-radius: 8px; background: none; color: var(--ink-mute);
+               cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+  .rt-al-btn svg { width: 15px; height: 15px; }
+  .rt-al-btn:hover { background: var(--bg-card); border-color: var(--line); color: var(--moss-deep); }
+  .rt-al-btn:focus-visible { outline: 2px solid var(--sage); outline-offset: 1px; }
+  .rt-al-btn[data-acao="del-item"]:hover { background: rgba(184,103,74,0.1); border-color: transparent; color: var(--terracotta); }
+
+  /* ── Action Bar ─────────────────────────────────────────────────────────
+     Parte do card, não um rodapé solto: divisória de 1px bem clara e o mesmo
+     recuo do conteúdo. Três alturas iguais, 12px entre elas, três pesos. */
+  /* Uma linha só, encostada à esquerda. `nowrap` e nada de margin-left:auto:
+     era o `auto` no terceiro botão que jogava "Duplicar" para a extremidade,
+     e o `wrap` que deixava um cair para baixo do outro. */
+  .rt-bar { display: flex; align-items: center; justify-content: flex-start; gap: 12px; flex-wrap: nowrap;
+            margin-top: 18px; padding-top: 16px; border-top: 1px solid rgba(230,232,235,0.8); }
+  .rt-acao { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+             height: 38px; padding: 0 16px; border-radius: 10px; cursor: pointer;
+             font-family: var(--font-sans); font-size: 13px; font-weight: 700; white-space: nowrap;
+             border: 1px solid transparent; transition: background 0.18s, border-color 0.18s, color 0.18s, box-shadow 0.18s; }
+  .rt-acao svg { width: 15px; height: 15px; }
+  .rt-acao:focus-visible { outline: 2px solid var(--sage); outline-offset: 2px; }
+
+  .rt-acao-1 { background: var(--moss); color: var(--cream); box-shadow: 0 1px 2px rgba(16,24,40,0.08); }
+  .rt-acao-1:hover { background: var(--moss-deep); box-shadow: 0 2px 8px rgba(16,24,40,0.14); }
+
+  .rt-acao-2 { background: var(--bg-card); color: var(--moss-deep);
+               border-color: color-mix(in srgb, var(--color-primary-400) 55%, transparent); }
+  .rt-acao-2:hover { background: color-mix(in srgb, var(--color-primary-400) 14%, transparent);
+                     border-color: var(--moss); }
+
+  .rt-acao-3 { background: var(--bg-card); color: var(--ink); border-color: var(--line); }
+  .rt-acao-3:hover { background: var(--bg-warm); border-color: var(--border-strong, var(--line)); }
+
+  /* Tablet: só quebra se realmente não couber — e os três continuam juntos,
+     à esquerda. Nunca space-between. */
+  @media (max-width: 1100px) {
+    /* Cabeçalho e linhas encolhem juntos, sempre pela mesma variável. */
+    .rt-al-lista { --al-cols: minmax(180px, 1fr) 64px 120px 78px 104px 116px; }
+  }
+  @media (max-width: 860px) {
+    .rt-bar { flex-wrap: wrap; }
+    .rt-al-lista { --al-cols: minmax(150px, 1fr) 58px 96px 70px 96px 0px; }
+    .rt-al-acts { display: none; }   /* sem hover no toque: as ações vão pelo editor */
+  }
+  @media (max-width: 620px) {
+    .rt-al-lista { --al-cols: 1fr 60px 74px; }
+    .rt-al-med, .rt-al-subs, .rt-al-th span:nth-child(3), .rt-al-th span:nth-child(5) { display: none; }
+  }
+  /* Mobile: a principal ocupa a linha; as outras duas dividem a de baixo. */
+  @media (max-width: 560px) {
+    .rt-bar { display: grid; grid-template-columns: 1fr 1fr; }
+    .rt-acao { width: 100%; }
+    .rt-acao-1 { grid-column: 1 / -1; }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     NÍVEL 2 — DRAWER DA REFEIÇÃO
+     ═══════════════════════════════════════════════════════════════════════
+     ~52% da tela: a rotina continua visível atrás, e trocar de refeição sem
+     fechar faz parte do fluxo. Por isso o fundo é mais leve que o do drawer de
+     busca — este não é modal. */
+  /* Sem backdrop de propósito: ver .rf-drawer em dieta-refeicao.js. O painel
+     não bloqueia a tela — a rotina, a barra e o rodapé continuam clicáveis. */
+  /* 52vw entre 680 e 860px: o drawer estava estreito para a quantidade de
+     dados, mas não pode virar página inteira — a rotina continua atrás. */
+  .rf-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: clamp(680px, 52vw, 860px);
+               max-width: 100vw;
+               z-index: 881; display: flex; flex-direction: column; background: var(--bg-card);
+               border-left: 1px solid var(--line); box-shadow: -16px 0 48px rgba(16,24,40,0.14);
+               animation: di-slide 0.22s ease-out; }
+  /* O painel é recriado a cada render; sem isto o slide de entrada tocaria de
+     novo a cada clique e ele pareceria reabrir sozinho. */
+  /* Vale para os três painéis: o da refeição, o da busca e o fundo escurecido.
+     Todos são recriados a cada render e piscavam junto. */
+  .rf-sem-anim { animation: none !important; }
+  @media (max-width: 1024px) { .rf-drawer { width: 90vw; } }
+
+  .rf-hd-txt { min-width: 0; }
+  .rf-campo-nome { grid-column: 1; }
+  .di-it-marca { font-size: 10.5px; color: var(--ink-mute); white-space: nowrap; }
+  .rf-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+           padding: 18px 20px 14px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+  .rf-eyebrow { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-mute); }
+  .rf-tit { font-family: var(--font-sans); font-size: 20px; font-weight: 600; color: var(--moss-deep);
+            margin: 2px 0 0; line-height: 1.2; }
+  /* O cabeçalho e o rodapé são irmãos fixos; só isto rola. O padding de baixo
+     é a altura do rodapé + folga, senão o último alimento fica embaixo dele. */
+  .rf-body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 20px 76px; }
+
+  .rf-secao { padding: 18px 0; border-bottom: 1px solid rgba(230,232,235,0.7); }
+  .rf-secao:last-child { border-bottom: none; }
+  .rf-secao-tit { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+                  color: var(--ink-mute); margin: 0 0 10px; }
+
+  .rf-campos { display: grid; grid-template-columns: 1fr 132px; gap: 12px; }
+  .rf-campo { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .rf-campo > span { font-size: 11.5px; font-weight: 700; color: var(--ink-soft); }
+
+  /* Resumo da refeição: indicadores limpos, sem gráfico. */
+
+  /* ── Lista de alimentos (dentro do drawer) ── */
+  @media (hover: none) { .al-item .al-acts .di-iact { opacity: 1; } }
+
+  @media (max-width: 900px) {
+    /* Aqui o painel ocupa a tela toda: reservar espaço colapsaria a rotina. */
+    .di-rx:has(~ .rf-drawer) { padding-right: 0; }
+    .rf-drawer { width: 100vw; min-width: 0; max-width: none; border-left: none; }
+    .rf-campos { grid-template-columns: 1fr; }
+  }
+
+  /* ── Alimento: estado COMPACTO ──────────────────────────────────────────
+     Duas linhas e quatro colunas, sempre as mesmas. Quantidade, medida e peso
+     são texto — viram campo só na edição. Duas ações visíveis, não seis. */
+  .al-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .al-item { --al-grid: minmax(200px, 1fr) 64px 104px 76px 76px;
+             padding: 12px 10px; border-radius: 10px; transition: background 0.15s;
+             border-bottom: 1px solid rgba(230,232,235,0.6); }
+  .al-item:last-child { border-bottom: none; }
+  .al-item:hover { background: var(--bg-warm); }
+
+  .al-topo { display: grid; grid-template-columns: var(--al-grid); align-items: center; gap: 12px; }
+  .al-id { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .al-nome { font-size: 13.5px; font-weight: 600; color: var(--text-primary); line-height: 1.35;
+             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .al-qtd-txt { font-size: 13px; font-weight: 700; color: var(--text-primary); text-align: right;
+                font-variant-numeric: tabular-nums; }
+  .al-med-txt { font-size: 12.5px; color: var(--ink-soft);
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .al-peso { font-family: var(--font-sans); font-size: 13px; font-weight: 800; color: var(--moss-deep);
+             text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .al-acts { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+  .al-btn { width: 32px; height: 32px; display: grid; place-items: center; padding: 0;
+            border: 1px solid transparent; border-radius: 8px; background: none; color: var(--ink-mute);
+            cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+  .al-btn svg { width: 15px; height: 15px; }
+  .al-btn:hover { background: var(--bg-card); border-color: var(--line); color: var(--moss-deep); }
+  .al-btn:focus-visible { outline: 2px solid var(--sage); outline-offset: 1px; }
+  .al-btn-editar { color: var(--moss); }
+
+  /* Segunda linha: macros e substituições, alinhados ao começo do nome. */
+  .al-sec { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 5px; }
+  .al-macros { display: flex; align-items: baseline; gap: 10px; font-size: 11.5px; color: var(--ink-mute);
+               font-variant-numeric: tabular-nums; }
+  .al-macros b { font-family: var(--font-sans); font-size: 12.5px; font-weight: 800; color: var(--ink-soft); }
+  .al-chip { padding: 2px 9px; border: 1px solid var(--line); border-radius: 100px; background: var(--bg-card);
+             cursor: pointer; font-family: var(--font-sans); font-size: 10.5px; font-weight: 700;
+             color: var(--ink-mute); white-space: nowrap; transition: all 0.15s; }
+  .al-chip:hover { border-color: color-mix(in srgb, var(--color-primary-400) 50%, transparent);
+                   background: color-mix(in srgb, var(--color-primary-400) 12%, transparent); color: var(--moss-deep); }
+  .al-obs-txt { display: flex; align-items: center; gap: 6px; margin: 5px 0 0; font-size: 11.5px;
+                color: var(--ink-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .al-obs-txt svg { width: 12px; height: 12px; flex-shrink: 0; }
+
+  /* ── Alimento: estado de EDIÇÃO ─────────────────────────────────────────
+     Fundo próprio e anel: fica claro qual alimento está sob a mão. */
+  .al-item-edit { background: var(--bg-card); border: 1px solid color-mix(in srgb, var(--color-primary-400) 45%, transparent);
+                  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary-400) 12%, transparent);
+                  padding: 14px; margin: 8px 0; }
+  .al-item-edit:hover { background: var(--bg-card); }
+  .al-edit-hd { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .al-edit-hd .al-nome { font-size: 14.5px; font-weight: 700; }
+  .al-edit-hd .al-acts { margin-left: auto; }
+  .al-btn-fechar { color: var(--moss-deep); background: color-mix(in srgb, var(--color-primary-400) 16%, transparent); }
+  .al-btn-fechar:hover { background: color-mix(in srgb, var(--color-primary-400) 30%, transparent); border-color: transparent; }
+
+  .al-campos { display: grid; grid-template-columns: 120px 1fr 96px; gap: 10px; align-items: end; }
+  .al-campo { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .al-campo > span { font-size: 11px; font-weight: 700; color: var(--ink-soft); }
+  .al-campo-ro output { display: block; height: 34px; line-height: 34px; padding: 0 10px;
+                        background: var(--bg-warm); border-radius: 8px;
+                        font-family: var(--font-sans); font-size: 13px; font-weight: 800; color: var(--moss-deep);
+                        text-align: right; font-variant-numeric: tabular-nums; }
+  .al-campo-obs { margin-top: 12px; }
+  .al-inp, .al-sel { height: 34px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px;
+                     background: var(--bg-card); font-family: var(--font-sans); font-size: 13px; color: var(--ink); }
+  .al-inp { text-align: right; font-variant-numeric: tabular-nums; }
+  .al-campo-obs .al-inp { text-align: left; }
+  .al-inp:focus, .al-sel:focus { outline: none; border-color: var(--sage);
+                                 box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary-400) 18%, transparent); }
+  .al-item-edit .al-sec { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+
+  .al-vazio { display: flex; align-items: center; justify-content: center; gap: 9px; padding: 28px 16px;
+              border: 1px dashed var(--line); border-radius: 12px; font-size: 13px; color: var(--ink-mute); }
+  .al-vazio svg { width: 17px; height: 17px; }
+
+  /* ── Cabeçalho da seção de alimentos ────────────────────────────────── */
+  .rf-secao-lista .rf-secao-hd { margin-bottom: 4px; }
+  .rf-conta { display: inline-block; margin-left: 8px; padding: 2px 9px; border-radius: 100px;
+              background: var(--bg-warm); color: var(--ink-soft); font-size: 11px; font-weight: 700; }
+  .rf-add { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px;
+            border: 1px solid color-mix(in srgb, var(--color-primary-400) 50%, transparent); border-radius: 9px;
+            background: var(--bg-card); color: var(--moss-deep);
+            font-family: var(--font-sans); font-size: 12.5px; font-weight: 700; cursor: pointer;
+            white-space: nowrap; transition: background 0.15s, border-color 0.15s; }
+  .rf-add:hover { background: color-mix(in srgb, var(--color-primary-400) 14%, transparent); border-color: var(--moss); }
+  .rf-add:focus-visible { outline: 2px solid var(--sage); outline-offset: 2px; }
+  .rf-add svg { width: 15px; height: 15px; }
+
+  /* ── Campo de nome com sugestões ────────────────────────────────────────
+     O botão existe porque <input list> (datalist) não abre no clique: o
+     navegador só mostra as opções ao digitar ou com a seta para baixo. O campo
+     continua livre — a sugestão é atalho, não restrição. */
+  .rf-nome-wrap { position: relative; display: flex; align-items: center; }
+  .rf-nome-wrap .np-input { width: 100%; padding-right: 38px; }
+  .rf-nome-btn { position: absolute; right: 4px; width: 28px; height: 28px; display: grid; place-items: center;
+                 border: none; border-radius: 7px; background: none; color: var(--ink-mute); cursor: pointer;
+                 transition: background 0.15s, color 0.15s; }
+  .rf-nome-btn svg { width: 15px; height: 15px; }
+  .rf-nome-btn:hover { background: var(--bg-warm); color: var(--ink); }
+  .rf-nome-btn:focus-visible { outline: 2px solid var(--sage); outline-offset: 1px; }
+  .rf-nome-menu { left: 0; right: 0; min-width: 0; }
+  .rf-nome-menu button { font-weight: 600; }
+
+  /* ── Faixa "+ Alimento" ─────────────────────────────────────────────────
+     Linha própria entre duas divisórias, entre Informações e Alimentos. */
+
+  /* ── Busca embutida no drawer da refeição ───────────────────────────────
+     Mesmo conteúdo do painel lateral, sem posicionamento fixo: ela pertence à
+     refeição que já está aberta e não deve empilhar uma segunda camada. */
+
+  @media (max-width: 620px) {
+  }
+
+  /* ── Resumo: um container, divisórias por dentro ────────────────────── */
+  .rf-resumo { display: grid; grid-template-columns: repeat(6, 1fr);
+               background: var(--bg-warm); border-radius: 12px; overflow: hidden; }
+  .rf-dado { display: flex; flex-direction: column; gap: 2px; padding: 12px 10px;
+             border-left: 1px solid rgba(255,255,255,0.9); }
+  .rf-dado:first-child { border-left: none; }
+  .rf-dado-lbl { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+                 color: var(--ink-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rf-dado-val { font-family: var(--font-sans); font-size: 16px; font-weight: 800; color: var(--moss-deep);
+                 font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .rf-dado-val em { font-style: normal; font-size: 10.5px; font-weight: 600; color: var(--ink-mute); margin-left: 3px; }
+
+  /* ── Observações ────────────────────────────────────────────────────── */
+  .rf-obs-toggle { display: flex; align-items: flex-start; gap: 9px; width: 100%; padding: 12px;
+                   border: 1px solid var(--line); border-radius: 10px; background: var(--bg-card);
+                   cursor: pointer; text-align: left; transition: background 0.15s, border-color 0.15s; }
+  .rf-obs-toggle:hover { background: var(--bg-warm); border-color: var(--border-strong, var(--line)); }
+  .rf-obs-toggle:focus-visible { outline: 2px solid var(--sage); outline-offset: 2px; }
+  .rf-obs-toggle > svg { width: 15px; height: 15px; color: var(--ink-mute); flex-shrink: 0; margin-top: 1px; }
+  .rf-obs-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .rf-obs-tit { font-family: var(--font-sans); font-size: 13px; font-weight: 700; color: var(--ink); }
+  .rf-obs-sub { font-size: 11.5px; color: var(--ink-mute); line-height: 1.45;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rf-obs { width: 100%; margin-top: 10px; resize: vertical; }
+
+  /* ── Rodapé fixo ────────────────────────────────────────────────────── */
+  .rf-ft { display: flex; align-items: center; gap: 8px; padding: 12px 20px;
+           border-top: 1px solid var(--line); background: var(--bg-card); flex-shrink: 0; }
+  .rf-ft-btn { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 12px;
+               border: 1px solid transparent; border-radius: 9px; background: none; color: var(--ink-soft);
+               font-family: var(--font-sans); font-size: 12.5px; font-weight: 700; cursor: pointer;
+               white-space: nowrap; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+  .rf-ft-btn svg { width: 15px; height: 15px; }
+  .rf-ft-btn:hover { background: var(--bg-warm); color: var(--ink); border-color: var(--line); }
+  .rf-ft-btn:focus-visible { outline: 2px solid var(--sage); outline-offset: 1px; }
+  /* Excluir só fica vermelho no hover: em repouso é uma ação como as outras. */
+  .rf-excluir:hover { background: rgba(184,103,74,0.12); color: var(--terracotta); border-color: transparent; }
+  .rf-ft-ok { margin-left: auto; height: 36px; padding: 0 22px; border: none; border-radius: 9px;
+              background: var(--moss); color: var(--cream); cursor: pointer;
+              font-family: var(--font-sans); font-size: 13px; font-weight: 700;
+              box-shadow: 0 1px 2px rgba(16,24,40,0.08); transition: background 0.18s, box-shadow 0.18s; }
+  .rf-ft-ok:hover { background: var(--moss-deep); box-shadow: 0 2px 8px rgba(16,24,40,0.14); }
+  .rf-ft-ok:focus-visible { outline: 2px solid var(--sage); outline-offset: 2px; }
+
+  /* ── Responsivo do drawer ───────────────────────────────────────────── */
+  @media (max-width: 1400px) {
+    .al-item { --al-grid: minmax(170px, 1fr) 58px 92px 70px 76px; }
+  }
+  @media (max-width: 1100px) {
+    .rf-resumo { grid-template-columns: repeat(3, 1fr); }
+    .rf-dado:nth-child(4) { border-left: none; }
+  }
+  @media (max-width: 900px) {
+    /* Tablet: nome na primeira linha, números abaixo, macros na terceira. */
+    .al-topo { grid-template-columns: 1fr 64px 96px 76px; row-gap: 8px; }
+    .al-id { grid-column: 1 / -1; }
+    .al-acts { grid-column: 4; }
+    .al-campos { grid-template-columns: 1fr 1fr; }
+    .al-campo-ro { grid-column: 1 / -1; }
+    .rf-resumo { grid-template-columns: repeat(2, 1fr); }
+    .rf-dado:nth-child(odd) { border-left: none; }
+  }
+  @media (max-width: 620px) {
+    .al-topo { grid-template-columns: 1fr auto; }
+    .al-qtd-txt, .al-med-txt { grid-column: 1; text-align: left; }
+    .al-peso { grid-column: 2; }
+    .al-acts { grid-column: 2; }
+    .rf-ft { flex-wrap: wrap; }
+    .rf-ft-ok { width: 100%; margin-left: 0; order: -1; }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     ÁREA DE BUSCA EMBUTIDA — superfície própria
+     ═══════════════════════════════════════════════════════════════════════
+     A busca é ferramenta temporária; a lista abaixo é a prescrição. Elas não
+     podem parecer o mesmo nível. A distinção é uma tonalidade verde de ~5%
+     composta a partir do token da marca — nada de cor nova solta no arquivo:
+     acima o fundo é tonalizado (procurando), abaixo é branco (prescrito). */
+
+  .di-dw-hd-txt { min-width: 0; }
+  .di-dw-x { display: inline-flex; align-items: center; gap: 6px; width: auto; padding: 0 8px; height: 30px; }
+  .di-dw-x kbd { font-family: inherit; font-size: 9.5px; font-weight: 700; line-height: 1;
+                 background: var(--bg-card); border: 1px solid var(--line); border-bottom-width: 2px;
+                 border-radius: 4px; padding: 3px 5px; color: var(--ink-mute); }
+
+  /* Abas: hierarquia secundária, sem fundo pesado — o campo é que manda. */
+
+  /* Campo: o elemento dominante da área. 50px, branco sobre a superfície. */
+
+  /* Filtros logo abaixo do campo, altura uniforme. */
+
+  /* Resultados: cards brancos sobre a superfície tonalizada. Altura limitada a
+     ~4 itens; só esta lista rola, o resto da área fica parado. */
+
+  /* Favoritar: alvo de 32px, estados bem diferentes. */
+
+  /* Adicionar: outline verde em repouso, sólido no hover. */
+  .di-res-add { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+                height: 36px; padding: 0 16px; border-radius: 9px; cursor: pointer; white-space: nowrap;
+                border: 1px solid color-mix(in srgb, var(--color-primary-400) 50%, transparent);
+                background: var(--bg-card); color: var(--moss-deep);
+                font-family: var(--font-sans); font-size: 12.5px; font-weight: 700;
+                transition: background 0.15s, color 0.15s, border-color 0.15s; }
+  .di-res-add svg { width: 14px; height: 14px; }
+  .di-res-add:hover:not(:disabled) { background: var(--moss); border-color: var(--moss); color: var(--cream); }
+  .di-res-add:focus-visible { outline: 2px solid var(--sage); outline-offset: 2px; }
+  .di-res-add:disabled { cursor: default; }
+  .di-res-add.carregando { color: var(--ink-mute); border-color: var(--line); }
+  .di-res-add.carregando .spinner { width: 13px; height: 13px; border-width: 2px; }
+  .di-res-add.feito { background: color-mix(in srgb, var(--color-primary-400) 20%, transparent);
+                      border-color: transparent; color: var(--moss-deep); }
+
+  /* Estado vazio com saída. */
+  .di-dw-vazio-t { font-size: 13.5px; font-weight: 700; color: var(--ink-soft); }
+  .di-dw-vazio-s { font-size: 12px; color: var(--ink-mute); line-height: 1.5; }
+  .di-dw-vazio-btn { margin-top: 10px; height: 32px; padding: 0 14px; border-radius: 8px; cursor: pointer;
+                     border: 1px solid var(--line); background: var(--bg-card);
+                     font-family: var(--font-sans); font-size: 12px; font-weight: 700; color: var(--ink-soft);
+                     transition: background 0.15s, border-color 0.15s; }
+  .di-dw-vazio-btn:hover { background: var(--bg-warm); border-color: var(--border-strong, var(--line)); }
+
+  /* Dicas de teclado: discretas, dentro da área. */
+
+  /* Separação da lista já prescrita: fundo branco, título forte, mais ar. */
+  .rf-secao-tit-forte { font-size: 12px; color: var(--ink-soft); letter-spacing: 0.07em; }
+  .rf-secao-lista.apos-busca { margin-top: 6px; padding-top: 18px; border-top: 1px solid var(--line); }
+
+  @media (max-width: 860px) {
+    /* Tablet: nome em cima; nutricional e botão embaixo. */
+    .di-res-add { order: 3; margin-left: auto; }
+  }
+  @media (max-width: 560px) {
+    .di-res-add { width: 100%; margin-left: 0; }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     ÁREA DE INCLUSÃO — sempre no mesmo lugar, sempre a mesma superfície
+     ═══════════════════════════════════════════════════════════════════════
+     Fechada mostra o botão; aberta, a busca cresce dentro dela. É a MESMA
+     superfície nos dois estados, então nada muda de posição ao abrir — o
+     "onde se adiciona alimento" fica estável para quem trabalha aqui o dia
+     inteiro.
+
+     A tonalidade sai do token da marca (~5%), não de cor nova: acima é
+     ferramenta (procurando), abaixo é prescrição (branco). */
+  /* padding de 8px: é o recuo ÚNICO da área. Tudo lá dentro encosta nele, em
+     vez de somar uma margem própria — era isso que deixava o campo de busca
+     mais estreito do que o espaço disponível. */
+  .rf-add-area { margin: 4px 0 6px; padding: 6px; border-radius: 14px;
+                 background: color-mix(in srgb, var(--color-primary-400) 5%, var(--bg-card));
+                 border: 1px solid color-mix(in srgb, var(--color-primary-400) 22%, transparent); }
+
+  /* Fechada: o botão ocupa a faixa inteira. */
+  .rf-add-area .rf-add { width: 100%; height: 40px; justify-content: center;
+                         text-transform: uppercase; letter-spacing: 0.04em; font-size: 12px;
+                         background: var(--bg-card);
+                         border-color: color-mix(in srgb, var(--color-primary-400) 40%, transparent); }
+  .rf-add-area .rf-add:hover { background: color-mix(in srgb, var(--color-primary-400) 12%, transparent);
+                               border-color: var(--moss); }
+
+  /* Aberta: a busca É a área — sem moldura própria, para não desenhar uma
+     caixa dentro da outra. */
+  .di-drawer-inline { position: static; width: auto; min-width: 0; max-width: none; height: auto;
+                      z-index: auto; background: none; border: none; box-shadow: none; animation: none;
+                      margin: 0; border-radius: 12px; overflow: hidden; }
+
+  .di-drawer-inline .di-dw-hd { align-items: center; padding: 4px 2px 8px; border-bottom: none; }
+  .di-dw-hd-txt { min-width: 0; }
+  .di-drawer-inline .di-dw-tit { font-family: var(--font-sans); font-size: 15.5px; font-weight: 700;
+                                 color: var(--moss-deep); line-height: 1.25; }
+  .di-drawer-inline .di-dw-eyebrow { font-size: 11.5px; font-weight: 600; text-transform: none;
+                                     letter-spacing: 0; color: var(--ink-mute); margin-top: 1px; }
+  .di-dw-x { display: inline-flex; align-items: center; gap: 6px; width: auto; padding: 0 8px; height: 30px; }
+  .di-dw-x kbd { font-family: inherit; font-size: 9.5px; font-weight: 700; line-height: 1;
+                 background: var(--bg-card); border: 1px solid var(--line); border-bottom-width: 2px;
+                 border-radius: 4px; padding: 3px 5px; color: var(--ink-mute); }
+
+  /* Abas: hierarquia secundária, sem fundo pesado — o campo é que manda. */
+  .di-drawer-inline .di-dw-abas { gap: 2px; padding: 0; border-bottom: none; }
+  .di-drawer-inline .di-dw-aba { padding: 6px 10px; font-size: 12px; font-weight: 700; border-radius: 7px;
+                                 border-bottom: 2px solid transparent; color: var(--ink-mute); }
+  .di-drawer-inline .di-dw-aba:hover { color: var(--moss-deep); }
+  .di-drawer-inline .di-dw-aba.ativa { color: var(--moss-deep); border-bottom-color: var(--moss); background: none; }
+
+  /* Campo: o elemento dominante da área. 50px, branco sobre a superfície. */
+  /* Campo com CONTORNO, sem preenchimento: a caixa branca em volta do texto
+     desenhava um bloco dentro do bloco. Só a linha basta para delimitar, e o
+     verde da área continua aparecendo por baixo. */
+  .di-drawer-inline .di-dw-busca { margin: 10px 0 0; padding: 0 12px; height: 52px; gap: 10px;
+                                   background: none;
+                                   border: 1.5px solid color-mix(in srgb, var(--color-primary-400) 30%, transparent);
+                                   border-radius: 12px;
+                                   transition: border-color 0.18s, box-shadow 0.18s; }
+  .di-drawer-inline .di-dw-busca:focus-within { border-color: var(--moss);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary-400) 18%, transparent); }
+  .di-drawer-inline .di-dw-busca svg { width: 18px; height: 18px; color: var(--ink-mute); flex-shrink: 0; }
+  /* O input ocupa tudo o que sobra: era ele que ficava espremido dentro do
+     wrapper, não o wrapper que era pequeno. */
+  .di-drawer-inline .di-dw-busca input { flex: 1 1 auto; width: 100%; min-width: 0; font-size: 15.5px; }
+  .di-drawer-inline .di-dw-busca input::placeholder { color: var(--ink-mute); opacity: 0.9; }
+
+  /* Filtros logo abaixo do campo, altura uniforme. */
+  .di-drawer-inline .di-dw-filtros { padding: 10px 0 12px; gap: 7px; }
+  .di-drawer-inline .di-filtro { height: 30px; padding: 0 12px; border-radius: 8px; background: var(--bg-card); }
+  .di-drawer-inline .di-filtro.ativo { background: color-mix(in srgb, var(--color-primary-400) 20%, transparent);
+                                       border-color: color-mix(in srgb, var(--color-primary-400) 50%, transparent); }
+  .di-drawer-inline .di-filtro:disabled { opacity: 0.55; border-style: dashed; }
+
+  /* Resultados: cards brancos sobre a superfície tonalizada. Altura limitada a
+     ~4 itens; só esta lista rola, o resto da área fica parado. */
+  .di-drawer-inline .di-dw-lista { max-height: 296px; padding: 0 0 4px;
+                                   display: flex; flex-direction: column; gap: 6px; }
+  .di-drawer-inline .di-res { align-items: center; gap: 12px; padding: 11px 12px; border-radius: 10px;
+                              background: var(--bg-card); border: 1px solid var(--line); }
+  .di-drawer-inline .di-res:hover { border-color: color-mix(in srgb, var(--color-primary-400) 40%, transparent); }
+  .di-drawer-inline .di-res.ativo { border-color: var(--moss);
+                                    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary-400) 16%, transparent); }
+  .di-drawer-inline .di-res-nome { font-size: 13.5px; }
+  .di-drawer-inline .di-res-sub { font-size: 11px; }
+  .di-drawer-inline .di-res-mac { text-align: right; }
+  .di-drawer-inline .di-res-kcal { font-family: var(--font-sans); font-size: 13.5px; font-weight: 800; color: var(--moss-deep); }
+  .di-drawer-inline .di-res-pcg { font-size: 10.5px; color: var(--ink-mute); font-variant-numeric: tabular-nums; }
+
+  /* Favoritar: alvo de 32px, estados bem diferentes. */
+  .di-drawer-inline .di-res-fav { width: 32px; height: 32px; border-radius: 8px; opacity: 1; color: var(--ink-mute); }
+  .di-drawer-inline .di-res-fav:hover { background: var(--bg-warm); color: var(--gold); }
+  .di-drawer-inline .di-res-fav.ativo { color: var(--gold); }
+  .di-drawer-inline .di-res-fav svg { width: 16px; height: 16px; }
+
+  .di-drawer-inline .di-dw-vazio { padding: 26px 18px; gap: 4px; }
+  .di-drawer-inline .di-dw-ft { display: flex; padding: 0 2px 2px; border-top: none;
+                                justify-content: flex-start; gap: 14px; }
+
+  @media (max-width: 860px) {
+    .di-drawer-inline .di-res { flex-wrap: wrap; }
+    .di-drawer-inline .di-res-txt { flex: 1 1 100%; order: 1; }
+    .di-drawer-inline .di-res-fav { order: 0; }
+    .di-drawer-inline .di-res-mac { order: 2; text-align: left; }
+    .di-drawer-inline .di-res-add { order: 3; margin-left: auto; }
+    .di-drawer-inline .di-dw-filtros { flex-wrap: nowrap; overflow-x: auto; }
+  }
+  @media (max-width: 560px) {
+    .di-drawer-inline .di-dw-busca { height: 46px; padding: 0 12px; }
+    .di-drawer-inline .di-res-add { width: 100%; margin-left: 0; }
   }

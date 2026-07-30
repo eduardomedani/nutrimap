@@ -21,12 +21,16 @@ import {
   prescreverModeloParaPaciente, salvarComoModelo,
 } from './dieta.js';
 import {
-  quantidadeDePeso, gramasDeMedida, MEDIDA_GRAMAS,
+  quantidadeDePeso, gramasDeMedida, medidaDoItem, MEDIDA_GRAMAS,
   macrosRefeicao, macrosPlano, progresso,
   fmtKcal, fmtG, fmtQtd, num, arredonda,
 } from './dieta-calc.js';
-import { itensHtml, ligarItens, substituicoesDoItem } from './dieta-linha.js';
+import { substituicoesDoItem, itemParaResumo } from './dieta-linha.js';
 import { abrirSubstituicoes } from './dieta-substituicoes.js';
+import {
+  abrirRefeicao, fecharRefeicao, refeicaoAberta, drawerRefeicaoHtml, ligarRefeicaoDrawer,
+  editarItem, fecharEdicaoItem,
+} from './dieta-refeicao.js';
 import {
   abrirBusca, fecharBusca, ligarBusca, drawerHtml, buscaAberta, estadoBusca,
 } from './dieta-busca.js';
@@ -44,8 +48,8 @@ let _refeicoes = [];           // refeições (com itens) do plano em edição
 let _sugestoes = null;         // favoritos + recentes (cache; null = ainda não carregado)
 
 // ── Estado da tela de prescrição ──
-let _recolhidas = new Set();   // ids de refeições recolhidas
 let _medidasDe  = new Map();   // food_id -> medidas caseiras (cache por plano aberto)
+let _resumos    = new Set();   // refeições com o resumo inline aberto (Nível 1)
 let _focoDepois = null;        // seletor a refocar após o próximo render (Enter encadeado)
 let _salvando   = 0;           // requisições de escrita em voo (para o indicador)
 let _statusSave = 'ocioso';    // 'ocioso' | 'salvando' | 'salvo' | 'erro'
@@ -259,8 +263,8 @@ async function aplicarModelo(modeloId, btn) {
 // ═══════════════════════════════════════════════════════════
 async function abrirEditor(plano) {
   _plano = plano || null;
-  _recolhidas.clear();
   _medidasDe.clear();
+  _resumos.clear();
   _focoDepois = null;
   fecharBusca();     // trocar de plano com a busca aberta deixaria o drawer apontando para a refeição do plano anterior
   _statusSave = 'ocioso';
@@ -522,9 +526,29 @@ async function salvarDados(override = {}) {
 // Toda a matemática mora em dieta-calc.js. Aqui é só render + eventos.
 // Lembrete do contrato: item.quantidade é MÚLTIPLO DE 100 g, não gramas.
 
+// Qual refeição estava com o drawer aberto no render anterior. Serve para
+// distinguir "abriu agora" de "só re-renderizou" — sem isso o <aside> nasce de
+// novo a cada clique e a animação de entrada toca outra vez, dando a impressão
+// de que o painel reabre sozinho.
+let _drawerRenderizado = null;
+let _buscaRenderizada = null;
+
 function renderRefeicoes() {
   const cont = qs('plRefeicoes');
   if (!cont) return;
+
+  // Estado que o innerHTML destrói e o usuário espera encontrar no lugar:
+  // a rolagem do painel, a da lista de busca e o que estava sendo digitado.
+  const posicoes = {
+    corpo:  cont.querySelector('.rf-body')?.scrollTop ?? null,
+    lista:  cont.querySelector('.di-dw-lista')?.scrollTop ?? null,
+    termo:  cont.querySelector('#diDwInput')?.value ?? null,
+    focoId: document.activeElement?.id || null,
+  };
+  const abriuAgora = refeicaoAberta() && _drawerRenderizado !== refeicaoAberta();
+  _drawerRenderizado = refeicaoAberta();
+  const buscaAbriuAgora = buscaAberta() && _buscaRenderizada !== estadoBusca().refId;
+  _buscaRenderizada = buscaAberta() ? estadoBusca().refId : null;
 
   cont.innerHTML = `
     <div class="di-rx">
@@ -535,13 +559,42 @@ function renderRefeicoes() {
         ${somasHtml()}
       </div>
     </div>
-    ${buscaAberta() ? drawerHtml(refeicaoDaBusca()?.nome) : ''}
+    ${refeicaoAberta() ? drawerRefeicaoHtml(acharRefeicao(refeicaoAberta()), {
+        medidasDe: _medidasDe,
+        sugestoesNome: REFEICOES_SUGERIDAS,
+        // A busca desta refeição é renderizada DENTRO do drawer, não como um
+        // segundo painel por cima do primeiro.
+        buscaHtml: buscaAberta() && estadoBusca().refId === refeicaoAberta()
+          ? drawerHtml(refeicaoDaBusca()?.nome, { inline: true })
+          : '',
+      }) : ''}
+    ${buscaAberta() && estadoBusca().refId !== refeicaoAberta() ? drawerHtml(refeicaoDaBusca()?.nome) : ''}
   `;
+
+  // A animação de entrada é só para a abertura de verdade. Re-render não é
+  // abertura, e repetir o slide a cada clique fazia o painel piscar.
+  if (!abriuAgora) cont.querySelector('.rf-drawer')?.classList.add('rf-sem-anim');
+  if (!buscaAbriuAgora) {
+    cont.querySelector('.di-drawer')?.classList.add('rf-sem-anim');
+    cont.querySelector('.di-drawer-fundo')?.classList.add('rf-sem-anim');
+  }
 
   ligarBarra(cont);
   ligarRefeicoes(cont);
   ligarNovaRefeicao(cont);
+  if (refeicaoAberta()) ligarRefeicaoDrawer(cont);
   if (buscaAberta()) ligarBusca(cont);
+
+  // Devolve rolagem, texto e foco ao lugar em que estavam antes do render.
+  const corpo = cont.querySelector('.rf-body');
+  if (corpo && posicoes.corpo != null && !abriuAgora) corpo.scrollTop = posicoes.corpo;
+  const lista = cont.querySelector('.di-dw-lista');
+  if (lista && posicoes.lista != null) lista.scrollTop = posicoes.lista;
+  const busca = cont.querySelector('#diDwInput');
+  if (busca && posicoes.termo && !busca.value) busca.value = posicoes.termo;
+  if (posicoes.focoId && posicoes.focoId !== 'diDwInput') {
+    cont.querySelector('#' + CSS.escape(posicoes.focoId))?.focus?.();
+  }
 
   // Enter encadeado: o render recria os inputs, então o foco é reposto aqui —
   // é o único ponto em que o nó novo já existe.
@@ -553,6 +606,47 @@ function renderRefeicoes() {
 }
 
 const refeicaoDaBusca = () => _refeicoes.find(r => r.id === estadoBusca().refId) || null;
+const acharRefeicao = (id) => _refeicoes.find(r => r.id === id) || null;
+
+/**
+ * O contrato do Nível 2. O drawer não conhece banco nem estado: recebe daqui
+ * como ler a refeição e o que fazer quando o nutri age.
+ */
+function apiRefeicao() {
+  return {
+    refeicao: acharRefeicao,
+    medidasDe: _medidasDe,
+    rerender: renderRefeicoes,
+    onCampo: salvarCampoRefeicao,
+    abrirMenu,
+    // A faixa "+ Alimento" some enquanto a busca está aberta (o fechar mora no
+    // cabeçalho dela), mas Ctrl+K continua alternando por este caminho.
+    onAdicionar: (id) => (buscaAberta() ? fecharBusca() : abrirDrawer(id)),
+    // Chamado quando o painel da refeição fecha ou troca de refeição: leva
+    // junto a busca que estava embutida nele. Devolve true se já redesenhou,
+    // para quem chamou não renderizar de novo.
+    aoFechar: () => {
+      if (!buscaAberta()) return false;
+      fecharBusca();      // já dispara o render
+      return true;
+    },
+    onDuplicar: (id) => duplicarRefeicaoUI(id),
+    onExcluir: (id) => removerRefeicao(id),
+    acoesItem: {
+      salvarCampo:      salvarCampoItem,
+      salvarQuantidade: salvarQuantidade,
+      trocarMedida:     trocarMedida,
+      mover:            moverItem,
+      duplicar:         duplicarItemUI,
+      remover:          removerItem,
+      pedirObservacao:  pedirObservacao,
+      verSubstituicoes: verSubstituicoes,
+      abrirMenu:        abrirMenu,
+      editar:           editarItem,
+      fecharEdicao:     fecharEdicaoItem,
+    },
+  };
+}
 
 // ───────────────────────────────────────────────────────────
 // BARRA DE FERRAMENTAS (topo, sticky) — tudo à mão, nada escondido
@@ -599,9 +693,6 @@ function toolbarHtml() {
         ${_modo === 'paciente' ? btn('diEditarCalc', 'calculator', 'Editar cálculo', 'Editar as metas na aba Cálculo de Calorias') : ''}
         ${btn('diDuplicar', 'copy-plus', 'Duplicar', 'Duplicar este plano na biblioteca de modelos')}
         ${btn('diPdf', 'printer', 'PDF', 'Gerar PDF (imprimir)')}
-        <span class="di-tb-sep" aria-hidden="true"></span>
-        ${btn('diRecolher', 'chevrons-down-up', 'Recolher', 'Recolher todas as refeições')}
-        ${btn('diExpandir', 'chevrons-up-down', 'Expandir', 'Expandir todas as refeições')}
         <span class="di-tb-sep" aria-hidden="true"></span>
         ${btn('diAtalhos', 'keyboard', 'Atalhos', 'Ver todos os atalhos do teclado')}
 
@@ -740,74 +831,217 @@ function refeicoesHtml() {
   return _refeicoes.map((r, i) => refeicaoCardHtml(r, i, _refeicoes.length)).join('');
 }
 
+// Ícone por refeição, deduzido do nome. É decoração: se o nome não bater com
+// nada conhecido, cai no talher genérico. Nada aqui vira dado nem é salvo.
+const ICONES = [
+  [/café|cafe|desjejum|manh/i, 'sunrise'],
+  [/almo[çc]o/i, 'sun'],
+  [/jantar|noite/i, 'moon'],
+  [/ceia/i, 'moon-star'],
+  [/pr[ée].?treino/i, 'zap'],
+  [/p[óo]s.?treino/i, 'dumbbell'],
+  [/lanche|colaç|merenda/i, 'cookie'],
+  [/vitamina|shake|suco/i, 'cup-soda'],
+];
+const iconeDaRefeicao = (nome) =>
+  (ICONES.find(([re]) => re.test(String(nome || '')))?.[1]) || 'utensils';
+
+/**
+ * Macro na coluna: SEMPRE uma casa decimal.
+ *
+ * `fmtG` omite o ",0" (30 vira "30", 30,6 vira "30,6"), o que é bom em texto
+ * corrido e péssimo em coluna: "49" e "41,7" desalinham a vírgula e o olho
+ * perde a referência entre as linhas. Isto é formatação de exibição — a conta
+ * continua vindo inteira de dieta-calc.js.
+ */
+const fmtMacro = (v) => (Number(v) || 0)
+  .toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+/**
+ * Indicador do cabeçalho: valor forte em cima, legenda discreta embaixo.
+ *
+ * A legenda saiu da faixa de cabeçalho e passou a viver DENTRO de cada célula.
+ * Com o rótulo colado no número, some a viagem de ida e volta do olho até o
+ * topo da lista para lembrar qual coluna era qual — e a faixa extra de chrome
+ * deixa de existir.
+ */
+const indicador = (valor, unidade, legenda, tom) => `
+  <span class="rt-val ${tom ? `rt-val-${tom}` : ''}">
+    <span class="rt-val-num">${valor}<em>${unidade}</em></span>
+    <span class="rt-val-lbl">${tom ? `<i class="di-so-dot di-so-dot-${tom}" aria-hidden="true"></i>` : ''}${legenda}</span>
+  </span>`;
+
+/**
+ * NÍVEL 1 — linha da refeição.
+ *
+ * A linha inteira é UM botão em grade: identidade + quatro colunas numéricas de
+ * largura fixa, para kcal ficar embaixo de kcal em todas as refeições. As ações
+ * ficam fora do botão (irmãs, posicionadas na última coluna), então clicar numa
+ * delas não pode abrir a refeição por acidente — não há aninhamento.
+ */
 function refeicaoCardHtml(r, idx, total) {
   const itens = r.itens || [];
   const m = macrosRefeicao(r);
-  // Recolhida, a refeição precisa dizer se tem alternativa — senão o nutri
-  // abre uma por uma só para descobrir onde estão.
   const subs = itens.reduce((s, it) => s + substituicoesDoItem(it).length, 0);
-  const recolhida = _recolhidas.has(r.id);
-  const painelId = `di-painel-${r.id}`;
+  const obs = String(r.observacao ?? '').trim();
+  const aberta = _resumos.has(r.id);
+  const editando = refeicaoAberta() === r.id;
+  const painelId = `rt-resumo-${r.id}`;
+
+  const conta = (n, um, muitos) =>
+    n ? `<span class="rt-conta">${n} ${n === 1 ? um : muitos}</span>` : '';
+
+  const acao = (nome, icone, rotulo, extra = '') => `
+    <button class="rt-btn" data-acao="${nome}" data-ref="${r.id}" ${extra}
+            title="${esc(rotulo)}" aria-label="${esc(rotulo)} — ${esc(r.nome || 'refeição')}">
+      <i data-lucide="${icone}"></i>
+    </button>`;
 
   return `
-    <section class="di-card ${recolhida ? 'recolhida' : ''}" data-ref-card="${r.id}">
-      <div class="di-card-hd">
-        <button class="di-toggle" data-ref-toggle="${r.id}"
-                aria-expanded="${!recolhida}" aria-controls="${painelId}"
-                aria-label="${recolhida ? 'Expandir' : 'Recolher'} ${esc(r.nome || 'refeição')}">
-          <i data-lucide="chevron-${recolhida ? 'right' : 'down'}"></i>
-        </button>
+    <article class="rt-card ${aberta ? 'aberta' : ''} ${editando ? 'editando' : ''}" data-ref-card="${r.id}">
+      <!-- Linha e ações lado a lado num flex: as ações ocupam espaço de verdade
+           e ficam centradas pelo align-items. Antes eram posicionadas de forma
+           absoluta, com deslocamento fixo do topo, e a linha reservava o lugar
+           delas em padding — bastava a linha mudar de altura para os botões
+           saírem do eixo. -->
+      <div class="rt-topo">
+      <button class="rt-linha" data-ref-toggle="${r.id}"
+              aria-expanded="${aberta}" aria-controls="${painelId}">
+        <span class="rt-ident">
+          <span class="rt-seta" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
+          <span class="rt-hora">${esc(hhmm(r.horario)) || '--:--'}</span>
+          <span class="rt-icone" aria-hidden="true"><i data-lucide="${iconeDaRefeicao(r.nome)}"></i></span>
+          <span class="rt-id">
+            <span class="rt-nome">${esc(r.nome || 'Refeição sem nome')}</span>
+            <span class="rt-contagens">
+              ${conta(itens.length, 'alimento', 'alimentos')}
+              ${conta(subs, 'substituição', 'substituições')}
+              ${obs ? `<span class="rt-conta rt-conta-obs"><i data-lucide="message-square-text" aria-hidden="true"></i>observação</span>` : ''}
+            </span>
+          </span>
+        </span>
 
-        <div class="di-card-id">
-          <input type="time" class="di-hora" value="${esc(hhmm(r.horario))}"
-                 data-ref-campo="horario" data-ref-id="${r.id}"
-                 aria-label="Horário de ${esc(r.nome || 'refeição')}">
-          <input type="text" class="di-nome" value="${esc(r.nome || '')}"
-                 data-ref-campo="nome" data-ref-id="${r.id}" list="dlRefeicoes"
-                 placeholder="Nome da refeição" aria-label="Nome da refeição">
-        </div>
+        ${indicador(fmtKcal(m.kcal), 'kcal', 'Calorias', 'kcal')}
+        ${indicador(fmtMacro(m.prot), 'g', 'Proteína', 'prot')}
+        ${indicador(fmtMacro(m.carb), 'g', 'Carboidrato', 'carb')}
+        ${indicador(fmtMacro(m.gord), 'g', 'Gordura', 'gord')}
+      </button>
 
-        <div class="di-card-stats">
-          <span class="di-kcal">${fmtKcal(m.kcal)} kcal</span>
-          <span class="di-macros">P ${fmtG(m.prot)} · C ${fmtG(m.carb)} · G ${fmtG(m.gord)}</span>
-          <span class="di-conta">${itens.length} ${itens.length === 1 ? 'alimento' : 'alimentos'}</span>
-          ${subs ? `<span class="di-conta">${subs} ${subs === 1 ? 'substituição' : 'substituições'}</span>` : ''}
-        </div>
-
-        <div class="di-card-acts">
-          <button class="di-iact" data-ref-add="${r.id}" title="Adicionar alimento" aria-label="Adicionar alimento em ${esc(r.nome || 'refeição')}">
-            <i data-lucide="plus"></i>
-          </button>
-          <button class="di-iact" data-ref-up="${r.id}" ${idx === 0 ? 'disabled' : ''} title="Mover para cima" aria-label="Mover ${esc(r.nome || 'refeição')} para cima">
-            <i data-lucide="chevron-up"></i>
-          </button>
-          <button class="di-iact" data-ref-down="${r.id}" ${idx === total - 1 ? 'disabled' : ''} title="Mover para baixo" aria-label="Mover ${esc(r.nome || 'refeição')} para baixo">
-            <i data-lucide="chevron-down"></i>
-          </button>
-          <div class="di-menu-wrap">
-            <button class="di-iact" data-ref-menu="${r.id}" aria-haspopup="menu" aria-expanded="false" title="Mais ações" aria-label="Mais ações de ${esc(r.nome || 'refeição')}">
-              <i data-lucide="ellipsis-vertical"></i>
-            </button>
-            <div class="di-menu" data-ref-menu-pop="${r.id}" role="menu" hidden>
-              <button role="menuitem" data-ref-dup="${r.id}"><i data-lucide="copy-plus"></i> Duplicar refeição</button>
-              <button role="menuitem" data-ref-del="${r.id}" class="perigo"><i data-lucide="trash-2"></i> Excluir refeição</button>
-            </div>
+      <div class="rt-acts">
+        ${acao('editar', 'pencil', 'Editar refeição')}
+        ${acao('subir', 'chevron-up', 'Mover para cima', idx === 0 ? 'disabled' : '')}
+        ${acao('descer', 'chevron-down', 'Mover para baixo', idx === total - 1 ? 'disabled' : '')}
+        <div class="di-menu-wrap">
+          ${acao('menu', 'ellipsis-vertical', 'Mais ações', 'aria-haspopup="menu" aria-expanded="false"')}
+          <div class="di-menu" data-ref-menu-pop="${r.id}" role="menu" hidden>
+            <button role="menuitem" data-acao="add" data-ref="${r.id}"><i data-lucide="plus"></i> Adicionar alimento</button>
+            <button role="menuitem" data-acao="duplicar" data-ref="${r.id}"><i data-lucide="copy-plus"></i> Duplicar refeição</button>
+            <button role="menuitem" data-acao="excluir" data-ref="${r.id}" class="perigo"><i data-lucide="trash-2"></i> Excluir refeição</button>
           </div>
         </div>
       </div>
-
-      <div class="di-card-body" id="${painelId}" ${recolhida ? 'hidden' : ''}>
-        ${itens.length ? itensHtml(itens, { medidasDe: _medidasDe }) : `
-          <div class="di-sem-itens">
-            <span>Nenhum alimento adicionado.</span>
-            <button class="btn" data-ref-add="${r.id}"><i data-lucide="plus"></i> Adicionar alimento</button>
-          </div>`}
-        ${itens.length ? `
-          <div class="di-card-ft">
-            <button class="di-add-link" data-ref-add="${r.id}"><i data-lucide="plus"></i> Adicionar alimento</button>
-          </div>` : ''}
       </div>
-    </section>`;
+
+      <div class="rt-resumo" id="${painelId}" ${aberta ? '' : 'hidden'}>
+        ${aberta ? resumoRefeicaoHtml(r) : ''}
+      </div>
+    </article>`;
+}
+
+/**
+ * Resumo inline — SOMENTE LEITURA. Serve para conferir o que foi prescrito sem
+ * entrar no editor; por isso não há um único campo editável aqui. Macros não
+ * se repetem: já estão no cabeçalho da linha.
+ */
+function resumoRefeicaoHtml(r) {
+  const itens = r.itens || [];
+  const obs = String(r.observacao ?? '').trim();
+
+  if (!itens.length) {
+    return `
+      <div class="rt-vazio">
+        <div class="rt-vazio-txt">
+          <strong>Esta refeição ainda não possui alimentos.</strong>
+          <span>Adicione o primeiro para ela entrar nos totais do plano.</span>
+        </div>
+        <button class="btn primary" data-acao="add" data-ref="${r.id}">
+          <i data-lucide="plus"></i> Adicionar primeiro alimento
+        </button>
+      </div>`;
+  }
+
+  // Ações rápidas do alimento: aparecem no hover/foco da própria linha. Não é
+  // edição em linha — cada uma abre ou executa uma operação que já existia.
+  const rapida = (acao, icone, rotulo, it) => `
+    <button class="rt-al-btn" data-acao="${acao}" data-ref="${r.id}" data-item="${it.id}"
+            title="${esc(rotulo)}" aria-label="${esc(rotulo)} — ${esc(it.food?.nome || 'alimento')}">
+      <i data-lucide="${icone}"></i>
+    </button>`;
+
+  const linhas = itens.map(it => {
+    const f = it.food || {};
+    // Um adaptador só: quantidade, medida e peso saem daqui já prontos para a
+    // tela. Nada é derivado de novo dentro do template.
+    const v = itemParaResumo(it, _medidasDe.get(it.food_id) || []);
+
+    // "3 opções" em vez de "3 substituições": é o que o paciente ganha, dito
+    // do jeito que o nutri fala na consulta.
+    const chip = v.substituicoes
+      ? `<button class="rt-al-chip" data-acao="subs" data-ref="${r.id}" data-item="${it.id}"
+                 title="Ver as ${v.substituicoes} opções de substituição">${v.substituicoes} ${v.substituicoes === 1 ? 'opção' : 'opções'}</button>`
+      : '<span class="rt-al-nulo">—</span>';
+
+    return `
+      <li class="rt-al">
+        <span class="rt-al-nome" title="${esc(f.nome || '')}">${esc(f.nome || '(alimento removido)')}</span>
+        <span class="rt-al-qtd">${v.quantidade ?? '<span class="rt-al-nulo" title="A medida salva neste item não existe mais no cadastro do alimento">—</span>'}</span>
+        <span class="rt-al-med ${v.medidaConhecida ? '' : 'rt-al-med-orfa'}"
+              ${v.medidaConhecida ? '' : 'title="Medida salva no item, mas ausente no cadastro do alimento"'}>${esc(v.medida)}</span>
+        <span class="rt-al-peso">${v.pesoTexto}</span>
+        <span class="rt-al-subs">${chip}</span>
+        <span class="rt-al-acts">
+          ${rapida('editar', 'pencil', 'Editar', it)}
+          ${rapida('subs', 'repeat-2', 'Substituições', it)}
+          ${rapida('dup-item', 'copy', 'Duplicar', it)}
+          ${rapida('del-item', 'trash-2', 'Excluir', it)}
+        </span>
+      </li>`;
+  }).join('');
+
+  return `
+    <div class="rt-resumo-in">
+      <ul class="rt-al-lista" role="list">
+        <li class="rt-al rt-al-th" aria-hidden="true">
+          <span>Alimento</span><span>Qtd</span><span>Medida</span><span>Peso</span><span>Substituições</span><span></span>
+        </li>
+        ${linhas}
+      </ul>
+
+      ${obs ? `<p class="rt-resumo-obs"><i data-lucide="message-square-text" aria-hidden="true"></i>${esc(obs)}</p>` : ''}
+
+      ${actionBarHtml(r)}
+    </div>`;
+}
+
+/**
+ * Action Bar da refeição — três níveis de hierarquia, não três botões iguais.
+ *   principal  Editar refeição   sólido, é para onde o trabalho vai
+ *   secundária Adicionar alimento outline verde
+ *   terciária  Duplicar           outline cinza
+ */
+function actionBarHtml(r) {
+  return `
+    <div class="rt-bar">
+      <button class="rt-acao rt-acao-1" data-acao="editar" data-ref="${r.id}">
+        <i data-lucide="pencil"></i> Editar refeição
+      </button>
+      <button class="rt-acao rt-acao-2" data-acao="add" data-ref="${r.id}">
+        <i data-lucide="plus"></i> Adicionar alimento
+      </button>
+      <button class="rt-acao rt-acao-3" data-acao="duplicar" data-ref="${r.id}">
+        <i data-lucide="copy-plus"></i> Duplicar
+      </button>
+    </div>`;
 }
 
 // ───────────────────────────────────────────────────────────
@@ -877,8 +1111,6 @@ function ligarBarra(cont) {
   ao('diAddRefeicao', () => abrirNovaRefeicao());
   ao('diDuplicar', () => salvarPlanoNaBiblioteca(_plano.id, _plano.nome, null));
   ao('diPdf', () => window.print());
-  ao('diRecolher', () => { _refeicoes.forEach(r => _recolhidas.add(r.id)); renderRefeicoes(); });
-  ao('diExpandir', () => { _recolhidas.clear(); renderRefeicoes(); });
   ao('diAtalhos', mostrarAtalhos);
 }
 
@@ -920,41 +1152,80 @@ function abrirNovaRefeicao() {
 }
 
 function ligarRefeicoes(cont) {
-  cont.querySelectorAll('[data-ref-campo]').forEach(el =>
+  // O drawer também renderiza [data-ref-campo]; ele liga os seus em
+  // ligarRefeicaoDrawer. Aqui só os do Nível 1 — que hoje não tem nenhum, mas
+  // a consulta continua barata e o dia em que voltar a ter, funciona.
+  cont.querySelectorAll('.di-refeicoes [data-ref-campo]').forEach(el =>
     el.addEventListener('change', () => salvarCampoRefeicao(el)));
 
-  cont.querySelectorAll('[data-ref-toggle]').forEach(b =>
-    b.addEventListener('click', () => alternarRecolhida(b.dataset.refToggle)));
+  // DELEGAÇÃO. Um listener no container, não um por botão: a lista é recriada
+  // a cada render (mover, salvar, abrir resumo), e ligar botão a botão fazia o
+  // número de listeners crescer junto com o número de renders.
+  //
+  // `_delegado` garante que o listener é registrado UMA vez por container;
+  // renders seguintes reaproveitam o mesmo, porque o alvo é resolvido no clique
+  // e não no momento da ligação.
+  if (cont.dataset.delegado !== '1') {
+    cont.dataset.delegado = '1';
+    cont.addEventListener('click', aoClicarNaRotina);
+  }
 
-  cont.querySelectorAll('[data-ref-add]').forEach(b =>
-    b.addEventListener('click', () => abrirDrawer(b.dataset.refAdd)));
+  // Os alimentos não existem mais neste nível: quem os liga é o drawer da
+  // refeição, com o mesmo contrato (apiRefeicao().acoesItem).
+}
 
-  cont.querySelectorAll('[data-ref-up]').forEach(b =>
-    b.addEventListener('click', () => moverRefeicao(b.dataset.refUp, -1)));
-  cont.querySelectorAll('[data-ref-down]').forEach(b =>
-    b.addEventListener('click', () => moverRefeicao(b.dataset.refDown, +1)));
+/**
+ * Resolve o clique na rotina: primeiro uma AÇÃO, depois a linha.
+ *
+ * A ordem importa. Os botões de ação são irmãos do botão da linha (não estão
+ * dentro dele), então nem haveria aninhamento — mas o `closest` de ação vem
+ * antes e com stopPropagation para que nenhum controle novo, colocado dentro da
+ * linha um dia, abra o resumo por acidente.
+ */
+function aoClicarNaRotina(e) {
+  const btnAcao = e.target.closest('[data-acao]');
+  if (btnAcao && !btnAcao.disabled) {
+    e.stopPropagation();
+    e.preventDefault();
+    executarAcaoDaRefeicao(btnAcao.dataset.acao, btnAcao.dataset.ref, btnAcao, btnAcao.dataset.item);
+    return;
+  }
 
-  cont.querySelectorAll('[data-ref-menu]').forEach(b => {
-    const pop = cont.querySelector(`[data-ref-menu-pop="${b.dataset.refMenu}"]`);
-    if (pop) b.addEventListener('click', () => abrirMenu(b, pop));
-  });
-  cont.querySelectorAll('[data-ref-dup]').forEach(b =>
-    b.addEventListener('click', () => duplicarRefeicaoUI(b.dataset.refDup)));
-  cont.querySelectorAll('[data-ref-del]').forEach(b =>
-    b.addEventListener('click', () => removerRefeicao(b.dataset.refDel)));
+  const linha = e.target.closest('[data-ref-toggle]');
+  if (linha) alternarResumo(linha.dataset.refToggle);
+}
 
-  // Itens — o HTML e os listeners da linha moram em dieta-linha.js
-  ligarItens(cont, {
-    salvarCampo:      salvarCampoItem,
-    salvarQuantidade: salvarQuantidade,
-    trocarMedida:     trocarMedida,
-    mover:            moverItem,
-    duplicar:         duplicarItemUI,
-    remover:          removerItem,
-    abrirMenu:        abrirMenu,
-    pedirObservacao:  pedirObservacao,
-    verSubstituicoes: verSubstituicoes,
-  });
+function executarAcaoDaRefeicao(acao, id, btn, itemId) {
+  switch (acao) {
+    case 'editar':   abrirRefeicao(id, apiRefeicao()); break;
+    case 'subir':    moverRefeicao(id, -1); break;
+    case 'descer':   moverRefeicao(id, +1); break;
+    case 'add':      fecharMenus(); abrirDrawer(id); break;
+    case 'duplicar': fecharMenus(); duplicarRefeicaoUI(id); break;
+    case 'excluir':  fecharMenus(); removerRefeicao(id); break;
+
+    // Ações rápidas do alimento, do resumo. Reaproveitam os mesmos handlers do
+    // editor — o resumo continua sem campo editável, só dispara operações.
+    case 'subs':     verSubstituicoes(itemId); break;
+    case 'dup-item': duplicarItemUI(itemId); break;
+    case 'del-item': removerItem(itemId); break;
+    case 'menu': {
+      const pop = _mountEl?.querySelector(`[data-ref-menu-pop="${id}"]`);
+      if (pop) abrirMenu(btn, pop);
+      break;
+    }
+  }
+}
+
+function fecharMenus() {
+  _mountEl?.querySelectorAll('.di-menu').forEach(m => { m.hidden = true; });
+  _mountEl?.querySelectorAll('[aria-haspopup="menu"]').forEach(b => b.setAttribute('aria-expanded', 'false'));
+}
+
+/** Abre/fecha o resumo inline. Várias refeições podem ficar abertas ao mesmo tempo. */
+function alternarResumo(id) {
+  if (_resumos.has(id)) _resumos.delete(id); else _resumos.add(id);
+  renderRefeicoes();
 }
 
 function verSubstituicoes(id) {
@@ -992,11 +1263,6 @@ function pedirObservacao(id) {
   campo.focus();
 }
 
-function alternarRecolhida(id) {
-  if (_recolhidas.has(id)) _recolhidas.delete(id); else _recolhidas.add(id);
-  renderRefeicoes();
-}
-
 // ───────────────────────────────────────────────────────────
 // ───────────────────────────────────────────────────────────
 // BUSCA DE ALIMENTOS — o drawer mora em dieta-busca.js
@@ -1017,7 +1283,6 @@ function apiBusca() {
 }
 
 async function abrirDrawer(refId) {
-  _recolhidas.delete(refId);        // não faz sentido adicionar numa refeição recolhida
   await abrirBusca(refId, apiBusca());
 }
 
@@ -1265,16 +1530,13 @@ function acharItem(id) {
 }
 
 /**
- * Os itens na ordem em que aparecem na tela — refeição recolhida fica de fora,
- * porque o Enter não pode mandar o foco para um campo escondido.
+ * Os itens na ordem em que aparecem na tela. Só a refeição aberta no drawer
+ * tem alimentos visíveis — o Enter não pode mandar o foco para um campo que
+ * não está na tela.
  */
 function itensVisiveis() {
-  const out = [];
-  for (const r of _refeicoes) {
-    if (_recolhidas.has(r.id)) continue;
-    for (const it of (r.itens || [])) out.push(it.id);
-  }
-  return out;
+  const r = acharRefeicao(refeicaoAberta());
+  return (r?.itens || []).map(it => it.id);
 }
 
 /** Marca quem recebe o foco depois do próximo render. `dir` +1 desce, -1 sobe. */
@@ -1450,7 +1712,7 @@ function ligarAtalhos() {
     // destino toda vez.
     if (e.key === 'Enter') {
       e.preventDefault();
-      const alvo = refeicaoDoFoco() || _refeicoes.find(r => !_recolhidas.has(r.id)) || _refeicoes[0];
+      const alvo = acharRefeicao(refeicaoAberta()) || refeicaoDoFoco() || _refeicoes[0];
       if (alvo) abrirDrawer(alvo.id);
       else mostrarToast('Adicione uma refeição primeiro');
       return;
@@ -1460,7 +1722,7 @@ function ligarAtalhos() {
     if (k === 'k') {
       e.preventDefault();
       if (buscaAberta()) { qs('diDwInput')?.focus(); return; }
-      const alvo = refeicaoDoFoco() || _refeicoes.find(r => !_recolhidas.has(r.id)) || _refeicoes[0];
+      const alvo = acharRefeicao(refeicaoAberta()) || refeicaoDoFoco() || _refeicoes[0];
       if (alvo) abrirDrawer(alvo.id);
       else mostrarToast('Adicione uma refeição primeiro');
     } else if (k === 's') {

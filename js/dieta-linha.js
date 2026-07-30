@@ -16,13 +16,58 @@
 // dieta-calc.js, que é a única fonte da regra "quantidade é múltiplo de 100 g".
 
 import {
-  macrosItem, medidaDoItem, MEDIDA_GRAMAS, fmtG, fmtKcal, arredonda,
+  macrosItem, medidaDoItem, MEDIDA_GRAMAS, fmtG, fmtQtd, fmtKcal, arredonda,
 } from './dieta-calc.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 const fmtQtdInput = v => String(arredonda(v, 2));
+
+/**
+ * ADAPTADOR DE APRESENTAÇÃO — o único lugar que traduz o item do banco para o
+ * que o profissional lê. Quem mostra alimento chama isto; ninguém recalcula.
+ *
+ * Os três conceitos que não podem se misturar:
+ *
+ *   quantidade  o número prescrito NA MEDIDA escolhida  (2)
+ *   medida      o nome da unidade                        ("unidade média")
+ *   peso        o peso final em gramas                   (90 g)
+ *
+ * O banco guarda `quantidade` como múltiplo de 100 g — valor interno, que NUNCA
+ * deve aparecer na tela. A reconstrução é toda de dieta-calc.js (`medidaDoItem`,
+ * que por sua vez usa `pesoDeItem`); aqui não há uma única conta.
+ *
+ * O caso que exige cuidado: o item tem uma medida salva ("unidade média") que
+ * não existe mais em food_measures. `medidaDoItem` cai para gramas, e é o certo
+ * a fazer no cálculo — mas exibir "gramas" seria afirmar que a prescrição é em
+ * gramas, o que é falso. Nesse caso a quantidade vem `null` (some da tela como
+ * "—") e a medida mostra o nome salvo, com `medidaConhecida: false` para quem
+ * quiser sinalizar.
+ *
+ * @returns {{quantidade: string|null, medida: string, peso: number,
+ *            pesoTexto: string, medidaConhecida: boolean, substituicoes: number}}
+ */
+export function itemParaResumo(item, medidas = []) {
+  const sel = medidaDoItem(medidas, item);
+  const salva = String(item?.medida ?? '').trim();
+  const temMedidaPropria = !!salva && salva !== MEDIDA_GRAMAS;
+  const conhecida = !temMedidaPropria
+    || (medidas || []).some(m => m.descricao === salva && Number(m.gramas) > 0);
+
+  return {
+    quantidade: conhecida ? fmtQtd(sel.n) : null,
+    medida: conhecida
+      ? (sel.medida === MEDIDA_GRAMAS ? 'gramas' : sel.medida)
+      : salva,
+    peso: sel.gramas,
+    // O projeto só representa peso: food_measures tem `gramas`, não unidade.
+    // Uma medida em ml carrega o "ml" no próprio nome, e o peso segue em g.
+    pesoTexto: `${fmtG(sel.gramas)} g`,
+    medidaConhecida: conhecida,
+    substituicoes: substituicoesDoItem(item).length,
+  };
+}
 
 // ── Badge de fonte ──────────────────────────────────────────
 // Antes a linha mostrava `marca || fonte_dados` como texto solto, então "TACO"
@@ -109,119 +154,159 @@ function chipsHtml(item) {
     </button>`;
 }
 
-// ── Tabela ──────────────────────────────────────────────────
-export function itensHtml(itens, ctx = {}) {
+// ── Lista de alimentos (Nível 2: dentro do drawer da refeição) ──────────────
+// "Visualizar todos, editar um por vez."
+//
+// Antes, TODO alimento carregava 9 controles interativos ao mesmo tempo: campo
+// de quantidade, seletor de medida, seis botões e mais o campo de observação.
+// Numa refeição de seis alimentos eram ~54 alvos disputando a mesma tela — daí
+// a sensação de texto amontoado.
+//
+// Agora o padrão é o estado COMPACTO (leitura, 2 ações) e só o alimento
+// escolhido entra em EDIÇÃO. `ctx.editando` diz qual é.
+export function listaAlimentosHtml(itens, ctx = {}) {
+  if (!itens?.length) {
+    return `
+      <div class="al-vazio">
+        <i data-lucide="utensils-crossed" aria-hidden="true"></i>
+        <span>Nenhum alimento nesta refeição.</span>
+      </div>`;
+  }
   return `
-    <div class="di-tab" role="table" aria-label="Alimentos da refeição">
-      <div class="di-tr di-th" role="row">
-        <span role="columnheader" class="c-num">#</span>
-        <span role="columnheader" class="c-nome">Alimento</span>
-        <span role="columnheader" class="c-qtd">Qtd</span>
-        <span role="columnheader" class="c-med">Medida</span>
-        <span role="columnheader" class="c-peso">Peso</span>
-        <span role="columnheader" class="c-mac">P</span>
-        <span role="columnheader" class="c-mac">C</span>
-        <span role="columnheader" class="c-mac">G</span>
-        <span role="columnheader" class="c-kcal">kcal</span>
-        <span role="columnheader" class="c-acts"><span class="sr">Ações</span></span>
+    <ul class="al-lista" role="list">
+      ${itens.map((it, i) => alimentoItemHtml(it, i, itens.length, ctx)).join('')}
+    </ul>`;
+}
+
+/** Menu "mais ações" — o mesmo nos dois estados. */
+function menuItemHtml(it, i, total, nome) {
+  return `
+    <div class="di-menu-wrap">
+      <button class="al-btn" data-item-menu="${it.id}" aria-haspopup="menu" aria-expanded="false"
+              title="Mais ações" aria-label="Mais ações de ${esc(nome)}">
+        <i data-lucide="ellipsis-vertical"></i>
+      </button>
+      <div class="di-menu" data-item-menu-pop="${it.id}" role="menu" hidden>
+        <button role="menuitem" data-item-subs="${it.id}"><i data-lucide="repeat-2"></i> Administrar substituições</button>
+        <button role="menuitem" data-item-obs="${it.id}"><i data-lucide="message-square-plus"></i> Adicionar observação</button>
+        <button role="menuitem" data-item-dup="${it.id}"><i data-lucide="copy"></i> Duplicar alimento</button>
+        <button role="menuitem" data-item-up="${it.id}" ${i === 0 ? 'disabled' : ''}><i data-lucide="chevron-up"></i> Mover para cima</button>
+        <button role="menuitem" data-item-down="${it.id}" ${i === total - 1 ? 'disabled' : ''}><i data-lucide="chevron-down"></i> Mover para baixo</button>
+        <button role="menuitem" data-item-del="${it.id}" class="perigo"><i data-lucide="trash-2"></i> Excluir alimento</button>
       </div>
-      ${itens.map((it, i) => itemRowHtml(it, i, itens.length, ctx)).join('')}
     </div>`;
 }
 
-export function itemRowHtml(it, i, total, ctx = {}) {
+/** Macros da segunda linha: informação secundária, tabular, sem destaque. */
+function macrosLinhaHtml(mm, nSubs, id) {
+  return `
+    <div class="al-sec">
+      <span class="al-macros">
+        <b>${fmtKcal(mm.kcal)}</b> kcal
+        <span>P ${fmtG(mm.prot)}</span>
+        <span>C ${fmtG(mm.carb)}</span>
+        <span>G ${fmtG(mm.gord)}</span>
+      </span>
+      ${nSubs ? `
+        <button class="al-chip" data-item-subs="${id}"
+                title="Ver as ${nSubs} substituições deste alimento">
+          ${nSubs} ${nSubs === 1 ? 'substituição' : 'substituições'}
+        </button>` : ''}
+    </div>`;
+}
+
+export function alimentoItemHtml(it, i, total, ctx = {}) {
   const f = it.food || {};
   const mm = macrosItem(it);
   const medidas = ctx.medidasDe?.get(it.food_id) || [];
   const sel = medidaDoItem(medidas, it);
   const nome = f.nome || '(alimento removido)';
   const obs = String(it.observacao ?? '').trim();
-  const temSubs = substituicoesDoItem(it).length > 0;
+  const nSubs = substituicoesDoItem(it).length;
+  const editando = ctx.editando === it.id;
+  const v = itemParaResumo(it, medidas);
 
+  if (!editando) {
+    // ── COMPACTO ──────────────────────────────────────────────────────────
+    // Duas linhas, quatro colunas, DUAS ações. Quantidade, medida e peso são
+    // texto: viram campo só quando o alimento entra em edição.
+    return `
+      <li class="al-item" data-item-row="${it.id}">
+        <div class="al-topo">
+          <div class="al-id">
+            <span class="al-nome" title="${esc(nome)}">${esc(nome)}</span>
+            ${badgeFonteHtml(f)}
+          </div>
+          <span class="al-qtd-txt">${v.quantidade ?? '—'}</span>
+          <span class="al-med-txt" title="${esc(v.medida)}">${esc(v.medida)}</span>
+          <span class="al-peso">${v.pesoTexto}</span>
+          <div class="al-acts">
+            <button class="al-btn al-btn-editar" data-item-editar="${it.id}"
+                    title="Editar ${esc(nome)}" aria-label="Editar ${esc(nome)}" aria-expanded="false">
+              <i data-lucide="pencil"></i>
+            </button>
+            ${menuItemHtml(it, i, total, nome)}
+          </div>
+        </div>
+        ${macrosLinhaHtml(mm, nSubs, it.id)}
+        ${obs ? `<p class="al-obs-txt" title="${esc(obs)}"><i data-lucide="message-square-text" aria-hidden="true"></i>${esc(obs)}</p>` : ''}
+      </li>`;
+  }
+
+  // ── EDIÇÃO ──────────────────────────────────────────────────────────────
+  // Só um alimento chega aqui por vez. Os campos aparecem porque é o momento
+  // em que eles servem para alguma coisa.
   const opcoes = [
     `<option value="${MEDIDA_GRAMAS}" ${sel.medida === MEDIDA_GRAMAS ? 'selected' : ''}>gramas</option>`,
     ...medidas.map(m =>
-      `<option value="${esc(m.descricao)}" ${sel.medida === m.descricao ? 'selected' : ''}>${esc(m.descricao)} (${fmtG(m.gramas)} g)</option>`),
+      `<option value="${esc(m.descricao)}" ${sel.medida === m.descricao ? 'selected' : ''}>${esc(m.descricao)}</option>`),
   ].join('');
 
   return `
-    <div class="di-tr di-item" role="row" data-item-row="${it.id}">
-      <span class="c-num" role="cell">${i + 1}</span>
-
-      <div class="c-nome" role="cell">
-        <div class="di-it-nome">${esc(nome)}</div>
-        <div class="di-it-sub">
-          ${badgeFonteHtml(f)}
-          ${f.marca ? `<span class="di-it-marca">${esc(f.marca)}</span>` : ''}
-        </div>
-        ${chipsHtml(it)}
-        ${obs ? `
-          <div class="di-it-obs">
-            <i data-lucide="message-square-text" aria-hidden="true"></i>
-            <input type="text" class="di-obs" value="${esc(obs)}"
-                   data-item-campo="observacao" data-item-id="${it.id}"
-                   aria-label="Observação sobre ${esc(nome)}">
-          </div>` : ''}
-      </div>
-
-      <div class="c-qtd" role="cell">
-        <input type="number" step="0.25" min="0" inputmode="decimal" class="di-inp di-inp-qtd"
-               value="${fmtQtdInput(sel.n)}" data-item-qtd="${it.id}"
-               aria-label="Quantidade de ${esc(nome)}">
-      </div>
-
-      <div class="c-med" role="cell">
-        <select class="di-inp di-inp-med" data-item-med="${it.id}"
-                aria-label="Medida de ${esc(nome)}"
-                ${medidas.length ? '' : 'title="Este alimento ainda não tem medidas caseiras. Cadastre em Alimentos."'}>
-          ${opcoes}
-        </select>
-      </div>
-
-      <span class="c-peso" role="cell"><b>${fmtG(sel.gramas)}</b> g</span>
-
-      <span class="c-mac" role="cell" title="Proteína">${fmtG(mm.prot)}</span>
-      <span class="c-mac" role="cell" title="Carboidrato">${fmtG(mm.carb)}</span>
-      <span class="c-mac" role="cell" title="Gordura">${fmtG(mm.gord)}</span>
-      <span class="c-kcal" role="cell"><b>${fmtKcal(mm.kcal)}</b></span>
-
-      <div class="c-acts" role="cell">
-        <button class="di-iact" data-item-up="${it.id}" ${i === 0 ? 'disabled' : ''}
-                title="Mover para cima" aria-label="Mover ${esc(nome)} para cima">
-          <i data-lucide="chevron-up"></i>
-        </button>
-        <button class="di-iact" data-item-down="${it.id}" ${i === total - 1 ? 'disabled' : ''}
-                title="Mover para baixo" aria-label="Mover ${esc(nome)} para baixo">
-          <i data-lucide="chevron-down"></i>
-        </button>
-        <button class="di-iact" data-item-dup="${it.id}" title="Duplicar" aria-label="Duplicar ${esc(nome)}">
-          <i data-lucide="copy"></i>
-        </button>
-        <button class="di-iact ${obs ? 'ativo' : ''}" data-item-obs="${it.id}"
-                title="${obs ? 'Editar observação' : 'Adicionar observação'}"
-                aria-label="${obs ? 'Editar' : 'Adicionar'} observação de ${esc(nome)}">
-          <i data-lucide="message-square-plus"></i>
-        </button>
-        <button class="di-iact ${temSubs ? 'ativo' : ''}" data-item-subs="${it.id}"
-                title="${temSubs ? 'Ver substituições' : 'Substituições (nenhuma cadastrada)'}"
-                aria-label="Substituições de ${esc(nome)}">
-          <i data-lucide="repeat-2"></i>
-        </button>
-
-        <div class="di-menu-wrap">
-          <button class="di-iact" data-item-menu="${it.id}" aria-haspopup="menu" aria-expanded="false"
-                  title="Mais ações" aria-label="Mais ações de ${esc(nome)}">
-            <i data-lucide="ellipsis-vertical"></i>
+    <li class="al-item al-item-edit" data-item-row="${it.id}">
+      <div class="al-edit-hd">
+        <span class="al-nome" title="${esc(nome)}">${esc(nome)}</span>
+        ${badgeFonteHtml(f)}
+        <div class="al-acts">
+          ${menuItemHtml(it, i, total, nome)}
+          <button class="al-btn al-btn-fechar" data-item-fechar="${it.id}"
+                  title="Concluir edição (Esc)" aria-label="Concluir edição de ${esc(nome)}" aria-expanded="true">
+            <i data-lucide="check"></i>
           </button>
-          <div class="di-menu" data-item-menu-pop="${it.id}" role="menu" hidden>
-            <button role="menuitem" data-item-del="${it.id}" class="perigo">
-              <i data-lucide="trash-2"></i> Remover alimento
-            </button>
-          </div>
         </div>
       </div>
-    </div>`;
+
+      <div class="al-campos">
+        <label class="al-campo">
+          <span>Quantidade</span>
+          <input type="number" step="0.25" min="0" inputmode="decimal" class="al-inp"
+                 value="${fmtQtdInput(sel.n)}" data-item-qtd="${it.id}"
+                 aria-label="Quantidade de ${esc(nome)}">
+        </label>
+        <label class="al-campo">
+          <span>Medida</span>
+          <select class="al-sel" data-item-med="${it.id}" aria-label="Medida de ${esc(nome)}"
+                  ${medidas.length ? '' : 'title="Este alimento ainda não tem medidas caseiras."'}>
+            ${opcoes}
+          </select>
+        </label>
+        <div class="al-campo al-campo-ro">
+          <span>Peso</span>
+          <output>${v.pesoTexto}</output>
+        </div>
+      </div>
+
+      ${macrosLinhaHtml(mm, nSubs, it.id)}
+
+      <label class="al-campo al-campo-obs">
+        <span>Observação para o paciente</span>
+        <input type="text" class="al-inp" value="${esc(obs)}"
+               data-item-campo="observacao" data-item-id="${it.id}"
+               placeholder="Ex.: preparar grelhado, sem óleo">
+      </label>
+    </li>`;
 }
+
 
 // ── Eventos ─────────────────────────────────────────────────
 /**
@@ -266,4 +351,9 @@ export function ligarItens(cont, acoes = {}) {
   cada('[data-item-del]',  b => b.addEventListener('click', () => acoes.remover?.(b.dataset.itemDel)));
   cada('[data-item-obs]',  b => b.addEventListener('click', () => acoes.pedirObservacao?.(b.dataset.itemObs)));
   cada('[data-item-subs]', b => b.addEventListener('click', () => acoes.verSubstituicoes?.(b.dataset.itemSubs)));
+
+  // Um alimento por vez em edição: quem abre, fecha o anterior (quem decide é
+  // o dono do estado, em dieta-refeicao.js).
+  cada('[data-item-editar]', b => b.addEventListener('click', () => acoes.editar?.(b.dataset.itemEditar)));
+  cada('[data-item-fechar]', b => b.addEventListener('click', () => acoes.fecharEdicao?.()));
 }
