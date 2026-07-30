@@ -11,7 +11,7 @@
 import { carregarResumo } from './paciente-resumo.js';
 import { listarMetas, situacaoDaMeta, estimativa, TIPOS_META } from './paciente-metas.js';
 import {
-  COMPARAR, num, interpretar, tomDaVariacao, diasEntre, dataDaAvaliacao,
+  COMPARAR, num, interpretar, tomDaVariacao, diasEntre, dataDaAvaliacao, objetivoDirigido,
 } from './evolucao-core.js';
 
 // Os números grandes do slide de resumo, na ordem em que se conta a história.
@@ -188,7 +188,10 @@ function calcularConquistas(d) {
   atencao.sort(porRelevancia);
   neutras.sort(porRelevancia);
 
-  return { boas, atencao, neutras, temObjetivo: !!d.objetivo };
+  // `objetivoDirige`, não "tem objetivo": "Manutenção" está preenchido e não
+  // aponta direção nenhuma. Com a pergunta errada, boas/atencao ficavam vazios
+  // e o fechamento saía sem indicador algum.
+  return { boas, atencao, neutras, objetivoDirige: !!objetivoDirigido(d.objetivo) };
 }
 
 /** Soma das dobras medidas nas DUAS avaliações. Menos de duas, não vale a frase. */

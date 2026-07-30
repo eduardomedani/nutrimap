@@ -44,8 +44,8 @@ export default {
       </section>`;
     };
 
-    // Sem objetivo declarado não existe "melhorou": existe "mudou".
-    const semObjetivo = !c.temObjetivo;
+    // Sem objetivo que aponte direção não existe "melhorou": existe "mudou".
+    const semObjetivo = !c.objetivoDirige;
     const principais = semObjetivo ? [...c.boas, ...c.neutras, ...c.atencao] : c.boas;
 
     return `
@@ -59,7 +59,9 @@ export default {
         </div>
 
         <p class="ap-cq-nota">${semObjetivo
-          ? 'O plano ativo não declara objetivo, então as mudanças aparecem sem julgamento de valor.'
+          ? (d.objetivo
+              ? `O objetivo do plano ativo (${esc(d.objetivo)}) não aponta uma direção para os indicadores, então as mudanças aparecem sem julgamento de valor.`
+              : 'O plano ativo não declara objetivo, então as mudanças aparecem sem julgamento de valor.')
           : `Leitura orientada pelo objetivo do plano ativo (${esc(d.objetivo)}). Não é diagnóstico.`}</p>
       </div>`;
   },

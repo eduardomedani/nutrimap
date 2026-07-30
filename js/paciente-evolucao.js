@@ -12,7 +12,7 @@ import { listarMetas, criarMeta, atualizarMeta, excluirMeta, situacaoDaMeta, est
 import { mostrarToast, mostrarErro, confirmar } from './utils.js';
 import {
   SERIES, SERIES_ABA, PERIODOS, COMPARAR,
-  pontosDaSerie, marcosDePlano, svgLinha, interpretar,
+  pontosDaSerie, marcosDePlano, svgLinha, interpretar, objetivoDirigido,
   esc, num, fmt, fmtData,
 } from './evolucao-core.js';
 
@@ -209,9 +209,11 @@ function comparacaoSecaoHtml() {
           <tbody>${linhas}</tbody>
         </table>
       </div>
-      <p class="ev-nota">${objetivo
+      <p class="ev-nota">${objetivoDirigido(objetivo)
         ? `Leitura orientada pelo objetivo do plano ativo (${esc(objetivo)}). Não é diagnóstico.`
-        : 'Sem objetivo definido no plano ativo: as mudanças aparecem sem julgamento de valor.'}</p>
+        : objetivo
+          ? `O objetivo do plano ativo (${esc(objetivo)}) não aponta uma direção para os indicadores: as mudanças aparecem sem julgamento de valor.`
+          : 'Sem objetivo definido no plano ativo: as mudanças aparecem sem julgamento de valor.'}</p>
     </section>`;
 }
 

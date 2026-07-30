@@ -29,7 +29,12 @@ const TABELA_DA_ENTIDADE = {
 const hojeISO = () => new Date().toISOString().slice(0, 10);
 
 /**
- * Registra um evento na timeline. Nunca lança.
+ * Registra um evento na timeline. Por padrão nunca lança: uma timeline que
+ * falha não pode desfazer a ação que ela só observa.
+ *
+ * Quem MOSTRA o resultado ao usuário precisa do contrário — sem `propagarErro`
+ * não há como separar "já existia" de "não gravou", e as duas viram null. Nesse
+ * caso o retorno vira: linha = gravou · null = já existia hoje · throw = falhou.
  *
  * @param {object}  ev
  * @param {string}  ev.pacienteId        obrigatório
@@ -44,9 +49,11 @@ const hojeISO = () => new Date().toISOString().slice(0, 10);
  * @param {Date|string} [ev.dataEvento]  padrão: agora
  * @param {boolean}[ev.dedupPorDia]      1 evento por (tipo, entidade, dia)
  * @param {string} [ev.chaveDedup]       chave explícita (vence dedupPorDia)
+ * @param {object} [opts]
+ * @param {boolean}[opts.propagarErro]   lança em vez de engolir a falha
  * @returns {Promise<object|null>} o evento criado, ou null (já existia / falhou)
  */
-export async function registrarEvento(ev) {
+export async function registrarEvento(ev, { propagarErro = false } = {}) {
   try {
     if (!ev || !ev.pacienteId || !ev.tipo) return null;
     const cfg = configDoTipo(ev.tipo);
@@ -82,6 +89,7 @@ export async function registrarEvento(ev) {
   } catch (e) {
     // Falha de timeline não desfaz nada nem interrompe o fluxo do usuário.
     console.error('[timeline] não foi possível registrar o evento:', ev?.tipo, e?.message || e);
+    if (propagarErro) throw e;
     return null;
   }
 }

@@ -192,16 +192,39 @@ export function svgLinha(pontos, { unidade = '', meta = null, marcos = [], largu
 }
 
 // ── A regra: isso é uma boa notícia? ────────────────────────
+// O objetivo é texto livre no plano (com chips de sugestão), então a leitura
+// começa normalizando: "Definição" tem cedilha e nunca casaria com /definic/.
+const semAcento = (s) => String(s ?? '').toLowerCase()
+  .normalize('NFD').replace(/\p{Diacritic}/gu, '');
+
+/**
+ * O objetivo do plano aponta uma DIREÇÃO para os indicadores?
+ *
+ * Dos seis objetivos sugeridos, só dois apontam: Emagrecimento e Hipertrofia.
+ * Manutenção, Recomposição, Performance e Saúde não dizem se subir é bom — e
+ * essa diferença é o que separa descrever de julgar. Antes, quem consultava
+ * apenas `objetivo != null` tratava "Manutenção" como se houvesse direção, e
+ * então nenhuma variação virava conquista.
+ *
+ * @returns {'emagrecer'|'ganhar'|null}
+ */
+export function objetivoDirigido(objetivo) {
+  const o = semAcento(objetivo);
+  if (!o) return null;
+  if (/emagre|perda|redu|gordura|definic/.test(o)) return 'emagrecer';
+  if (/hipertrof|ganho|massa|volume/.test(o)) return 'ganhar';
+  return null;
+}
+
 /**
  * Uma queda não é boa por si só: depende do objetivo do plano ativo.
  * Devolve { tom: 'bom' | 'atencao' | '' } — vazio = sem julgamento.
  */
 export function interpretar(campo, dif, objetivo) {
-  if (dif == null || Math.abs(dif) < 0.05 || !objetivo) return { tom: '' };
-  const o = String(objetivo).toLowerCase();
-  const emagrecer = /emagre|perda|redu|gordura|definic/.test(o);
-  const ganhar = /hipertrof|ganho|massa|volume/.test(o);
-  if (!emagrecer && !ganhar) return { tom: '' };
+  if (dif == null || Math.abs(dif) < 0.05) return { tom: '' };
+  const direcao = objetivoDirigido(objetivo);
+  if (!direcao) return { tom: '' };
+  const emagrecer = direcao === 'emagrecer';
 
   const desce = dif < 0;
   if (campo === 'peso_magro') return { tom: desce ? 'atencao' : 'bom' };

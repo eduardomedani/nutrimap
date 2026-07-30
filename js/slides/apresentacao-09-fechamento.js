@@ -30,8 +30,8 @@ export default {
         <ul class="ap-fech-lista">${itens.map(t => `<li>${t}</li>`).join('')}</ul>
       </section>` : '';
 
-    const temObjetivo = !!d.conquistas?.temObjetivo;
-    const conquistasHtml = bloco(temObjetivo ? 'Conquistas' : 'O que mudou', 'trophy', conquistas.map(c =>
+    const objetivoDirige = !!d.conquistas?.objetivoDirige;
+    const conquistasHtml = bloco(objetivoDirige ? 'Conquistas' : 'O que mudou', 'trophy', conquistas.map(c =>
       `${esc(c.texto)} <b>${c.dif > 0 ? '+' : '−'}${fmt(Math.abs(c.dif))}${esc(c.unidade || '')}</b>`));
 
     const objetivosHtml = bloco('Próximos objetivos', 'target', metas.map(({ meta, cfg, situacao }) =>
@@ -66,8 +66,12 @@ export default {
   },
 
   ligar(el, d, api) {
+    // Lido na hora do clique, não capturado agora: o profissional pode voltar ao
+    // slide 8, acrescentar uma ação e avançar de novo dentro da mesma consulta.
+    const acoesAgora = () => (api.sessao.acoes || '').trim();
+
     // As ações digitadas no slide anterior só aparecem se houver alguma.
-    const acoes = (api.sessao.acoes || '').trim();
+    const acoes = acoesAgora();
     if (acoes) {
       const box = el.querySelector('[data-fech-acoes]');
       const txt = el.querySelector('[data-fech-acoes-txt]');
@@ -77,7 +81,7 @@ export default {
     el.querySelector('[data-fech-pdf]')?.addEventListener('click', () => window.print());
 
     el.querySelector('[data-fech-zap]')?.addEventListener('click', () => {
-      const msg = montarMensagem(d, acoes);
+      const msg = montarMensagem(d, acoesAgora());
       window.open(gerarLinkWhatsapp(msg, d.paciente?.telefone || ''), '_blank');
     });
 
@@ -85,8 +89,16 @@ export default {
       const btn = ev.currentTarget;
       btn.disabled = true;
       try {
-        await salvarNoHistorico(d, acoes);
-        mostrarToast('✓ Resumo salvo no histórico');
+        // Três desfechos, três avisos. Antes eram dois: "salvou" e "salvou".
+        const evento = await salvarNoHistorico(d, acoesAgora());
+        if (evento) {
+          mostrarToast('✓ Resumo salvo no histórico');
+        } else {
+          // Evento de sistema é imutável por policy (paciente_eventos_update só
+          // alcança evento manual), então o registro de hoje fica como está —
+          // inclusive as ações que ele guardou. Dizer "salvo" aqui seria mentira.
+          mostrarToast('O registro desta apresentação já existe no histórico de hoje — nada foi alterado.', 6000);
+        }
       } catch (e) {
         mostrarErro('Não foi possível salvar: ' + (e.message || e));
       } finally {
@@ -104,7 +116,7 @@ export default {
 export function destaquesDaConsulta(d) {
   const c = d.conquistas;
   if (!c) return [];
-  return c.temObjetivo ? c.boas : [...c.neutras, ...c.boas, ...c.atencao];
+  return c.objetivoDirige ? c.boas : [...c.neutras, ...c.boas, ...c.atencao];
 }
 
 /** Mensagem do WhatsApp: o resumo em texto, sem link nem anexo. */
@@ -114,7 +126,7 @@ export function montarMensagem(d, acoes = '') {
 
   const boas = destaquesDaConsulta(d).slice(0, 4);
   if (boas.length) {
-    linhas.push(d.conquistas?.temObjetivo ? 'Conquistas:' : 'O que mudou:');
+    linhas.push(d.conquistas?.objetivoDirige ? 'Conquistas:' : 'O que mudou:');
     boas.forEach(c => linhas.push(`• ${c.texto} ${c.dif > 0 ? '+' : '−'}${fmt(Math.abs(c.dif))}${c.unidade || ''}`));
     linhas.push('');
   }
@@ -133,7 +145,11 @@ export function montarMensagem(d, acoes = '') {
   return linhas.join('\n').trim();
 }
 
-/** Registra o evento no prontuário — vira uma linha na timeline do paciente. */
+/**
+ * Registra o evento no prontuário — vira uma linha na timeline do paciente.
+ * Devolve a linha gravada, ou null se o registro de hoje já existia. Lança se
+ * não deu para gravar: quem clicou está numa consulta e precisa saber.
+ */
 export function salvarNoHistorico(d, acoes = '') {
   const boas = (d.conquistas?.boas || []).length;
   const atencao = (d.conquistas?.atencao || []).length;
@@ -158,5 +174,5 @@ export function salvarNoHistorico(d, acoes = '') {
       acoes: acoes || null,
     },
     dedupPorDia: true,   // apresentar duas vezes no mesmo dia é a mesma consulta
-  });
+  }, { propagarErro: true });
 }
