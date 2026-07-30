@@ -609,6 +609,21 @@ const refeicaoDaBusca = () => _refeicoes.find(r => r.id === estadoBusca().refId)
 const acharRefeicao = (id) => _refeicoes.find(r => r.id === id) || null;
 
 /**
+ * As refeições que compõem o DIA. Alternativas ficam de fora de propósito.
+ *
+ * O paciente come o café da manhã OU a vitamina proteica, nunca os dois — somar
+ * as duas inflaria o total do plano e a comparação com a meta viraria ficção.
+ * A regra vale para as calorias, os macros e a contagem de refeições.
+ *
+ * A filtragem é aqui, no consumo: dieta-calc.js continua somando o que recebe,
+ * sem saber que alternativa existe.
+ */
+const principais = () => _refeicoes.filter(r => !r.substitui_refeicao_id);
+
+/** As alternativas de uma refeição, na ordem em que foram criadas. */
+const alternativasDe = (id) => _refeicoes.filter(r => r.substitui_refeicao_id === id);
+
+/**
  * O contrato do Nível 2. O drawer não conhece banco nem estado: recebe daqui
  * como ler a refeição e o que fazer quando o nutri age.
  */
@@ -716,7 +731,7 @@ function toolbarHtml() {
 // conta nova mora aqui.
 function somasHtml() {
   const p = _plano || {};
-  const t = macrosPlano(_refeicoes);
+  const t = macrosPlano(principais());
   const pk = progresso(t.kcal, p.kcal_meta);
 
   const macro = (lbl, atual, meta, tom) => {
@@ -729,7 +744,7 @@ function somasHtml() {
       </div>`;
   };
 
-  const n = _refeicoes.length;
+  const n = principais().length;
   const itens = _refeicoes.reduce((s, r) => s + (r.itens?.length || 0), 0);
 
   return `
@@ -828,7 +843,17 @@ function refeicoesHtml() {
         </div>
       </div>`;
   }
-  return _refeicoes.map((r, i) => refeicaoCardHtml(r, i, _refeicoes.length)).join('');
+  // As alternativas aparecem sob a principal que substituem, nunca soltas na
+  // rotina: fora do contexto, "Vitamina proteica" às 07:00 pareceria uma
+  // segunda refeição do dia.
+  const lista = principais();
+  return lista.map((r, i) => {
+    const alts = alternativasDe(r.id);
+    return refeicaoCardHtml(r, i, lista.length)
+      + (alts.length ? `<div class="rt-alts">${
+          alts.map(a => refeicaoCardHtml(a, 0, 1, { alternativa: true })).join('')
+        }</div>` : '');
+  }).join('');
 }
 
 // Ícone por refeição, deduzido do nome. É decoração: se o nome não bater com
@@ -879,7 +904,7 @@ const indicador = (valor, unidade, legenda, tom) => `
  * ficam fora do botão (irmãs, posicionadas na última coluna), então clicar numa
  * delas não pode abrir a refeição por acidente — não há aninhamento.
  */
-function refeicaoCardHtml(r, idx, total) {
+function refeicaoCardHtml(r, idx, total, opts = {}) {
   const itens = r.itens || [];
   const m = macrosRefeicao(r);
   const subs = itens.reduce((s, it) => s + substituicoesDoItem(it).length, 0);
@@ -887,6 +912,9 @@ function refeicaoCardHtml(r, idx, total) {
   const aberta = _resumos.has(r.id);
   const editando = refeicaoAberta() === r.id;
   const painelId = `rt-resumo-${r.id}`;
+  const ehAlt = !!opts.alternativa;
+  const alts = ehAlt ? [] : alternativasDe(r.id);
+  const instrucao = String(r.instrucao ?? '').trim();
 
   const conta = (n, um, muitos) =>
     n ? `<span class="rt-conta">${n} ${n === 1 ? um : muitos}</span>` : '';
@@ -898,7 +926,7 @@ function refeicaoCardHtml(r, idx, total) {
     </button>`;
 
   return `
-    <article class="rt-card ${aberta ? 'aberta' : ''} ${editando ? 'editando' : ''}" data-ref-card="${r.id}">
+    <article class="rt-card ${aberta ? 'aberta' : ''} ${editando ? 'editando' : ''} ${ehAlt ? 'alternativa' : ''}" data-ref-card="${r.id}">
       <!-- Linha e ações lado a lado num flex: as ações ocupam espaço de verdade
            e ficam centradas pelo align-items. Antes eram posicionadas de forma
            absoluta, com deslocamento fixo do topo, e a linha reservava o lugar
@@ -909,14 +937,16 @@ function refeicaoCardHtml(r, idx, total) {
               aria-expanded="${aberta}" aria-controls="${painelId}">
         <span class="rt-ident">
           <span class="rt-seta" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
-          <span class="rt-hora">${esc(hhmm(r.horario)) || '--:--'}</span>
+          <span class="rt-hora">${ehAlt ? '<span class="rt-ou">ou</span>' : (esc(hhmm(r.horario)) || '--:--')}</span>
           <span class="rt-icone" aria-hidden="true"><i data-lucide="${iconeDaRefeicao(r.nome)}"></i></span>
           <span class="rt-id">
             <span class="rt-nome">${esc(r.nome || 'Refeição sem nome')}</span>
             <span class="rt-contagens">
               ${conta(itens.length, 'alimento', 'alimentos')}
               ${conta(subs, 'substituição', 'substituições')}
+              ${conta(alts.length, 'alternativa', 'alternativas')}
               ${obs ? `<span class="rt-conta rt-conta-obs"><i data-lucide="message-square-text" aria-hidden="true"></i>observação</span>` : ''}
+              ${instrucao ? `<span class="rt-conta rt-conta-obs" title="${esc(instrucao)}"><i data-lucide="info" aria-hidden="true"></i>${esc(instrucao)}</span>` : ''}
             </span>
           </span>
         </span>
@@ -1069,6 +1099,36 @@ function novaRefeicaoHtml() {
             </select>
           </div>
         </div>
+
+        <!-- Alternativa: substitui uma refeição INTEIRA, não um alimento. Só
+             refeições principais podem ser substituídas — alternativa de
+             alternativa não tem significado para o paciente. -->
+        <div class="di-alt-bloco">
+          <label class="di-switch">
+            <input type="checkbox" id="diNovaRefAlt">
+            <span class="di-switch-ui" aria-hidden="true"></span>
+            <span class="di-switch-txt">
+              <b>Esta é uma refeição alternativa</b>
+              <em>O paciente escolhe entre ela e a refeição que ela substitui.</em>
+            </span>
+          </label>
+
+          <div class="di-alt-campos" id="diNovaRefAltCampos" hidden>
+            <div class="av-field">
+              <label for="diNovaRefSubstitui">Substitui qual refeição?</label>
+              <select id="diNovaRefSubstitui" class="np-input">
+                ${principais().map(r => `
+                  <option value="${r.id}">${esc(r.nome || 'Refeição')}${r.horario ? ` · ${esc(hhmm(r.horario))}` : ''}</option>`).join('')}
+              </select>
+            </div>
+            <div class="av-field">
+              <label for="diNovaRefInstrucao">Orientação ao paciente <span class="di-opcional">opcional</span></label>
+              <input type="text" id="diNovaRefInstrucao" class="np-input"
+                     placeholder="Ex.: use esta opção quando estiver fora de casa">
+            </div>
+          </div>
+        </div>
+
         <div class="di-nova-acts">
           <button class="btn" id="diNovaCancelar">Cancelar</button>
           <button class="btn primary" id="diAddRef"><i data-lucide="plus"></i> Adicionar refeição</button>
@@ -1137,6 +1197,18 @@ function ligarNovaRefeicao(cont) {
   cont.querySelector('#diNovaCancelar')?.addEventListener('click', () => {
     form.hidden = true; abrir.hidden = false;
   });
+  // O switch de alternativa revela os campos que só fazem sentido com ele
+  // ligado — e some quando não há principal para substituir.
+  const alt = cont.querySelector('#diNovaRefAlt');
+  const altCampos = cont.querySelector('#diNovaRefAltCampos');
+  if (alt && altCampos) {
+    if (!principais().length) alt.closest('.di-alt-bloco')?.setAttribute('hidden', '');
+    alt.addEventListener('change', () => {
+      altCampos.hidden = !alt.checked;
+      if (alt.checked) cont.querySelector('#diNovaRefSubstitui')?.focus();
+    });
+  }
+
   cont.querySelector('#diAddRef')?.addEventListener('click', adicionarRefeicao);
   cont.querySelector('#diNovaRefNome')?.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); adicionarRefeicao(); }
@@ -1350,17 +1422,28 @@ async function adicionarRefeicao() {
   const hora = (qs('diNovaRefHora').value || '').trim();
   if (!nome) { mostrarToast('Informe o nome da refeição'); return; }
   const copiarDe = qs('diNovaRefCopia')?.value || '';
+
+  // Alternativa: substitui uma refeição inteira. Sem principal selecionada não
+  // há o que substituir, então o switch é ignorado em vez de gravar um vínculo
+  // solto.
+  const ehAlt = !!qs('diNovaRefAlt')?.checked;
+  const substitui = ehAlt ? (qs('diNovaRefSubstitui')?.value || null) : null;
+  const instrucao = ehAlt ? ((qs('diNovaRefInstrucao')?.value || '').trim() || null) : null;
+  if (ehAlt && !substitui) { mostrarToast('Escolha qual refeição esta alternativa substitui'); return; }
+
+  const extras = { substitui_refeicao_id: substitui, instrucao };
+
   try {
     const nutriId = await getNutriId();
     let nova;
     if (copiarDe) {
       const base = _refeicoes.find(r => r.id === copiarDe);
       nova = await comSave(() => duplicarRefeicao(nutriId, base, {
-        nome, horario: hora || null, ordem: _refeicoes.length,
+        nome, horario: hora || null, ordem: _refeicoes.length, ...extras,
       }));
     } else {
       nova = await comSave(() => criarRefeicao(nutriId, {
-        plano_id: _plano.id, nome, horario: hora || null, ordem: _refeicoes.length,
+        plano_id: _plano.id, nome, horario: hora || null, ordem: _refeicoes.length, ...extras,
       }));
     }
     await recarregarRefeicoes();
@@ -1420,12 +1503,12 @@ async function publicarPlano() {
 /** Números reais da prescrição, para o metadata do evento. */
 function resumoDoPlano() {
   // Plano ainda vazio soma zero — e zero aqui seria um dado falso, não um dado.
-  const m = macrosPlano(_refeicoes) || {};
+  const m = macrosPlano(principais()) || {};
   return {
     plan_name: _plano?.nome,
     calories: m.kcal ? arredonda(m.kcal, 0) : null,
     target_calories: _plano?.kcal_meta ? arredonda(Number(_plano.kcal_meta), 0) : null,
-    meals: _refeicoes.length || null,
+    meals: principais().length || null,
     protein: m.prot ? arredonda(m.prot, 1) : null,
     carbohydrate: m.carb ? arredonda(m.carb, 1) : null,
     fat: m.gord ? arredonda(m.gord, 1) : null,

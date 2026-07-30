@@ -475,13 +475,22 @@ export async function excluirRefeicao(id) {
  * falhar no meio, a refeição nova fica com menos itens. Por isso, ao dar erro,
  * a refeição criada é removida para não deixar um duplicado pela metade.
  */
-export async function duplicarRefeicao(nutriId, refeicao, { nome, horario, ordem } = {}) {
+export async function duplicarRefeicao(
+  nutriId, refeicao, { nome, horario, ordem, substitui_refeicao_id, instrucao } = {},
+) {
   const nova = await criarRefeicao(nutriId, {
     plano_id: refeicao.plano_id,
     nome: nome ?? `${refeicao.nome} (cópia)`,
     horario: horario !== undefined ? horario : (refeicao.horario || null),
     ordem: ordem ?? ((Number(refeicao.ordem) || 0) + 1),
     observacao: refeicao.observacao || null,
+    // Herda o vinculo da origem quando nao for informado: duplicar uma
+    // alternativa produz outra alternativa da MESMA principal; duplicar uma
+    // principal produz outra principal.
+    substitui_refeicao_id: substitui_refeicao_id !== undefined
+      ? substitui_refeicao_id
+      : (refeicao.substitui_refeicao_id || null),
+    instrucao: instrucao !== undefined ? instrucao : (refeicao.instrucao || null),
   });
 
   try {
