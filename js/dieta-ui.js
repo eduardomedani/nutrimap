@@ -15,25 +15,24 @@ import {
   criarPlano, atualizarPlano, excluirPlano,
   listarRefeicoesDoPlano, criarRefeicao, atualizarRefeicao, excluirRefeicao,
   adicionarItem, atualizarItem, excluirItem,
-  buscarFoods, buscarFood, listarMedidasDeVarios,
+  listarMedidasDeVarios,
   listarFavoritos, listarRecentes, registrarUso,
   duplicarRefeicao, duplicarItem, reordenarItens, reordenarRefeicoes,
   prescreverModeloParaPaciente, salvarComoModelo,
 } from './dieta.js';
 import {
-  pesoDeItem, quantidadeDePeso, gramasDeMedida, medidaDoItem, MEDIDA_GRAMAS,
-  macrosItem, macrosRefeicao, macrosPlano, distribuicaoMacros,
-  progresso, alertasPlano, intervaloMedioHoras,
+  quantidadeDePeso, gramasDeMedida, MEDIDA_GRAMAS,
+  macrosRefeicao, macrosPlano, progresso,
   fmtKcal, fmtG, fmtQtd, num, arredonda,
 } from './dieta-calc.js';
+import { itensHtml, ligarItens, substituicoesDoItem } from './dieta-linha.js';
+import { abrirSubstituicoes } from './dieta-substituicoes.js';
+import {
+  abrirBusca, fecharBusca, ligarBusca, drawerHtml, buscaAberta, estadoBusca,
+} from './dieta-busca.js';
 import { sb } from './supabase.js';
 import { registrarEvento } from './timeline.js';
 import { mostrarToast, mostrarToastDesfazer, mostrarErro, confirmar } from './utils.js';
-
-function debounce(fn, ms) {
-  let t = null;
-  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
-}
 
 // ── Estado do módulo ──
 let _modo      = 'paciente';   // 'paciente' | 'modelo'
@@ -42,14 +41,12 @@ let _paciente  = null;
 let _mountEl   = null;
 let _plano     = null;         // plano em edição (null enquanto não criado)
 let _refeicoes = [];           // refeições (com itens) do plano em edição
-let _alimCache = new Map();    // nome(lower) -> alimento, cache do autocomplete
 let _sugestoes = null;         // favoritos + recentes (cache; null = ainda não carregado)
 
 // ── Estado da tela de prescrição ──
 let _recolhidas = new Set();   // ids de refeições recolhidas
-let _drawerRef  = null;        // refeição com o drawer de busca aberto (id) ou null
-let _drawerAba  = 'alimentos'; // 'alimentos' | 'favoritos' | 'recentes'
 let _medidasDe  = new Map();   // food_id -> medidas caseiras (cache por plano aberto)
+let _focoDepois = null;        // seletor a refocar após o próximo render (Enter encadeado)
 let _salvando   = 0;           // requisições de escrita em voo (para o indicador)
 let _statusSave = 'ocioso';    // 'ocioso' | 'salvando' | 'salvo' | 'erro'
 let _dadosAberto = false;      // accordion dos dados administrativos do plano aberto
@@ -262,9 +259,10 @@ async function aplicarModelo(modeloId, btn) {
 // ═══════════════════════════════════════════════════════════
 async function abrirEditor(plano) {
   _plano = plano || null;
-  _drawerRef = null;
   _recolhidas.clear();
   _medidasDe.clear();
+  _focoDepois = null;
+  fecharBusca();     // trocar de plano com a busca aberta deixaria o drawer apontando para a refeição do plano anterior
   _statusSave = 'ocioso';
   // Plano novo → dados abertos (é preciso preencher). Plano existente → recolhido,
   // para o nutri "cair" direto no ambiente de prescrição. (Também recolhe após salvar.)
@@ -316,9 +314,14 @@ function montarDadosCard() {
   const mount = qs('plDadosMount');
   if (!mount) return;
   if (!_plano) _dadosAberto = true;   // criar exige o formulário aberto
-  mount.innerHTML = _dadosAberto ? dadosCardAbertoHtml() : dadosCardFechadoHtml();
-  if (_dadosAberto) ligarDadosAberto(mount);
-  else ligarDadosFechado(mount);
+
+  // Fechado, o card não existe mais: nome, status, objetivo e período estão na
+  // barra de ferramentas, e o lápis de lá reabre este formulário. Era o bloco
+  // que mais custava altura sem entregar nada que a barra não entregue.
+  if (!_dadosAberto) { mount.innerHTML = ''; return; }
+
+  mount.innerHTML = dadosCardAbertoHtml();
+  ligarDadosAberto(mount);
 }
 
 function fmtPeriodo(t) {
@@ -326,23 +329,6 @@ function fmtPeriodo(t) {
   if (t.data_inicio && t.data_fim) return `${fmtData(t.data_inicio)} – ${fmtData(t.data_fim)}`;
   if (t.data_inicio) return `desde ${fmtData(t.data_inicio)}`;
   return '';
-}
-
-function dadosCardFechadoHtml() {
-  const t = _plano || {};
-  const periodo = fmtPeriodo(t);
-  return `
-    <div class="pl-dados-min">
-      <div class="pl-dados-min-info">
-        <div class="pl-dados-eyebrow">Dados do plano</div>
-        <div class="pl-dados-min-nome">${esc(t.nome || 'Plano sem nome')} ${estadoChipHtml()}</div>
-        <div class="pl-dados-min-tags">
-          ${t.objetivo ? `<span class="pl-tag"><i data-lucide="target"></i> ${esc(t.objetivo)}</span>` : ''}
-          ${periodo ? `<span class="pl-tag"><i data-lucide="calendar"></i> ${periodo}</span>` : ''}
-        </div>
-      </div>
-      <button class="btn" id="plDadosEditar"><i data-lucide="pencil"></i> Editar</button>
-    </div>`;
 }
 
 function dadosCardAbertoHtml() {
@@ -412,12 +398,6 @@ function dadosCardAbertoHtml() {
     </div>`;
 }
 
-function ligarDadosFechado(mount) {
-  mount.querySelector('#plDadosEditar')?.addEventListener('click', () => {
-    _dadosAberto = true;
-    montarDadosCard();
-  });
-}
 
 function ligarDadosAberto(mount) {
   mount.querySelector('#plSalvarDados')?.addEventListener('click', () => salvarDados());
@@ -549,97 +529,154 @@ function renderRefeicoes() {
   cont.innerHTML = `
     <div class="di-rx">
       <div class="di-rx-main">
-        ${resumoBarHtml()}
-        ${secaoPrescricaoHtml()}
+        ${toolbarHtml()}
         <div class="di-refeicoes">${refeicoesHtml()}</div>
         ${novaRefeicaoHtml()}
+        ${somasHtml()}
       </div>
     </div>
-    ${_drawerRef ? drawerHtml() : ''}
+    ${buscaAberta() ? drawerHtml(refeicaoDaBusca()?.nome) : ''}
   `;
 
   ligarBarra(cont);
   ligarRefeicoes(cont);
   ligarNovaRefeicao(cont);
-  if (_drawerRef) ligarDrawer(cont);
+  if (buscaAberta()) ligarBusca(cont);
+
+  // Enter encadeado: o render recria os inputs, então o foco é reposto aqui —
+  // é o único ponto em que o nó novo já existe.
+  if (_focoDepois) {
+    const alvo = cont.querySelector(_focoDepois);
+    _focoDepois = null;
+    if (alvo) { alvo.focus(); alvo.select?.(); }
+  }
+}
+
+const refeicaoDaBusca = () => _refeicoes.find(r => r.id === estadoBusca().refId) || null;
+
+// ───────────────────────────────────────────────────────────
+// BARRA DE FERRAMENTAS (topo, sticky) — tudo à mão, nada escondido
+// ───────────────────────────────────────────────────────────
+// Duas faixas finas no lugar dos dois blocos altos que existiam antes (o card
+// de dados + a barra de métricas). A identidade do plano mora aqui; o card de
+// dados só aparece quando o nutri clica em editar. As métricas desceram para a
+// barra de somas, no rodapé, onde acompanham a rolagem.
+//
+// Nenhuma ação do dia a dia fica atrás de "...": clicar duas vezes para
+// recolher todas as refeições, numa tela usada por horas, é imposto puro.
+function toolbarHtml() {
+  const p = _plano || {};
+  const periodo = fmtPeriodo(p);
+  const btn = (id, icone, texto, dica) =>
+    `<button class="di-tb-btn" id="${id}" title="${esc(dica || texto)}"><i data-lucide="${icone}"></i><span>${esc(texto)}</span></button>`;
+
+  return `
+    <header class="di-tb" id="diToolbar">
+      <div class="di-tb-l1">
+        <div class="di-tb-ident">
+          <h2 class="di-tb-nome" title="${esc(p.nome || '')}">${esc(p.nome || 'Plano sem nome')}</h2>
+          ${estadoChipHtml()}
+          ${p.objetivo ? `<span class="di-tb-tag"><i data-lucide="target"></i>${esc(p.objetivo)}</span>` : ''}
+          ${periodo ? `<span class="di-tb-tag"><i data-lucide="calendar"></i>${periodo}</span>` : ''}
+          <button class="di-tb-edit" id="plDadosEditar" title="Editar dados do plano" aria-label="Editar dados do plano">
+            <i data-lucide="pencil"></i>
+          </button>
+        </div>
+        <div class="di-tb-salvar">
+          <span class="di-save" id="diSave" role="status" aria-live="polite">${saveStatusHtml()}</span>
+          <button class="btn" id="diSalvarRasc" title="Salvar mantendo como rascunho (Ctrl+S)">Salvar rascunho</button>
+          ${_modo === 'paciente'
+            ? `<button class="btn primary" id="diPublicar" title="Salvar e marcar o plano como ativo">Salvar e publicar</button>`
+            : ''}
+        </div>
+      </div>
+
+      <div class="di-tb-l2" role="toolbar" aria-label="Ações da prescrição">
+        <button class="di-tb-btn di-tb-add" id="diAddRefeicao" title="Adicionar refeição">
+          <i data-lucide="plus"></i><span>Adicionar refeição</span>
+        </button>
+        <span class="di-tb-sep" aria-hidden="true"></span>
+        ${_modo === 'paciente' ? btn('diEditarCalc', 'calculator', 'Editar cálculo', 'Editar as metas na aba Cálculo de Calorias') : ''}
+        ${btn('diDuplicar', 'copy-plus', 'Duplicar', 'Duplicar este plano na biblioteca de modelos')}
+        ${btn('diPdf', 'printer', 'PDF', 'Gerar PDF (imprimir)')}
+        <span class="di-tb-sep" aria-hidden="true"></span>
+        ${btn('diRecolher', 'chevrons-down-up', 'Recolher', 'Recolher todas as refeições')}
+        ${btn('diExpandir', 'chevrons-up-down', 'Expandir', 'Expandir todas as refeições')}
+        <span class="di-tb-sep" aria-hidden="true"></span>
+        ${btn('diAtalhos', 'keyboard', 'Atalhos', 'Ver todos os atalhos do teclado')}
+
+        <div class="di-tb-dicas">
+          <span><kbd>Ctrl</kbd><kbd>K</kbd> buscar</span>
+          <span><kbd>Ctrl</kbd><kbd>↵</kbd> alimento</span>
+          <span><kbd>Ctrl</kbd><kbd>S</kbd> salvar</span>
+        </div>
+      </div>
+    </header>`;
 }
 
 // ───────────────────────────────────────────────────────────
-// BARRA DE RESUMO NUTRICIONAL (sticky) — macros sempre à vista + ações
+// BARRA DE SOMAS (rodapé, sticky) — acompanha a rolagem
 // ───────────────────────────────────────────────────────────
-function resumoBarHtml() {
+// `position: sticky; bottom: 0` em vez de `fixed`: a barra respeita a largura
+// do container sozinha, sem precisar saber quanto mede a sidebar — e não cobre
+// o fim da lista quando a página termina.
+//
+// Os números saem todos de dieta-calc.js (macrosPlano + progresso). Nenhuma
+// conta nova mora aqui.
+function somasHtml() {
   const p = _plano || {};
-  const tot = macrosPlano(_refeicoes);
-  const pk = progresso(tot.kcal, p.kcal_meta);
-  const n = _refeicoes.length;
+  const t = macrosPlano(_refeicoes);
+  const pk = progresso(t.kcal, p.kcal_meta);
 
-  const metric = (lbl, val, sub) => `
-    <div class="di-rb-metric">
-      <span class="di-rb-lbl">${lbl}</span>
-      <span class="di-rb-val">${val}</span>
-      ${sub ? `<span class="di-rb-sub">${sub}</span>` : ''}
-    </div>`;
-
-  const macro = (lbl, atual, meta) => {
+  const macro = (lbl, atual, meta, tom) => {
     const pr = progresso(atual, meta);
-    const sub = pr.temMeta
-      ? `<span class="di-txt-${pr.status}">${pr.pctReal}%</span> · meta ${fmtG(meta)} g`
-      : 'sem meta';
-    return metric(lbl, `${fmtG(atual)} <em>g</em>`, sub);
+    return `
+      <div class="di-so-item">
+        <span class="di-so-lbl"><i class="di-so-dot di-so-dot-${tom}" aria-hidden="true"></i>${lbl}</span>
+        <span class="di-so-val">${fmtG(atual)}<em>g</em></span>
+        ${pr.temMeta ? `<span class="di-so-sub di-txt-${pr.status}">${pr.pctReal}% de ${fmtG(meta)}</span>` : ''}
+      </div>`;
   };
 
+  const n = _refeicoes.length;
+  const itens = _refeicoes.reduce((s, r) => s + (r.itens?.length || 0), 0);
+
   return `
-    <div class="di-resumo-bar" id="diResumoBar" role="region" aria-label="Resumo nutricional do plano">
-      <div class="di-rb-metrics">
-        <div class="di-rb-metric di-rb-kcal">
-          <span class="di-rb-lbl">Calorias</span>
-          <span class="di-rb-val">${fmtKcal(tot.kcal)}${pk.temMeta ? ` <em>/ ${fmtKcal(p.kcal_meta)}</em>` : ' <em>kcal</em>'}</span>
-          ${pk.temMeta
-            ? `<div class="di-bar di-bar-${pk.status}" role="progressbar" aria-valuenow="${pk.pctReal}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pk.pct}%"></span></div>`
-            : '<span class="di-rb-sub">defina no cálculo</span>'}
-        </div>
-        ${macro('Proteína', tot.prot, p.prot_meta)}
-        ${macro('Carboidrato', tot.carb, p.carb_meta)}
-        ${macro('Gordura', tot.gord, p.gord_meta)}
-        ${metric('Refeições', n, tot.fibra > 0 ? `${fmtG(tot.fibra)} g de fibra` : '')}
-        ${metric('Meta atingida',
-            pk.temMeta ? `<span class="di-txt-${pk.status}">${pk.pctReal}%</span>` : '—',
-            pk.temMeta
-              ? (pk.resta > 0 ? `faltam ${fmtKcal(pk.resta)} kcal` : pk.excedeu > 0 ? `${fmtKcal(pk.excedeu)} kcal acima` : 'na meta')
-              : 'sem meta definida')}
+    <footer class="di-somas" id="diSomas" role="region" aria-label="Totais do plano">
+      <div class="di-so-item di-so-kcal">
+        <span class="di-so-lbl">Calorias</span>
+        <span class="di-so-val">${fmtKcal(t.kcal)}${pk.temMeta ? `<em>/ ${fmtKcal(p.kcal_meta)}</em>` : '<em>kcal</em>'}</span>
+        ${pk.temMeta
+          ? `<div class="di-bar di-bar-${pk.status}" role="progressbar" aria-valuenow="${pk.pctReal}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pk.pct}%"></span></div>`
+          : `<span class="di-so-sub">defina no cálculo</span>`}
       </div>
-      <div class="di-rb-acts">
-        <span class="di-save" id="diSave" role="status" aria-live="polite">${saveStatusHtml()}</span>
-        ${_modo === 'paciente'
-          ? `<button class="btn di-rb-calc" id="diEditarCalc" title="Editar metas na aba Cálculo de Calorias"><i data-lucide="calculator"></i> Editar cálculo</button>`
-          : ''}
-        <button class="btn" id="diSalvarRasc" title="Salvar mantendo como rascunho (Ctrl+S)">Salvar rascunho</button>
-        ${_modo === 'paciente'
-          ? `<button class="btn primary" id="diPublicar" title="Salvar e marcar o plano como ativo">Salvar e publicar</button>`
-          : ''}
-        <div class="di-menu-wrap">
-          <button class="btn di-menu-btn" id="diMaisBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Mais ações">
-            <i data-lucide="ellipsis"></i>
-          </button>
-          <div class="di-menu" id="diMais" role="menu" hidden>
-            <button role="menuitem" data-mais="duplicar"><i data-lucide="copy-plus"></i> Duplicar plano na biblioteca</button>
-            <button role="menuitem" data-mais="imprimir"><i data-lucide="printer"></i> Gerar PDF (imprimir)</button>
-            <button role="menuitem" data-mais="recolher"><i data-lucide="chevrons-down-up"></i> Recolher todas</button>
-            <button role="menuitem" data-mais="expandir"><i data-lucide="chevrons-up-down"></i> Expandir todas</button>
-            <button role="menuitem" data-mais="atalhos"><i data-lucide="keyboard"></i> Atalhos do teclado</button>
-          </div>
-        </div>
+
+      ${macro('Proteína', t.prot, p.prot_meta, 'prot')}
+      ${macro('Carboidrato', t.carb, p.carb_meta, 'carb')}
+      ${macro('Gordura', t.gord, p.gord_meta, 'gord')}
+
+      ${t.fibra > 0 ? `
+        <div class="di-so-item">
+          <span class="di-so-lbl">Fibra</span>
+          <span class="di-so-val">${fmtG(t.fibra)}<em>g</em></span>
+        </div>` : ''}
+
+      <div class="di-so-item di-so-conta">
+        <span class="di-so-lbl">Prescrição</span>
+        <span class="di-so-val">${n}<em>${n === 1 ? 'refeição' : 'refeições'}</em></span>
+        <span class="di-so-sub">${itens} ${itens === 1 ? 'alimento' : 'alimentos'}</span>
       </div>
-    </div>`;
+
+      <div class="di-so-item di-so-meta">
+        <span class="di-so-lbl">Meta</span>
+        <span class="di-so-val">${pk.temMeta ? `<span class="di-txt-${pk.status}">${pk.pctReal}<em>%</em></span>` : '—'}</span>
+        <span class="di-so-sub">${pk.temMeta
+          ? (pk.resta > 0 ? `faltam ${fmtKcal(pk.resta)} kcal` : pk.excedeu > 0 ? `${fmtKcal(pk.excedeu)} kcal acima` : 'na meta')
+          : 'sem meta definida'}</span>
+      </div>
+    </footer>`;
 }
 
-function secaoPrescricaoHtml() {
-  return `
-    <div class="di-secao">
-      <h3 class="di-secao-tit"><i data-lucide="utensils"></i> Prescrição alimentar</h3>
-      ${estadoChipHtml()}
-    </div>`;
-}
 
 // O banco só tem `ativo` (boolean). "Rascunho/arquivado" não existe: não invento
 // estado que não dá para persistir.
@@ -706,6 +743,9 @@ function refeicoesHtml() {
 function refeicaoCardHtml(r, idx, total) {
   const itens = r.itens || [];
   const m = macrosRefeicao(r);
+  // Recolhida, a refeição precisa dizer se tem alternativa — senão o nutri
+  // abre uma por uma só para descobrir onde estão.
+  const subs = itens.reduce((s, it) => s + substituicoesDoItem(it).length, 0);
   const recolhida = _recolhidas.has(r.id);
   const painelId = `di-painel-${r.id}`;
 
@@ -731,6 +771,7 @@ function refeicaoCardHtml(r, idx, total) {
           <span class="di-kcal">${fmtKcal(m.kcal)} kcal</span>
           <span class="di-macros">P ${fmtG(m.prot)} · C ${fmtG(m.carb)} · G ${fmtG(m.gord)}</span>
           <span class="di-conta">${itens.length} ${itens.length === 1 ? 'alimento' : 'alimentos'}</span>
+          ${subs ? `<span class="di-conta">${subs} ${subs === 1 ? 'substituição' : 'substituições'}</span>` : ''}
         </div>
 
         <div class="di-card-acts">
@@ -756,7 +797,7 @@ function refeicaoCardHtml(r, idx, total) {
       </div>
 
       <div class="di-card-body" id="${painelId}" ${recolhida ? 'hidden' : ''}>
-        ${itens.length ? itensHtml(itens) : `
+        ${itens.length ? itensHtml(itens, { medidasDe: _medidasDe }) : `
           <div class="di-sem-itens">
             <span>Nenhum alimento adicionado.</span>
             <button class="btn" data-ref-add="${r.id}"><i data-lucide="plus"></i> Adicionar alimento</button>
@@ -767,93 +808,6 @@ function refeicaoCardHtml(r, idx, total) {
           </div>` : ''}
       </div>
     </section>`;
-}
-
-// ───────────────────────────────────────────────────────────
-// ITENS — tabela editável no desktop, cards no mobile (mesmo HTML, CSS decide)
-// ───────────────────────────────────────────────────────────
-function itensHtml(itens) {
-  return `
-    <div class="di-tab" role="table" aria-label="Alimentos da refeição">
-      <div class="di-tr di-th" role="row">
-        <span role="columnheader" class="c-num">#</span>
-        <span role="columnheader" class="c-nome">Alimento</span>
-        <span role="columnheader" class="c-qtd">Qtd</span>
-        <span role="columnheader" class="c-med">Medida</span>
-        <span role="columnheader" class="c-peso">Peso</span>
-        <span role="columnheader" class="c-mac">P</span>
-        <span role="columnheader" class="c-mac">C</span>
-        <span role="columnheader" class="c-mac">G</span>
-        <span role="columnheader" class="c-kcal">kcal</span>
-        <span role="columnheader" class="c-acts"><span class="sr">Ações</span></span>
-      </div>
-      ${itens.map((it, i) => itemRowHtml(it, i, itens.length)).join('')}
-    </div>`;
-}
-
-function itemRowHtml(it, i, total) {
-  const f = it.food || {};
-  const mm = macrosItem(it);
-  const medidas = _medidasDe.get(it.food_id) || [];
-  const sel = medidaDoItem(medidas, it);
-  const fonte = f.marca || (f.fonte_dados && f.fonte_dados !== 'Proprio' ? f.fonte_dados : '');
-
-  const opcoes = [
-    `<option value="${MEDIDA_GRAMAS}" ${sel.medida === MEDIDA_GRAMAS ? 'selected' : ''}>gramas</option>`,
-    ...medidas.map(m =>
-      `<option value="${esc(m.descricao)}" ${sel.medida === m.descricao ? 'selected' : ''}>${esc(m.descricao)} (${fmtG(m.gramas)} g)</option>`),
-  ].join('');
-
-  return `
-    <div class="di-tr di-item" role="row" data-item-row="${it.id}">
-      <span class="c-num" role="cell">${i + 1}</span>
-
-      <div class="c-nome" role="cell">
-        <div class="di-it-nome">${esc(f.nome || '(alimento removido)')}</div>
-        <div class="di-it-sub">
-          ${fonte ? `<span class="di-it-fonte">${esc(fonte)}</span>` : ''}
-          <input type="text" class="di-obs" value="${esc(it.observacao ?? '')}" placeholder="+ observação"
-                 data-item-campo="observacao" data-item-id="${it.id}"
-                 aria-label="Observação sobre ${esc(f.nome || 'alimento')}">
-        </div>
-      </div>
-
-      <div class="c-qtd" role="cell">
-        <input type="number" step="0.25" min="0" inputmode="decimal" class="di-inp di-inp-qtd"
-               value="${fmtQtdInput(sel.n)}" data-item-qtd="${it.id}"
-               aria-label="Quantidade de ${esc(f.nome || 'alimento')}">
-      </div>
-
-      <div class="c-med" role="cell">
-        <select class="di-inp di-inp-med" data-item-med="${it.id}"
-                aria-label="Medida de ${esc(f.nome || 'alimento')}"
-                ${medidas.length ? '' : 'title="Este alimento ainda não tem medidas caseiras. Cadastre em Alimentos."'}>
-          ${opcoes}
-        </select>
-      </div>
-
-      <span class="c-peso" role="cell"><b>${fmtG(sel.gramas)}</b> g</span>
-
-      <span class="c-mac" role="cell" title="Proteína">${fmtG(mm.prot)}</span>
-      <span class="c-mac" role="cell" title="Carboidrato">${fmtG(mm.carb)}</span>
-      <span class="c-mac" role="cell" title="Gordura">${fmtG(mm.gord)}</span>
-      <span class="c-kcal" role="cell"><b>${fmtKcal(mm.kcal)}</b></span>
-
-      <div class="c-acts" role="cell">
-        <button class="di-iact" data-item-up="${it.id}" ${i === 0 ? 'disabled' : ''} title="Subir" aria-label="Subir ${esc(f.nome || 'alimento')}">
-          <i data-lucide="chevron-up"></i>
-        </button>
-        <button class="di-iact" data-item-down="${it.id}" ${i === total - 1 ? 'disabled' : ''} title="Descer" aria-label="Descer ${esc(f.nome || 'alimento')}">
-          <i data-lucide="chevron-down"></i>
-        </button>
-        <button class="di-iact" data-item-dup="${it.id}" title="Duplicar" aria-label="Duplicar ${esc(f.nome || 'alimento')}">
-          <i data-lucide="copy"></i>
-        </button>
-        <button class="di-iact di-iact-del" data-item-del="${it.id}" title="Remover" aria-label="Remover ${esc(f.nome || 'alimento')}">
-          <i data-lucide="trash-2"></i>
-        </button>
-      </div>
-    </div>`;
 }
 
 // ───────────────────────────────────────────────────────────
@@ -890,68 +844,6 @@ function novaRefeicaoHtml() {
 }
 
 // ───────────────────────────────────────────────────────────
-// DRAWER DE BUSCA — some da rota, não da tela: a refeição segue visível
-// ───────────────────────────────────────────────────────────
-function drawerHtml() {
-  const r = _refeicoes.find(x => x.id === _drawerRef);
-  const ABAS = [
-    ['alimentos', 'Alimentos'],
-    ['favoritos', 'Favoritos'],
-    ['recentes', 'Recentes'],
-  ];
-  return `
-    <div class="di-drawer-fundo" id="diDrawerFundo"></div>
-    <aside class="di-drawer" id="diDrawer" role="dialog" aria-modal="true" aria-label="Adicionar alimento">
-      <div class="di-dw-hd">
-        <div>
-          <div class="di-dw-eyebrow">Adicionar em</div>
-          <div class="di-dw-tit">${esc(r?.nome || 'refeição')}</div>
-        </div>
-        <button class="di-iact" id="diDwFechar" title="Fechar (Esc)" aria-label="Fechar"><i data-lucide="x"></i></button>
-      </div>
-
-      <div class="di-dw-abas" role="tablist">
-        ${ABAS.map(([k, txt]) => `
-          <button role="tab" class="di-dw-aba ${_drawerAba === k ? 'ativa' : ''}"
-                  data-dw-aba="${k}" aria-selected="${_drawerAba === k}">${txt}</button>`).join('')}
-      </div>
-
-      <div class="di-dw-busca">
-        <i data-lucide="search"></i>
-        <input type="text" id="diDwInput" autocomplete="off"
-               placeholder="Busque por alimento, marca ou código de barras"
-               aria-label="Buscar alimento">
-      </div>
-
-      <div class="di-dw-lista" id="diDwLista" role="listbox" aria-label="Resultados"></div>
-
-      <div class="di-dw-ft">
-        <span><kbd>↑</kbd><kbd>↓</kbd> navegar</span>
-        <span><kbd>Enter</kbd> adicionar</span>
-        <span><kbd>Esc</kbd> fechar</span>
-      </div>
-    </aside>`;
-}
-
-function resultadoHtml(a, i, ativo) {
-  const fonte = a.marca || (a.fonte_dados && a.fonte_dados !== 'Proprio' ? a.fonte_dados : '');
-  const med = (_medidasDe.get(a.id) || [])[0];
-  const porcao = med ? `${esc(med.descricao)} · ${fmtG(med.gramas)} g` : 'Porção padrão: 100 g';
-  return `
-    <div class="di-res ${ativo ? 'ativo' : ''}" role="option" aria-selected="${ativo}" data-res="${i}">
-      <div class="di-res-txt">
-        <div class="di-res-nome">${a._tag === 'favorito' ? '<i data-lucide="star" class="di-fav"></i> ' : ''}${esc(a.nome)}</div>
-        <div class="di-res-sub">${fonte ? `<span class="di-it-fonte">${esc(fonte)}</span> · ` : ''}${porcao}</div>
-      </div>
-      <div class="di-res-mac">
-        <div class="di-res-kcal">${fmtKcal(a.calorias)} kcal</div>
-        <div class="di-res-pcg">P ${fmtG(a.proteina)} · C ${fmtG(a.carboidrato)} · G ${fmtG(a.gordura)}</div>
-      </div>
-      <button class="btn di-res-add" data-res-add="${i}" aria-label="Adicionar ${esc(a.nome)}">Adicionar</button>
-    </div>`;
-}
-
-// ───────────────────────────────────────────────────────────
 // EVENTOS
 // ───────────────────────────────────────────────────────────
 function abrirMenu(btn, pop) {
@@ -971,25 +863,23 @@ function abrirMenu(btn, pop) {
   document.addEventListener('mousedown', fora);
 }
 
+// Cada ação tem seu botão. Não sobrou nada para um menu "..." nesta tela:
+// arquivar, excluir e histórico do plano não existem no produto (excluir mora
+// na lista de planos), e menu vazio é pior que menu nenhum.
 function ligarBarra(cont) {
-  cont.querySelector('#diSalvarRasc')?.addEventListener('click', () => salvarDados());
-  cont.querySelector('#diPublicar')?.addEventListener('click', () => publicarPlano());
-  cont.querySelector('#diEditarCalc')?.addEventListener('click', irParaCalculo);
+  const ao = (id, fn) => cont.querySelector('#' + id)?.addEventListener('click', fn);
 
-  const btn = cont.querySelector('#diMaisBtn');
-  const pop = cont.querySelector('#diMais');
-  btn?.addEventListener('click', () => abrirMenu(btn, pop));
+  ao('diSalvarRasc', () => salvarDados());
+  ao('diPublicar', () => publicarPlano());
+  ao('diEditarCalc', irParaCalculo);
+  ao('plDadosEditar', () => { _dadosAberto = true; montarDadosCard(); });
 
-  pop?.querySelectorAll('[data-mais]').forEach(b => b.addEventListener('click', () => {
-    pop.hidden = true;
-    btn.setAttribute('aria-expanded', 'false');
-    const a = b.dataset.mais;
-    if (a === 'duplicar') salvarPlanoNaBiblioteca(_plano.id, _plano.nome, null);
-    else if (a === 'imprimir') window.print();
-    else if (a === 'recolher') { _refeicoes.forEach(r => _recolhidas.add(r.id)); renderRefeicoes(); }
-    else if (a === 'expandir') { _recolhidas.clear(); renderRefeicoes(); }
-    else if (a === 'atalhos') mostrarAtalhos();
-  }));
+  ao('diAddRefeicao', () => abrirNovaRefeicao());
+  ao('diDuplicar', () => salvarPlanoNaBiblioteca(_plano.id, _plano.nome, null));
+  ao('diPdf', () => window.print());
+  ao('diRecolher', () => { _refeicoes.forEach(r => _recolhidas.add(r.id)); renderRefeicoes(); });
+  ao('diExpandir', () => { _recolhidas.clear(); renderRefeicoes(); });
+  ao('diAtalhos', mostrarAtalhos);
 }
 
 // "Editar cálculo" → salta para a aba Cálculo de Calorias (onde as metas moram).
@@ -1008,6 +898,7 @@ function ligarNovaRefeicao(cont) {
     abrir.hidden = true;
     cont.querySelector('#diNovaRefNome')?.focus();
   };
+  _abrirNovaRefeicao = mostrar;      // o botão da barra de ferramentas usa o mesmo caminho
   abrir?.addEventListener('click', mostrar);
   cont.querySelector('#diVazioNova')?.addEventListener('click', mostrar);
   cont.querySelector('#diVazioModelo')?.addEventListener('click', () => escolherModelo());
@@ -1018,6 +909,14 @@ function ligarNovaRefeicao(cont) {
   cont.querySelector('#diNovaRefNome')?.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); adicionarRefeicao(); }
   });
+}
+
+// Mostrar o formulário de nova refeição é responsabilidade de ligarNovaRefeicao;
+// a barra de ferramentas só precisa de um gatilho, e ele é registrado no render.
+let _abrirNovaRefeicao = null;
+function abrirNovaRefeicao() {
+  if (_abrirNovaRefeicao) _abrirNovaRefeicao();
+  qs('diNovaRefNome')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
 function ligarRefeicoes(cont) {
@@ -1044,21 +943,53 @@ function ligarRefeicoes(cont) {
   cont.querySelectorAll('[data-ref-del]').forEach(b =>
     b.addEventListener('click', () => removerRefeicao(b.dataset.refDel)));
 
-  // Itens
-  cont.querySelectorAll('[data-item-campo]').forEach(el =>
-    el.addEventListener('change', () => salvarCampoItem(el)));
-  cont.querySelectorAll('[data-item-qtd]').forEach(el =>
-    el.addEventListener('change', () => salvarQuantidade(el.dataset.itemQtd)));
-  cont.querySelectorAll('[data-item-med]').forEach(el =>
-    el.addEventListener('change', () => trocarMedida(el.dataset.itemMed)));
-  cont.querySelectorAll('[data-item-up]').forEach(b =>
-    b.addEventListener('click', () => moverItem(b.dataset.itemUp, -1)));
-  cont.querySelectorAll('[data-item-down]').forEach(b =>
-    b.addEventListener('click', () => moverItem(b.dataset.itemDown, +1)));
-  cont.querySelectorAll('[data-item-dup]').forEach(b =>
-    b.addEventListener('click', () => duplicarItemUI(b.dataset.itemDup)));
-  cont.querySelectorAll('[data-item-del]').forEach(b =>
-    b.addEventListener('click', () => removerItem(b.dataset.itemDel)));
+  // Itens — o HTML e os listeners da linha moram em dieta-linha.js
+  ligarItens(cont, {
+    salvarCampo:      salvarCampoItem,
+    salvarQuantidade: salvarQuantidade,
+    trocarMedida:     trocarMedida,
+    mover:            moverItem,
+    duplicar:         duplicarItemUI,
+    remover:          removerItem,
+    abrirMenu:        abrirMenu,
+    pedirObservacao:  pedirObservacao,
+    verSubstituicoes: verSubstituicoes,
+  });
+}
+
+function verSubstituicoes(id) {
+  const { item } = acharItem(id);
+  if (item) abrirSubstituicoes(item, { medidasDe: _medidasDe });
+}
+
+/**
+ * A observação só existe na linha quando tem conteúdo (o campo vazio em toda
+ * linha era ruído). Pelo botão, ela nasce: cria o campo, foca e some sozinha se
+ * o nutri sair sem escrever nada.
+ */
+function pedirObservacao(id) {
+  const { item } = acharItem(id);
+  if (!item) return;
+  const linha = _mountEl?.querySelector(`[data-item-row="${id}"] .c-nome`);
+  if (!linha) return;
+
+  let campo = linha.querySelector('[data-item-campo="observacao"]');
+  if (!campo) {
+    const cx = document.createElement('div');
+    cx.className = 'di-it-obs';
+    cx.innerHTML = `<i data-lucide="message-square-text" aria-hidden="true"></i>
+      <input type="text" class="di-obs" value="" data-item-campo="observacao" data-item-id="${id}"
+             placeholder="Observação para o paciente" aria-label="Observação">`;
+    linha.appendChild(cx);
+    campo = cx.querySelector('input');
+    campo.addEventListener('change', () => salvarCampoItem(campo));
+    // Sem texto, o campo não vira registro nem linha permanente.
+    campo.addEventListener('blur', () => {
+      if (!campo.value.trim() && !item.observacao) cx.remove();
+    });
+    window.renderIcons?.();
+  }
+  campo.focus();
 }
 
 function alternarRecolhida(id) {
@@ -1067,153 +998,45 @@ function alternarRecolhida(id) {
 }
 
 // ───────────────────────────────────────────────────────────
-// DRAWER
 // ───────────────────────────────────────────────────────────
-let _dwResultados = [], _dwAtivo = -1, _dwBuscando = false;
+// BUSCA DE ALIMENTOS — o drawer mora em dieta-busca.js
+// ───────────────────────────────────────────────────────────
+// Aqui fica só a ponte: o módulo de busca não conhece o plano, e esta tela não
+// conhece paginação, filtro nem favorito. O contrato é esta `api`.
+function apiBusca() {
+  return {
+    qs,
+    rerender: renderRefeicoes,
+    medidasDe: _medidasDe,
+    carregarMedidas: carregarMedidasDe,
+    adicionar: adicionarAlimento,
+    nutriId: getNutriId,
+    sugestoes: carregarSugestoes,
+    invalidarSugestoes: () => { _sugestoes = null; },
+  };
+}
 
 async function abrirDrawer(refId) {
-  _drawerRef = refId;
-  _drawerAba = 'alimentos';
-  _dwResultados = []; _dwAtivo = -1;
-  _recolhidas.delete(refId);          // não faz sentido adicionar numa refeição recolhida
-  renderRefeicoes();
-  qs('diDwInput')?.focus();
-  await carregarAba();
-}
-
-function fecharDrawer() {
-  _drawerRef = null;
-  _dwResultados = []; _dwAtivo = -1;
-  renderRefeicoes();
-}
-
-function ligarDrawer(cont) {
-  cont.querySelector('#diDwFechar')?.addEventListener('click', fecharDrawer);
-  cont.querySelector('#diDrawerFundo')?.addEventListener('click', fecharDrawer);
-
-  cont.querySelectorAll('[data-dw-aba]').forEach(b =>
-    b.addEventListener('click', async () => {
-      _drawerAba = b.dataset.dwAba;
-      _dwAtivo = -1;
-      renderRefeicoes();
-      qs('diDwInput')?.focus();
-      await carregarAba();
-    }));
-
-  const inp = cont.querySelector('#diDwInput');
-  if (!inp) return;
-  inp.addEventListener('input', dwBuscar);
-  inp.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { e.preventDefault(); fecharDrawer(); return; }
-    if (e.key === 'ArrowDown') { e.preventDefault(); _dwAtivo = Math.min(_dwAtivo + 1, _dwResultados.length - 1); pintarResultados(); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); _dwAtivo = Math.max(_dwAtivo - 1, 0); pintarResultados(); }
-    else if (e.key === 'Enter') {
-      e.preventDefault();
-      const i = _dwAtivo >= 0 ? _dwAtivo : 0;
-      if (_dwResultados[i]) adicionarDoDrawer(i);
-    }
-  });
-  inp.focus();
-}
-
-const dwBuscar = debounce(async () => {
-  const inp = qs('diDwInput');
-  if (!inp) return;
-  const termo = inp.value.trim();
-  if (!termo) { await carregarAba(); return; }
-  _dwBuscando = true; pintarResultados();
-  try {
-    _dwResultados = await buscarFoods(termo, 25);
-  } catch (e) {
-    _dwBuscando = false;
-    _dwResultados = [];
-    pintarResultados(`Erro na busca: ${e.message}`);
-    return;
-  }
-  _dwBuscando = false;
-  for (const a of _dwResultados) _alimCache.set(String(a.nome).toLowerCase(), a);
-  await carregarMedidasDe(_dwResultados.map(a => a.id));
-  _dwAtivo = _dwResultados.length ? 0 : -1;
-  pintarResultados();
-}, 180);
-
-// Aba sem termo digitado: favoritos/recentes/sugestões.
-async function carregarAba() {
-  _dwBuscando = true; pintarResultados();
-  try {
-    if (_drawerAba === 'favoritos') _dwResultados = await listarFavoritos(50);
-    else if (_drawerAba === 'recentes') _dwResultados = await listarRecentes(25);
-    else _dwResultados = await carregarSugestoes();
-  } catch (e) {
-    _dwBuscando = false;
-    _dwResultados = [];
-    pintarResultados(`Não foi possível carregar: ${e.message}`);
-    return;
-  }
-  _dwBuscando = false;
-  await carregarMedidasDe(_dwResultados.map(a => a.id));
-  _dwAtivo = _dwResultados.length ? 0 : -1;
-  pintarResultados();
-}
-
-function pintarResultados(erro) {
-  const lista = qs('diDwLista');
-  if (!lista) return;
-
-  if (_dwBuscando) {
-    lista.innerHTML = `<div class="di-dw-vazio"><div class="spinner"></div>Buscando...</div>`;
-    return;
-  }
-  if (erro) {
-    lista.innerHTML = `<div class="di-dw-vazio"><i data-lucide="triangle-alert"></i>${esc(erro)}</div>`;
-    return;
-  }
-  if (!_dwResultados.length) {
-    const termo = (qs('diDwInput')?.value || '').trim();
-    const msg = termo
-      ? `Nenhum alimento encontrado para "${esc(termo)}".`
-      : _drawerAba === 'favoritos'
-        ? 'Você ainda não tem favoritos. Marque a estrela na aba Alimentos.'
-        : _drawerAba === 'recentes'
-          ? 'Nada por aqui ainda — os alimentos que você usar aparecem nesta aba.'
-          : 'Digite para buscar no catálogo.';
-    lista.innerHTML = `<div class="di-dw-vazio"><i data-lucide="search-x"></i>${msg}</div>`;
-    return;
-  }
-
-  lista.innerHTML = _dwResultados.map((a, i) => resultadoHtml(a, i, i === _dwAtivo)).join('');
-  lista.querySelectorAll('[data-res-add]').forEach(b =>
-    b.addEventListener('click', () => adicionarDoDrawer(Number(b.dataset.resAdd))));
-  lista.querySelectorAll('[data-res]').forEach(el =>
-    el.addEventListener('mousedown', (e) => {
-      if (e.target.closest('[data-res-add]')) return;
-      e.preventDefault();
-      adicionarDoDrawer(Number(el.dataset.res));
-    }));
-  lista.querySelector('.di-res.ativo')?.scrollIntoView({ block: 'nearest' });
-}
-
-// Adiciona e MANTÉM o drawer aberto — a ideia é enfileirar vários alimentos.
-async function adicionarDoDrawer(i) {
-  const al = _dwResultados[i];
-  if (!al || !_drawerRef) return;
-  await adicionarAlimento(_drawerRef, al);
-  mostrarToast(`✓ ${al.nome}`);
-  const inp = qs('diDwInput');
-  if (inp) { inp.value = ''; inp.focus(); }
-  _sugestoes = null;
-  await carregarAba();
+  _recolhidas.delete(refId);        // não faz sentido adicionar numa refeição recolhida
+  await abrirBusca(refId, apiBusca());
 }
 
 function mostrarAtalhos() {
   confirmar({
     titulo: 'Atalhos do teclado',
     mensagem: [
-      'Ctrl/Cmd + K   abrir a busca de alimentos',
-      'Ctrl/Cmd + S   salvar o plano',
+      'NA BUSCA DE ALIMENTOS',
+      'Ctrl/Cmd + K       abrir a busca',
+      'Ctrl/Cmd + Enter   adicionar alimento na refeição do cursor',
       '↑ ↓            navegar nos resultados',
       'Enter          adicionar o alimento selecionado',
       'Esc            fechar a busca',
+      '',
+      'NA PRESCRIÇÃO',
+      'Ctrl/Cmd + S   salvar o plano',
+      'Enter          confirmar a quantidade e descer para o próximo alimento',
+      'Shift + Enter  confirmar e subir para o alimento anterior',
+      'Tab            andar entre quantidade, medida e ações da linha',
     ].join('\n'),
     textoOk: 'Entendi',
     textoCancelar: 'Fechar',
@@ -1401,16 +1224,6 @@ async function removerRefeicao(id) {
 }
 
 // ── Itens ──
-// Resolve o texto digitado para um alimento (cache do autocomplete ou match exato).
-async function adicionarItemNaRefeicao(refId, inp) {
-  const nome = (inp?.value || '').trim();
-  if (!nome) { mostrarToast('Digite o nome do alimento'); return; }
-  let al = _alimCache.get(nome.toLowerCase());
-  if (!al) { try { al = (await buscarFoods(nome, 1))[0]; } catch (e) {} }
-  if (!al) { mostrarToast('Alimento não encontrado. Escolha um da lista.'); return; }
-  await adicionarAlimento(refId, al);
-}
-
 /**
  * Insere um alimento na refeição.
  * Entra com a primeira medida caseira do alimento, se houver; senão, 100 g —
@@ -1452,16 +1265,41 @@ function acharItem(id) {
 }
 
 /**
+ * Os itens na ordem em que aparecem na tela — refeição recolhida fica de fora,
+ * porque o Enter não pode mandar o foco para um campo escondido.
+ */
+function itensVisiveis() {
+  const out = [];
+  for (const r of _refeicoes) {
+    if (_recolhidas.has(r.id)) continue;
+    for (const it of (r.itens || [])) out.push(it.id);
+  }
+  return out;
+}
+
+/** Marca quem recebe o foco depois do próximo render. `dir` +1 desce, -1 sobe. */
+function agendarFocoVizinho(id, dir) {
+  const ids = itensVisiveis();
+  const i = ids.indexOf(id);
+  const alvo = i < 0 ? null : ids[i + dir];
+  // Sem vizinho (última linha), o foco fica onde está — melhor que pular para
+  // o começo da lista, que faria o nutri perder o lugar sem perceber.
+  _focoDepois = `[data-item-qtd="${alvo || id}"]`;
+}
+
+/**
  * Grava a quantidade digitada.
  *
  * O campo mostra a quantidade NA MEDIDA escolhida (2 colheres), mas o banco
  * guarda múltiplo de 100 g. A conversão passa por gramas:
  *   2 colheres x 25 g = 50 g -> quantidade = 0,5
  */
-async function salvarQuantidade(id) {
+async function salvarQuantidade(id, { seguir = 0 } = {}) {
   const { item } = acharItem(id);
   const el = _mountEl?.querySelector(`[data-item-qtd="${id}"]`);
   if (!item || !el) return;
+
+  if (seguir) agendarFocoVizinho(id, seguir);
 
   const n = num(el.value);
   if (n == null || n < 0) { renderRefeicoes(); return; }   // valor inválido: volta ao que era
@@ -1469,7 +1307,11 @@ async function salvarQuantidade(id) {
   const medidas = _medidasDe.get(item.food_id) || [];
   const gramas = gramasDeMedida(medidas, item.medida, n);
   const quantidade = quantidadeDePeso(gramas);
-  if (quantidade === Number(item.quantidade)) return;
+  if (quantidade === Number(item.quantidade)) {
+    // Nada mudou, mas o Enter ainda tem que andar: sem render, o foco é aqui.
+    if (seguir) { const alvo = _mountEl?.querySelector(_focoDepois); _focoDepois = null; alvo?.focus(); alvo?.select?.(); }
+    return;
+  }
 
   item.quantidade = quantidade;   // otimista: o número já está na tela
   renderRefeicoes();
@@ -1603,11 +1445,22 @@ function ligarAtalhos() {
     const cmd = e.ctrlKey || e.metaKey;
     if (!cmd) return;
 
+    // Ctrl+Enter adiciona alimento NA REFEIÇÃO EM QUE O CURSOR ESTÁ — com oito
+    // refeições na tela, abrir sempre na primeira faria o nutri corrigir o
+    // destino toda vez.
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const alvo = refeicaoDoFoco() || _refeicoes.find(r => !_recolhidas.has(r.id)) || _refeicoes[0];
+      if (alvo) abrirDrawer(alvo.id);
+      else mostrarToast('Adicione uma refeição primeiro');
+      return;
+    }
+
     const k = e.key.toLowerCase();
     if (k === 'k') {
       e.preventDefault();
-      if (_drawerRef) { qs('diDwInput')?.focus(); return; }
-      const alvo = _refeicoes.find(r => !_recolhidas.has(r.id)) || _refeicoes[0];
+      if (buscaAberta()) { qs('diDwInput')?.focus(); return; }
+      const alvo = refeicaoDoFoco() || _refeicoes.find(r => !_recolhidas.has(r.id)) || _refeicoes[0];
       if (alvo) abrirDrawer(alvo.id);
       else mostrarToast('Adicione uma refeição primeiro');
     } else if (k === 's') {
@@ -1615,6 +1468,13 @@ function ligarAtalhos() {
       salvarDados();
     }
   });
+}
+
+/** A refeição que contém o elemento focado, se houver. */
+function refeicaoDoFoco() {
+  const card = document.activeElement?.closest?.('[data-ref-card]');
+  const id = card?.dataset?.refCard;
+  return id ? _refeicoes.find(r => r.id === id) || null : null;
 }
 
 // ───────────────────────────────────────────────────────────

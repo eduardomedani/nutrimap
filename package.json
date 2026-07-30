@@ -4,6 +4,8 @@
   "type": "module",
   "description": "Evollo — painel do profissional + PWA do aluno. Site estático, sem build.",
   "scripts": {
-    "dev": "npx --yes serve . -l 3000"
+    "dev": "npx --yes serve . -l 3000",
+    "test": "node --import ./test/ambiente.mjs test/run.mjs",
+    "check": "node test/check-imports.mjs && node test/sintaxe.mjs"
   }
 }

@@ -237,6 +237,37 @@ export async function desfavoritar(nutriId, foodId) {
   return true;
 }
 
+/**
+ * Alimentos que o nutri MAIS prescreveu, do mais usado para o menos.
+ *
+ * A contagem e derivada de refeicao_itens (o RLS ja limita aos itens do dono),
+ * nao de um contador guardado: numero materializado envelhece quando um item e
+ * apagado, e este nao tem como divergir do que esta prescrito. `amostra` limita
+ * o payload — o ranking olha os itens mais recentes, que e o que interessa.
+ */
+export async function listarMaisUsados(limite = 25, amostra = 2000) {
+  const { data, error } = await sb
+    .from('refeicao_itens')
+    .select('food_id')
+    .not('food_id', 'is', null)
+    .order('criado_em', { ascending: false })
+    .limit(amostra);
+  if (error) throw error;
+
+  const conta = new Map();
+  for (const r of data || []) conta.set(r.food_id, (conta.get(r.food_id) || 0) + 1);
+  const topo = [...conta.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limite)
+    .map(([id]) => id);
+  if (!topo.length) return [];
+
+  const { data: foods, error: erroFoods } = await sb.from('foods').select('*').in('id', topo);
+  if (erroFoods) throw erroFoods;
+  const porId = new Map((foods || []).map(f => [f.id, f]));
+  return topo.map(id => porId.get(id)).filter(Boolean);   // preserva a ordem do ranking
+}
+
 /** Ultimos alimentos usados, do mais recente para o mais antigo. */
 export async function listarRecentes(limite = 12) {
   const { data, error } = await sb

@@ -1,0 +1,580 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   DIETA — construtor de plano alimentar e tela de prescrição
+   ═══════════════════════════════════════════════════════════════════════
+   Saiu do <style> inline do index.html sem uma regra alterada. O link fica
+   ANTES de tokens.css e brand.css de propósito: brand.css sobrescreve
+   .di-secao-tit, .di-hd-nome, .di-dw-tit, .di-ref e as cores das barras de
+   macro (.di-bar-*). Carregado depois deles, este arquivo venceria a marca
+   e a tela mudaria de cara sem ninguém ter pedido.
+
+   A indentação de 2 espaços é herança do <style> — mantida para o diff da
+   extração ser um movimento puro, verificável linha a linha.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+  /* ===== CONSTRUTOR DE PLANO ALIMENTAR (dieta-ui.js) ===== */
+  .di-refeicoes { display: flex; flex-direction: column; gap: 12px; margin-top: 6px; }
+
+  /* Cabeçalho da refeição (uma linha no desktop, empilha no mobile) */
+  .di-ref-nome { flex: 1 1 150px; min-width: 110px; border: none; background: none; font-family: var(--font-sans); font-size: 16px; font-weight: 800; color: var(--moss-deep); padding: 4px 4px 4px 2px; border-radius: 6px; }
+  .di-ref-nome:focus { outline: none; background: var(--bg); }
+  .di-ref-stats { display: flex; align-items: baseline; gap: 10px; margin-left: auto; }
+  .di-ref-kcal { font-size: 13.5px; font-weight: 800; color: var(--moss-deep); white-space: nowrap; }
+  .di-ref-count { font-size: 12px; font-weight: 600; color: var(--ink-mute); white-space: nowrap; }
+  .di-ref-del { flex: 0 0 auto; border: none; background: none; color: var(--ink-mute); cursor: pointer; padding: 6px; border-radius: 6px; display: flex; }
+  .di-ref-del:hover { color: var(--error); background: var(--surface-subtle); }
+
+  /* Resumo nutricional da refeição */
+
+  /* Lista de alimentos (cards internos compactos) */
+  @media (hover: none) { .di-item-acts { opacity: 1; } }
+  .di-iact:hover { background: var(--bg-warm); color: var(--ink); }
+  .di-iact:disabled { opacity: 0.3; cursor: default; }
+  .di-iact-del:hover { color: var(--error); }
+
+  /* Adicionar alimento (botão full-width que abre a busca) */
+
+  /* Resumo de macros do dia */
+  .di-resumo-meta { color: var(--ink-mute); }
+  .di-bar { margin-top: 8px; height: 7px; border-radius: 100px; background: var(--bg-warm); overflow: hidden; }
+  .di-bar > span { display: block; height: 100%; border-radius: 100px; background: linear-gradient(90deg, var(--moss), var(--sage)); transition: width 0.35s ease; }
+  .di-bar.over > span { background: linear-gradient(90deg, var(--gold), var(--terracotta)); }
+  .di-macros-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+  .di-macro-top { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink-soft); margin-bottom: 5px; }
+  .di-macro-val { font-family: var(--font-sans); color: var(--moss-deep); font-weight: 700; }
+  .di-macro-val em { color: var(--ink-mute); font-style: normal; font-weight: 600; }
+  .di-macro .di-bar { margin-top: 0; }
+  @media (max-width: 560px) { .di-macros-row { grid-template-columns: 1fr; gap: 8px; } }
+  .di-metas summary { list-style: revert; }
+  /* Metas (somente-leitura) — vêm do Cálculo de Calorias */
+  .pl-status-ativo { border-color: var(--sage); color: var(--moss-deep); background: color-mix(in srgb, var(--color-primary-400) 15%, transparent); font-weight: 700; }
+  .pl-status-inativo { border-color: var(--error); color: var(--error); background: var(--error-soft); font-weight: 700; }
+  .di-metas-ro { margin-top: 14px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .di-metas-ro-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .di-metas-ro-tit { font-size: 13px; font-weight: 700; color: var(--moss-deep); display: inline-flex; align-items: center; gap: 6px; }
+  .di-metas-ro-tit svg { color: var(--gold); }
+  .di-metas-ro-hint { font-size: 12px; color: var(--ink-mute); }
+  .di-metas-ro-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .di-metas-ro-grid > div { display: flex; flex-direction: column; gap: 2px; }
+  .di-metas-ro-grid span { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-mute); font-weight: 700; }
+  .di-metas-ro-grid b { font-family: var(--font-sans); font-size: 17px; font-weight: 800; color: var(--moss-deep); }
+  @media (max-width: 560px) { .di-metas-ro-grid { grid-template-columns: 1fr 1fr; } }
+  .al-fonte { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; color: var(--moss); background: color-mix(in srgb, var(--color-primary-400) 15%, transparent); padding: 1px 7px; border-radius: 100px; vertical-align: middle; margin-left: 4px; }
+
+  /* ===== PRESCRIÇÃO DE DIETA — tela de refeições (dieta-ui.js, nível 3) ===== */
+  /* Só tokens do sistema. Nada de cor solta: estados usam sage/gold/terracotta. */
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* Layout: prescrição em largura total (dados viram accordion; resumo vira barra sticky). */
+  /* Largura: a tela usa o que existe. O max-width de 1200px deixava um terço do
+     monitor vazio enquanto o nome do alimento era cortado — a margem de conforto
+     já vem do padding do .main (36px). */
+  .di-rx { margin: 10px 0 0; max-width: none; }
+  .di-rx-main { min-width: 0; }
+  .di-refeicoes { display: flex; flex-direction: column; gap: 10px; }
+
+  /* ── Card de dados administrativos (accordion) ── */
+  .pl-dados-min { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+                  margin-top: 18px; padding: 12px 16px; background: var(--bg-card); border: 1px solid var(--line);
+                  border-radius: 14px; box-shadow: var(--shadow); }
+  .pl-dados-min-info { min-width: 0; }
+  .pl-dados-eyebrow { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-mute); }
+  .pl-dados-min-nome { font-family: var(--font-sans); font-size: 19px; font-weight: 600; color: var(--moss-deep);
+                       display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 2px 0 4px; line-height: 1.2; }
+  .pl-dados-min-tags { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .pl-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; color: var(--ink-soft);
+            background: var(--bg-warm); border-radius: 100px; padding: 3px 10px; }
+  .pl-tag svg { width: 13px; height: 13px; color: var(--ink-mute); }
+  .pl-dados-form { margin-top: 18px; }
+  .pl-dados-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .pl-dados-head .av-form-title { margin-bottom: 0; }
+  .di-mini-btn { padding: 6px 12px; font-size: 12.5px; }
+  .di-mini-btn svg { width: 14px; height: 14px; }
+  .pl-obj-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .pl-chip { padding: 5px 12px; border: 1px solid var(--line); border-radius: 100px; background: var(--bg); cursor: pointer;
+             font-family: var(--font-sans); font-size: 12.5px; font-weight: 700; color: var(--ink-soft); transition: all 0.15s; }
+  .pl-chip:hover { border-color: var(--sage); color: var(--moss-deep); }
+  .pl-chip.on { background: var(--moss); border-color: var(--moss); color: var(--cream); }
+
+
+  /* Chip de estado do plano (ativo/inativo/modelo). */
+  .di-chip { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 100px; background: var(--bg-warm); color: var(--ink-soft); }
+  .di-chip-on { background: color-mix(in srgb, var(--color-primary-400) 22%, transparent); color: var(--moss-deep); }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     BARRA DE FERRAMENTAS (sticky)
+     ═══════════════════════════════════════════════════════════════════════
+     Duas faixas finas no lugar dos dois blocos altos de antes. Fundo sólido é
+     obrigatório: ela flutua sobre a lista enquanto rola. */
+  .di-tb { position: sticky; top: 0; z-index: 30; background: var(--bg-card);
+           border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; }
+  .di-tb-l1 { display: flex; align-items: center; justify-content: space-between; gap: 16px;
+              flex-wrap: wrap; padding: 9px 12px 9px 14px; }
+  .di-tb-ident { display: flex; align-items: center; gap: 9px; min-width: 0; flex-wrap: wrap; }
+  .di-tb-nome { font-family: var(--font-sans); font-size: 17px; font-weight: 600; color: var(--moss-deep);
+                margin: 0; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 44ch; }
+  .di-tb-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-mute); }
+  .di-tb-tag svg { width: 13px; height: 13px; }
+  /* Discreto, nunca invisível: ação que só aparece no hover é ação que o
+     usuário de mouse não descobre e o de toque nunca alcança. */
+  .di-tb-edit { display: inline-flex; padding: 4px; border: none; background: none; border-radius: 6px;
+                color: var(--ink-mute); cursor: pointer; opacity: 0.5; transition: all 0.15s; }
+  .di-tb-l1:hover .di-tb-edit, .di-tb-edit:focus-visible { opacity: 1; }
+  .di-tb-edit:hover { background: var(--bg-warm); color: var(--ink); opacity: 1; }
+  .di-tb-salvar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  /* Faixa de ferramentas: separada por uma linha só, não por uma segunda caixa. */
+  .di-tb-l2 { display: flex; align-items: center; gap: 3px; flex-wrap: wrap;
+              padding: 5px 10px; border-top: 1px solid var(--line); }
+  .di-tb-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border: none; border-radius: 7px;
+               background: none; cursor: pointer; font-family: var(--font-sans); font-size: 12.5px; font-weight: 700;
+               color: var(--ink-soft); white-space: nowrap; transition: background 0.15s, color 0.15s; }
+  .di-tb-btn:hover { background: var(--bg-warm); color: var(--ink); }
+  .di-tb-btn:focus-visible { outline: 2px solid var(--sage); outline-offset: 1px; }
+  .di-tb-btn svg { width: 15px; height: 15px; }
+  .di-tb-add { color: var(--moss-deep); background: color-mix(in srgb, var(--color-primary-400) 14%, transparent); }
+  .di-tb-add:hover { background: color-mix(in srgb, var(--color-primary-400) 26%, transparent); color: var(--moss-deep); }
+  .di-tb-sep { width: 1px; height: 18px; background: var(--line); margin: 0 5px; flex-shrink: 0; }
+
+  /* Atalhos à vista: quem usa a tela por horas não deve precisar abrir um modal
+     para lembrar deles. Somem primeiro quando o espaço aperta. */
+  .di-tb-dicas { display: flex; align-items: center; gap: 14px; margin-left: auto; padding-left: 12px;
+                 font-size: 10.5px; color: var(--ink-mute); }
+  .di-tb-dicas span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .di-tb-dicas kbd { font-family: inherit; font-size: 9.5px; font-weight: 700; line-height: 1;
+                     background: var(--bg-warm); border: 1px solid var(--line); border-bottom-width: 2px;
+                     border-radius: 4px; padding: 3px 5px; color: var(--ink-soft); }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     BARRA DE SOMAS (sticky no rodapé)
+     ═══════════════════════════════════════════════════════════════════════
+     sticky, não fixed: acompanha a rolagem sem precisar saber a largura da
+     sidebar, e não cobre o fim da lista quando a página acaba. */
+  .di-somas { position: sticky; bottom: 0; z-index: 28; display: flex; align-items: center; gap: 26px;
+              flex-wrap: wrap; margin-top: 14px; padding: 10px 16px;
+              background: var(--bg-card); border: 1px solid var(--line); border-radius: 12px;
+              box-shadow: 0 -4px 18px rgba(16,24,40,0.06); }
+  .di-so-item { display: flex; flex-direction: column; gap: 1px; min-width: 72px; }
+  .di-so-lbl { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700;
+               text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-mute); }
+  .di-so-val { font-family: var(--font-sans); font-size: 17px; font-weight: 800; color: var(--moss-deep);
+               white-space: nowrap; line-height: 1.15; }
+  .di-so-val em { font-style: normal; font-weight: 600; font-size: 11.5px; color: var(--ink-mute); margin-left: 3px; }
+  .di-so-sub { font-size: 10.5px; color: var(--ink-mute); white-space: nowrap; }
+  .di-so-kcal { min-width: 150px; padding-right: 22px; border-right: 1px solid var(--line); }
+  .di-so-kcal .di-bar { margin-top: 5px; }
+  .di-so-conta { border-left: 1px solid var(--line); padding-left: 22px; }
+  .di-so-meta { margin-left: auto; text-align: right; }
+  .di-so-meta .di-so-lbl { justify-content: flex-end; }
+  .di-so-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-mute); }
+  .di-so-dot-prot { background: var(--chart-prot); }
+  .di-so-dot-carb { background: var(--chart-carb); }
+  .di-so-dot-gord { background: var(--chart-gord); }
+
+  /* Estado do autosave */
+  .di-save { font-size: 12px; color: var(--ink-mute); display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+  .di-save-salvando svg { animation: di-spin 1s linear infinite; }
+  .di-save-salvo { color: var(--moss); }
+  .di-save-erro { color: var(--terracotta); }
+  @keyframes di-spin { to { transform: rotate(360deg); } }
+
+  /* Menu de três pontos */
+  .di-menu-wrap { position: relative; }
+  .di-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 232px; padding: 6px;
+             background: var(--bg-card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-lg); }
+  .di-menu button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 10px; border: none; border-radius: 8px;
+                    background: none; cursor: pointer; font-family: var(--font-sans); font-size: 13px; font-weight: 600; color: var(--ink); text-align: left; }
+  .di-menu button:hover { background: var(--bg); }
+  .di-menu button.perigo { color: var(--rose); }
+  .di-menu svg { width: 15px; height: 15px; color: var(--ink-mute); }
+  .di-menu button.perigo svg { color: var(--rose); }
+
+  /* Card de refeição */
+  .di-card { background: var(--bg-card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: visible; }
+  .di-card-hd { display: flex; align-items: center; gap: 10px; padding: 9px 12px; }
+  .di-card.recolhida .di-card-hd { padding: 7px 12px; }
+  .di-toggle { flex: 0 0 auto; width: 28px; height: 28px; display: grid; place-items: center; border: none; background: none; cursor: pointer; color: var(--ink-mute); border-radius: 7px; }
+  .di-toggle:hover { background: var(--bg); color: var(--moss); }
+  .di-card-id { display: flex; align-items: center; gap: 8px; flex: 1 1 220px; min-width: 0; }
+  .di-hora { flex: 0 0 auto; width: 78px; padding: 5px 7px; font-family: var(--font-sans); font-size: 12.5px; font-weight: 700;
+             color: var(--moss); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; }
+  .di-nome { flex: 1 1 auto; min-width: 90px; padding: 5px 6px; border: 1px solid transparent; border-radius: 7px; background: none;
+             font-family: var(--font-sans); font-size: 15px; font-weight: 800; color: var(--moss-deep); }
+  .di-nome:hover { border-color: var(--line); }
+  .di-nome:focus, .di-hora:focus { outline: none; border-color: var(--sage); background: var(--bg); }
+  .di-card-stats { display: flex; align-items: baseline; gap: 10px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+  .di-kcal { font-family: var(--font-sans); font-size: 14px; font-weight: 800; color: var(--moss-deep); white-space: nowrap; }
+  .di-macros { font-size: 11.5px; color: var(--ink-soft); white-space: nowrap; }
+  .di-conta { font-size: 11px; color: var(--ink-mute); white-space: nowrap; }
+  .di-card-acts { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+
+  /* Ações por ícone. Todos os ícones da tela têm 15px e o mesmo traço; o alvo
+     de clique cresce por pseudo-elemento, sem inchar o botão na grade. */
+  .di-iact { width: 26px; height: 26px; display: grid; place-items: center; border: none; background: none; cursor: pointer;
+             color: var(--ink-mute); border-radius: 7px; position: relative; }
+  .di-iact::after { content: ''; position: absolute; inset: -6px; }  /* área clicável ~38px */
+  .di-iact:hover:not(:disabled) { background: var(--bg); color: var(--moss); }
+  .di-iact:disabled { opacity: 0.28; cursor: default; }
+  .di-iact-del:hover:not(:disabled) { background: rgba(184,103,74,0.12); color: var(--terracotta); }
+  .di-iact svg { width: 15px; height: 15px; }
+
+  .di-card-body { border-top: 1px solid var(--line); }
+  .di-card-ft { padding: 6px 12px 10px; }
+  .di-add-link { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; border: none; background: none; cursor: pointer;
+                 font-family: var(--font-sans); font-size: 12.5px; font-weight: 700; color: var(--moss); border-radius: 7px; }
+  .di-add-link:hover { background: var(--bg); }
+  .di-add-link svg { width: 14px; height: 14px; }
+  .di-sem-itens { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 12px; font-size: 13px; color: var(--ink-mute); }
+
+  /* Tabela de itens */
+  .di-tab { display: flex; flex-direction: column; }
+  /* O nome manda: 4fr contra colunas numéricas fixas e estreitas. Peso, macros
+     e kcal têm largura previsível (3 a 5 dígitos) — dar 70px a "0,2 g" era
+     roubar espaço de "Pão, trigo, forma, integral". */
+  .di-tr { display: grid;
+           grid-template-columns: 28px minmax(280px,4fr) 78px minmax(120px,1.1fr) 56px 46px 46px 46px 58px 152px;
+           align-items: center; gap: 8px; padding: 4px 12px; }
+
+  /* Linha com chips e observação fica alta; alinhar pelo topo mantém quantidade
+     e macros na mesma linha visual do nome, em vez de flutuando no meio. */
+  .di-item { align-items: start; }
+  .di-item > .c-num, .di-item > .c-peso, .di-item > .c-mac, .di-item > .c-kcal { padding-top: 5px; }
+  .di-item > .c-qtd, .di-item > .c-med, .di-item > .c-acts { padding-top: 0; }
+  .di-inp-qtd { text-align: center; }
+  .di-inp-med { text-align: center; text-align-last: center; }
+  .di-th .c-qtd, .di-th .c-med { text-align: center; }
+  .di-th { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-mute); border-bottom: 1px solid var(--line); padding-bottom: 5px; }
+  .di-item { border-bottom: 1px solid rgba(230,232,235,0.5); }
+  .di-item:last-child { border-bottom: none; }
+  .di-item:hover { background: rgba(247,247,246,0.6); }
+  .c-num { font-size: 11px; color: var(--ink-mute); }
+  .c-mac, .c-kcal, .c-peso { font-size: 12px; color: var(--ink-soft); text-align: right; }
+  .c-kcal b, .c-peso b { font-family: var(--font-sans); font-weight: 800; color: var(--moss-deep); }
+  /* Nome: até duas linhas antes de cortar. Cortar cedo obrigava o nutri a
+     passar o mouse para saber o que prescreveu — "Arroz, tipo 1, cozido" e
+     "Arroz, tipo 2, cozido" viravam a mesma linha truncada. */
+  .di-it-nome { font-size: 13.5px; font-weight: 700; color: var(--ink); line-height: 1.3;
+                display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .di-it-sub { display: flex; align-items: center; gap: 6px; margin-top: 2px; flex-wrap: wrap; }
+  .di-it-fonte { font-size: 9.5px; font-weight: 700; letter-spacing: 0.03em; color: var(--moss); background: color-mix(in srgb, var(--color-primary-400) 15%, transparent); padding: 1px 6px; border-radius: 100px; white-space: nowrap; }
+  .di-it-marca { font-size: 10.5px; color: var(--ink-mute); }
+
+  /* Badge de procedência do dado (fonte_dados). Discreto de propósito: é
+     contexto, não informação de prescrição. Tom neutro para todas as fontes —
+     nenhuma tabela é "melhor" na tela, e cor aqui viraria hierarquia falsa. */
+  .di-badge { font-size: 9.5px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+              color: var(--ink-soft); background: var(--bg-warm); border: 1px solid var(--line);
+              padding: 1px 6px; border-radius: 5px; white-space: nowrap; }
+  .di-badge-proprio { color: var(--moss); background: color-mix(in srgb, var(--color-primary-400) 12%, transparent);
+                      border-color: color-mix(in srgb, var(--color-primary-400) 30%, transparent); }
+
+  /* Substituições: o bloco inteiro é um botão que abre o painel lateral. O
+     conteúdo continua sendo leitura do jsonb — o painel é que diz, em texto,
+     que editar chega na próxima etapa. */
+  .di-subs { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-top: 4px;
+             padding: 2px 6px 2px 4px; border: 1px solid transparent; border-radius: 8px;
+             background: none; cursor: pointer; text-align: left; font: inherit; transition: all 0.15s; }
+  .di-subs:hover { border-color: var(--line); background: var(--bg); }
+  .di-subs:focus-visible { outline: 2px solid var(--sage); outline-offset: 1px; }
+  .di-subs > svg { width: 12px; height: 12px; color: var(--ink-mute); flex-shrink: 0; }
+  .di-sub-chip { display: inline-flex; align-items: baseline; gap: 4px; font-size: 10.5px; color: var(--ink-soft);
+                 background: var(--bg); border: 1px solid var(--line); border-radius: 100px; padding: 0 7px; }
+  .di-subs:hover .di-sub-chip { background: var(--bg-card); }
+  .di-sub-chip em { font-style: normal; font-size: 9.5px; color: var(--ink-mute); }
+  .di-sub-chip-mais { color: var(--ink-mute); background: none; border-style: dashed; }
+
+  .di-it-obs { display: flex; align-items: center; gap: 5px; margin-top: 4px; }
+  .di-it-obs svg { width: 12px; height: 12px; color: var(--ink-mute); flex-shrink: 0; }
+  .di-obs { flex: 1 1 auto; min-width: 60px; padding: 1px 4px; border: 1px solid transparent; border-radius: 5px; background: none;
+            font-family: var(--font-sans); font-size: 11px; color: var(--ink-mute); }
+  .di-obs:hover { border-color: var(--line); }
+  .di-obs:focus { outline: none; border-color: var(--sage); background: var(--bg-card); color: var(--ink); }
+  .di-inp { width: 100%; padding: 5px 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg-card);
+            font-family: var(--font-sans); font-size: 12.5px; color: var(--ink); }
+  .di-inp:focus { outline: none; border-color: var(--sage); box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary-400) 20%, transparent); }
+  .di-inp-qtd { text-align: right; }
+
+  /* Ações da linha: visíveis, não escondidas atrás de um menu. Ficam em 45% de
+     opacidade e acendem no hover/foco da linha — presentes o suficiente para
+     saber que existem, discretas o suficiente para não competir com o alimento.
+     Em telas de toque não há hover, então nunca somem de verdade. */
+  .c-acts { display: flex; justify-content: flex-end; align-items: center; gap: 0; }
+  .di-item .c-acts .di-iact { opacity: 0.45; transition: opacity 0.15s, background 0.15s, color 0.15s; }
+  .di-item:hover .c-acts .di-iact,
+  .di-item:focus-within .c-acts .di-iact { opacity: 1; }
+  .di-iact.ativo { opacity: 1; color: var(--moss); }
+  @media (hover: none) { .di-item .c-acts .di-iact { opacity: 1; } }
+
+  /* Nova refeição */
+  .di-nova { margin-top: 12px; }
+  .di-nova-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 12px; cursor: pointer;
+                 border: 1.5px dashed var(--line); border-radius: 12px; background: none;
+                 font-family: var(--font-sans); font-size: 13.5px; font-weight: 700; color: var(--moss); }
+  .di-nova-btn:hover { border-color: var(--sage); background: var(--bg-card); }
+  .di-nova-form { background: var(--bg-card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; box-shadow: var(--shadow); }
+  .di-nova-grid { display: grid; grid-template-columns: 2fr 1fr 1.6fr; gap: 10px; }
+  .di-nova-acts { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; }
+
+  /* Estado vazio do plano */
+  .di-vazio { text-align: center; padding: 40px 20px; background: var(--bg-card); border: 1px solid var(--line); border-radius: 14px; }
+  .di-vazio-tit { font-family: var(--font-sans); font-size: 18px; color: var(--moss-deep); margin-top: 8px; }
+  .di-vazio-sub { font-size: 13px; color: var(--ink-mute); margin: 4px 0 16px; }
+  .di-vazio-acts { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+  /* Resumo */
+  .di-rs { background: var(--bg-card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; box-shadow: var(--shadow); }
+
+  /* ── Botão "Resumo do plano" no cabeçalho ── */
+  .di-resumo-btn { display: inline-flex; align-items: center; gap: 8px; }
+  .di-resumo-btn svg { width: 16px; height: 16px; }
+  .di-resumo-btn-txt b { color: var(--moss-deep); font-weight: 800; }
+  .di-resumo-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .di-dot-ok { background: var(--sage); }
+  .di-dot-alerta { background: var(--gold); }
+  .di-dot-excesso, .di-dot-baixo { background: var(--rose); }
+
+  /* ── Drawer do resumo ── */
+  .di-rs-overlay { position: fixed; inset: 0; background: rgba(42,46,38,0.26); z-index: 900; opacity: 0; transition: opacity 0.22s; }
+  .di-rs-overlay.show { opacity: 1; }
+  .di-rs-overlay[hidden] { display: none; }
+  .di-rs-drawer { position: fixed; top: 0; right: 0; height: 100vh; width: 400px; max-width: 92vw; background: var(--bg-card); border-left: 1px solid var(--line); box-shadow: -8px 0 30px rgba(16,24,40,0.12); z-index: 950; transform: translateX(100%); transition: transform 0.25s ease; display: flex; flex-direction: column; }
+  .di-rs-drawer.aberto { transform: translateX(0); }
+  .di-rs-drawer[hidden] { display: none; }
+  .di-rs-drawer.pin { box-shadow: -4px 0 18px rgba(16,24,40,0.06); }
+  .di-rs-drawer-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 18px 14px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+  .di-rs-drawer-tit { font-size: 15px; font-weight: 800; color: var(--moss-deep); }
+  .di-rs-drawer-sub { font-size: 12px; color: var(--ink-mute); margin-top: 2px; }
+  .di-rs-drawer-acts { display: flex; gap: 5px; flex-shrink: 0; }
+  .di-icon-btn { width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--ink-soft); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .di-icon-btn:hover { background: var(--bg-warm); border-color: var(--sage); }
+  .di-icon-btn.on { background: var(--moss); color: var(--cream); border-color: var(--moss); }
+  .di-icon-btn svg { width: 16px; height: 16px; }
+  .di-rs-drawer-body { flex: 1; overflow-y: auto; padding: 16px 18px 26px; }
+  .di-rs-drawer-body .di-rs { border: none; box-shadow: none; padding: 0; background: transparent; }
+  /* Tablet/notebook estreito: drawer mais largo; desabilita o "fixar". */
+  @media (max-width: 1023px) { .di-rs-drawer { width: 380px; } }
+  /* Mobile: vira bottom-sheet quase de tela cheia. */
+  @media (max-width: 640px) {
+    .di-rs-drawer { width: 100%; max-width: 100%; height: 90vh; top: auto; bottom: 0; border-left: none; border-top: 1px solid var(--line); border-radius: 18px 18px 0 0; transform: translateY(100%); }
+    .di-rs-drawer.aberto { transform: translateY(0); }
+    .di-rx.di-rx-pin { margin-right: auto; }
+  }
+  .di-rs-tit { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-mute); margin-bottom: 12px; }
+  .di-rs-kcal-num { font-family: var(--font-sans); font-size: 14px; color: var(--ink-mute); }
+  .di-rs-kcal-num strong { font-size: 30px; font-weight: 800; color: var(--moss-deep); }
+  .di-rs-kcal-sub { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--ink-mute); margin-top: 5px; }
+  .di-rs-pct { font-weight: 800; }
+  .di-rs-macros { display: flex; flex-direction: column; gap: 11px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .di-rs-linha { display: flex; flex-direction: column; gap: 4px; }
+  .di-rs-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .di-rs-nome { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+  .di-rs-val { font-family: var(--font-sans); font-size: 12.5px; font-weight: 800; color: var(--moss-deep); white-space: nowrap; }
+  .di-rs-val em { font-style: normal; font-weight: 600; color: var(--ink-mute); }
+  .di-rs-hint { font-size: 10.5px; color: var(--ink-mute); }
+
+  /* Barras — estado NUNCA é só cor: o texto ao lado sempre diz o número */
+  .di-bar { height: 5px; border-radius: 100px; background: var(--bg-warm); overflow: hidden; }
+  .di-bar-lg { height: 8px; margin-top: 8px; }
+  .di-bar > span { display: block; height: 100%; border-radius: 100px; background: var(--sage); transition: width 0.25s; }
+  .di-bar-perto > span { background: var(--moss); }
+  .di-bar-acima > span { background: var(--gold-soft); }
+  .di-bar-excesso > span { background: var(--terracotta); }
+  .di-txt-perto { color: var(--moss); }
+  .di-txt-acima { color: var(--gold); }
+  .di-txt-excesso { color: var(--terracotta); }
+
+  /* Distribuição de macros */
+  .di-rs-dist { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .di-rs-dist-tit { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-mute); margin-bottom: 7px; }
+  .di-rs-dist-bar { display: flex; height: 8px; border-radius: 100px; overflow: hidden; background: var(--bg-warm); }
+  .di-rs-dist-bar span { display: block; height: 100%; }
+  .dp { background: var(--moss); } .dc { background: var(--sage); } .dg { background: var(--gold-soft); }
+  .di-rs-dist-lg { display: flex; justify-content: space-between; gap: 6px; margin-top: 7px; font-size: 10.5px; color: var(--ink-soft); }
+  .di-rs-dist-lg .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; }
+
+  .di-rs-fatos { display: flex; flex-direction: column; gap: 6px; margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--line); }
+  .di-rs-fatos > div { display: flex; justify-content: space-between; gap: 8px; }
+  .di-rs-fatos dt { font-size: 11.5px; color: var(--ink-mute); }
+  .di-rs-fatos dd { margin: 0; font-family: var(--font-sans); font-size: 12px; font-weight: 800; color: var(--moss-deep); }
+
+  .di-rs-alertas { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .di-al { display: flex; gap: 7px; align-items: flex-start; font-size: 11.5px; line-height: 1.4; padding: 7px 9px; border-radius: 8px; }
+  .di-al svg { width: 13px; height: 13px; flex-shrink: 0; margin-top: 1px; }
+  .di-al-ok { background: color-mix(in srgb, var(--color-primary-400) 14%, transparent); color: var(--moss-deep); }
+  .di-al-aviso { background: var(--bg-warm); color: var(--ink-soft); }
+  .di-al-alerta { background: rgba(212,179,115,0.2); color: var(--ink); }
+
+  /* Drawer de busca */
+  .di-drawer-fundo { position: fixed; inset: 0; background: rgba(29,41,57,0.32); z-index: 900; animation: fadeIn 0.15s; }
+  .di-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 440px; max-width: 100vw; z-index: 901;
+               display: flex; flex-direction: column; background: var(--bg-card); border-left: 1px solid var(--line);
+               box-shadow: -12px 0 40px rgba(0,0,0,0.12); animation: di-slide 0.2s ease-out; }
+  @keyframes di-slide { from { transform: translateX(100%); } to { transform: translateX(0); } }
+  .di-dw-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px; border-bottom: 1px solid var(--line); }
+  .di-dw-eyebrow { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute); }
+  .di-dw-tit { font-family: var(--font-sans); font-size: 18px; color: var(--moss-deep); }
+  .di-dw-abas { display: flex; gap: 3px; padding: 8px 12px 0; border-bottom: 1px solid var(--line); }
+  .di-dw-aba { padding: 7px 12px; border: none; background: none; cursor: pointer; border-radius: 8px 8px 0 0;
+               font-family: var(--font-sans); font-size: 12.5px; font-weight: 700; color: var(--ink-mute); border-bottom: 2px solid transparent; }
+  .di-dw-aba:hover { color: var(--moss); }
+  .di-dw-aba.ativa { color: var(--moss-deep); border-bottom-color: var(--moss); }
+  .di-dw-busca { display: flex; align-items: center; gap: 9px; margin: 12px; padding: 9px 13px; background: var(--bg); border: 1.5px solid var(--line); border-radius: 100px; }
+  .di-dw-busca:focus-within { border-color: var(--sage); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary-400) 15%, transparent); }
+  .di-dw-busca svg { width: 15px; height: 15px; color: var(--ink-mute); flex-shrink: 0; }
+  .di-dw-busca input { flex: 1; border: none; background: none; outline: none; font-family: var(--font-sans); font-size: 13.5px; color: var(--ink); }
+  /* Filtros de fonte. Ficam FORA da lista, logo abaixo da busca, porque valem
+     para as quatro abas — inclusive as que não têm termo digitado. */
+  .di-dw-filtros { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 0 12px 10px; }
+  .di-filtro { padding: 4px 11px; border: 1px solid var(--line); border-radius: 100px; background: var(--bg-card); cursor: pointer;
+               font-family: var(--font-sans); font-size: 11.5px; font-weight: 700; color: var(--ink-soft); transition: all 0.15s; }
+  .di-filtro:hover:not(:disabled) { border-color: var(--sage); color: var(--moss); }
+  .di-filtro.ativo { background: color-mix(in srgb, var(--color-primary-400) 16%, transparent);
+                     border-color: color-mix(in srgb, var(--color-primary-400) 45%, transparent); color: var(--moss-deep); }
+  .di-filtro:disabled { opacity: 0.4; cursor: not-allowed; }
+  .di-filtro-limpar { border-style: dashed; color: var(--ink-mute); font-weight: 600; }
+
+  .di-dw-lista { flex: 1; overflow-y: auto; padding: 0 8px 8px; }
+  .di-dw-vazio { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 20px; text-align: center; font-size: 12.5px; color: var(--ink-mute); }
+  .di-dw-vazio svg { width: 22px; height: 22px; }
+  .di-res { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; cursor: pointer; border: 1px solid transparent; }
+  .di-res:hover, .di-res.ativo { background: var(--bg); border-color: var(--line); }
+  .di-res.ativo { border-color: var(--sage); }
+  .di-res-txt { flex: 1; min-width: 0; }
+  .di-res-nome { font-size: 13px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 4px; }
+  .di-fav { width: 12px; height: 12px; color: var(--gold); }
+  .di-res-sub { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 10.5px; color: var(--ink-mute); margin-top: 2px; }
+
+  /* Estrela de favorito: aparece apagada e ganha cor quando marcada. Visível
+     sempre (não só no hover) — no tablet não existe hover. */
+  .di-res-fav { flex-shrink: 0; display: flex; padding: 4px; border: none; background: none; cursor: pointer;
+                color: var(--line-forte, var(--ink-mute)); opacity: 0.5; border-radius: 6px; transition: all 0.15s; }
+  .di-res-fav:hover { opacity: 1; background: var(--bg-warm); }
+  .di-res-fav.ativo { opacity: 1; color: var(--gold); }
+  .di-res-fav.ativo svg { fill: currentColor; }
+  .di-res-fav svg { width: 15px; height: 15px; }
+  .di-res-mac { text-align: right; flex-shrink: 0; }
+  .di-res-kcal { font-family: var(--font-sans); font-size: 12.5px; font-weight: 800; color: var(--moss-deep); }
+  .di-res-pcg { font-size: 10px; color: var(--ink-mute); white-space: nowrap; }
+  .di-res-add { flex-shrink: 0; padding: 5px 11px; font-size: 12px; }
+  .di-dw-ft { display: flex; gap: 12px; justify-content: center; padding: 9px; border-top: 1px solid var(--line); font-size: 10.5px; color: var(--ink-mute); flex-wrap: wrap; }
+  .di-dw-ft kbd { font-family: inherit; font-size: 9.5px; font-weight: 700; background: var(--bg-warm); border: 1px solid var(--line);
+                  border-radius: 4px; padding: 1px 5px; margin-right: 2px; }
+
+  /* Resumo em barra fixa — só existe abaixo de 1000px */
+  .di-rs-mob { display: none; }
+
+  /* ── Tablet: resumo sai da lateral e vira barra fixa ── */
+  @media (max-width: 1000px) {
+    .di-rx { grid-template-columns: minmax(0, 1fr); }
+    .di-rx-aside { display: none; }
+    .di-rs-mob { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 800;
+                 background: var(--bg-card); border-top: 1px solid var(--line); box-shadow: 0 -6px 24px rgba(16,24,40,0.1); }
+    .di-rs-mob-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 11px 16px;
+                     border: none; background: none; cursor: pointer; font-family: var(--font-sans); }
+    .di-rs-mob-kcal { font-size: 14px; color: var(--ink-mute); }
+    .di-rs-mob-kcal strong { font-size: 17px; font-weight: 800; color: var(--moss-deep); }
+    .di-rs-mob-macros { font-size: 11.5px; color: var(--ink-soft); }
+    .di-rs-mob-painel { max-height: 62vh; overflow-y: auto; padding: 0 12px 12px; }
+    .di-rs-mob-painel .di-rs { border: none; box-shadow: none; padding: 0; }
+    .di-refeicoes, .di-nova { margin-bottom: 0; }
+    .di-drawer { width: 52vw; min-width: 380px; }
+    .di-tr { grid-template-columns: 22px minmax(0,1fr) 56px 108px 56px 46px 44px; }
+    .di-th .c-mac:nth-of-type(6), .di-th .c-mac:nth-of-type(7), .di-th .c-mac:nth-of-type(8) { display: none; }
+    .di-item .c-mac { display: none; }      /* macros por item saem; kcal fica */
+  }
+
+  /* ── Mobile: tabela vira card empilhado ── */
+  @media (max-width: 700px) {
+    .di-drawer { width: 100vw; min-width: 0; border-left: none; }
+    .di-nova-grid { grid-template-columns: 1fr; }
+    .di-card-hd { flex-wrap: wrap; }
+    .di-card-id { flex: 1 1 100%; order: 1; }
+    .di-toggle { order: 0; }
+    .di-card-acts { order: 2; margin-left: auto; }
+    .di-card-stats { order: 3; flex: 1 1 100%; justify-content: flex-start; margin-left: 0; }
+
+    /* Sem rolagem horizontal: cada item vira um bloco */
+    .di-th { display: none; }
+    .di-tr { display: block; padding: 10px 12px; position: relative; }
+    .di-item { border-bottom: 1px solid var(--line); }
+    .c-num { position: absolute; top: 10px; right: 12px; }
+    .c-nome { margin-bottom: 8px; }
+    .di-item .c-qtd, .di-item .c-med, .di-item .c-peso { display: inline-block; vertical-align: middle; margin-right: 8px; }
+    .di-item .c-qtd { width: 68px; }
+    .di-item .c-med { width: 130px; }
+    .di-item .c-peso { font-size: 12.5px; }
+    .di-item .c-mac { display: inline-block; margin-right: 10px; font-size: 11.5px; }
+    .di-item .c-mac::before { content: attr(title) ': '; color: var(--ink-mute); }
+    .di-item .c-kcal { display: inline-block; }
+    .c-acts { justify-content: flex-start; margin-top: 8px; gap: 4px; }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     PAINEL DE SUBSTITUIÇÕES (leitura)
+     ═══════════════════════════════════════════════════════════════════════
+     Mesmo vocabulário do drawer de busca: entra pela direita, fundo escurece,
+     Esc fecha. Some da rota, não da tela — a refeição continua visível atrás. */
+  .di-sb-fundo { position: fixed; inset: 0; background: rgba(29,41,57,0.32); z-index: 900; animation: fadeIn 0.15s; }
+  .di-sb { position: fixed; top: 0; right: 0; bottom: 0; width: 420px; max-width: 100vw; z-index: 901;
+           display: flex; flex-direction: column; background: var(--bg-card); border-left: 1px solid var(--line);
+           box-shadow: -12px 0 40px rgba(0,0,0,0.12); animation: di-slide 0.2s ease-out; }
+  .di-sb-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+              padding: 16px; border-bottom: 1px solid var(--line); }
+  .di-sb-hd-txt { min-width: 0; }
+  .di-sb-eyebrow { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute); }
+  .di-sb-tit { font-family: var(--font-sans); font-size: 17px; font-weight: 600; color: var(--moss-deep); margin: 1px 0 4px; line-height: 1.25; }
+  .di-sb-hd-sub { font-size: 11.5px; color: var(--ink-soft); }
+  .di-sb-body { flex: 1; overflow-y: auto; padding: 14px 16px 22px; }
+
+  .di-sb-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .di-sb-op { display: flex; align-items: baseline; gap: 10px; padding: 9px 10px; border-radius: 9px; }
+  .di-sb-op:hover { background: var(--bg); }
+  .di-sb-op-n { flex: 0 0 auto; width: 18px; font-size: 11px; font-weight: 800; color: var(--ink-mute); }
+  .di-sb-op-nome { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; color: var(--ink); }
+  .di-sb-op-qtd { flex: 0 0 auto; font-family: var(--font-sans); font-size: 12.5px; font-weight: 800; color: var(--moss-deep); }
+
+  .di-sb-nota { display: flex; gap: 8px; margin: 16px 0 0; padding: 11px 12px; border-radius: 10px;
+                background: var(--bg-warm); font-size: 11.5px; line-height: 1.5; color: var(--ink-mute); }
+  .di-sb-nota svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 1px; }
+
+  .di-sb-vazio { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 7px; padding: 44px 18px; }
+  .di-sb-vazio svg { width: 24px; height: 24px; color: var(--ink-mute); }
+  .di-sb-vazio-t { font-size: 13.5px; font-weight: 700; color: var(--ink-soft); }
+  .di-sb-vazio-s { font-size: 12px; color: var(--ink-mute); line-height: 1.5; }
+
+  @media (max-width: 640px) { .di-sb { width: 100vw; border-left: none; } }
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     RESPONSIVO da barra de ferramentas e das somas
+     ═══════════════════════════════════════════════════════════════════════
+     Ordem de sacrifício quando o espaço aperta: primeiro as dicas de atalho
+     (estão no modal de Atalhos), depois os rótulos dos botões (o ícone e o
+     title seguram), por último as colunas numéricas da tabela. Nenhuma AÇÃO
+     desaparece em nenhuma largura. */
+  @media (max-width: 1500px) {
+    .di-tb-dicas span:last-child { display: none; }
+  }
+  @media (max-width: 1280px) {
+    .di-tb-dicas { display: none; }
+    .di-so-item { min-width: 62px; }
+    .di-somas { gap: 18px; }
+  }
+  @media (max-width: 1080px) {
+    .di-tb-btn span { display: none; }         /* vira barra de ícones, com tooltip */
+    .di-tb-add span { display: inline; }       /* menos a ação principal */
+    .di-tb-btn { padding: 7px; }
+  }
+  @media (max-width: 900px) {
+    .di-so-kcal { border-right: none; padding-right: 0; }
+    .di-so-meta { margin-left: 0; text-align: left; }
+    .di-so-meta .di-so-lbl { justify-content: flex-start; }
+    .di-somas { gap: 14px 20px; padding: 9px 12px; }
+  }
+  @media (max-width: 700px) {
+    .di-tb-l1 { padding: 9px 10px; }
+    .di-tb-nome { font-size: 15.5px; max-width: 100%; }
+    .di-tb-salvar { width: 100%; }
+    .di-tb-salvar .btn { flex: 1 1 auto; justify-content: center; }
+    .di-tb-edit { opacity: 1; }                /* sem hover no toque */
+    .di-so-item { min-width: 0; }
+    .di-so-val { font-size: 15px; }
+  }
