@@ -147,7 +147,9 @@ grupo('documentos · versões e duplicidade', () => {
 
   teste('a anterior só deixa de ser atual depois da nova existir', () => {
     // Na ordem inversa, uma falha deixaria a competência sem versão atual.
-    const iInsert = dados.indexOf(".from('colaborador_documentos')\n    .insert(");
+    // Posição do .insert() logo depois do .from(): procurar o trecho com a
+    // quebra de linha embutida falharia em máquina com CRLF.
+    const iInsert = dados.indexOf('.insert(', dados.indexOf("from('colaborador_documentos')"));
     const iUpdate = dados.indexOf('.update({ atual: false');
     ok(iInsert > 0 && iUpdate > iInsert, 'o insert da nova vem antes de baixar a anterior');
   });
@@ -156,7 +158,9 @@ grupo('documentos · versões e duplicidade', () => {
     // Ao contrário, uma falha de rede deixaria documento "disponível"
     // apontando para nada, e o colaborador clicaria num link quebrado.
     const iUpload = dados.indexOf('.upload(caminho, blob');
-    const iInsert = dados.indexOf(".from('colaborador_documentos')\n    .insert(");
+    // Posição do .insert() logo depois do .from(): procurar o trecho com a
+    // quebra de linha embutida falharia em máquina com CRLF.
+    const iInsert = dados.indexOf('.insert(', dados.indexOf("from('colaborador_documentos')"));
     ok(iUpload > 0 && iUpload < iInsert, 'o upload tem que vir antes do insert');
   });
 });
