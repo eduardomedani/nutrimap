@@ -8,6 +8,17 @@
 // ── DESCANSO ─────────────────────────────────────────────────
 // O campo é texto livre desde sempre ("60s", "1min30", "2 min", "90").
 // Aqui ele vira segundos; o que não der para entender volta null.
+//
+// Duas armadilhas que já custaram cronômetro na tela do aluno:
+//   "1-2 min"  não é 1 segundo — a unidade está no outro extremo da faixa;
+//   "até 90s"  não é ilegível — o prefixo não muda o número.
+// Numa faixa vale sempre o MENOR valor: descansar de menos é escolha do aluno,
+// não do parser.
+const UNI_MIN = /^(?:m|min|mins|minuto|minutos)$/;
+const UNI_SEG = /^(?:s|seg|segs|segundo|segundos)$/;
+// Letra que não é unidade é ruído de escrita ("1 a 2 min", "3 x 60s").
+const unidade = u => (UNI_MIN.test(u) ? 'min' : UNI_SEG.test(u) ? 'seg' : '');
+
 export function segDescanso(v) {
   if (v == null || v === '') return null;
   if (typeof v === 'number') return v > 0 ? Math.round(v) : null;
@@ -15,23 +26,32 @@ export function segDescanso(v) {
   const s = String(v).trim().toLowerCase().replace(',', '.');
   if (!s) return null;
 
-  // "1:30" / "01:30"
-  const rel = s.match(/^(\d+)\s*:\s*(\d{1,2})$/);
-  if (rel) return Number(rel[1]) * 60 + Number(rel[2]);
-
-  // "1min30", "1 min 30s", "2min", "1m30", "1 minuto"
-  // (?![a-z]) impede que "1m" engula o "s" de "90s" pelo caminho errado.
-  const min = s.match(/^(\d+(?:\.\d+)?)\s*(?:min[a-z]*|m)(?![a-z])\s*(\d+)?/);
-  if (min) {
-    const seg = Math.round(Number(min[1]) * 60) + (min[2] ? Number(min[2]) : 0);
+  // "1:30" / "01:30" — minutos:segundos.
+  const rel = s.match(/(\d+)\s*:\s*(\d{1,2})(?!\d)/);
+  if (rel) {
+    const seg = Number(rel[1]) * 60 + Number(rel[2]);
     return seg > 0 ? seg : null;
   }
 
-  // "90s", "90 seg", "90"
-  const num = s.match(/^(\d+(?:\.\d+)?)/);
-  if (!num) return null;
-  const n = Math.round(Number(num[0]));
-  return n > 0 ? n : null;
+  // Cada número com a unidade que vem colada nele ("" quando não tem).
+  const toks = [...s.matchAll(/(\d+(?:\.\d+)?)\s*([a-zç]*)/g)]
+    .map(m => ({ n: Number(m[1]), u: m[2] }));
+  if (!toks.length) return null;
+
+  const [a, b] = toks;
+  const ua = unidade(a.u);
+  const ub = b ? unidade(b.u) : null;
+  let seg;
+  if (ua === 'min') {
+    // "1min30" e "1 min 30 s": o segundo número são os segundos avulsos.
+    // "2 min a 3 min" não: ali o segundo número é o outro extremo da faixa.
+    seg = Math.round(a.n * 60) + (b && ub !== 'min' ? b.n : 0);
+  } else if (!ua && ub === 'min') {
+    seg = Math.round(a.n * 60);          // "1-2 min", "de 1 a 2 minutos"
+  } else {
+    seg = Math.round(a.n);               // "90s", "90 seg", "60-90s", "90"
+  }
+  return seg > 0 ? seg : null;
 }
 
 // Relógio do cronômetro: 90 → "1:30"; 45 → "0:45".
