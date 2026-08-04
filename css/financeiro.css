@@ -1,0 +1,1083 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   EVOLLO · FINANCEIRO
+   ---------------------------------------------------------------------------
+   Estilos da página #page-financeiro. Hoje ela tem uma seção só —
+   Funcionários — e todas as classes daqui usam o prefixo .fn-.
+
+   Nada de cor literal: tudo sai dos tokens de css/tokens.css. Esta folha é
+   carregada DEPOIS de brand.css, então pode ajustar componentes compartilhados
+   (.patient-row, .av-grid) sem que a marca sobrescreva de volta.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* ── Cabeçalho ─────────────────────────────────────────────────────────── */
+.fn-trilha {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.fn-trilha span { opacity: 0.6; }
+.fn-trilha svg.lucide { width: 14px; height: 14px; }
+
+.fn-contagem {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+/* ── Barra de ferramentas da lista ─────────────────────────────────────── */
+.fn-ferramentas {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fn-filtros {
+  display: inline-flex;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 3px;
+  gap: 2px;
+}
+.fn-chip {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 16px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+.fn-chip:hover { color: var(--text-primary); }
+.fn-chip.on {
+  background: var(--surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-xs);
+}
+
+/* ── Linha do funcionário ──────────────────────────────────────────────── */
+.fn-row .patient-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.fn-contato { color: var(--text-muted); }
+
+/* Desligado continua visível, mas sem competir com quem está na ativa. */
+.fn-row-off { opacity: 0.62; }
+.fn-row-off .patient-avatar {
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+}
+
+.fn-selo {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+.fn-selo-off {
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.fn-selo-bloq {
+  background: var(--warning-soft);
+  color: var(--warning);
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
+}
+
+/* ── Formulário ────────────────────────────────────────────────────────── */
+.fn-form .av-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.fn-form .fn-largo { grid-column: 1 / -1; }
+
+.fn-form select.np-input {
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2' stroke-linecap='round'><path d='m6 9 6 6 6-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px;
+  padding-right: 40px;
+}
+
+.fn-dica {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.fn-toggles {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.fn-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.fn-check input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .fn-ferramentas { width: 100%; }
+  .fn-ferramentas .search-box { width: 100%; }
+  .fn-ferramentas .btn { width: 100%; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ABAS DO MÓDULO
+   ═════════════════════════════════════════════════════════════════════════ */
+.fin-abas {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin: 0 0 22px;
+  overflow-x: auto;
+}
+.fin-aba {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 11px 16px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: var(--transition-base);
+}
+.fin-aba:hover { color: var(--text-primary); }
+.fin-aba.on {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+.fin-aba svg.lucide { width: 16px; height: 16px; }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FOLHA DE PAGAMENTO
+   ═════════════════════════════════════════════════════════════════════════ */
+.fp-barra {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.fp-competencia label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.fp-competencia-linha {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.fp-competencia-linha .np-input { padding: 9px 14px; font-size: 14px; }
+.fp-mes { max-width: 170px; }
+
+.fp-resumo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.fp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+}
+.fp-chip svg.lucide { width: 14px; height: 14px; }
+.fp-chip-rascunho {
+  background: var(--warning-soft);
+  color: var(--warning);
+  border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent);
+}
+.fp-chip-fechada {
+  background: var(--success-soft);
+  color: var(--success);
+  border: 1px solid color-mix(in srgb, var(--success) 35%, transparent);
+}
+
+.fp-total-caixa {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px 20px;
+  text-align: right;
+  box-shadow: var(--shadow-xs);
+}
+.fp-total-rotulo {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.fp-total-valor {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.fp-total-sub { font-size: 12px; color: var(--text-secondary); }
+
+/* Folha fechada não é erro nem sucesso: é um estado que explica por que os
+   campos não aceitam digitação e diz onde fica a saída. */
+.fp-aviso {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  font-size: 13.5px;
+  margin-bottom: 16px;
+}
+.fp-aviso strong { color: var(--text-primary); }
+.fp-aviso svg.lucide { color: var(--text-muted); flex-shrink: 0; }
+
+/* ── Importar folhas de ponto ──────────────────────────────────────────── */
+.fp-importar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  transition: var(--transition-base);
+}
+.fp-importar.on {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.fp-importar.lendo { opacity: 0.6; pointer-events: none; }
+.fp-importar > svg.lucide {
+  width: 26px;
+  height: 26px;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+.fp-importar-txt { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.fp-importar-txt strong { font-size: 14px; color: var(--text-primary); }
+.fp-importar-txt span { font-size: 12.5px; color: var(--text-secondary); }
+
+/* ── Tabela ────────────────────────────────────────────────────────────── */
+.fp-tabela-wrap {
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+}
+.fp-tabela {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.fp-tabela th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.fp-tabela td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.fp-tabela tbody tr:last-child td { border-bottom: none; }
+.fp-tabela tbody tr:hover { background: var(--surface-subtle); }
+
+/* Todas as colunas de valor ficam centradas, cabeçalho e conteúdo. O nome do
+   colaborador continua à esquerda: é a âncora de leitura da linha. */
+.fp-tabela .fp-num,
+.fp-tabela th.fp-num { text-align: center; }
+.fp-tabela .fp-num { font-variant-numeric: tabular-nums; }
+.fp-tabela .fp-adicionais,
+.fp-tabela th.fp-adicionais { text-align: center; }
+.fp-tabela .fp-pix,
+.fp-tabela th.fp-pix { text-align: center; }
+
+.fp-nome { font-weight: 600; color: var(--text-primary); min-width: 190px; }
+.fp-nome-sub { font-weight: 400; font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+.fp-vazio { color: var(--text-muted); }
+.fp-base { color: var(--text-secondary); }
+.fp-total { font-size: 14.5px; color: var(--text-primary); }
+
+/* Confirmação de gravação: um verde que passa, sem toast a cada campo. */
+.fp-salvo { background: var(--success-soft) !important; transition: background var(--duration-slow) var(--ease); }
+
+.fp-in {
+  width: 100%;
+  max-width: 120px;
+  padding: 7px 10px;
+  background: var(--background);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  color: var(--text-primary);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.fp-in:focus { outline: none; border-color: var(--primary); box-shadow: var(--shadow-focus); }
+.fp-in:disabled { background: var(--surface-subtle); color: var(--text-muted); }
+
+/* Horas + o clipe do PDF guardado, na mesma célula. */
+.fp-horas-cel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: center;
+}
+.fp-clipe {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+}
+.fp-clipe:hover { color: var(--primary); background: var(--primary-soft); }
+.fp-clipe svg.lucide { width: 15px; height: 15px; }
+
+/* ── Chave Pix ─────────────────────────────────────────────────────────── */
+/* A chave existe na folha para ser COPIADA na hora de pagar — mostrar sem
+   permitir copiar obrigaria a redigitar uma chave de 11 dígitos por pessoa. */
+.fp-pix { min-width: 190px; }
+.fp-pix-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition-base);
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+.fp-pix-btn:hover {
+  border-color: var(--border);
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+}
+.fp-pix-btn svg.lucide {
+  width: 13px;
+  height: 13px;
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity var(--duration-fast) var(--ease);
+}
+.fp-pix-btn:hover svg.lucide { opacity: 1; }
+
+/* ── Adicionais ────────────────────────────────────────────────────────── */
+.fp-adicionais { min-width: 260px; }
+.fp-add-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--primary-soft);
+  color: var(--text-primary);
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+  border-radius: var(--radius-pill);
+  padding: 4px 6px 4px 12px;
+  font-size: 12px;
+  margin: 2px 4px 2px 0;
+}
+.fp-add-chip strong { font-variant-numeric: tabular-nums; }
+.fp-add-chip button {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 50%;
+}
+.fp-add-chip button:hover { background: var(--error-soft); color: var(--error); }
+.fp-add-neg {
+  background: var(--error-soft);
+  border-color: color-mix(in srgb, var(--error) 25%, transparent);
+}
+
+.fp-add-btn {
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: var(--radius-pill);
+  padding: 4px 12px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.fp-add-btn:hover { border-color: var(--primary); color: var(--primary); }
+.fp-add-btn svg.lucide { width: 13px; height: 13px; }
+
+/* ── Caixa de cadastro do lançamento ───────────────────────────────────── */
+/* Sobre a tela, não dentro da célula: a coluna é estreita e o formulário ali
+   deformava a linha inteira enquanto se digitava. */
+.fp-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  background: color-mix(in srgb, var(--text-primary) 45%, transparent);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 8vh 20px 20px;
+  overflow-y: auto;
+}
+/* Quem rola é o fundo, não a caixa: com overflow na caixa, a lista da
+   combobox seria cortada na borda dela. */
+.fp-modal-caixa {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 520px;
+  text-align: left;
+}
+.fp-modal-topo {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.fp-modal-tit {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-snug);
+  color: var(--text-primary);
+}
+.fp-modal-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; }
+.fp-modal-x {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.fp-modal-x:hover { background: var(--surface-subtle); color: var(--text-primary); }
+
+.fp-modal-corpo { padding: 18px 22px; }
+.fp-modal-linha { display: flex; gap: 12px; flex-wrap: wrap; }
+
+.fp-campo { display: flex; flex-direction: column; gap: 6px; }
+.fp-campo-largo { flex: 1; min-width: 200px; }
+.fp-campo label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.fp-modal-corpo .np-input { padding: 10px 14px; font-size: 14px; }
+.fp-modal-corpo .fp-add-desc { text-align: left; }
+.fp-modal-corpo .fp-add-val { max-width: 130px; text-align: right; font-variant-numeric: tabular-nums; }
+
+.fp-modal-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 22px 20px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 520px) {
+  .fp-modal-linha { flex-direction: column; }
+  .fp-modal-corpo .fp-add-val { max-width: none; }
+}
+
+/* ── Combobox ──────────────────────────────────────────────────────────── */
+/* Abre ao focar, filtra ao digitar, anda com as setas — e continua aceitando
+   texto que não está na lista, porque a lista é sugestão. */
+.fp-combo { position: relative; }
+.fp-combo .np-input { width: 100%; padding-right: 40px; }
+
+.fp-combo-seta {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  line-height: 0;
+}
+.fp-combo-seta:hover { color: var(--text-primary); background: var(--surface-subtle); }
+.fp-combo-seta svg.lucide {
+  width: 16px;
+  height: 16px;
+  transition: transform var(--duration-fast) var(--ease);
+}
+.fp-combo.aberta .fp-combo-seta svg.lucide { transform: rotate(180deg); }
+.fp-combo.aberta .np-input {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-focus);
+}
+
+.fp-combo-lista {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 216px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+.fp-combo-item {
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+/* Mouse e teclado marcam do MESMO jeito: dois destaques diferentes ao mesmo
+   tempo fariam a lista parecer ter duas seleções. */
+.fp-combo-item.on { background: var(--primary-soft); color: var(--text-primary); }
+.fp-combo-vazio {
+  padding: 9px 12px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.fp-add-dica {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+.fp-add-dica strong { color: var(--text-secondary); }
+
+/* ── Ações da linha ────────────────────────────────────────────────────── */
+.fp-acoes { white-space: nowrap; text-align: right; }
+.fp-acao {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  margin-left: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.fp-acao:hover { border-color: var(--primary); color: var(--primary); }
+.fp-acao svg.lucide { width: 15px; height: 15px; }
+.fp-acao-danger:hover { border-color: var(--error); color: var(--error); }
+
+/* ── Rodapé ────────────────────────────────────────────────────────────── */
+.fp-rodape {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+.fp-rodape-dir { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.fp-add-func { max-width: 280px; padding: 9px 14px; font-size: 13.5px; }
+.fp-data { max-width: 165px; padding: 9px 14px; font-size: 13.5px; }
+
+@media (max-width: 720px) {
+  .fp-barra { flex-direction: column; align-items: stretch; }
+  .fp-resumo { justify-content: space-between; }
+  .fp-rodape { flex-direction: column; align-items: stretch; }
+  .fp-rodape-dir { justify-content: flex-end; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONTRACHEQUE
+   ---------------------------------------------------------------------------
+   Documento, não cartão de aplicativo. A leitura desce numa ordem só —
+   empresa, colaborador, lançamentos, totais, pagamento, declaração,
+   assinatura — e cada bloco é separado por um filete, não por sombra.
+
+   Arredondamento só no contêiner externo; dentro, tudo é reto. Números em
+   fonte tabular, para as casas decimais se alinharem coluna a coluna.
+   ═════════════════════════════════════════════════════════════════════════ */
+.cc-barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.cc-barra-info { font-size: 13.5px; color: var(--text-secondary); }
+
+.cc-folhas { display: flex; flex-direction: column; gap: 24px; }
+
+@media print {
+  /* Some com a moldura do painel: barra de acoes, menu e cabecalho nao sao
+     documento. O :has() limita a regra a tela do contracheque — .page-header
+     e compartilhado, e apaga-lo sem condicao estragaria a impressao do
+     relatorio do cliente. */
+  body:has(.cc-folhas) .page-header,
+  body:has(.cc-folhas) .fin-abas,
+  body:has(.cc-folhas) .sidebar,
+  body:has(.cc-folhas) .topbar { display: none !important; }
+
+  .cc-barra { display: none !important; }
+  .cc-folhas { gap: 0; }
+}
+
+/* Contracheque já publicado para o colaborador: o verde é confirmação de que
+   o documento existe do lado dele, não só na tela. */
+.fp-acao-ok { border-color: color-mix(in srgb, var(--success) 40%, transparent); color: var(--success); }
+.fp-acao-ok:hover { border-color: var(--success); background: var(--success-soft); color: var(--success); }
+
+/* Conta já ligada ao app do colaborador. */
+.fn-selo-app {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--primary-soft);
+  color: var(--color-primary-700);
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+}
+.fn-selo-app svg.lucide { width: 11px; height: 11px; }
+
+/* Folha fechada: a faixa continua ali, mas dizendo por que não aceita e onde
+   fica a saída. Some-la deixava a tela sem nenhum caminho à vista — a pessoa
+   procurava um botão de importar que simplesmente não existia. */
+.fp-importar-travada {
+  border-style: solid;
+  background: var(--surface-subtle);
+}
+.fp-importar-travada > svg.lucide { color: var(--text-muted); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DOCUMENTOS — indicadores na folha e telas administrativas
+   ═════════════════════════════════════════════════════════════════════════ */
+.fp-docs-barra {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.fp-doc-ind {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-subtle);
+}
+.fp-doc-ind strong { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.fp-doc-ind svg.lucide { width: 14px; height: 14px; }
+.fp-doc-ind.ok { background: var(--success-soft); color: var(--success); }
+.fp-doc-ind.ok strong { color: var(--success); }
+.fp-doc-ind.parcial { background: var(--warning-soft); color: var(--warning); }
+.fp-doc-ind.parcial strong { color: var(--warning); }
+.fp-doc-ind.pendente { background: var(--error-soft); color: var(--error); }
+.fp-doc-ind.pendente strong { color: var(--error); }
+.fp-docs-barra .btn-sm { margin-left: auto; }
+
+.dc-barra {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.dc-barra-tit { font-size: 16px; font-weight: 700; letter-spacing: var(--tracking-snug); }
+
+.dc-abas { display: flex; gap: 4px; margin-bottom: 18px; flex-wrap: wrap; }
+.dc-aba {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+.dc-aba.on { background: var(--primary); border-color: var(--primary); color: var(--text-on-primary); }
+
+.dc-ano {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 20px 0 8px;
+}
+.dc-lista { display: flex; flex-direction: column; gap: 8px; }
+
+.dc-cartao {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  flex-wrap: wrap;
+}
+.dc-arquivado { opacity: 0.6; }
+.dc-icone {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+.dc-txt { flex: 1; min-width: 180px; }
+.dc-nome { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.dc-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.dc-versao, .dc-selo {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+}
+.dc-visto { color: var(--success); display: inline-flex; align-items: center; gap: 5px; }
+.dc-visto svg.lucide { width: 12px; height: 12px; }
+.dc-nao-visto { color: var(--text-muted); }
+.dc-acoes { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.dc-ok { color: var(--success); display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; }
+.dc-ok svg.lucide { width: 13px; height: 13px; }
+.dc-pend { color: var(--text-muted); display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; }
+.dc-pend svg.lucide { width: 13px; height: 13px; }
+.dc-tabela .fp-nome { min-width: 170px; }
+
+@media (max-width: 720px) {
+  .fp-docs-barra .btn-sm { margin-left: 0; width: 100%; }
+  .dc-acoes { width: 100%; }
+}
+
+/* Pendentes de vínculo: alerta na barra e cartões da fila. */
+.fp-doc-alerta {
+  background: var(--warning);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.fp-doc-alerta:hover { filter: brightness(1.06); }
+.fp-docs-barra .fp-doc-alerta { margin-left: auto; }
+.fp-docs-barra .fp-doc-alerta + .btn-sm { margin-left: 0; }
+
+.dc-pendente { border-color: color-mix(in srgb, var(--warning) 40%, transparent); }
+.dc-pendente .dc-icone { background: var(--warning-soft); color: var(--warning); }
+.dc-motivo { color: var(--warning); }
+.dc-acoes-pend { align-items: center; }
+.dc-quem {
+  max-width: 220px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESUMO DO FINANCEIRO
+   ---------------------------------------------------------------------------
+   Marcas finas, grade recessiva, texto sempre em tinta de texto — a cor
+   pertence à marca de dados, nunca ao número ao lado dela.
+
+   As duas cores da série passaram na validação de paleta contra a superfície
+   branca: verde-700 e azul, ΔE 23,7 no pior par de daltonismo e contraste
+   acima de 3:1 nas duas. O verde da marca (#18B984) reprovou no contraste com
+   2,46:1 — ele é cor de botão, não de área grande sobre branco.
+   ═════════════════════════════════════════════════════════════════════════ */
+.rs-barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+/* ── Números-cabeçalho ─────────────────────────────────────────────────── */
+.rs-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.rs-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+}
+.rs-tile-rot {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.rs-tile-val {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  margin: 4px 0 2px;
+}
+.rs-tile-sub { font-size: 12px; color: var(--text-secondary); }
+
+/* ── Cartão do gráfico ─────────────────────────────────────────────────── */
+.rs-cartao {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.rs-cartao-topo {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.rs-titulo { font-size: 15px; font-weight: 700; letter-spacing: var(--tracking-snug); }
+.rs-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; }
+
+.rs-legenda { display: flex; gap: 16px; flex-wrap: wrap; }
+.rs-leg {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.rs-leg i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* ── O desenho ─────────────────────────────────────────────────────────── */
+.rs-plot { position: relative; }
+.rg-svg { width: 100%; height: auto; display: block; overflow: visible; }
+
+/* Grade e eixos ficam atrás do dado, não competindo com ele. */
+.rg-grade { stroke: var(--border); stroke-width: 1; }
+.rg-eixo-y {
+  fill: var(--text-muted);
+  font-size: 10.5px;
+  text-anchor: end;
+  font-variant-numeric: tabular-nums;
+}
+.rg-eixo-x {
+  fill: var(--text-muted);
+  font-size: 10.5px;
+  text-anchor: middle;
+}
+
+.rg-base { fill: var(--color-primary-700); }
+.rg-add  { fill: var(--chart-carb); }
+
+/* O alvo do mouse cobre a faixa inteira do mês: barra de 3px é impossível
+   de mirar. Invisível, mas clicável. */
+.rg-alvo { fill: transparent; }
+.rg-barra.on .rg-seg { filter: brightness(1.12); }
+.rg-barra.on .rg-alvo { fill: color-mix(in srgb, var(--text-primary) 4%, transparent); }
+
+/* ── Balão ─────────────────────────────────────────────────────────────── */
+.rs-tip {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  min-width: 190px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 10px 12px;
+  font-size: 12.5px;
+}
+.rs-tip-tit { font-weight: 700; margin-bottom: 6px; }
+.rs-tip-linha,
+.rs-tip-total {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-secondary);
+  margin-top: 3px;
+}
+.rs-tip-linha i { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+.rs-tip-linha b,
+.rs-tip-total b {
+  margin-left: auto;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.rs-tip-total {
+  border-top: 1px solid var(--border);
+  margin-top: 7px;
+  padding-top: 6px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.rs-tip-pe { font-size: 11.5px; color: var(--text-muted); margin-top: 5px; }
+
+/* ── Por colaborador ───────────────────────────────────────────────────── */
+.rg-pessoas { display: flex; flex-direction: column; gap: 9px; }
+.rg-pessoa {
+  display: grid;
+  grid-template-columns: minmax(110px, 1.4fr) 3fr minmax(96px, auto);
+  align-items: center;
+  gap: 12px;
+}
+.rg-pessoa-nome {
+  font-size: 13px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rg-pessoa-barra {
+  height: 10px;
+  background: var(--surface-subtle);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.rg-pessoa-barra span {
+  display: block;
+  height: 100%;
+  background: var(--color-primary-700);
+  border-radius: 5px;
+}
+.rg-pessoa-valor {
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.rs-vazio { color: var(--text-muted); font-size: 13.5px; padding: 12px 0; }
+.rs-nota {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  background: var(--surface-subtle);
+  border-radius: var(--radius-md);
+  padding: 11px 14px;
+  margin: 0;
+}
+.rs-rascunho {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--warning);
+  background: var(--warning-soft);
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+}
+.rs-tabela td:first-child { white-space: nowrap; }
+
+@media (max-width: 640px) {
+  .rg-pessoa { grid-template-columns: 1fr auto; }
+  .rg-pessoa-barra { grid-column: 1 / -1; order: 3; }
+  .rs-legenda { width: 100%; }
+}

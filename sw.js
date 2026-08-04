@@ -4,14 +4,15 @@
 // Cache-first para o "app shell" (mesma origem, GET). Requisições ao Supabase
 // (outra origem) e não-GET passam direto pela rede — nunca são cacheadas.
 
-const CACHE = 'nutrimap-aluno-v9';
+// Um SW só para os DOIS apps: o escopo é a raiz, e registrar um segundo
+// service worker no mesmo escopo só criaria disputa entre eles.
+const CACHE = 'evollo-apps-v10';
 // Caminhos relativos ao escopo do SW — funcionam tanto na raiz (localhost)
 // quanto numa subpasta (GitHub Pages: /nutrimap/).
 const SHELL = [
+  // App do aluno
   'app.html',
   'manifest.webmanifest',
-  'icons/icon-192.png',
-  'css/tokens.css',
   'css/brand.css',
   'css/execucao.css',
   'js/paciente-ui.js',
@@ -19,6 +20,21 @@ const SHELL = [
   'js/execucao-core.js',
   'js/paciente-data.js',
   'js/push.js',
+
+  // App do colaborador
+  'equipe.html',
+  'manifest-equipe.webmanifest',
+  'css/equipe.css',
+  'js/equipe-ui.js',
+  'js/equipe-data.js',
+  'js/folha.js',
+  'js/ponto-arquivo.js',
+  'js/contracheque-arquivo.js',
+  'js/contracheque.js',
+
+  // Comuns
+  'icons/icon-192.png',
+  'css/tokens.css',
   'js/supabase.js',
   'js/utils.js',
 ];

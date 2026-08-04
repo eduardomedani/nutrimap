@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Evollo — Colaborador</title>
+<meta name="theme-color" content="#18B984">
+<meta name="description" content="Seus pagamentos, contracheques e folhas de ponto — Evollo">
+<meta name="application-name" content="Evollo Colaborador">
+<link rel="manifest" href="manifest-equipe.webmanifest">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Evollo">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<script src="https://unpkg.com/lucide@1.24.0/dist/umd/lucide.min.js"></script>
+<script>
+  // Converte os <i data-lucide> inseridos por innerHTML. Mesmo desenho do
+  // app do aluno: o observer se desconecta enquanto escreve e tira o atributo,
+  // senão cada troca de nó reagenda a si mesma e o clique se perde entre o
+  // mousedown e o mouseup.
+  let _rafIcones = null;
+  const _obsIcones = new MutationObserver(desenharIcones);
+
+  function desenharIcones() {
+    if (!window.lucide || _rafIcones) return;
+    _rafIcones = requestAnimationFrame(() => {
+      _rafIcones = null;
+      _obsIcones.disconnect();
+      try {
+        document.querySelectorAll('[data-lucide]').forEach(el => {
+          if (el.tagName.toLowerCase() === 'svg') el.removeAttribute('data-lucide');
+        });
+        window.lucide.createIcons();
+        document.querySelectorAll('svg[data-lucide]').forEach(el => el.removeAttribute('data-lucide'));
+      } finally {
+        _obsIcones.observe(document.documentElement, { childList: true, subtree: true });
+      }
+    });
+  }
+  window.renderIcons = desenharIcones;
+  window.addEventListener('load', () => { desenharIcones(); _obsIcones.observe(document.documentElement, { childList: true, subtree: true }); });
+</script>
+
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/equipe.css">
+</head>
+<body>
+  <div id="app">
+    <div class="eq-boot"><span class="eq-spin"></span><div>Abrindo...</div></div>
+  </div>
+
+  <script type="module">
+    import { iniciarApp } from './js/equipe-ui.js';
+    iniciarApp();
+
+    // PWA — o mesmo service worker do app do aluno serve os dois: escopo é a
+    // raiz, e registrar um segundo só criaria disputa pelo mesmo escopo.
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

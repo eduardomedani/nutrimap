@@ -1761,6 +1761,12 @@
 <link rel="stylesheet" href="css/brand.css">
 <!-- Modo Apresentação: tela cheia usada durante a consulta. -->
 <link rel="stylesheet" href="css/apresentacao.css">
+<!-- Financeiro (hoje: cadastro de funcionários). Depois de brand.css, para
+     poder ajustar .patient-row e .av-grid sem a marca desfazer. -->
+<link rel="stylesheet" href="css/financeiro.css">
+<!-- O documento do contracheque. Folha própria porque ela é embutida no HTML
+     publicado para o colaborador — ver js/contracheque-arquivo.js. -->
+<link rel="stylesheet" href="css/contracheque.css">
 </head>
 <body>
 
@@ -1957,7 +1963,7 @@
         <div class="nav-item active" data-page="inicio"><span class="nav-icon"><i data-lucide="house"></i></span><span>Início</span></div>
         <div class="nav-item" data-page="pacientes"><span class="nav-icon"><i data-lucide="users"></i></span><span>Clientes</span></div>
         <div class="nav-item disabled" data-page="agendamentos"><span class="nav-icon"><i data-lucide="calendar-days"></i></span><span>Agendamentos</span></div>
-        <div class="nav-item disabled" data-page="financeiro"><span class="nav-icon"><i data-lucide="wallet"></i></span><span>Financeiro</span></div>
+        <div class="nav-item" data-page="financeiro"><span class="nav-icon"><i data-lucide="wallet"></i></span><span>Financeiro</span></div>
       </div>
       <div class="nav-group">
         <div class="nav-group-title">Análise</div>
@@ -2073,8 +2079,10 @@
     <div class="module-page" id="page-agendamentos">
       <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="calendar-days"></i></div><div class="em-breve-titulo">Agendamentos</div><div class="em-breve-sub">Gerencie suas consultas, agende retornos e envie lembretes automáticos pelo WhatsApp para reduzir faltas.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
     </div>
+    <!-- FINANCEIRO — hoje é o cadastro de funcionários (js/funcionarios-ui.js).
+         Folha, custos e recebimentos entram como seções desta mesma página. -->
     <div class="module-page" id="page-financeiro">
-      <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="wallet"></i></div><div class="em-breve-titulo">Financeiro</div><div class="em-breve-sub">Controle suas cobranças, recebimentos e relatórios financeiros. Integração com Pix e cartão.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
+      <div class="loading"><div class="spinner"></div>Carregando...</div>
     </div>
     <div class="module-page" id="page-materiais">
       <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="book-open"></i></div><div class="em-breve-titulo">Materiais</div><div class="em-breve-sub">Biblioteca de materiais educativos, e-books, vídeos e receitas para compartilhar com seus clientes.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
@@ -2147,6 +2155,9 @@
     if (pagina === 'gestao-treinos') {
       abrirGestaoTreinos().catch(console.error);
     }
+    if (pagina === 'financeiro') {
+      abrirFinanceiro().catch(console.error);
+    }
     try { history.replaceState(null, '', '#' + pagina); } catch (e) {}
   }
 
@@ -2164,6 +2175,12 @@
     if (h.startsWith('planejamento/') || h.startsWith('calorias/')) {
       const id = h.split('/')[1];
       if (id) abrirRelatorio(id, 'calorias').catch(console.error);
+      return;
+    }
+    // Financeiro guarda também a aba: #financeiro/folha.
+    if (h.startsWith('financeiro/')) {
+      navegar('financeiro');
+      abrirFinanceiro(h.split('/')[1]).catch(console.error);
       return;
     }
     if (document.getElementById('page-' + h)) navegar(h);
@@ -2194,6 +2211,14 @@
   async function abrirExercicios() {
     const sessao = await obterSessao();
     await initExerciciosUI(sessao?.user?.id);
+  }
+
+  // Financeiro: a casca com as abas mora em financeiro-ui.js; cada seção
+  // (funcionários, folha) é um módulo próprio carregado sob demanda.
+  async function abrirFinanceiro(secao) {
+    const sessao = await obterSessao();
+    const { initFinanceiroUI } = await import('./js/financeiro-ui.js');
+    await initFinanceiroUI(sessao?.user?.id, secao || 'resumo');
   }
 
   async function abrirTreinosBiblioteca() {

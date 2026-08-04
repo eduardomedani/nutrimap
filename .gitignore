@@ -3,3 +3,9 @@
 # São migrações pontuais que carregam nome completo e UUID reais.
 db/ficha_eduardo_*.sql
 db/treino_eduardo_*.sql
+
+# Seeds com dados pessoais de colaboradores (nao versionar — repositorio publico).
+# Nome completo, CPF, RG, endereco, chave Pix e salario de gente real.
+# O SCHEMA vai versionado; os DADOS ficam so na maquina e no Supabase.
+db/funcionarios_seed.sql
+db/folha_historico_seed.sql

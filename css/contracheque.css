@@ -1,0 +1,251 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   EVOLLO · CONTRACHEQUE (o documento)
+   ---------------------------------------------------------------------------
+   Só o recibo. A moldura da tela (barra de ações, lista de vias) fica em
+   css/financeiro.css — esta folha precisa valer sozinha.
+
+   POR QUE ARQUIVO PRÓPRIO: ao fechar a folha, cada contracheque é publicado
+   como um HTML autossuficiente no Storage, para o colaborador abrir no app.
+   O gerador lê ESTE arquivo e embute o conteúdo dele no documento — assim o
+   recibo publicado e o da tela têm uma origem só. Duplicar o estilo faria os
+   dois divergirem no primeiro ajuste.
+
+   Depende dos tokens de css/tokens.css, que o gerador embute junto.
+   ═════════════════════════════════════════════════════════════════════════ */
+.cc {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 32px 36px 40px;
+  box-shadow: var(--shadow-xs);
+  max-width: 200mm;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 1. Cabeçalho da empresa ───────────────────────────────────────────── */
+.cc-cab {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--text-primary);
+}
+.cc-emp-nome {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-snug);
+  line-height: 1.3;
+}
+.cc-emp-doc {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+.cc-ident { text-align: right; flex-shrink: 0; }
+.cc-ident-tit {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.cc-ident-comp {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-snug);
+  margin-top: 2px;
+}
+
+/* ── 2. Grade de campos (colaborador e pagamento) ──────────────────────── */
+.cc-grade {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px 28px;
+}
+.cc-colab {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+.cc-campo { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cc-campo span {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.cc-campo strong {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+/* ── 3. Tabela de lançamentos ──────────────────────────────────────────── */
+.cc-lanc-wrap { margin: 20px 0 0; }
+.cc-lanc {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.cc-lanc thead th {
+  background: var(--surface-subtle);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  padding: 9px 12px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.cc-lanc td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+/* Larguras fixas: com table-layout fixed, é isto que mantém a grade estável
+   por mais lançamentos que entrem. */
+.cc-lanc .cc-c-cod  { width: 48px; text-align: center; color: var(--text-muted); }
+.cc-lanc .cc-c-ref  { width: 150px; color: var(--text-secondary); }
+.cc-lanc .cc-c-val  { width: 118px; text-align: right; }
+.cc-lanc tbody td.cc-c-desc { font-weight: 500; overflow-wrap: anywhere; }
+
+/* ── 4. Resumo financeiro ──────────────────────────────────────────────── */
+.cc-resumo {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 2px solid var(--text-primary);
+}
+.cc-resumo-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  text-align: right;
+  border-right: 1px solid var(--border);
+}
+.cc-resumo-item:last-child { border-right: none; }
+.cc-resumo-item span {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.cc-resumo-item strong { font-size: 14px; font-weight: 600; }
+
+/* O líquido é o número que a pessoa procura primeiro. */
+.cc-liquido { background: var(--surface-subtle); }
+.cc-liquido span { color: var(--text-secondary); }
+.cc-liquido strong {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-tight);
+}
+
+/* ── 5. Dados do pagamento ─────────────────────────────────────────────── */
+.cc-pag {
+  padding: 20px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin-top: 24px;
+}
+.cc-secao-tit {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+}
+
+/* ── 6. Declaração ─────────────────────────────────────────────────────── */
+.cc-decl {
+  margin: 24px 0 0;
+  max-width: 148mm;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+.cc-decl strong { color: var(--text-primary); font-weight: 700; }
+
+/* ── 7. Assinatura ─────────────────────────────────────────────────────── */
+.cc-assin { margin-top: 48px; text-align: center; }
+.cc-assin-linha {
+  width: 72mm;
+  max-width: 100%;
+  margin: 0 auto 8px;
+  border-top: 1px solid var(--text-primary);
+}
+.cc-assin-nome { font-size: 12.5px; font-weight: 600; }
+.cc-assin-doc { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+/* ── 10. Celular ───────────────────────────────────────────────────────── */
+/* A tabela rola na horizontal dentro do próprio contêiner: virar lista solta
+   destruiria a relação entre descrição, referência e coluna do valor. */
+@media (max-width: 760px) {
+  .cc { padding: 22px 18px 30px; }
+  .cc-cab { flex-direction: column; gap: 12px; }
+  .cc-ident { text-align: left; }
+  .cc-grade { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cc-lanc-wrap { overflow-x: auto; }
+  .cc-lanc { min-width: 620px; }
+  .cc-resumo { grid-template-columns: 1fr; }
+  .cc-resumo-item {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+  }
+  .cc-resumo-item:last-child { border-bottom: none; }
+}
+@media (max-width: 460px) {
+  .cc-grade { grid-template-columns: 1fr; }
+}
+
+/* ── 9. Impressão ──────────────────────────────────────────────────────── */
+/* O :has() deixa a regra valer SÓ com o contracheque em tela — .page-header é
+   compartilhado com o resto do painel, e apagá-lo sem condição estragaria a
+   impressão do relatório do cliente. */
+@media print {
+
+
+  .cc {
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
+    max-width: none;
+    font-size: 11pt;
+    break-after: page;
+    page-break-after: always;
+  }
+  .cc:last-child { break-after: auto; page-break-after: auto; }
+
+  /* Nenhum destes blocos pode ser partido no meio por uma quebra de página. */
+  .cc-cab, .cc-colab, .cc-lanc-wrap, .cc-lanc, .cc-resumo, .cc-decl, .cc-assin, .cc-pag {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .cc-lanc tr { break-inside: avoid; page-break-inside: avoid; }
+
+  /* Em preto e branco o que separa os blocos é o filete — nunca o fundo. */
+  .cc-lanc thead th, .cc-liquido { background: transparent !important; }
+  .cc-lanc thead th { border-top: 1px solid #000; border-bottom: 1px solid #000; }
+  .cc-cab { border-bottom: 2px solid #000; }
+  .cc-resumo { border-top: 2px solid #000; }
+  .cc-liquido { border-bottom: 3px double #000; }
+  .cc-campo span, .cc-emp-doc, .cc-decl, .cc-resumo-item span { color: #000; }
+
+  /* Aperta o miolo para o recibo caber em uma página só. */
+  .cc-colab, .cc-pag { padding: 12px 0; }
+  .cc-lanc-wrap { margin-top: 14px; }
+  .cc-decl { margin-top: 16px; }
+  .cc-assin { margin-top: 30px; }
+}

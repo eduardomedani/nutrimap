@@ -214,6 +214,39 @@ export function confirmar(opcoes = {}) {
 }
 
 /**
+ * Dinheiro em reais. Uma função só para o sistema inteiro: o financeiro compara
+ * valor digitado com valor gravado, e duas formatações diferentes viram
+ * divergência de centavo onde não há nenhuma.
+ */
+export function formatarBRL(v) {
+  const n = Number(v) || 0;
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+/**
+ * "R$ 1.234,56", "1234,56" ou "1234.56" → 1234.56. Aceita negativo (desconto).
+ * Devolve null quando não dá para ler um número.
+ */
+export function valorDeTexto(txt) {
+  const t = String(txt ?? '').replace(/R\$|\s| /g, '');
+  if (!t) return null;
+  let normalizado;
+  if (t.includes(',')) {
+    // Tem vírgula: ela é o decimal e todo ponto é separador de milhar.
+    normalizado = t.replace(/\./g, '').replace(',', '.');
+  } else if (/^-?\d{1,3}(\.\d{3})+$/.test(t)) {
+    // "2.000" e "1.800" são milhar, não decimal — é assim que se escreve
+    // salário, e ler como 2,00 pagaria dois reais no lugar de dois mil.
+    normalizado = t.replace(/\./g, '');
+  } else {
+    normalizado = t;   // "1234.56" veio de teclado numérico: o ponto é decimal
+  }
+
+  const n = Number(normalizado);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
  * Gera link do WhatsApp pré-preenchido
  */
 export function gerarLinkWhatsapp(mensagem, telefone = '') {
