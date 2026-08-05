@@ -9,3 +9,10 @@ db/treino_eduardo_*.sql
 # O SCHEMA vai versionado; os DADOS ficam so na maquina e no Supabase.
 db/funcionarios_seed.sql
 db/folha_historico_seed.sql
+
+# Correcoes pontuais de vinculo, escritas com o UUID real da conta e do
+# funcionario. Sao artefatos de uma sessao de conferencia: ja cumpriram a
+# funcao e nao servem para outra maquina. As consultas de conferencia que
+# NAO trazem UUID real (db/conferencia/0*.sql em diante) vao versionadas.
+db/conferencia/46_desfazer_vinculo_indevido.sql
+db/conferencia/47_desfazer_vinculo_indevido_rollback.sql
