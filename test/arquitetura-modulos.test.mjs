@@ -18,6 +18,8 @@ const ler = (rel) => readFileSync(new URL(rel, import.meta.url), 'utf8');
 const index = ler('../index.html');
 const equipe = ler('../js/equipe-admin-ui.js');
 const financeiro = ler('../js/financeiro-ui.js');
+const dadosFin = ler('../js/financeiro.js');
+const gerador = ler('../db/gerador_custos.mjs');
 
 // ───────────────────────────────────────────────────────────
 grupo('arquitetura · o menu mostra os dois módulos', () => {
@@ -145,30 +147,82 @@ grupo('arquitetura · o que mora no Financeiro da empresa', () => {
     }
   });
 
-  teste('o estado inicial é honesto: sem gráfico vazio e sem número inventado', () => {
+  teste('sem lançamento nenhum, a tela diz isso — não desenha eixo vazio', () => {
     contem(financeiro, 'Nenhum lançamento ainda');
-    contem(financeiro, 'Comece registrando as receitas e despesas da operação.');
-    contem(financeiro, 'Registrar receita');
-    contem(financeiro, 'Registrar despesa');
-    // Se um dia aparecer <svg> aqui, é gráfico desenhado sem dado por trás.
-    naoContem(financeiro, '<svg', 'gráfico vazio se confunde com sistema quebrado');
+    // O desenho mora em js/financeiro-grafico.js, que devolve '' quando não há
+    // mês nenhum. SVG escrito aqui dentro seria marcação fora do alcance do
+    // teste de geometria — e eixo sem barra se lê como sistema quebrado.
+    naoContem(financeiro, '<svg', 'o SVG mora no módulo do gráfico, não na tela');
+    contem(financeiro, 'financeiro-grafico.js');
   });
 
-  teste('os passos que faltam são informação, não botão falso', () => {
-    // Botão que só abre um aviso gasta a confiança de quem clicou esperando o
-    // formulário — e na segunda vez a pessoa não clica mais em nada da tela.
-    const passos = financeiro.slice(financeiro.indexOf('fe-vazio-passos'),
-                                    financeiro.indexOf('fe-vazio-acoes'));
-    naoContem(passos, '<button', 'Registrar receita/despesa não pode ser <button>');
+  teste('do gráfico da folha vêm helpers, nunca o gráfico', () => {
+    // escalaBonita/curto/rotuloCurto são genéricos e já testados; duplicá-los
+    // criaria dois eixos que divergem no dia em que um for ajustado. Mas
+    // graficoMensal e graficoPorPessoa são a folha desenhada — se um deles
+    // entrar aqui, o Financeiro volta a mostrar a equipe como se fosse o caixa.
+    const grafico = ler('../js/financeiro-grafico.js');
+    for (const proibido of ['graficoMensal', 'graficoPorPessoa']) {
+      naoContem(grafico, proibido, `${proibido} é o desenho da folha, não do caixa`);
+    }
+    contem(grafico, "from './resumo-grafico.js'");
+  });
+
+  teste('o total não se apresenta como fechado enquanto há pendência', () => {
+    // A importação da planilha trouxe 22 lançamentos sem categoria e 1 sem
+    // valor. Somar isso e exibir como total é o defeito: quem confere caixa não
+    // tem como saber que o número está incompleto se a tela não disser.
+    contem(financeiro, 'O total ainda não está fechado', 'sumiu o aviso de pendência');
+    contem(financeiro, 'sem categoria');
+    contem(financeiro, 'sem valor');
+    contem(financeiro, 'fora do total', 'o que não tem valor tem que sair do total à vista');
+  });
+
+  teste('nada é classificado por adivinhação', () => {
+    // Deduzir o centro de custo pelo texto da descrição escreveria no balanço
+    // uma opinião do programa, indistinguível de informação para quem lê.
+    for (const chute of ['/energia/i', '/fopag/i', 'inferirCategoria', 'adivinhar']) {
+      naoContem(financeiro, chute, 'categoria não se deduz do texto da descrição');
+    }
+  });
+
+  teste('nenhum botão que só abre aviso', () => {
+    // Botão que não faz o que promete gasta a confiança de quem clicou — e na
+    // segunda vez a pessoa não clica mais em nada da tela.
     naoContem(financeiro, 'mostrarToast', 'nada de "em breve" disfarçado de ação');
     naoContem(financeiro, 'data-fe-acao', 'a ação falsa devia ter saído');
+    // Todo [data-fin-ir] leva a uma aba que existe de verdade.
+    const abas = [...financeiro.matchAll(/\{ id: '([\w-]+)'/g)].map(m => m[1]);
+    for (const m of financeiro.matchAll(/data-fin-ir="([\w-]+)"/g)) {
+      ok(abas.includes(m[1]), `data-fin-ir="${m[1]}" aponta para aba inexistente`);
+    }
   });
 
-  teste('o custo da equipe entra como indicador e leva para o outro módulo', () => {
+  teste('o custo da equipe é lido da folha, nunca copiado', () => {
     contem(financeiro, 'Custo da equipe', 'faltou o card de ponte');
     contem(financeiro, 'Ver folha e colaboradores', 'faltou a ação do card');
-    contem(financeiro, 'folha_resumo_mensal', 'o número tem que ser real, não estimado');
     contem(financeiro, 'equipe/resumo', 'o clique tem que abrir Equipe > Resumo');
+    // A consulta mora na camada de dados; a tela não fala com o banco direto.
+    contem(dadosFin, 'folha_resumo_mensal', 'o número tem que ser real, não estimado');
+    naoContem(financeiro, 'from(', 'a tela não consulta o banco: quem lê é financeiro.js');
+  });
+
+  teste('despesa e folha aparecem como duas parcelas, não como um total só', () => {
+    // Um número que junta os dois sem dizer de onde cada pedaço veio é
+    // impossível de conferir no dia em que os dois divergirem.
+    contem(financeiro, 'Despesas lançadas');
+    contem(financeiro, 'despesas + folha', 'o total tem que declarar do que é feito');
+    contem(dadosFin, 'export function custoDoMes', 'faltou a soma que separa as parcelas');
+  });
+
+  teste('o caixa importado não recria a folha dentro do Financeiro', () => {
+    // O seed importa 310 despesas e deixa 88 linhas de folha de fora. Se um dia
+    // o gerador parar de filtrar, o mesmo dinheiro passa a existir nos dois
+    // módulos — e é isso que este teste existe para pegar.
+    contem(gerador, 'export function ehFolha', 'faltou o filtro que separa folha de despesa');
+    contem(gerador, "'despesa'", 'a importação é só de despesa');
+    naoContem(gerador, 'folha_itens', 'o gerador não escreve na folha');
+    naoContem(gerador, 'insert into public.folhas', 'o gerador não cria competência');
   });
 });
 

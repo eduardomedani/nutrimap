@@ -1464,6 +1464,568 @@
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   FINANCEIRO DA EMPRESA — LANÇAMENTOS
+   ---------------------------------------------------------------------------
+   O caixa importado da planilha. As barras por ano são div com width em %, não
+   SVG: são cinco valores numa escala só, e um gráfico de verdade aqui pediria
+   eixo, grade e tooltip para dizer o que três divs já dizem.
+
+   .fx-pendente marca a linha que ainda não fecha — sem categoria ou sem valor.
+   A cor é a de aviso, não a de erro: o lançamento está correto, falta
+   informação sobre ele, e vermelho de erro faria 22 linhas legítimas parecerem
+   defeito do sistema.
+   ═════════════════════════════════════════════════════════════════════════ */
+.fx-bloco { margin-top: 26px; }
+
+.fx-bloco-tit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.fx-barras { display: flex; flex-direction: column; gap: 10px; }
+
+.fx-barra-linha {
+  display: grid;
+  grid-template-columns: 52px 1fr 132px;
+  align-items: center;
+  gap: 14px;
+}
+
+.fx-barra-rot { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.fx-barra-trilho {
+  height: 22px;
+  border-radius: 6px;
+  background: var(--surface-2, rgba(127, 127, 127, .12));
+  overflow: hidden;
+}
+
+.fx-barra-fill {
+  height: 100%;
+  border-radius: 6px;
+  background: var(--brand, #2f6f4f);
+  min-width: 2px;
+}
+
+.fx-barra-val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.fx-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.fx-tabela { width: 100%; }
+.fx-tabela th.fx-num { text-align: right; }
+
+.fx-pendente { background: var(--warn-soft, rgba(214, 158, 46, .10)); }
+
+.fx-alerta { color: var(--warn, #b7791f); font-weight: 600; }
+
+/* O aviso de pendência abre a Visão geral. É painel, não toast: ele descreve um
+   estado que dura até alguém resolver, e toast some antes de ser lido. */
+.fx-pend {
+  margin-top: 22px;
+  padding: 16px 18px;
+  border: 1px solid var(--warn-border, rgba(214, 158, 46, .35));
+  border-radius: var(--radius, 12px);
+  background: var(--warn-soft, rgba(214, 158, 46, .08));
+}
+
+.fx-pend-tit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.fx-pend-itens { display: flex; flex-wrap: wrap; gap: 10px; }
+
+.fx-pend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface, #fff);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.fx-pend-item:hover { border-color: var(--brand, #2f6f4f); }
+.fx-pend-item strong { font-variant-numeric: tabular-nums; }
+
+.fx-sel-cat { min-width: 190px; }
+.fx-sel-fundir { min-width: 170px; }
+.fx-in-valor { width: 130px; text-align: right; }
+.fx-acao-cel { text-align: right; }
+.fx-tile-txt { font-size: 18px; }
+.fx-nota-topo { margin-bottom: 18px; }
+
+/* "(opcional)" ao lado do rótulo, e não como placeholder: placeholder some ao
+   digitar, e some justo quando a pessoa está decidindo se precisa preencher. */
+.fx-opcional { font-weight: 400; color: var(--text-muted); }
+.fx-check-pago { margin-top: 4px; }
+
+/* O botão de novo lançamento fica na mesma barra dos filtros e empurrado para a
+   direita: é ação, não filtro, e no meio dos selects seria lido como mais um. */
+
+/* ── Receita × Despesa ─────────────────────────────────────────────────────
+   As três cores passam em contraste ≥ 3:1 sobre a superfície branca, critério
+   já adotado em resumo-grafico.js. Elas moram no JS (SERIES) e aqui: o JS
+   pinta o balão de hover, o CSS pinta o SVG e a legenda. A fonte da verdade é
+   o JS — se divergirem, é aqui que se corrige.                              */
+.fx-bloco-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.fx-bloco-topo .fx-bloco-tit { margin-bottom: 0; }
+.fx-sel-ano { min-width: 108px; }
+.fx-tiles-ano { margin-bottom: 18px; }
+
+.fg-receita { fill: var(--color-primary-700); }
+.fg-despesa { fill: var(--chart-kcal); }
+.fg-folha   { fill: var(--chart-carb); }
+
+.fg-mes.on .fg-seg { filter: brightness(1.12); }
+
+/* ── Fluxo de caixa ─────────────────────────────────────────────────────
+   Entradas acima do eixo zero, saídas abaixo. O eixo é mais forte que a grade:
+   é a referência que separa "entrou" de "saiu", e some no meio das linhas de
+   grade se tiver o mesmo peso. */
+.fg-entrada { fill: var(--color-primary-700); }
+.fg-saida   { fill: var(--chart-kcal); }
+.fg-zero    { stroke: var(--text-muted); stroke-width: 1.5; opacity: .55; }
+
+/* O acumulado é linha, não barra: ele é um nível que se atravessa no tempo, e
+   barra sugeriria que cada mês tem um acumulado próprio. */
+.fg-acumulado {
+  fill: none;
+  stroke: var(--chart-carb);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.fg-leg-nota { color: var(--text-muted); font-size: 12px; }
+
+/* Mês sem movimento continua na tabela — a lacuna é informação —, mas em tom
+   mais baixo, para os meses que têm dado ganharem a leitura. */
+.fx-mes-vazio { opacity: .45; }
+
+/* Aviso informativo dentro do painel de pendência: é contagem, não atalho. */
+.fx-pend-info { cursor: default; }
+.fx-pend-info:hover { border-color: var(--border); }
+
+.fg-ponto {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.fg-ponto-receita { background: var(--color-primary-700); }
+.fg-ponto-despesa { background: var(--chart-kcal); }
+.fg-ponto-folha   { background: var(--chart-carb); }
+
+/* Resultado negativo não pode ser só um sinal de menos: em fonte tabular, o
+   "-" some no começo do número quando se lê a coluna de relance. */
+.fx-positivo { color: var(--success, #167C57); }
+.fx-negativo { color: var(--error, #C0392B); }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DESPESA — drawer de cadastro e edição
+   ---------------------------------------------------------------------------
+   Painel lateral direito, mesma estrutura do .rf-drawer da dieta: corpo rolável
+   entre cabeçalho e rodapé fixos. Largura própria (620–720px) porque o
+   formulário tem menos colunas que o da refeição — herdar os 860px daquele
+   deixaria os campos nadando.
+
+   COM backdrop, ao contrário do drawer da dieta: ali o painel edita um pedaço
+   da rotina que continua útil atrás; aqui é um formulário com estado não salvo,
+   e clicar sem querer na lista de trás perderia o que foi digitado.
+   ═════════════════════════════════════════════════════════════════════════ */
+.dsp-drawer-raiz {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(15, 23, 32, .38);
+  animation: dsp-fade .16s ease-out;
+}
+@keyframes dsp-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* O body não rola atrás do drawer: rolar o fundo enquanto se preenche um
+   formulário faz perder a referência de onde se estava. */
+body.dsp-travado { overflow: hidden; }
+
+.dsp-drawer {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: clamp(560px, 46vw, 720px);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card, #fff);
+  border-left: 1px solid var(--line);
+  box-shadow: -18px 0 48px rgba(15, 23, 32, .16);
+  animation: dsp-entra .2s cubic-bezier(.2, .8, .3, 1);
+}
+@keyframes dsp-entra { from { transform: translateX(24px); opacity: .6; } to { transform: none; opacity: 1; } }
+
+.dsp-topo {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.dsp-eyebrow {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: var(--tracking-wide); color: var(--text-muted);
+}
+.dsp-titulo { font-size: 21px; font-weight: 600; margin: 4px 0 2px; }
+.dsp-sub { font-size: 13.5px; color: var(--text-muted); }
+
+.dsp-x {
+  border: 1px solid var(--line); background: transparent; color: inherit;
+  border-radius: 10px; width: 34px; height: 34px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.dsp-x:hover { border-color: var(--error, #C0392B); color: var(--error, #C0392B); }
+
+.dsp-body { flex: 1; overflow-y: auto; padding: 0 24px 24px; }
+
+/* ESPAÇAMENTO: um ritmo só, declarado num lugar. Antes, .dsp-campo tinha
+   margin-bottom E o grid tinha gap — os campos lado a lado ganhavam o dobro do
+   respiro dos campos soltos, e a coluna ficava desalinhada por baixo. Agora o
+   espaço entre campos vem SEMPRE do gap do container. */
+.dsp-secao {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.dsp-secao:last-child { border-bottom: none; padding-bottom: 8px; }
+.dsp-secao-tit {
+  font-size: 11.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: var(--tracking-wide); color: var(--text-muted); margin: 0;
+}
+
+/* Dois campos lado a lado. NOME PRÓPRIO: já foi .dsp-linha, que colidia com a
+   linha da TABELA de despesas — as <tr> herdavam `display: grid` e a tabela
+   inteira quebrava. Classe de layout de formulário e classe de linha de tabela
+   não podem dividir nome. */
+.dsp-par { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.dsp-vazio-par { display: none; }
+
+.dsp-campo { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.dsp-campo label {
+  font-size: 13px; font-weight: 600; line-height: 1.3;
+  display: flex; align-items: center; gap: 4px;
+}
+.dsp-req { color: var(--error, #C0392B); font-weight: 700; }
+.dsp-dica { font-size: 12px; line-height: 1.45; color: var(--text-muted); }
+.dsp-textarea { resize: vertical; min-height: 76px; font-family: inherit; line-height: 1.5; }
+
+.dsp-check {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; cursor: pointer; margin-top: 1px;
+}
+.dsp-check input { width: 16px; height: 16px; accent-color: var(--primary); flex-shrink: 0; }
+
+.dsp-com-botao { display: flex; gap: 8px; align-items: stretch; }
+.dsp-com-botao .fp-select { flex: 1; min-width: 0; }
+.dsp-mais {
+  border: 1px solid var(--line); background: transparent; color: inherit;
+  border-radius: 10px; width: 44px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.dsp-mais:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.dsp-mais:disabled { opacity: .4; cursor: not-allowed; }
+
+/* O erro fica EMBAIXO DO CAMPO, não num alerta no topo: um alerta genérico
+   obriga a caçar qual dos doze campos falhou. */
+.dsp-erro { font-size: 12.5px; line-height: 1.4; color: var(--error, #C0392B); font-weight: 600; }
+.dsp-erro-campo .np-input,
+.dsp-erro-campo .fp-select { border-color: var(--error, #C0392B); }
+
+.dsp-atalhos { display: flex; flex-wrap: wrap; gap: 6px; }
+.dsp-atalhos button {
+  border: 1px solid var(--line); background: transparent; color: var(--text-muted);
+  border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 12px;
+  cursor: pointer; line-height: 1.2;
+}
+.dsp-atalhos button:hover { border-color: var(--primary); color: var(--primary); }
+
+.dsp-aviso {
+  display: flex; align-items: flex-start; gap: 10px;
+  margin: 18px 0 0; padding: 12px 14px; border-radius: var(--radius, 12px);
+  background: var(--warn-soft, rgba(214, 158, 46, .10));
+  border: 1px solid var(--warn-border, rgba(214, 158, 46, .32));
+  font-size: 13px;
+}
+.dsp-aviso-origem { background: var(--surface-2, rgba(127, 127, 127, .08)); border-color: var(--border); }
+.dsp-origem-dados { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+.dsp-secao-futura { opacity: .72; }
+.dsp-futuro { list-style: none; display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; }
+.dsp-futuro li { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+
+.dsp-ft {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 24px calc(14px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--line);
+  background: var(--bg-card, #fff);
+}
+.dsp-ft-dir { display: flex; gap: 10px; margin-left: auto; }
+.dsp-danger { border-color: color-mix(in srgb, var(--error) 40%, transparent); color: var(--error); }
+.dsp-danger:hover { border-color: var(--error); background: var(--error-soft, rgba(192, 57, 43, .08)); }
+
+/* ── Barra de ferramentas da lista ──────────────────────────────────────
+   DUAS ÁREAS, e é essa separação que resolve o problema — não a largura do
+   botão. Antes, "Nova despesa" era mais uma célula do grid `auto-fit` dos
+   filtros: quando a largura apertava, o navegador recalculava as colunas e o
+   botão caía solto na última linha. Nenhuma margem corrige isso, porque o
+   defeito era o botão estar no mesmo fluxo de quebra que os filtros.
+
+   `minmax(0, 1fr)` e não `1fr`: sem o minmax, o conteúdo dos filtros define o
+   mínimo da coluna e a barra empurra a página para o scroll horizontal.
+
+   `align-items: start` mantém o botão colado no topo quando os filtros quebram
+   para uma segunda linha — sem isso ele centralizaria e ficaria flutuando. */
+.dsp-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.dsp-toolbar-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+/* `display: contents` no desktop: o container some da caixa e os selects viram
+   filhos diretos do flex, quebrando de linha um a um. No celular ele volta a
+   ser caixa de verdade para poder recolher — é o mesmo HTML servindo aos dois
+   comportamentos, sem duplicar marcação. */
+.dsp-filtros-campos { display: contents; }
+.dsp-filtros-btn { display: none; }
+
+.dsp-busca { flex: 1 1 240px; min-width: 220px; }
+
+/* Larguras previsíveis por campo. `flex: 0 1 auto` deixa encolher um pouco sob
+   pressão, mas nunca esticar: com `1fr` para todos, cinco selects vazios
+   ocupariam a tela inteira e a busca ficaria do tamanho de um deles. */
+.dsp-f { flex: 0 1 auto; }
+.dsp-f-ano    { min-width: 150px; }
+.dsp-f-status { min-width: 175px; }
+.dsp-f-cat    { min-width: 190px; }
+.dsp-f-centro { min-width: 180px; }
+
+.dsp-limpar { flex: 0 0 auto; white-space: nowrap; }
+.dsp-limpar:disabled { opacity: .45; cursor: default; }
+
+/* A mesma altura em tudo que está na barra. Campo de 38px ao lado de botão de
+   44px lê-se como desalinhamento, não como hierarquia. */
+.dsp-toolbar .fp-in,
+.dsp-toolbar .fp-select,
+.dsp-toolbar .btn { height: 44px; }
+
+.dsp-toolbar-acao { justify-self: end; }
+
+/* NÃO ENCOLHE E NÃO QUEBRA. O texto é a ação; reduzi-lo para caber seria
+   resolver o layout às custas da leitura. */
+.dsp-btn-nova {
+  min-width: 152px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* O resumo é linha própria, entre a barra e a tabela. Dentro da grade dos
+   filtros ele viraria mais uma célula e mudaria de lugar a cada quebra. */
+.dsp-resumo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 2px 12px;
+  font-size: 13.5px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+}
+.dsp-resumo strong { color: var(--ink, inherit); font-variant-numeric: tabular-nums; }
+.dsp-resumo-n { font-variant-numeric: tabular-nums; }
+.dsp-resumo-sep { opacity: .4; }
+/* A linha inteira abre o lançamento — é por ela que se dá baixa. O cursor e o
+   realce dizem isso antes do clique; sem eles, a tabela parece só leitura e
+   ninguém descobre que dá para abrir. */
+tbody tr.dsp-linha { cursor: pointer; }
+tbody tr.dsp-linha:hover { background: var(--surface-2, rgba(127, 127, 127, .06)); }
+tbody tr.dsp-linha:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.dsp-desc { font-weight: 600; }
+.dsp-mudo { color: var(--text-muted); }
+.dsp-cancelada .dsp-desc { text-decoration: line-through; }
+.dsp-cancelada { opacity: .6; }
+
+.dsp-selo {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 700; white-space: nowrap;
+}
+.dsp-selo-pendente  { background: var(--surface-2, rgba(127,127,127,.12)); color: var(--text-muted); }
+.dsp-selo-pago      { background: var(--success-soft, rgba(22,124,87,.12)); color: var(--success, #167C57); }
+.dsp-selo-vencido   { background: var(--error-soft, rgba(192,57,43,.10)); color: var(--error, #C0392B); }
+.dsp-selo-cancelado { background: var(--surface-2, rgba(127,127,127,.12)); color: var(--text-muted); text-decoration: line-through; }
+.dsp-selo-import    { background: var(--surface-2, rgba(127,127,127,.10)); color: var(--text-muted); }
+
+.dsp-paginacao {
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  margin-top: 16px; font-size: 13px; color: var(--text-muted);
+}
+
+.dsp-menu {
+  position: absolute; z-index: 1300; min-width: 200px;
+  background: var(--bg-card, #fff); border: 1px solid var(--line);
+  border-radius: 12px; box-shadow: 0 12px 32px rgba(15, 23, 32, .16);
+  padding: 6px; display: flex; flex-direction: column;
+}
+.dsp-menu button {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 9px 12px; border: none; background: transparent; color: inherit;
+  font: inherit; font-size: 13.5px; text-align: left; border-radius: 8px; cursor: pointer;
+}
+.dsp-menu button:hover { background: var(--surface-2, rgba(127, 127, 127, .1)); }
+.dsp-menu-danger { color: var(--error, #C0392B); }
+
+.fx-acoes-topo { display: flex; justify-content: flex-end; margin-bottom: 16px; }
+
+/* AS COLUNAS CENTRALIZADAS. Data, categoria, valor e situação são campos
+   curtos e de largura parecida: centrados, a coluna se lê como coluna. A
+   descrição fica à esquerda — texto longo centralizado obriga o olho a
+   procurar o começo de cada linha. Vale só no desktop: no celular a tabela
+   vira cartão e o alinhamento é outro (ver o bloco de 640px). */
+.fx-c { text-align: center; }
+.fx-c .fp-select,
+.fx-c .fx-in-valor { margin: 0 auto; }
+.fx-tabela th.fx-c, .dsp-tabela th.fx-c { text-align: center; }
+
+@media (max-width: 900px) {
+  /* Tablet: quase tela cheia, mas ainda sobra o suficiente para se ver que há
+     uma lista atrás — é o que diz que isto é um painel, não outra página. */
+  .dsp-drawer { width: 90vw; }
+  .dsp-par { grid-template-columns: 1fr; }
+
+  /* A ação SOBE em vez de descer. Empurrada para baixo dos filtros ela fica
+     onde ninguém procura; `order` no grid faz isso sem posicionamento absoluto
+     e sem mexer na ordem do HTML, que continua sendo a ordem de leitura. */
+  .dsp-toolbar { grid-template-columns: 1fr; gap: 12px; }
+  .dsp-toolbar-acao { order: -1; justify-self: end; }
+}
+
+@media (max-width: 640px) {
+  /* Tela cheia no celular: 90% deixa uma faixa clicável que fecha o formulário
+     sem querer, e o que se perde é o que a pessoa acabou de digitar. */
+  .dsp-drawer { width: 100vw; border-left: none; }
+  .dsp-drawer-raiz { background: transparent; }
+
+  .dsp-body { padding: 0 16px 20px; }
+  .dsp-topo, .dsp-ft { padding-left: 16px; padding-right: 16px; }
+  .dsp-topo { padding-top: calc(16px + env(safe-area-inset-top, 0px)); }
+  .dsp-titulo { font-size: 19px; }
+  .dsp-secao { padding: 16px 0; gap: 14px; }
+
+  /* 16px é o limiar abaixo do qual o iOS DÁ ZOOM ao focar um campo — e o zoom
+     desloca o formulário inteiro, tirando da tela o botão que a pessoa ia
+     tocar em seguida. */
+  .dsp-drawer .np-input,
+  .dsp-drawer .fp-select { font-size: 16px; min-height: 44px; }
+  .dsp-drawer .dsp-textarea { min-height: 88px; }
+
+  /* Alvo de toque mínimo. Os atalhos de vencimento tinham 24px de altura: no
+     polegar, isso é acertar entre dois. */
+  .dsp-atalhos button { min-height: 40px; padding: 8px 14px; font-size: 13px; }
+  .dsp-x { width: 44px; height: 44px; }
+  .dsp-mais { min-height: 44px; }
+  .dsp-check { min-height: 32px; }
+
+  .dsp-ft { flex-wrap: wrap; gap: 10px; }
+  .dsp-ft-dir { width: 100%; margin-left: 0; }
+  .dsp-ft-dir .btn { flex: 1; justify-content: center; min-height: 46px; }
+  .dsp-danger { width: 100%; justify-content: center; min-height: 46px; }
+
+  .dsp-menu { min-width: 220px; }
+  .dsp-menu button { min-height: 44px; }
+
+  /* CELULAR: ação em largura total, busca em largura total, e os seis selects
+     recolhidos atrás de "Filtros". Lado a lado em 360px eles não são filtros —
+     são uma parede entre a pessoa e a lista. */
+  .dsp-toolbar-acao { justify-self: stretch; }
+  .dsp-btn-nova { width: 100%; justify-content: center; min-height: 46px; }
+  .dsp-busca { flex: 1 1 100%; min-width: 0; }
+
+  .dsp-filtros-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+  }
+  .dsp-filtros-btn.on { border-color: var(--primary); color: var(--primary); }
+
+  /* O contador diz que a lista está recortada. Sem ele, uma lista curta atrás
+     de filtros escondidos lê-se como "acabaram os lançamentos". */
+  .dsp-filtros-n {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+
+  .dsp-filtros-campos { display: none; width: 100%; }
+  .dsp-filtros-campos.aberto {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .dsp-f, .dsp-limpar { width: 100%; min-width: 0; }
+  .dsp-limpar { justify-content: center; }
+
+  .dsp-resumo { padding: 10px 2px; font-size: 13px; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
    RESPONSIVIDADE DOS DOIS MÓDULOS
    ---------------------------------------------------------------------------
    No celular a tabela vira lista de cartões: cada célula ganha o rótulo da
@@ -1486,18 +2048,25 @@
 
 @media (max-width: 640px) {
   .pt-tabela,
+  .fx-tabela,
+  .dsp-tabela,
   .dx-tabela { min-width: 0; }
   .pt-tabela thead,
+  .fx-tabela thead,
+  .dsp-tabela thead,
   .dx-tabela thead { display: none; }
   .pt-tabela tbody tr,
+  .fx-tabela tbody tr,
   .dx-tabela tbody tr {
     display: block;
     padding: 12px 4px;
     border-bottom: 1px solid var(--border);
   }
   .pt-tabela tbody tr:last-child td,
+  .fx-tabela tbody tr:last-child td,
   .dx-tabela tbody tr:last-child td { border-bottom: none; }
   .pt-tabela td,
+  .fx-tabela td,
   .dx-tabela td {
     display: flex;
     align-items: baseline;
@@ -1508,6 +2077,7 @@
     text-align: right;
   }
   .pt-tabela td[data-rot]::before,
+  .fx-tabela td[data-rot]::before,
   .dx-tabela td[data-rot]::before {
     content: attr(data-rot);
     font-size: 11px;
@@ -1529,4 +2099,12 @@
   .dx-tabela .fp-nome::before { content: none; }
   .pt-tabela .fp-acoes,
   .dx-tabela .fp-acoes { justify-content: flex-end; flex-wrap: wrap; }
+
+  /* No cartão do celular cada célula é "RÓTULO ......... valor", com o valor
+     encostado à direita. Centralizar aqui poria o número no meio do vão, longe
+     das duas bordas — que é o pior dos dois mundos. */
+  .fx-tabela td.fx-c,
+  .dsp-tabela td.fx-c { text-align: right; }
+  .fx-c .fp-select,
+  .fx-c .fx-in-valor { margin: 0 0 0 auto; }
 }

@@ -10,6 +10,22 @@ db/treino_eduardo_*.sql
 db/funcionarios_seed.sql
 db/folha_historico_seed.sql
 
+# Caixa da empresa: 310 despesas com fornecedor, valor e data reais, de 2023 a
+# 2026. O GERADOR (db/gerador_custos.mjs) e o SCHEMA vao versionados — quem
+# tiver a planilha reproduz o arquivo com um comando. Os numeros, nao.
+db/financeiro_lancamentos_seed.sql
+
+# Vendas: 2.177 receitas com NOME DE 313 CLIENTES, valor e data. Mesma regra —
+# db/gerador_vendas.mjs vai versionado, os dados nao. Aqui e mais grave que nos
+# custos: sao pessoas fisicas, nao fornecedores.
+db/financeiro_vendas_seed.sql
+
+# Correcao de folha ja gravada: traz nome de colaborador e valor de bonus.
+# Mesma regra dos seeds — a decisao esta documentada no proprio arquivo, que
+# fica na maquina e no Supabase.
+db/folha_correcao_bonus.sql
+db/folha_correcao_bonus_desfazer.sql
+
 # Correcoes pontuais de vinculo, escritas com o UUID real da conta e do
 # funcionario. Sao artefatos de uma sessao de conferencia: ja cumpriram a
 # funcao e nao servem para outra maquina. As consultas de conferencia que
