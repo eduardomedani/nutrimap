@@ -1,0 +1,543 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PWA · DIETA — a tela do paciente
+   ---------------------------------------------------------------------------
+   Usa os tokens que o app.html já define (--moss, --cream, --ink, --line,
+   --bg-warm, --radius, --shadow-*). Nenhuma cor literal nova: a identidade é a
+   do Evollo, e um verde escrito à mão aqui divergiria do resto no primeiro
+   ajuste de marca.
+
+   A CLAREZA VEM DA TIPOGRAFIA, não de imagem. Sem fotos de alimento nesta
+   versão: foto genérica de "pão integral" que não é o pão do paciente ensina a
+   coisa errada sobre a porção.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* UMA COLUNA, SEMPRE. A primeira versão desta tela punha as refeições lado a
+   lado acima de 720px, e isso estava errado por três motivos: o plano é uma
+   sequência no tempo e duas colunas quebram a ordem de leitura; cards de
+   alturas diferentes viram um mosaico; e o paciente lê a rotina de cima para
+   baixo, como o dia acontece. No desktop limitamos só a LARGURA. */
+.dt {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+/* ── Cabeçalho ─────────────────────────────────────────────────────────── */
+.dt-head { padding: 2px 2px 0; }
+
+.dt-head-linha { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+
+.dt-head-titulo {
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-mute);
+  margin: 0;
+}
+
+.dt-head-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 100px;
+  background: var(--bg-warm);
+  color: var(--moss);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.dt-head-badge svg { width: 12px; height: 12px; }
+
+.dt-head-nome {
+  font-size: 21px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: var(--tracking-snug, -0.01em);
+  color: var(--moss-deep, var(--ink));
+}
+
+.dt-head-obj {
+  margin-top: 3px;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.dt-head-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--ink-mute);
+}
+.dt-head-meta span { display: inline-flex; align-items: center; gap: 5px; }
+.dt-head-meta svg { width: 14px; height: 14px; }
+
+/* ── Resumo do dia ─────────────────────────────────────────────────────── */
+.dt-resumo {
+  background: var(--bg-warm);
+  border: 1px solid var(--line);
+  border-radius: var(--radius, 16px);
+  padding: 12px 14px;
+}
+.dt-resumo-hoje {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--moss);
+  margin-bottom: 4px;
+}
+.dt-resumo-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+.dt-resumo-linha strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.dt-resumo-sep { opacity: .35; }
+
+/* ── Accordion da refeição ─────────────────────────────────────────────── */
+.dt-lista { display: flex; flex-direction: column; gap: 12px; }
+
+.dt-card {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius, 16px);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+.dt-card-h { margin: 0; }
+
+/* O cabeçalho é um <button> de verdade: leitor de tela anuncia "recolhido",
+   Enter e Espaço funcionam de graça e o foco aparece sem nada a mais. Uma div
+   com onclick não dá nada disso.
+
+   ALTURA FIXA em todos os cards fechados. Sem ela, uma refeição com nome longo
+   fica mais alta que a vizinha e a lista vira degrau. */
+.dt-card-topo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 72px;
+  padding: 12px 14px;
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dt-card-topo:focus-visible { outline: 2px solid var(--moss); outline-offset: -3px; }
+
+.dt-card-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: var(--bg-warm);
+  color: var(--moss);
+}
+.dt-card-icone svg { width: 19px; height: 19px; }
+
+/* Nome em cima, contagem embaixo: é a informação que diz se vale abrir. */
+.dt-card-tit { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+
+.dt-card-nome {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ink);
+}
+.dt-card-sub { font-size: 12.5px; color: var(--ink-mute); line-height: 1.3; }
+
+/* Coluna direita de largura fixa: horário e selo alinhados em TODOS os cards,
+   independentemente do tamanho do nome. Sem isso o olho perde a coluna. */
+.dt-card-dir {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.dt-card-hora {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--moss);
+  font-variant-numeric: tabular-nums;
+}
+
+.dt-selo {
+  font-size: 9.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 100px;
+  white-space: nowrap;
+}
+.dt-selo-atual { background: var(--moss); color: var(--cream); }
+.dt-selo-proxima { background: var(--bg-warm); color: var(--moss); }
+
+.dt-chevron {
+  display: flex;
+  align-items: center;
+  color: var(--ink-mute);
+  flex-shrink: 0;
+  transition: transform var(--duration-base, .2s) var(--ease, ease);
+}
+.dt-chevron svg { width: 18px; height: 18px; }
+.dt-aberta .dt-chevron { transform: rotate(180deg); }
+
+/* A refeição do horário atual: borda da marca e fundo levemente esverdeado.
+   Discreto de propósito — card inteiro verde faria as outras parecerem
+   indisponíveis, e todas são do mesmo plano. */
+.dt-card.dt-atual { border-color: var(--moss); box-shadow: var(--shadow-sm); }
+.dt-card.dt-atual .dt-card-topo { background: var(--bg-warm); }
+.dt-card.dt-atual .dt-card-icone { background: var(--moss); color: var(--cream); }
+.dt-card.dt-passada { opacity: .74; }
+
+/* ── Corpo aberto ──────────────────────────────────────────────────────── */
+.dt-card-corpo {
+  padding: 2px 14px 14px;
+  animation: dt-abre var(--duration-base, .2s) var(--ease, ease);
+}
+@keyframes dt-abre {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dt-card-corpo { animation: none; }
+  .dt-chevron { transition: none; }
+}
+
+/* ── Alimentos ─────────────────────────────────────────────────────────── */
+.dt-itens { list-style: none; margin: 0; padding: 0; }
+
+.dt-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-top: 1px solid var(--hair, var(--line));
+}
+.dt-item:first-child { border-top: none; padding-top: 4px; }
+
+.dt-item-info { min-width: 0; flex: 1; }
+
+.dt-item-nome {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.35;
+}
+
+.dt-item-porcao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 2px;
+}
+/* A medida caseira é o que o paciente executa; o peso é conferência. Por isso
+   a caseira vem em verde e o peso em cinza, e não o contrário. */
+.dt-item-qtd { font-size: 13.5px; font-weight: 700; color: var(--moss); }
+.dt-item-peso { font-size: 12.5px; color: var(--ink-mute); font-variant-numeric: tabular-nums; }
+
+.dt-item-obs { margin-top: 4px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.4; }
+
+.dt-card-vazio {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--ink-mute);
+  font-style: italic;
+}
+
+/* ── Orientação ────────────────────────────────────────────────────────── */
+/* Bloco leve e à vista. Escondido num menu de três pontos, o paciente não lê —
+   e é justamente onde o profissional põe o que mais importa. */
+.dt-orientacao {
+  margin-top: 12px;
+  padding: 11px 13px;
+  background: var(--bg-warm);
+  border-radius: 12px;
+  border-left: 3px solid var(--moss-light, var(--moss));
+}
+.dt-orientacao-t {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--moss);
+  margin-bottom: 4px;
+}
+.dt-orientacao-t svg { width: 13px; height: 13px; }
+.dt-orientacao-s { font-size: 13px; line-height: 1.5; color: var(--ink-soft); }
+.dt-orientacao-plano { margin-top: 4px; }
+
+/* ── Vazio e erro ──────────────────────────────────────────────────────── */
+.dt-vazio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 44px 20px 28px;
+}
+.dt-vazio-icone {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: var(--bg-warm);
+  color: var(--moss);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.dt-vazio-icone svg { width: 27px; height: 27px; }
+.dt-vazio-t { font-size: 18px; font-weight: 800; color: var(--ink); }
+.dt-vazio-s {
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+  max-width: 30ch;
+}
+
+/* Um bloco secundário, não uma pilha de cards: o estado vazio existe para
+   tranquilizar, e três caixas transmitiriam que algo deu errado. */
+.dt-vazio-box {
+  margin-top: 26px;
+  width: 100%;
+  max-width: 380px;
+  text-align: left;
+  padding: 14px 16px;
+  background: var(--bg-warm);
+  border: 1px solid var(--line);
+  border-radius: var(--radius, 16px);
+}
+.dt-vazio-box-t { font-size: 13.5px; font-weight: 800; color: var(--moss-deep, var(--ink)); }
+.dt-vazio-box-s { margin-top: 5px; font-size: 13px; line-height: 1.5; color: var(--ink-soft); }
+
+.dt-retry { margin-top: 20px; min-height: 46px; }
+
+/* ── Esqueleto ─────────────────────────────────────────────────────────── */
+/* Tem a FORMA da tela — cabeçalho, dois cards, três linhas cada. Um spinner
+   sozinho não diz o que vem, e a chegada do conteúdo vira um salto. */
+.dt-sk { display: flex; flex-direction: column; gap: 12px; }
+.dt-sk-header { height: 54px; border-radius: 12px; }
+.dt-sk-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius, 16px);
+  padding: 14px 15px;
+}
+.dt-sk-topo { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; }
+.dt-sk-bolha { width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0; }
+.dt-sk-tit { height: 16px; width: 45%; border-radius: 6px; }
+.dt-sk-linha { height: 13px; border-radius: 6px; margin-top: 11px; }
+.dt-sk-linha:nth-child(3) { width: 82%; }
+.dt-sk-linha:nth-child(4) { width: 64%; }
+
+.dt-sk-header, .dt-sk-bolha, .dt-sk-tit, .dt-sk-linha {
+  background: linear-gradient(90deg,
+    var(--bg-warm) 25%,
+    var(--surface-subtle, rgba(0, 0, 0, .04)) 37%,
+    var(--bg-warm) 63%);
+  background-size: 400% 100%;
+  animation: dt-brilho 1.3s ease-in-out infinite;
+}
+@keyframes dt-brilho { from { background-position: 100% 50%; } to { background-position: 0 50%; } }
+
+/* Respeitar quem pediu menos movimento: a animação é decorativa, e o esqueleto
+   continua legível parado. */
+@media (prefers-reduced-motion: reduce) {
+  .dt-sk-header, .dt-sk-bolha, .dt-sk-tit, .dt-sk-linha { animation: none; }
+}
+
+/* ── Botão de substituições ────────────────────────────────────────────── */
+/* Outline verde, com TEXTO. Só ícone obrigaria o paciente a descobrir o que
+   duas setas significam — e quem não descobre não usa o recurso. */
+.dt-sub-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-height: 38px;
+  padding: 8px 13px;
+  border: 1px solid var(--moss);
+  border-radius: 100px;
+  background: transparent;
+  color: var(--moss);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.dt-sub-btn svg { width: 14px; height: 14px; }
+.dt-sub-btn:hover, .dt-sub-btn:active { background: var(--bg-warm); }
+.dt-sub-btn:focus-visible { outline: 2px solid var(--moss); outline-offset: 2px; }
+
+/* No celular estreito o botão vai para baixo: apertado ao lado, ele espremeria
+   o nome do alimento, que é o texto mais importante da linha. */
+@media (max-width: 400px) {
+  .dt-item { flex-direction: column; align-items: stretch; gap: 8px; }
+  .dt-sub-btn { align-self: flex-start; }
+}
+
+.dt-item.dt-trocado .dt-item-nome { color: var(--moss-deep, var(--ink)); }
+.dt-troca-nota {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--ink-mute);
+}
+.dt-desfazer {
+  border: none;
+  background: none;
+  padding: 4px 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--moss);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ── Bottom sheet ──────────────────────────────────────────────────────── */
+.dt-sheet-fundo {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  background: rgba(15, 23, 32, .42);
+  display: flex;
+  align-items: flex-end;
+  animation: dt-fade .16s ease-out;
+}
+@keyframes dt-fade { from { opacity: 0; } to { opacity: 1; } }
+
+body.dt-travado { overflow: hidden; }
+
+.dt-sheet {
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border-radius: 22px 22px 0 0;
+  padding: 8px 18px calc(20px + env(safe-area-inset-bottom, 0px));
+  animation: dt-sobe .22s cubic-bezier(.2, .8, .3, 1);
+}
+@keyframes dt-sobe { from { transform: translateY(24px); } to { transform: none; } }
+
+.dt-sheet-alca {
+  width: 40px;
+  height: 4px;
+  border-radius: 100px;
+  background: var(--line);
+  margin: 4px auto 14px;
+}
+
+.dt-sheet-topo { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.dt-sheet-t {
+  font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--ink-mute);
+}
+.dt-sheet-alvo { font-size: 18px; font-weight: 800; color: var(--ink); margin-top: 2px; }
+.dt-sheet-rot {
+  font-size: 10.5px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--ink-mute); margin-top: 8px;
+}
+.dt-sheet-qtd { font-size: 14px; font-weight: 700; color: var(--moss); margin-top: 1px; }
+
+/* Na folha a porção sai numa linha só ("2 colheres de sopa • 30 g"): a lista
+   compara opções, e duas colunas de números atrapalhariam a comparação. */
+.dt-sheet-porcao {
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--moss);
+}
+
+/* Quando não há medida caseira, o peso É a porção — então assume o peso e a
+   cor de quem manda na linha, em vez de continuar como nota de rodapé. */
+.dt-item-peso-unico { font-size: 13.5px; font-weight: 700; color: var(--moss); }
+
+.dt-sheet-x {
+  width: 40px; height: 40px; flex-shrink: 0;
+  border: 1px solid var(--line); border-radius: 12px;
+  background: none; color: inherit; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.dt-sheet-nota { margin: 14px 0 4px; font-size: 13px; line-height: 1.5; color: var(--ink-soft); }
+
+.dt-sheet-lista { list-style: none; margin: 0; padding: 0; }
+.dt-sheet-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 0; border-top: 1px solid var(--hair, var(--line));
+}
+.dt-sheet-info { flex: 1; min-width: 0; }
+
+.dt-escolher {
+  flex-shrink: 0;
+  min-height: 42px;
+  padding: 9px 18px;
+  border: none;
+  border-radius: 100px;
+  background: var(--moss);
+  color: var(--cream);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.dt-escolher:focus-visible { outline: 2px solid var(--moss); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dt-sheet, .dt-sheet-fundo { animation: none; }
+}
+
+/* ── Respiro para a barra inferior ─────────────────────────────────────── */
+/* A última refeição não pode ficar embaixo da navegação — nem no iPhone, onde
+   ainda há a faixa do gesto de home. */
+.dt { padding-bottom: calc(var(--pa-nav-h, 64px) + env(safe-area-inset-bottom, 0px) + 16px); }
+
+/* ── Desktop ───────────────────────────────────────────────────────────── */
+/* NUNCA duas colunas. O que muda no desktop é só a largura máxima do conteúdo
+   (já em `.dt`) e um pouco de tipografia — a leitura continua vertical, como o
+   dia acontece. */
+@media (min-width: 720px) {
+  .dt-head-nome { font-size: 23px; }
+  .dt-card-topo { padding: 14px 18px; }
+  .dt-card-corpo { padding: 2px 18px 16px; }
+}
+
+/* O sheet vira caixa centrada quando há altura sobrando: colado embaixo numa
+   tela de 1080px ele ficaria a um palmo do rodapé, longe do olhar. */
+@media (min-width: 720px) {
+  .dt-sheet-fundo { align-items: center; justify-content: center; }
+  .dt-sheet {
+    max-width: 520px;
+    max-height: 78vh;
+    border-radius: 20px;
+    padding-bottom: 20px;
+  }
+  .dt-sheet-alca { display: none; }
+}

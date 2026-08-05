@@ -815,20 +815,34 @@ function irParaTreino() {
   }
 }
 
-// Seção Dieta — placeholder por enquanto (só treino no ar).
+// Seção Dieta — a casca; a tela mora em js/pwa-dieta-ui.js.
+//
+// A casca desenha shell e navegação IMEDIATAMENTE e entrega o miolo para o
+// módulo, que mostra o esqueleto e busca os dados. Esperar o carregamento aqui
+// deixaria a barra inferior sumida enquanto a rede responde — e o paciente
+// tocaria numa tela sem saída.
+//
+// Import dinâmico: quem só usa o Treino não baixa a Dieta.
 function renderDieta() {
   _secao = 'dieta';
   app().innerHTML = `
     ${topo()}
-    <main class="pa-main">
-      <div class="pa-empty pa-empty-lg">
-        <i data-lucide="salad"></i>
-        <div class="pa-empty-t">Sua dieta está a caminho</div>
-        <div class="pa-empty-s">Em breve seu profissional vai liberar seu plano alimentar por aqui.</div>
-      </div>
-    </main>
+    <main class="pa-main"><div id="paDieta"></div></main>
     ${bottomNav()}`;
   ligarShell();
+
+  import('./pwa-dieta-ui.js')
+    .then(m => m.renderDietaPaciente('paDieta'))
+    .catch(e => {
+      console.error('Dieta:', e);
+      const cx = document.getElementById('paDieta');
+      if (cx) cx.innerHTML = `
+        <div class="pa-empty pa-empty-lg">
+          <i data-lucide="cloud-off"></i>
+          <div class="pa-empty-t">Não foi possível carregar sua dieta</div>
+          <div class="pa-empty-s">Verifique sua conexão e tente novamente.</div>
+        </div>`;
+    });
 }
 
 // ── Indicadores de evolução (topo) ──────────────────────────
