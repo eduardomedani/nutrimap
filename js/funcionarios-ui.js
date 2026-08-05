@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════════════
-// FINANCEIRO · FUNCIONÁRIOS — UI (CRUD da tabela funcionarios)
+// EQUIPE · FUNCIONÁRIOS — UI (CRUD da tabela funcionarios)
 // ═══════════════════════════════════════════════════════════
 // Autocontido: monta a lista e o formulário dentro do container que recebe.
-// O cabeçalho e as abas do Financeiro são de financeiro-ui.js — esta seção não
+// O cabeçalho e as abas de Equipe são de equipe-admin-ui.js — esta seção não
 // sabe que está dentro de uma aba.
 //
 // O cadastro carrega também o que a FOLHA precisa: valor/hora, salário fixo e
@@ -28,7 +28,7 @@ let _termo = '';
 let _incluirInativos = false;
 let _editandoId = null;      // id em edição, ou null = novo
 let _carregando = false;
-let _container = 'page-financeiro';
+let _container = 'page-equipe';
 
 const UNIDADE_PADRAO = 'Go Up';
 
@@ -40,7 +40,7 @@ function debounce(fn, ms) {
 // ───────────────────────────────────────────────────────────
 // ENTRADA
 // ───────────────────────────────────────────────────────────
-export async function initFuncionariosUI(nutriId, containerId = 'page-financeiro') {
+export async function initFuncionariosUI(nutriId, containerId = 'page-equipe') {
   _nutriId = nutriId;
   _termo = '';
   _incluirInativos = false;

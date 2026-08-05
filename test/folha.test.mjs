@@ -177,11 +177,11 @@ grupo('folha · erros com instrução', () => {
 });
 
 grupo('folha · fiação da tela', () => {
-  const casca = readFileSync(new URL('../js/financeiro-ui.js', import.meta.url), 'utf8');
+  const casca = readFileSync(new URL('../js/equipe-admin-ui.js', import.meta.url), 'utf8');
   const ui = readFileSync(new URL('../js/folha-ui.js', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../css/financeiro.css', import.meta.url), 'utf8');
 
-  teste('o Financeiro tem as duas seções', () => {
+  teste('a Equipe tem as seções da folha e do cadastro', () => {
     ok(casca.includes("id: 'funcionarios'"), 'faltou a aba de funcionários');
     ok(casca.includes("id: 'folha'"), 'faltou a aba da folha');
     ok(casca.includes("import('./folha-ui.js')"), 'a aba da folha não carrega o módulo');

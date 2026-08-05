@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════
-// FINANCEIRO · FOLHA DE PAGAMENTO — UI
+// EQUIPE · FOLHA DE PAGAMENTO — UI
 // ═══════════════════════════════════════════════════════════
 // A planilha, dentro do sistema. Você escolhe o mês, digita o total de HORAS
 // DIURNAS que leu na folha de ponto de cada um, e a linha se calcula sozinha.
@@ -21,6 +21,11 @@ import {
   traduzirErroFolha,
 } from './folha.js';
 import { listarFuncionarios } from './funcionarios.js';
+// `normalizar` já é o nome da limpeza de acento deste arquivo (linha ~1096);
+// o apelido evita a colisão sem renomear a função que casa nome de PDF.
+import {
+  competenciaAtiva, definirCompetencia, normalizar as normalizarCompetencia,
+} from './competencia.js';
 import {
   mostrarToast, mostrarErro, confirmar, formatarBRL, valorDeTexto, formatarData,
   copiarParaClipboard,
@@ -66,7 +71,7 @@ const trava = () => _folha?.status === 'fechada';
 // ───────────────────────────────────────────────────────────
 // ENTRADA
 // ───────────────────────────────────────────────────────────
-export async function initFolhaUI(nutriId, containerId) {
+export async function initFolhaUI(nutriId, containerId, opcoes = {}) {
   _nutriId = nutriId;
   _container = containerId;
   const cont = document.getElementById(containerId);
@@ -82,10 +87,43 @@ export async function initFolhaUI(nutriId, containerId) {
     return;
   }
 
-  // Já tem histórico: abre o mês mais recente sem criar nada. Primeira vez:
-  // cria a folha do mês corrente já com a equipe toda dentro.
-  const inicial = _folhas[0]?.competencia || competenciaAtual();
-  await abrirCompetencia(inicial, { criar: _folhas.length === 0 });
+  await abrirCompetencia(...escolherCompetencia(opcoes));
+
+  // Chegou por "Importar na folha de pagamento", vindo da aba Ponto: a zona de
+  // arrastar arquivos é o motivo da visita, e ela fica abaixo da tabela de
+  // documentos. Sem isto, a pessoa cai numa tela que parece a mesma de sempre.
+  if (opcoes.destacarImportacao) destacarImportacao();
+}
+
+/**
+ * Qual mês abrir, em ordem de prioridade:
+ *
+ *   1. o que a outra aba pediu explicitamente (link, botão "Importar na folha");
+ *   2. o mês da sessão, se ele já existe como folha;
+ *   3. o mês mais recente com folha;
+ *   4. o mês corrente — e aí a folha é criada, com a equipe toda dentro.
+ *
+ * Devolve os argumentos de abrirCompetencia() para a chamada ficar em um lugar
+ * só; criar é decidido por "esta competência ainda não existe", e não pelo
+ * histórico estar vazio: quem pede agosto para importar quer agosto aberto.
+ */
+function escolherCompetencia(opcoes) {
+  const pedida = opcoes.competencia ? normalizarCompetencia(opcoes.competencia) : null;
+  const daSessao = competenciaAtiva();
+  const alvo = pedida
+    || (daSessao && _folhas.some(f => f.competencia === daSessao) ? daSessao : null)
+    || _folhas[0]?.competencia
+    || competenciaAtual();
+  return [alvo, { criar: !_folhas.some(f => f.competencia === alvo) }];
+}
+
+/** Rola até a zona de importação e pisca a moldura uma vez. */
+function destacarImportacao() {
+  const zona = document.getElementById('fpZona');
+  if (!zona) return;
+  try { zona.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+  zona.classList.add('fp-chamando');
+  setTimeout(() => zona.classList.remove('fp-chamando'), 2400);
 }
 
 /** Carrega (ou cria) a folha de uma competência e redesenha a tela. */
@@ -93,6 +131,10 @@ async function abrirCompetencia(competencia, { criar = true } = {}) {
   const cont = document.getElementById(_container);
   if (!cont) return;
   cont.innerHTML = `<div class="loading"><div class="spinner"></div>Abrindo a folha...</div>`;
+
+  // O mês escolhido vale para a sessão inteira: Ponto e Documentos abrem no
+  // mesmo mês, sem a pessoa ter que reencontrá-lo em cada aba.
+  definirCompetencia(competencia);
 
   try {
     if (criar) {

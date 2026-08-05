@@ -298,6 +298,21 @@
   background: var(--primary-soft);
 }
 .fp-importar.lendo { opacity: 0.6; pointer-events: none; }
+/* Chegou pela aba Ponto, no botão "Importar na folha de pagamento": a zona
+   fica abaixo da tabela de documentos e, sem destaque, a tela parece a mesma
+   de sempre. Duas piscadas e para — animação que não termina vira ruído. */
+.fp-importar.fp-chamando {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  animation: fp-chamar 0.8s ease-in-out 3;
+}
+@keyframes fp-chamar {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 0 5px var(--primary-soft); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fp-importar.fp-chamando { animation: none; }
+}
 .fp-importar > svg.lucide {
   width: 26px;
   height: 26px;
@@ -1080,4 +1095,438 @@
   .rg-pessoa { grid-template-columns: 1fr auto; }
   .rg-pessoa-barra { grid-column: 1 / -1; order: 3; }
   .rs-legenda { width: 100%; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FINANCEIRO DA EMPRESA  (.fe-)
+   ---------------------------------------------------------------------------
+   O módulo ainda não tem lançamento nenhum, e a tela diz isso. Não existe aqui
+   card de número zerado nem eixo sem barra: gráfico vazio se confunde com
+   sistema quebrado, e essa dúvida, num módulo de dinheiro, custa mais do que
+   vale o enfeite.
+   ═════════════════════════════════════════════════════════════════════════ */
+.fe-vazio {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  padding: 48px 32px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.fe-vazio-topo { padding: 28px 32px; margin-bottom: 18px; }
+.fe-vazio-icone {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-lg);
+  background: var(--primary-soft);
+  color: var(--primary);
+  display: grid;
+  place-items: center;
+  margin-bottom: 4px;
+}
+.fe-vazio-icone svg.lucide { width: 26px; height: 26px; }
+.fe-vazio-tit {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.fe-vazio-sub {
+  font-size: 14px;
+  color: var(--text-secondary);
+  max-width: 46ch;
+  line-height: 1.55;
+}
+.fe-vazio-acoes {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 12px;
+}
+.fe-vazio-tag {
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--text-muted);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+}
+
+/* Ponte para Equipe: o custo da equipe é real e cabe no financeiro como
+   indicador. Ao clicar, abre o módulo dono do assunto — a folha inteira não é
+   duplicada aqui. */
+.fe-ponte {
+  margin-top: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  padding: 20px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.fe-ponte-rot {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--text-muted);
+}
+.fe-ponte-rot svg.lucide { width: 14px; height: 14px; }
+.fe-ponte-val {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  margin-top: 6px;
+}
+.fe-ponte-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; }
+.fe-nota {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.55;
+  max-width: 72ch;
+  margin: 12px 2px 0;
+}
+
+/* Categorias sugeridas — proposta da tela, não dado gravado. */
+.fe-cats { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.fe-cat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  padding: 18px 20px;
+}
+.fe-cat-tit {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.fe-cat-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.fe-chip {
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+}
+
+
+/* Os dois passos que virão. São INFORMAÇÃO, não botão: um "Registrar receita"
+   que só abre um aviso gasta a confiança de quem clicou esperando o formulário
+   — e é a segunda vez que a pessoa não clica mais em nada da tela. */
+.fe-vazio-passos {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 14px;
+}
+.fe-passo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--surface-subtle);
+  border: 1px dashed var(--border-strong);
+  padding: 9px 16px;
+  border-radius: var(--radius-pill);
+}
+.fe-passo svg.lucide { width: 15px; height: 15px; color: var(--text-muted); }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EQUIPE · CABEÇALHO DE SEÇÃO
+   ---------------------------------------------------------------------------
+   O <h1> da página é fixo ("Equipe e pagamentos"): a identidade do módulo não
+   pode piscar a cada troca de aba. O assunto da aba vem aqui, abaixo dela.
+   ═════════════════════════════════════════════════════════════════════════ */
+.eq-secao-hd { margin: -6px 0 18px; }
+.eq-secao-tit {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.eq-secao-tit svg.lucide { width: 18px; height: 18px; color: var(--primary); }
+.eq-secao-sub { font-size: 13.5px; color: var(--text-secondary); margin-top: 3px; }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EQUIPE · PONTO  (.pt-)
+   ═════════════════════════════════════════════════════════════════════════ */
+/* Estado vazio com saída: diz por que a importação não é aqui e leva até ela,
+   no mesmo mês. */
+.pt-vazio {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+.pt-vazio-icone {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-md);
+  background: var(--primary-soft);
+  color: var(--primary);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.pt-vazio-icone svg.lucide { width: 20px; height: 20px; }
+.pt-vazio-txt { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.pt-vazio-txt strong { font-size: 14.5px; color: var(--text-primary); }
+.pt-vazio-txt span { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+
+/* Divergência entre o PDF e a folha: ação nomeada, não aviso decorativo. */
+.pt-revisar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-color: color-mix(in srgb, var(--warning) 45%, transparent);
+  color: var(--warning);
+  white-space: nowrap;
+}
+.pt-revisar:hover { background: var(--warning-soft); border-color: var(--warning); }
+.pt-revisar svg.lucide { width: 13px; height: 13px; }
+
+.pt-acoes { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.pt-tiles { margin-bottom: 18px; }
+.pt-pendentes {
+  border-color: color-mix(in srgb, var(--warning) 45%, transparent);
+  color: var(--warning);
+}
+.pt-pendentes:hover { background: var(--warning-soft); border-color: var(--warning); }
+
+.pt-tabela { min-width: 720px; }
+.pt-arquivo {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--primary);
+  text-align: left;
+}
+.pt-arquivo:hover { text-decoration: underline; }
+.pt-arquivo svg.lucide { width: 14px; height: 14px; flex-shrink: 0; }
+.pt-arquivo span { overflow-wrap: anywhere; }
+.pt-arquivo-sub { font-size: 11.5px; color: var(--text-muted); margin-top: 3px; }
+
+.pt-falta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.pt-falta svg.lucide { width: 14px; height: 14px; }
+
+.pt-divergente {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--warning);
+  background: var(--warning-soft);
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+.pt-divergente svg.lucide { width: 12px; height: 12px; }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EQUIPE · DOCUMENTOS, VISÃO CENTRAL  (.dx-)
+   ═════════════════════════════════════════════════════════════════════════ */
+/* Atalho para os dois tipos que o sistema gera sozinho. */
+.dx-tipos { margin-bottom: 14px; }
+.dx-tipos .fn-chip { display: inline-flex; align-items: center; gap: 6px; }
+.dx-tipos .fn-chip svg.lucide { width: 14px; height: 14px; }
+
+.dx-filtros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+.dx-campo label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.dx-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding-bottom: 10px;
+  cursor: pointer;
+}
+
+/* O <select> dos filtros e da competência. Mesmo desenho do .np-input, para
+   nenhum controle parecer vindo de outro sistema. */
+.fp-select {
+  width: 100%;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 9px 12px;
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+.fp-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.dx-barra {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.dx-contagem { font-size: 13.5px; color: var(--text-secondary); }
+.dx-contagem strong { color: var(--text-primary); }
+
+.dx-tabela { min-width: 880px; }
+.dx-tipo {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.dx-tipo svg.lucide { width: 15px; height: 15px; color: var(--text-muted); flex-shrink: 0; }
+.dx-arquivado { opacity: 0.62; }
+
+.dx-selo {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.dx-selo-disponivel { background: var(--success-soft); color: var(--success); }
+.dx-selo-erro { background: var(--danger-soft); color: var(--danger); }
+.dx-selo-processando { background: var(--warning-soft); color: var(--warning); }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVIDADE DOS DOIS MÓDULOS
+   ---------------------------------------------------------------------------
+   No celular a tabela vira lista de cartões: cada célula ganha o rótulo da
+   coluna pelo data-rot, porque valor sem cabeçalho não se lê. As abas
+   continuam roláveis — .fin-abas já tem overflow-x.
+   ═════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 720px) {
+  .pt-acoes { width: 100%; }
+  .pt-acoes .btn { flex: 1; justify-content: center; }
+  .pt-vazio { flex-direction: column; align-items: flex-start; }
+  .pt-vazio .btn { width: 100%; justify-content: center; }
+  .eq-secao-tit { font-size: 16px; }
+  .dx-barra .btn { width: 100%; justify-content: center; }
+  .fe-vazio { padding: 34px 20px; }
+  .fe-vazio-acoes { width: 100%; }
+  .fe-vazio-acoes .btn { flex: 1; justify-content: center; }
+  .fe-ponte { align-items: flex-start; }
+  .fe-ponte .btn { width: 100%; justify-content: center; }
+}
+
+@media (max-width: 640px) {
+  .pt-tabela,
+  .dx-tabela { min-width: 0; }
+  .pt-tabela thead,
+  .dx-tabela thead { display: none; }
+  .pt-tabela tbody tr,
+  .dx-tabela tbody tr {
+    display: block;
+    padding: 12px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .pt-tabela tbody tr:last-child td,
+  .dx-tabela tbody tr:last-child td { border-bottom: none; }
+  .pt-tabela td,
+  .dx-tabela td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    border-bottom: none;
+    padding: 5px 12px;
+    text-align: right;
+  }
+  .pt-tabela td[data-rot]::before,
+  .dx-tabela td[data-rot]::before {
+    content: attr(data-rot);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-muted);
+    text-align: left;
+    flex-shrink: 0;
+  }
+  .pt-tabela .fp-nome,
+  .dx-tabela .fp-nome {
+    display: block;
+    text-align: left;
+    min-width: 0;
+    padding-bottom: 8px;
+  }
+  .pt-tabela .fp-nome::before,
+  .dx-tabela .fp-nome::before { content: none; }
+  .pt-tabela .fp-acoes,
+  .dx-tabela .fp-acoes { justify-content: flex-end; flex-wrap: wrap; }
 }

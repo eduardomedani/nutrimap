@@ -19,8 +19,8 @@ export const CORES = {
 };
 
 export const SERIES = [
-  { chave: 'base',       rotulo: 'Horas e valor fixo', cor: CORES.base },
-  { chave: 'adicionais', rotulo: 'Adicionais',         cor: CORES.adicionais },
+  { chave: 'base',       rotulo: 'Horas e valor base',     cor: CORES.base },
+  { chave: 'adicionais', rotulo: 'Adicionais e descontos', cor: CORES.adicionais },
 ];
 
 const MESES_CURTOS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun',

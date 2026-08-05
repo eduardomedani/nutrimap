@@ -219,10 +219,10 @@ grupo('resumo · tela', () => {
       'as duas views, sem exceção');
   });
 
-  teste('o Resumo é a primeira aba do Financeiro', () => {
-    const casca = readFileSync(new URL('../js/financeiro-ui.js', import.meta.url), 'utf8');
-    const ordem = [...casca.matchAll(/\{ id: '(\w+)'/g)].map(m => m[1]);
-    igual(ordem[0], 'resumo', 'quem abre o Financeiro quer o panorama primeiro');
+  teste('o Resumo é a primeira aba da Equipe', () => {
+    const casca = readFileSync(new URL('../js/equipe-admin-ui.js', import.meta.url), 'utf8');
+    const ordem = [...casca.matchAll(/\{ id: '([\w-]+)'/g)].map(m => m[1]);
+    igual(ordem[0], 'resumo', 'quem abre a Equipe quer o panorama primeiro');
     ok(casca.includes("import('./resumo-ui.js')"));
   });
 });

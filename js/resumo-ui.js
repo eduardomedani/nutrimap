@@ -1,10 +1,14 @@
 // ═══════════════════════════════════════════════════════════
-// FINANCEIRO · RESUMO — a equipe ao longo do tempo
+// EQUIPE · CUSTOS DA EQUIPE — a folha ao longo do tempo
 // ═══════════════════════════════════════════════════════════
 // Os números existem desde a importação da planilha; o que faltava era lê-los
 // juntos. Quatro perguntas, nesta ordem: quanto custou no período, como isso
 // se distribuiu no tempo, quanto foi hora e quanto foi bônus, e quem pesou
 // mais.
+//
+// NÃO É O RESUMO FINANCEIRO DA EMPRESA. Custo de equipe é uma despesa entre
+// outras; receitas, contas e fluxo de caixa moram em Financeiro. Esta tela já
+// se apresentou como o resumo do negócio e não era — daí a separação.
 //
 // TABELA SEMPRE DISPONÍVEL. Não é enfeite de acessibilidade: é onde se
 // confere o número exato que o gráfico só sugere — e é o que torna a tela
@@ -12,6 +16,7 @@
 
 import { sb } from './supabase.js';
 import { nomeCompetencia, formatarBRL } from './folha.js';
+import { periodoDoResumo, definirPeriodoDoResumo } from './competencia.js';
 import { formatarData, mostrarErro } from './utils.js';
 import {
   SERIES, graficoMensal, graficoPorPessoa, rotuloCurto, brl,
@@ -32,6 +37,7 @@ const PERIODOS = [
 // ───────────────────────────────────────────────────────────
 export async function initResumoUI(nutriId, containerId) {
   _container = containerId;
+  _periodo = periodoDoResumo(_periodo);
   const cont = document.getElementById(containerId);
   if (!cont) return;
   cont.innerHTML = `<div class="loading"><div class="spinner"></div>Somando as competências...</div>`;
@@ -104,6 +110,7 @@ function render() {
   const ultimo = meses[meses.length - 1];
   const somaAdicionais = meses.reduce((s, m) => s + (Number(m.adicionais) || 0), 0);
   const pctAdicionais = total ? (somaAdicionais / total) * 100 : 0;
+  const somaMinutos = meses.reduce((s, m) => s + (Number(m.minutos) || 0), 0);
 
   const { svg, barras } = graficoMensal(meses);
 
@@ -120,10 +127,12 @@ function render() {
     </div>
 
     <div class="rs-tiles">
-      ${tile('Total no período', formatarBRL(total), `${meses.length} ${meses.length === 1 ? 'competência' : 'competências'}`)}
-      ${tile('Média por mês', formatarBRL(media), `${pessoas.length} ${pessoas.length === 1 ? 'pessoa' : 'pessoas'} no período`)}
-      ${tile('Maior mês', formatarBRL(maior?.total), nomeCompetencia(maior?.competencia))}
+      ${tile('Custo total no período', formatarBRL(total), `${meses.length} ${meses.length === 1 ? 'competência' : 'competências'}`)}
+      ${tile('Média mensal da equipe', formatarBRL(media), 'por competência do período')}
+      ${tile('Maior folha', formatarBRL(maior?.total), nomeCompetencia(maior?.competencia))}
       ${tile('Peso dos adicionais', `${pctAdicionais.toFixed(0)}%`, formatarBRL(somaAdicionais))}
+      ${tile('Colaboradores', String(pessoas.length), 'com pagamento no período')}
+      ${tile('Horas trabalhadas', horasCurtas(somaMinutos), 'somadas do ponto lançado')}
     </div>
 
     <div class="rs-cartao">
@@ -165,6 +174,7 @@ function render() {
 
   cont.querySelectorAll('[data-rs-periodo]').forEach(b => b.addEventListener('click', () => {
     _periodo = Number(b.dataset.rsPeriodo);
+    definirPeriodoDoResumo(_periodo);   // a janela sobrevive à ida e volta das abas
     render();
   }));
   document.getElementById('rsTabela').addEventListener('click', () => {
@@ -173,6 +183,13 @@ function render() {
   });
 
   if (!_tabela) ligarHover(barras);
+}
+
+/** 12.345 min → "205 h". No indicador o minuto não muda decisão nenhuma, e
+ *  "205:45" ao lado de valores em reais se lê como se fosse dinheiro. */
+function horasCurtas(minutos) {
+  const h = Math.round((Number(minutos) || 0) / 60);
+  return `${h.toLocaleString('pt-BR')} h`;
 }
 
 function tile(rotulo, valor, sub) {

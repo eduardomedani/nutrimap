@@ -34,8 +34,12 @@ export const TIPOS = {
   personalizado:         { rotulo: 'Documento',              icone: 'file' },
 };
 
+// O CICLO DE VIDA DO ARQUIVO — e só ele. "Visualizado" não entra aqui de
+// propósito: é o colaborador que visualiza, não o documento que muda de
+// estado. Um documento disponível e não lido continua disponível; misturar os
+// dois esconderia justamente quem ainda não recebeu o contracheque.
 export const STATUS = {
-  rascunho:    'Rascunho',
+  rascunho:    'Pendente',
   processando: 'Processando',
   disponivel:  'Disponível',
   erro:        'Erro',

@@ -1761,8 +1761,10 @@
 <link rel="stylesheet" href="css/brand.css">
 <!-- Modo Apresentação: tela cheia usada durante a consulta. -->
 <link rel="stylesheet" href="css/apresentacao.css">
-<!-- Financeiro (hoje: cadastro de funcionários). Depois de brand.css, para
-     poder ajustar .patient-row e .av-grid sem a marca desfazer. -->
+<!-- Folha dos dois módulos de Administração: Financeiro da empresa e Equipe e
+     pagamentos. O nome do arquivo é o de origem e ficou — renomeá-lo não muda
+     um pixel e mudaria quatro arquivos de teste. Carregada depois de
+     brand.css, para poder ajustar .patient-row e .av-grid sem a marca desfazer. -->
 <link rel="stylesheet" href="css/financeiro.css">
 <!-- O documento do contracheque. Folha própria porque ela é embutida no HTML
      publicado para o colaborador — ver js/contracheque-arquivo.js. -->
@@ -1963,7 +1965,6 @@
         <div class="nav-item active" data-page="inicio"><span class="nav-icon"><i data-lucide="house"></i></span><span>Início</span></div>
         <div class="nav-item" data-page="pacientes"><span class="nav-icon"><i data-lucide="users"></i></span><span>Clientes</span></div>
         <div class="nav-item disabled" data-page="agendamentos"><span class="nav-icon"><i data-lucide="calendar-days"></i></span><span>Agendamentos</span></div>
-        <div class="nav-item" data-page="financeiro"><span class="nav-icon"><i data-lucide="wallet"></i></span><span>Financeiro</span></div>
       </div>
       <div class="nav-group">
         <div class="nav-group-title">Análise</div>
@@ -1978,6 +1979,16 @@
         <div class="nav-item" data-page="exercicios"><span class="nav-icon"><i data-lucide="dumbbell"></i></span><span>Exercícios</span></div>
         <div class="nav-item" data-page="gestao-treinos"><span class="nav-icon"><i data-lucide="calendar-clock"></i></span><span>Gerenciar treinos</span></div>
         <div class="nav-item disabled" data-page="materiais"><span class="nav-icon"><i data-lucide="book-open"></i></span><span>Materiais</span></div>
+      </div>
+      <!-- ADMINISTRAÇÃO — os dois módulos do escritório, separados de propósito.
+           Financeiro é o resultado da empresa; Equipe é gente, ponto, folha e
+           documentos. Eram a mesma opção de menu e não são o mesmo assunto. -->
+      <div class="nav-group">
+        <div class="nav-group-title">Administração</div>
+        <div class="nav-item" data-page="financeiro"><span class="nav-icon"><i data-lucide="wallet"></i></span><span>Financeiro</span></div>
+        <!-- id-card, e não users-round: "Clientes" logo acima já usa gente, e
+             dois desenhos de pessoas na mesma barra se leem como o mesmo item. -->
+        <div class="nav-item" data-page="equipe"><span class="nav-icon"><i data-lucide="id-card"></i></span><span>Equipe</span></div>
       </div>
     </nav>
 
@@ -2079,9 +2090,16 @@
     <div class="module-page" id="page-agendamentos">
       <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="calendar-days"></i></div><div class="em-breve-titulo">Agendamentos</div><div class="em-breve-sub">Gerencie suas consultas, agende retornos e envie lembretes automáticos pelo WhatsApp para reduzir faltas.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
     </div>
-    <!-- FINANCEIRO — hoje é o cadastro de funcionários (js/funcionarios-ui.js).
-         Folha, custos e recebimentos entram como seções desta mesma página. -->
+    <!-- FINANCEIRO DA EMPRESA — receitas, despesas, contas e fluxo de caixa
+         (js/financeiro-ui.js). Custo de equipe aparece aqui só como indicador:
+         a folha inteira mora em #page-equipe. -->
     <div class="module-page" id="page-financeiro">
+      <div class="loading"><div class="spinner"></div>Carregando...</div>
+    </div>
+    <!-- EQUIPE E PAGAMENTOS — resumo de custos, funcionários, ponto, folha e
+         documentos trabalhistas (js/equipe-admin-ui.js). Não confundir com
+         equipe.html, que é o PWA do colaborador. -->
+    <div class="module-page" id="page-equipe">
       <div class="loading"><div class="spinner"></div>Carregando...</div>
     </div>
     <div class="module-page" id="page-materiais">
@@ -2125,11 +2143,17 @@
   import { initAvaliacoesUI } from './js/avaliacoes-ui.js';
   import { initExerciciosUI } from './js/exercicios-ui.js';
   import { listarTreinosComVencimento } from './js/treinos.js';
+  import { rotaCanonica, caminhoDaRota, parametrosDaRota } from './js/rotas.js';
+  import { definirCompetencia } from './js/competencia.js';
 
   let todosPacientes = [];
   let ultimoCodigoGerado = null;
 
-  function navegar(pagina) {
+  // `secao` só vale para as páginas com abas (financeiro, equipe). Existe para
+  // que abrir #equipe/folha seja UMA montagem: antes, quem restaurava a rota
+  // chamava navegar() e depois a abertura da aba, e a página desenhava duas
+  // vezes — a primeira na aba errada, bem à vista de quem abre pelo link.
+  function navegar(pagina, secao) {
     document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.page === pagina));
     document.querySelectorAll('.module-page').forEach(el => el.classList.toggle('active', el.id === 'page-' + pagina));
     document.getElementById('sidebar').classList.remove('open');
@@ -2156,15 +2180,39 @@
       abrirGestaoTreinos().catch(console.error);
     }
     if (pagina === 'financeiro') {
-      abrirFinanceiro().catch(console.error);
+      abrirFinanceiro(secao).catch(console.error);
+    }
+    if (pagina === 'equipe') {
+      abrirEquipe(secao).catch(console.error);
     }
     try { history.replaceState(null, '', '#' + pagina); } catch (e) {}
   }
 
   // Restaura a rota (página ou ficha+aba) a partir do #hash da URL, no load.
   function restaurarRota() {
-    const h = (location.hash || '').replace(/^#/, '');
-    if (!h) return;
+    let bruto = (location.hash || '').replace(/^#/, '');
+    if (!bruto) return;
+
+    // Links antigos do Financeiro (folha, funcionários, resumo) apontam para o
+    // que hoje é Equipe. O mapa mora em js/rotas.js; aqui só se reescreve a
+    // barra de endereço para o link novo, sem recarregar a página. A query vai
+    // junto: perder a competência levaria à tela certa no mês errado.
+    const canonica = rotaCanonica(bruto);
+    if (canonica !== bruto) {
+      bruto = canonica;
+      try { history.replaceState(null, '', '#' + bruto); } catch (e) {}
+    }
+
+    const h = caminhoDaRota(bruto);
+    const params = parametrosDaRota(bruto);
+    // ?competencia=2026-08 fixa o mês da sessão antes de qualquer aba montar.
+    if (params.competencia) definirCompetencia(params.competencia);
+
+    // Equipe guarda também a aba: #equipe/folha.
+    if (h.startsWith('equipe/')) {
+      navegar('equipe', h.split('/')[1]);
+      return;
+    }
     if (h.startsWith('ficha/')) {
       const partes = h.split('/');
       const id = partes[1], aba = partes[2] || 'visao';
@@ -2177,10 +2225,9 @@
       if (id) abrirRelatorio(id, 'calorias').catch(console.error);
       return;
     }
-    // Financeiro guarda também a aba: #financeiro/folha.
+    // Financeiro da empresa guarda também a aba: #financeiro/fluxo-caixa.
     if (h.startsWith('financeiro/')) {
-      navegar('financeiro');
-      abrirFinanceiro(h.split('/')[1]).catch(console.error);
+      navegar('financeiro', h.split('/')[1]);
       return;
     }
     if (document.getElementById('page-' + h)) navegar(h);
@@ -2213,12 +2260,24 @@
     await initExerciciosUI(sessao?.user?.id);
   }
 
-  // Financeiro: a casca com as abas mora em financeiro-ui.js; cada seção
-  // (funcionários, folha) é um módulo próprio carregado sob demanda.
+  // Financeiro da empresa: receitas, despesas, contas e fluxo. A casca com as
+  // abas mora em financeiro-ui.js. O card de custo da equipe leva para o outro
+  // módulo — indicador, não cópia da folha.
   async function abrirFinanceiro(secao) {
     const sessao = await obterSessao();
     const { initFinanceiroUI } = await import('./js/financeiro-ui.js');
-    await initFinanceiroUI(sessao?.user?.id, secao || 'resumo');
+    await initFinanceiroUI(sessao?.user?.id, secao || 'visao-geral', {
+      aoAbrirEquipe: (aba) => navegar('equipe', aba || 'resumo'),
+    });
+  }
+
+  // Equipe e pagamentos: a casca com as abas mora em equipe-admin-ui.js; cada
+  // seção (resumo, funcionários, ponto, folha, documentos) é um módulo próprio
+  // carregado sob demanda.
+  async function abrirEquipe(secao) {
+    const sessao = await obterSessao();
+    const { initEquipeUI } = await import('./js/equipe-admin-ui.js');
+    await initEquipeUI(sessao?.user?.id, secao || 'resumo');
   }
 
   async function abrirTreinosBiblioteca() {

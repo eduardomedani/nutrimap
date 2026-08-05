@@ -1,28 +1,66 @@
 // ═══════════════════════════════════════════════════════════
-// FINANCEIRO — casca da página e navegação entre as seções
+// FINANCEIRO DA EMPRESA — casca da página e navegação entre as seções
 // ═══════════════════════════════════════════════════════════
-// Monta o cabeçalho e as abas de #page-financeiro e entrega o miolo para o
-// módulo da seção. Cada seção continua autocontida: recebe o id do container e
-// desenha dentro dele, sem saber que existe uma aba.
+// O resultado do negócio: o que entra, o que sai, o que está para receber e o
+// que está para pagar. NÃO é a folha de pagamento — pessoas, horas, ponto e
+// contracheques moram em Equipe e pagamentos (js/equipe-admin-ui.js).
 //
-// A aba escolhida vai para o #hash (financeiro/folha), então F5 volta no mesmo
-// lugar e o link pode ser guardado.
+// Esta área ainda não tem lançamentos. A tela diz isso com todas as letras em
+// vez de desenhar gráfico vazio: um eixo sem barra parece sistema quebrado, e
+// número inventado é pior — quem confere caixa não pode duvidar do que lê.
+//
+// O único número real aqui é o custo da equipe, que já existe no banco. Ele
+// aparece como indicador e leva para o módulo dono do assunto; a folha não é
+// duplicada dentro do financeiro.
+
+import { sb } from './supabase.js';
+import { formatarBRL, nomeCompetencia } from './folha.js';
 
 const SECOES = [
-  { id: 'resumo', rotulo: 'Resumo', icone: 'chart-column',
-    sub: 'Quanto a equipe custou, mês a mês e por pessoa.' },
-  { id: 'funcionarios', rotulo: 'Funcionários', icone: 'users-round',
-    sub: 'O cadastro da equipe. É daqui que a folha e os custos saem.' },
-  { id: 'folha', rotulo: 'Folha de pagamento', icone: 'receipt',
-    sub: 'As horas do ponto viram o pagamento do mês.' },
+  { id: 'visao-geral', rotulo: 'Visão geral', icone: 'layout-dashboard',
+    titulo: 'Financeiro',
+    sub: 'Acompanhe receitas, despesas e o resultado da operação.' },
+  { id: 'receitas', rotulo: 'Receitas', icone: 'trending-up',
+    titulo: 'Receitas',
+    sub: 'O que entra: consultas, planos, pacotes e recebimentos avulsos.' },
+  { id: 'despesas', rotulo: 'Despesas', icone: 'trending-down',
+    titulo: 'Despesas',
+    sub: 'O que sai: custos fixos, variáveis e o custo da equipe.' },
+  { id: 'contas-receber', rotulo: 'Contas a receber', icone: 'hand-coins',
+    titulo: 'Contas a receber',
+    sub: 'Cobranças em aberto, vencidas e o que entra nos próximos dias.' },
+  { id: 'contas-pagar', rotulo: 'Contas a pagar', icone: 'file-clock',
+    titulo: 'Contas a pagar',
+    sub: 'Compromissos com data marcada, antes de virarem atraso.' },
+  { id: 'fluxo-caixa', rotulo: 'Fluxo de caixa', icone: 'waves',
+    titulo: 'Fluxo de caixa',
+    sub: 'Entradas e saídas no tempo, com o saldo acumulado.' },
+  { id: 'categorias', rotulo: 'Categorias', icone: 'tags',
+    titulo: 'Categorias',
+    sub: 'O plano de contas: como cada lançamento é classificado.' },
+  { id: 'relatorios', rotulo: 'Relatórios', icone: 'file-chart-column',
+    titulo: 'Relatórios',
+    sub: 'Fechamentos por período, comparativos e exportação.' },
 ];
+
+/** Categorias sugeridas para o primeiro dia de uso. Nada disso está gravado —
+ *  é a proposta que a tela oferece, não um dado do banco. */
+const CATEGORIAS_INICIAIS = {
+  Receitas: ['Consultas', 'Planos e pacotes', 'Avaliações', 'Outras receitas'],
+  Despesas: ['Equipe', 'Aluguel', 'Software e assinaturas', 'Marketing', 'Impostos', 'Outras despesas'],
+};
 
 const MIOLO = 'finConteudo';
 let _nutriId = null;
 let _secao = null;
+let _aoAbrirEquipe = null;
 
-export async function initFinanceiroUI(nutriId, secao = 'resumo') {
+export { SECOES, CATEGORIAS_INICIAIS };
+
+export async function initFinanceiroUI(nutriId, secao = 'visao-geral', opcoes = {}) {
   _nutriId = nutriId;
+  _aoAbrirEquipe = opcoes.aoAbrirEquipe || null;
+
   const page = document.getElementById('page-financeiro');
   if (!page) return;
 
@@ -30,14 +68,15 @@ export async function initFinanceiroUI(nutriId, secao = 'resumo') {
 
   page.innerHTML = `
     <div class="page-header">
-      <div class="fn-trilha"><i data-lucide="wallet"></i> Financeiro</div>
-      <h1 class="page-title"><i data-lucide="${alvo.icone}"></i> <em>${alvo.rotulo}</em></h1>
+      <div class="fn-trilha"><i data-lucide="wallet"></i> Financeiro da empresa</div>
+      <h1 class="page-title"><i data-lucide="${alvo.icone}"></i> <em>${alvo.titulo}</em></h1>
       <div class="page-sub" id="finSub">${alvo.sub}</div>
     </div>
 
-    <nav class="fin-abas" role="tablist">
+    <nav class="fin-abas" role="tablist" aria-label="Seções do Financeiro">
       ${SECOES.map(s => `
-        <button class="fin-aba${s.id === alvo.id ? ' on' : ''}" role="tab" data-fin-secao="${s.id}">
+        <button class="fin-aba${s.id === alvo.id ? ' on' : ''}" role="tab"
+                aria-selected="${s.id === alvo.id}" data-fin-secao="${s.id}">
           <i data-lucide="${s.icone}"></i> ${s.rotulo}
         </button>`).join('')}
     </nav>
@@ -52,17 +91,21 @@ export async function initFinanceiroUI(nutriId, secao = 'resumo') {
 }
 
 /** Troca de aba sem redesenhar o cabeçalho inteiro. */
-async function abrirSecao(id) {
+export async function abrirSecao(id) {
   if (id === _secao) return;
   const alvo = SECOES.find(s => s.id === id);
   if (!alvo) return;
 
   const page = document.getElementById('page-financeiro');
-  page.querySelectorAll('[data-fin-secao]').forEach(b =>
-    b.classList.toggle('on', b.dataset.finSecao === id));
+  if (!page) return;
+  page.querySelectorAll('[data-fin-secao]').forEach(b => {
+    const on = b.dataset.finSecao === id;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-selected', String(on));
+  });
 
   const titulo = page.querySelector('.page-title');
-  if (titulo) titulo.innerHTML = `<i data-lucide="${alvo.icone}"></i> <em>${alvo.rotulo}</em>`;
+  if (titulo) titulo.innerHTML = `<i data-lucide="${alvo.icone}"></i> <em>${alvo.titulo}</em>`;
   const sub = document.getElementById('finSub');
   if (sub) sub.textContent = alvo.sub;
 
@@ -74,18 +117,126 @@ async function montarSecao(id) {
   try { history.replaceState(null, '', `#financeiro/${id}`); } catch (e) {}
 
   const miolo = document.getElementById(MIOLO);
-  if (miolo) miolo.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando...</div>`;
+  if (!miolo) return;
 
-  if (id === 'resumo') {
-    const { initResumoUI } = await import('./resumo-ui.js');
-    await initResumoUI(_nutriId, MIOLO);
-    return;
-  }
-  if (id === 'folha') {
-    const { initFolhaUI } = await import('./folha-ui.js');
-    await initFolhaUI(_nutriId, MIOLO);
-    return;
-  }
-  const { initFuncionariosUI } = await import('./funcionarios-ui.js');
-  await initFuncionariosUI(_nutriId, MIOLO);
+  if (id === 'visao-geral') { await montarVisaoGeral(miolo); return; }
+  if (id === 'categorias') { miolo.innerHTML = categoriasHtml(); ligarAcoes(miolo); return; }
+
+  const alvo = SECOES.find(s => s.id === id);
+  miolo.innerHTML = emConstrucaoHtml(alvo);
+  ligarAcoes(miolo);
 }
+
+// ───────────────────────────────────────────────────────────
+// VISÃO GERAL
+// ───────────────────────────────────────────────────────────
+async function montarVisaoGeral(miolo) {
+  miolo.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando...</div>`;
+
+  // O custo da equipe é o único número real que este módulo tem hoje. Se as
+  // views não existirem ainda, a tela segue sem ele — não é motivo de erro.
+  const equipe = await custoDaEquipe();
+
+  miolo.innerHTML = `
+    <div class="fe-vazio">
+      <div class="fe-vazio-icone"><i data-lucide="wallet"></i></div>
+      <div class="fe-vazio-tit">Nenhum lançamento ainda</div>
+      <div class="fe-vazio-sub">
+        Comece registrando as receitas e despesas da operação. O módulo está
+        preparado — falta o lançamento, que é o próximo passo da construção.
+      </div>
+      <div class="fe-vazio-passos">
+        <div class="fe-passo"><i data-lucide="trending-up"></i> Registrar receita</div>
+        <div class="fe-passo"><i data-lucide="trending-down"></i> Registrar despesa</div>
+      </div>
+      <div class="fe-vazio-acoes">
+        <button class="btn" data-fin-ir="categorias">
+          <i data-lucide="tags"></i> Ver categorias sugeridas
+        </button>
+      </div>
+    </div>
+
+    ${equipe ? `
+      <div class="fe-ponte">
+        <div class="fe-ponte-info">
+          <div class="fe-ponte-rot"><i data-lucide="users-round"></i> Custo da equipe</div>
+          <div class="fe-ponte-val">${esc(formatarBRL(equipe.total))}</div>
+          <div class="fe-ponte-sub">${esc(nomeCompetencia(equipe.competencia))}${
+            equipe.status === 'rascunho' ? ' · folha em rascunho' : ''}</div>
+        </div>
+        <button class="btn" id="feVerEquipe">
+          Ver folha e colaboradores <i data-lucide="arrow-right"></i>
+        </button>
+      </div>
+      <p class="fe-nota">
+        A folha não é duplicada aqui: horas, adicionais e contracheques ficam em
+        Equipe e pagamentos. Quando houver despesas lançadas, este custo entra no
+        cálculo do resultado do mês.
+      </p>` : ''}
+  `;
+
+  ligarAcoes(miolo);
+}
+
+/** Último mês com folha lançada. Silencioso quando o resumo não existe. */
+async function custoDaEquipe() {
+  try {
+    const { data, error } = await sb
+      .from('folha_resumo_mensal')
+      .select('competencia, status, total')
+      .order('competencia', { ascending: false })
+      .limit(1);
+    if (error) return null;
+    return data?.[0] || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// ───────────────────────────────────────────────────────────
+// SEÇÕES AINDA NÃO CONSTRUÍDAS
+// ───────────────────────────────────────────────────────────
+function emConstrucaoHtml(secao) {
+  return `
+    <div class="fe-vazio">
+      <div class="fe-vazio-icone"><i data-lucide="${secao?.icone || 'wallet'}"></i></div>
+      <div class="fe-vazio-tit">${esc(secao?.titulo || '')} ainda não está disponível</div>
+      <div class="fe-vazio-sub">${esc(secao?.sub || '')}</div>
+      <div class="fe-vazio-tag">Próximo passo do módulo</div>
+    </div>`;
+}
+
+function categoriasHtml() {
+  return `
+    <div class="fe-vazio fe-vazio-topo">
+      <div class="fe-vazio-tit">Nenhuma categoria criada</div>
+      <div class="fe-vazio-sub">
+        Categoria é como cada lançamento é classificado no relatório. Estas são
+        as sugestões iniciais — nada foi gravado ainda.
+      </div>
+    </div>
+
+    <div class="fe-cats">
+      ${Object.entries(CATEGORIAS_INICIAIS).map(([grupo, itens]) => `
+        <div class="fe-cat">
+          <div class="fe-cat-tit">${esc(grupo)}</div>
+          <div class="fe-cat-chips">
+            ${itens.map(i => `<span class="fe-chip">${esc(i)}</span>`).join('')}
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+// ───────────────────────────────────────────────────────────
+function ligarAcoes(raiz) {
+  raiz.querySelectorAll('[data-fin-ir]').forEach(b =>
+    b.addEventListener('click', () => abrirSecao(b.dataset.finIr)));
+
+  const verEquipe = raiz.querySelector('#feVerEquipe');
+  if (verEquipe) verEquipe.addEventListener('click', () => {
+    if (_aoAbrirEquipe) _aoAbrirEquipe('resumo');
+    else location.hash = '#equipe/resumo';
+  });
+}
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));

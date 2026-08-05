@@ -231,29 +231,29 @@ grupo('funcionarios · a linha da lista desenha de verdade', () => {
 grupo('funcionarios · fiação da tela', () => {
   const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
-  teste('o item Financeiro do menu está habilitado', () => {
-    const item = /<div class="nav-item([^"]*)" data-page="financeiro"/.exec(index);
-    ok(item, 'sumiu o item de menu do Financeiro');
+  teste('o item Equipe do menu está habilitado', () => {
+    // Funcionários deixou de ser assunto do Financeiro: mora em Equipe.
+    const item = /<div class="nav-item([^"]*)" data-page="equipe"/.exec(index);
+    ok(item, 'sumiu o item de menu da Equipe');
     ok(!item[1].includes('disabled'), 'o menu continua desabilitado — a página não abre');
   });
 
   teste('a página existe e é preenchida pelo módulo', () => {
-    ok(index.includes('id="page-financeiro"'), 'faltou o container da página');
-    ok(!index.includes('em-breve-titulo">Financeiro'), 'ainda está o cartão de "em desenvolvimento"');
-    ok(index.includes("import('./js/financeiro-ui.js')"), 'a página não carrega a casca do módulo');
-    ok(index.includes('initFinanceiroUI'), 'a entrada do módulo não é chamada');
+    ok(index.includes('id="page-equipe"'), 'faltou o container da página');
+    ok(index.includes("import('./js/equipe-admin-ui.js')"), 'a página não carrega a casca do módulo');
+    ok(index.includes('initEquipeUI'), 'a entrada do módulo não é chamada');
   });
 
   teste('a seção de funcionários desenha no container que recebe', () => {
-    // Ela dividiu a página com a folha: se voltar a escrever direto em
-    // #page-financeiro, apaga as abas ao renderizar.
+    // Ela divide a página com a folha: se voltar a escrever direto em
+    // #page-equipe, apaga as abas ao renderizar.
     const ui = readFileSync(new URL('../js/funcionarios-ui.js', import.meta.url), 'utf8');
     ok(/initFuncionariosUI\(nutriId, containerId/.test(ui), 'a entrada tem que aceitar o container');
     ok(!ui.includes("page.innerHTML = `\n    <div class=\"page-header\">"), 'o cabeçalho agora é da casca');
   });
 
   teste('navegar() dispara o carregamento da página', () => {
-    ok(/pagina === 'financeiro'/.test(index), 'clicar no menu não carregaria nada');
+    ok(/pagina === 'equipe'/.test(index), 'clicar no menu não carregaria nada');
   });
 
   teste('o CSS do módulo é carregado depois de brand.css', () => {
