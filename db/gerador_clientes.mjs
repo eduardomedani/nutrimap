@@ -209,24 +209,207 @@ export function resumo(dentro) {
   };
 }
 
+// ── EMISSÃO DE SQL ────────────────────────────────────────────────────────
+
+/** Texto para literal SQL: aspas simples dobram. Nomes têm apóstrofo
+ *  ("Vitór D'Angelo") e um só quebraria o script inteiro. */
+export function lit(v) {
+  if (v === null || v === undefined || v === '') return 'null';
+  return `'${String(v).split("'").join("''")}'`;
+}
+
+export function num(v) {
+  return v === null || v === undefined || !Number.isFinite(Number(v)) ? 'null' : String(Number(v));
+}
+
+/** 32468 -> "32.468,00". Sem `toLocaleString`, que traz espaço não separável e
+ *  suja um comentário de SQL. */
+export function brl(v) {
+  const [i, d] = Number(v || 0).toFixed(2).split('.');
+  return i.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + d;
+}
+
+/**
+ * O SQL da importação.
+ *
+ * É um bloco `do $$ ... $$` só, porque os quatro passos precisam valer juntos:
+ * plano sem assinatura não serve, e assinatura sem paciente não existe.
+ *
+ * RE-EXECUTÁVEL. Paciente é procurado pelo nome antes de ser criado, e
+ * assinatura só nasce para quem ainda não tem uma viva — o índice único
+ * `uq_comercial_assinatura_ativa` é a rede embaixo disso. Rodar duas vezes não
+ * duplica ninguém.
+ */
+export function montarSql(dentro, fora, { todos = false } = {}) {
+  const linhas = todos ? dentro : dentro.filter(r => r.status !== 'cancelada');
+  const planos = [...new Set(linhas.map(r => r.pacote))].sort();
+  const ativos = linhas.filter(r => r.status === 'ativa');
+  const receita = Math.round(ativos.reduce((s, r) => s + (r.preco || 0) * 100, 0)) / 100;
+  const semTelefone = linhas.filter(r => !r.telefone).length;
+  const semPreco = linhas.filter(r => r.preco == null).length;
+
+  const valoresPlanos = planos.map(nome => {
+    const p = PLANOS[nome];
+    return `    (${lit(nome)}, ${p.duracao_valor}, 'dia', ${p.frequencia_semanal ?? 'null'})`;
+  }).join(',\n');
+
+  const valoresClientes = linhas.map(r =>
+    `    (${lit(r.nome)}, ${lit(r.telefone)}, ${lit(r.pacote)}, ${lit(r.status)}, ` +
+    `${lit(r.inicio)}::date, ${lit(r.fim)}::date, ${num(r.preco)}, ${lit(r.horario)}, ${lit(r.observacoes)})`
+  ).join(',\n');
+
+  return `-- ===========================================================================
+-- Evollo · COMERCIAL — CLIENTES IMPORTADOS DA PLANILHA DA GOUP
+-- ---------------------------------------------------------------------------
+-- GERADO AUTOMATICAMENTE por db/gerador_clientes.mjs a partir da aba
+-- "Controle de Pacientes". NAO EDITE A MAO: ajuste a planilha e rode de novo.
+--
+-- ${linhas.length} clientes${todos ? ' (TODOS, inclusive cancelados)' : ' com vinculo vivo (cancelados ficaram de fora)'}.
+-- ${ativos.length} com assinatura ativa, somando R$ ${brl(receita)} de valor contratado.
+-- ${planos.length} planos: ${planos.join(', ')}.
+--
+-- O QUE ESTE SCRIPT FAZ, nesta ordem:
+--   1. descobre o nutri dono (unico no projeto; para se houver mais de um)
+--   2. cria os planos que faltarem, pelo nome
+--   3. cria os pacientes que faltarem, procurando pelo NOME antes
+--   4. cria a assinatura de quem ainda nao tem uma viva
+--
+-- RE-EXECUTAVEL. Rodar duas vezes nao duplica ninguem: cada passo procura
+-- antes de criar, e o indice uq_comercial_assinatura_ativa e a rede embaixo.
+--
+-- O QUE NAO VEM DA PLANILHA, e por que:
+--   dias vencidos    e conta (hoje - termino), nao dado
+--   mes / ano        derivam da data de termino
+--   status pagamento 141 das 144 linhas dizem "Concluido": nao informa nada
+--   contato z-api    e o mesmo telefone noutro formato
+--
+-- A PERDA QUE NAO DA PARA EVITAR: a planilha guarda UMA linha por cliente e a
+-- sobrescreve a cada renovacao. Nao ha historico de pagamento por cliente ali.
+-- Por isso \`data_inicio_original\` recebe a MESMA data do periodo vigente:
+-- "cliente desde" vai estar errado para quem ja renovou, e so o uso do Evollo
+-- daqui para frente corrige. Nenhuma cobranca passada e criada — inventar
+-- pagamento que nao se pode comprovar seria pior que nao ter o historico.
+--
+-- NENHUMA COBRANCA E CRIADA, nem a do periodo atual. Crie-as pela tela
+-- (Comercial > cliente > Criar cobranca do periodo) ou deixe que a primeira
+-- renovacao gere. Assim voce ve o valor antes de ele virar conta a receber.
+--
+-- ${semTelefone} cliente(s) sem telefone e ${semPreco} sem preco entram como estao na planilha.
+${fora.length ? `--
+-- ${fora.length} LINHA(S) FICARAM DE FORA:
+${fora.map(f => `--   linha ${f.linha}: ${f.nome} — ${f.motivo}`).join('\n')}` : '--\n-- Nenhuma linha ficou de fora.'}
+--
+-- Requer db/comercial_etapa1_vinculo.sql e db/comercial_etapa2_planos.sql.
+-- Rodar no SQL Editor do Supabase.
+-- ===========================================================================
+
+do $$
+declare
+  v_nutri   uuid;
+  v_quantos int;
+  v_plano   uuid;
+  v_pac     uuid;
+  v_novos_p int := 0;
+  v_novos_a int := 0;
+  r         record;
+begin
+  select count(distinct nutri_id) into v_quantos from public.pacientes;
+  if v_quantos = 0 then
+    raise exception 'Nenhum paciente no projeto: nao da para descobrir o nutri dono.';
+  elsif v_quantos > 1 then
+    raise exception 'Ha % nutris no projeto. Edite este script e fixe o nutri_id.', v_quantos;
+  end if;
+  select distinct nutri_id into v_nutri from public.pacientes;
+
+  for r in
+    select * from (values
+${valoresPlanos}
+    ) as t(nome, duracao, unidade, freq)
+  loop
+    if not exists (select 1 from public.comercial_planos
+                    where nutri_id = v_nutri and lower(trim(nome)) = lower(trim(r.nome))) then
+      insert into public.comercial_planos
+        (nutri_id, nome, duracao_valor, duracao_unidade, frequencia_semanal, tolerancia_dias, ativo)
+      values (v_nutri, r.nome, r.duracao, r.unidade, r.freq, 5, true);
+    end if;
+  end loop;
+
+  for r in
+    select * from (values
+${valoresClientes}
+    ) as t(nome, telefone, pacote, situacao, inicio, fim, preco, horario, obs)
+  loop
+    select id into v_plano from public.comercial_planos
+     where nutri_id = v_nutri and lower(trim(nome)) = lower(trim(r.pacote)) limit 1;
+
+    select id into v_pac from public.pacientes
+     where nutri_id = v_nutri and lower(trim(nome)) = lower(trim(r.nome)) limit 1;
+
+    if v_pac is null then
+      insert into public.pacientes (codigo, nutri_id, nome, telefone, status)
+      values (public.gerar_codigo_paciente(), v_nutri, r.nome, r.telefone, 'ativo')
+      returning id into v_pac;
+      v_novos_p := v_novos_p + 1;
+    elsif r.telefone is not null then
+      update public.pacientes set telefone = coalesce(telefone, r.telefone) where id = v_pac;
+    end if;
+
+    if not exists (select 1 from public.comercial_assinaturas
+                    where paciente_id = v_pac and status in ('ativa', 'aguardando_inicio', 'pausada')) then
+      insert into public.comercial_assinaturas
+        (nutri_id, paciente_id, plano_id, valor_contratado,
+         data_inicio_original, inicio_periodo, fim_periodo, horario, status,
+         renovacao_automatica, observacoes)
+      values
+        (v_nutri, v_pac, v_plano, r.preco,
+         r.inicio, r.inicio, r.fim, r.horario, r.situacao,
+         true, r.obs);
+      v_novos_a := v_novos_a + 1;
+    end if;
+  end loop;
+
+  raise notice 'Pacientes criados: %. Assinaturas criadas: %.', v_novos_p, v_novos_a;
+end $$;
+
+
+-- ===========================================================================
+-- Conferencia
+-- ===========================================================================
+select
+  (select count(*) from public.comercial_planos)                                as planos,
+  (select count(*) from public.comercial_assinaturas)                           as assinaturas,
+  (select count(*) from public.comercial_assinaturas where status = 'ativa')    as ativas,
+  (select count(*) from public.pacientes)                                       as pacientes,
+  (select count(*) from public.comercial_assinaturas where fim_periodo < current_date
+     and status = 'ativa')                                                      as vencidas_hoje;
+`;
+}
+
 // ── CLI ───────────────────────────────────────────────────────────────────
 
 if (process.argv[1] && process.argv[1].endsWith('gerador_clientes.mjs')) {
-  const entrada = process.argv[2];
+  const args = process.argv.slice(2);
+  const todos = args.includes('--todos');
+  const entrada = args.find(a => !a.startsWith('--'));
   if (!entrada) {
-    console.error('Uso: node db/gerador_clientes.mjs caminho/Controle.csv');
+    console.error('Uso: node db/gerador_clientes.mjs caminho/Controle.csv [--todos]');
+    console.error('  --todos  importa também os cancelados (padrão: só vínculo vivo)');
     process.exit(1);
   }
   const { dentro, fora } = mapear(lerCsv(readFileSync(resolve(entrada), 'utf8')));
 
   // Só o RESUMO vai para a tela. Nome e telefone de 144 pessoas não são saída
   // de terminal — o repositório é público e o terminal costuma virar print.
-  console.log(JSON.stringify({ ...resumo(dentro), fora }, null, 2));
+  console.log(JSON.stringify({ ...resumo(dentro), fora, incluiCancelados: todos }, null, 2));
 
-  // Os dados normalizados ficam num arquivo IGNORADO pelo git. A regra do
-  // projeto (ver .gitignore) é a mesma dos outros seeds: o GERADOR é
-  // versionado, os DADOS não. Quem tiver a planilha reproduz com um comando.
-  const destino = resolve(AQUI, 'comercial_clientes_dados.json');
-  writeFileSync(destino, JSON.stringify({ dentro, fora }, null, 2), 'utf8');
-  console.log('\nDados normalizados em db/comercial_clientes_dados.json (fora do git).');
+  // Os dois arquivos ficam IGNORADOS pelo git. A regra do projeto (ver
+  // .gitignore) é a mesma dos outros seeds: o GERADOR é versionado, os DADOS
+  // não. Quem tiver a planilha reproduz com um comando.
+  writeFileSync(resolve(AQUI, 'comercial_clientes_dados.json'),
+    JSON.stringify({ dentro, fora }, null, 2), 'utf8');
+  writeFileSync(resolve(AQUI, 'comercial_clientes_seed.sql'),
+    montarSql(dentro, fora, { todos }), 'utf8');
+  console.log('\nGerados (fora do git):');
+  console.log('  db/comercial_clientes_dados.json');
+  console.log('  db/comercial_clientes_seed.sql');
 }

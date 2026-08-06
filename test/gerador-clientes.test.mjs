@@ -11,6 +11,7 @@ import { grupo, teste, ok, igual, contem, naoContem } from './runner.mjs';
 import { readFileSync } from 'node:fs';
 import {
   lerCsv, dataIso, preco, telefone, somarDias, mapear, resumo, PLANOS, STATUS,
+  montarSql, lit, num, brl,
 } from '../db/gerador_clientes.mjs';
 
 const CAB = 'Data de início,Paciente,Status,Horário,Dias Vencidos,Pacote,Status Pagamento,Preço,Data de término,Mês,Ano,MENSAGEM,STATUS,CONTATO,CONTATO Z-API,OBSERVAÇÕES,DISPARO';
@@ -161,6 +162,72 @@ grupo('gerador · mapeamento das linhas', () => {
   });
 });
 
+grupo('gerador · o SQL que sai', () => {
+  const csv = [
+    CAB,
+    linha(["03/08/2026", "Luana Sant'Ana", 'Ativo', 'Noturno', '', 'Mensal - 3x', '', 'R$ 330,00', '02/09/2026', '', '', '', '', '5527992264711', '', 'prefere Pix', '']),
+    linha(['01/03/2026', 'Ex Cliente', 'Cancelado', 'Diurno', '', 'Mensal - 5x', '', 'R$ 385,00', '31/03/2026', '', '', '', '', '', '', '', '']),
+  ].join('\n');
+  const { dentro, fora } = mapear(lerCsv(csv));
+  const sql = montarSql(dentro, fora);
+
+  teste('apóstrofo no nome é escapado — um só quebraria o script inteiro', () => {
+    contem(sql, "'Luana Sant''Ana'");
+  });
+
+  teste('cancelado fica de fora por padrão', () => {
+    naoContem(sql, 'Ex Cliente');
+    contem(sql, 'cancelados ficaram de fora');
+  });
+
+  teste('com --todos, o cancelado entra', () => {
+    const comTodos = montarSql(dentro, fora, { todos: true });
+    contem(comTodos, 'Ex Cliente');
+    contem(comTodos, "'cancelada'");
+  });
+
+  teste('procura antes de criar — é re-executável', () => {
+    contem(sql, 'if v_pac is null then');
+    contem(sql, 'if not exists (select 1 from public.comercial_assinaturas');
+    contem(sql, 'RE-EXECUTAVEL');
+  });
+
+  teste('para se houver mais de um nutri, em vez de escolher um', () => {
+    contem(sql, 'raise exception');
+    contem(sql, 'Ha % nutris no projeto');
+  });
+
+  teste('insere em pacientes só as colunas que o app já usa', () => {
+    // js/pacientes.js insere exatamente estas e funciona em produção; se
+    // houvesse outra obrigatória sem default, aquele insert já falharia.
+    contem(sql, 'insert into public.pacientes (codigo, nutri_id, nome, telefone, status)');
+    contem(sql, 'public.gerar_codigo_paciente()');
+  });
+
+  teste('NÃO cria cobrança nenhuma', () => {
+    // Inventar pagamento passado que não se pode comprovar seria pior que não
+    // ter o histórico.
+    naoContem(sql, 'insert into public.financeiro_lancamentos');
+    contem(sql, 'NENHUMA COBRANCA E CRIADA');
+  });
+
+  teste('diz que "cliente desde" vem errado para quem já renovou', () => {
+    // A planilha sobrescreve a linha: o passado não existe nela.
+    contem(sql, 'cliente desde" vai estar errado');
+  });
+
+  teste('o valor sai com separador de milhar', () => {
+    igual(brl(32468), '32.468,00');
+    igual(brl(330), '330,00');
+    igual(brl(1291.5), '1.291,50');
+  });
+
+  teste('preço ausente vira null, não zero', () => {
+    const semPreco = mapear(lerCsv([CAB, linha(['03/08/2026', 'X', 'Ativo', '', '', 'Mensal - 3x', '', '', '', '', '', '', '', '', '', '', ''])].join('\n')));
+    contem(montarSql(semPreco.dentro, []), ', null, null, null)');
+  });
+});
+
 grupo('gerador · dados pessoais não entram no repositório', () => {
   const ignore = readFileSync(new URL('../.gitignore', import.meta.url), 'utf8');
   const fonte = readFileSync(new URL('../db/gerador_clientes.mjs', import.meta.url), 'utf8');
@@ -175,6 +242,6 @@ grupo('gerador · dados pessoais não entram no repositório', () => {
   teste('o gerador não despeja nome nem telefone no terminal', () => {
     // Terminal vira print, e print vira grupo de WhatsApp.
     naoContem(fonte, 'console.log(JSON.stringify({ dentro');
-    contem(fonte, 'console.log(JSON.stringify({ ...resumo(dentro), fora }');
+    contem(fonte, 'console.log(JSON.stringify({ ...resumo(dentro)');
   });
 });
