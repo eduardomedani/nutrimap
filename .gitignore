@@ -26,6 +26,7 @@ db/financeiro_vendas_seed.sql
 # nao. Quem tiver a planilha reproduz os arquivos com um comando.
 db/comercial_clientes_seed.sql
 db/comercial_clientes_dados.json
+db/comercial_clientes_seed_limpo.sql
 
 # Correcao de folha ja gravada: traz nome de colaborador e valor de bonus.
 # Mesma regra dos seeds — a decisao esta documentada no proprio arquivo, que
