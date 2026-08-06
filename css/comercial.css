@@ -253,6 +253,104 @@
 }
 .cm-vazio-bloco .cm-btn { margin-top: 8px; }
 
+.cm-secao-acoes { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* ── Drawer de formulário ──────────────────────────────────────────────── */
+/* Mesmo comportamento do drawer do financeiro: fundo escuro, painel à direita,
+   Escape fecha, clique no fundo fecha. */
+.cm-drawer-raiz {
+  position: fixed; inset: 0; z-index: 1200;
+  display: flex; justify-content: flex-end;
+  background: rgba(15, 23, 32, .42);
+  animation: cm-fade .16s ease-out;
+}
+@keyframes cm-fade { from { opacity: 0; } to { opacity: 1; } }
+body.cm-travado { overflow: hidden; }
+
+.cm-drawer {
+  display: flex; flex-direction: column;
+  width: min(520px, 100%);
+  max-height: 100%;
+  background: var(--surface, var(--bg-card));
+  box-shadow: -12px 0 40px rgba(0, 0, 0, .16);
+  animation: cm-entra .22s cubic-bezier(.2, .8, .3, 1);
+}
+@keyframes cm-entra { from { transform: translateX(24px); opacity: .6; } to { transform: none; opacity: 1; } }
+
+.cm-drawer-topo {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border, var(--hair));
+}
+.cm-drawer-topo h2 { margin: 0; font-size: 18px; font-weight: 800; color: var(--text-primary, var(--ink)); }
+.cm-drawer-x {
+  width: 34px; height: 34px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border, var(--hair)); border-radius: 10px;
+  background: none; color: inherit; cursor: pointer;
+}
+.cm-drawer-x:hover { background: var(--surface-subtle, var(--bg-warm)); }
+.cm-drawer-x svg { width: 17px; height: 17px; }
+
+.cm-drawer-corpo { flex: 1; overflow-y: auto; padding: 18px 20px; }
+.cm-drawer-pe {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--border, var(--hair));
+  background: var(--surface, var(--bg-card));
+}
+
+.cm-campo { margin-bottom: 14px; }
+.cm-campo label {
+  display: block; margin-bottom: 5px;
+  font-size: 11.5px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text-secondary, var(--ink-mute));
+}
+.cm-campo input, .cm-campo select, .cm-campo textarea {
+  width: 100%; padding: 10px 12px;
+  border: 1px solid var(--border, var(--hair)); border-radius: 10px;
+  background: var(--background, var(--bg));
+  font-family: inherit; font-size: 14px; color: var(--text-primary, var(--ink));
+}
+.cm-campo textarea { resize: vertical; }
+.cm-campo input:focus, .cm-campo select:focus, .cm-campo textarea:focus {
+  outline: 2px solid var(--primary, var(--moss)); outline-offset: -1px; border-color: transparent;
+}
+
+.cm-linha-campos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* O valor calculado NÃO é input: deixar editável sugeriria que dá para
+   contrariar a duração do plano digitando outra data. */
+.cm-calculado {
+  padding: 10px 12px;
+  border: 1px dashed var(--border, var(--hair)); border-radius: 10px;
+  background: var(--surface-subtle, var(--bg-warm));
+  font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: var(--text-primary, var(--ink));
+}
+
+.cm-erro-campo input, .cm-erro-campo select, .cm-erro-campo textarea {
+  border-color: var(--danger, #B4453C);
+}
+.cm-erro-msg { margin-top: 5px; font-size: 12px; font-weight: 600; color: var(--danger, #B4453C); }
+
+.cm-ajuda-campo {
+  margin: -8px 0 14px; font-size: 12px; line-height: 1.5;
+  color: var(--text-secondary, var(--ink-mute));
+}
+.cm-ajuda-campo b { color: var(--text-primary, var(--ink)); font-weight: 800; }
+
+.cm-check {
+  display: flex; align-items: flex-start; gap: 9px;
+  margin-bottom: 11px; font-size: 13.5px; line-height: 1.45;
+  color: var(--text-primary, var(--ink)); cursor: pointer;
+}
+.cm-check input { margin-top: 2px; flex-shrink: 0; }
+
+@media (max-width: 560px) {
+  .cm-linha-campos { grid-template-columns: 1fr; }
+}
+
 /* ── Telas estreitas ───────────────────────────────────────────────────── */
 @media (max-width: 720px) {
   .cm-secao-topo { align-items: stretch; }

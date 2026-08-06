@@ -170,6 +170,9 @@ export function tabelaHtml(assinaturas = [], hoje) {
         <i data-lucide="users"></i>
         <div class="cm-vazio-t">Nenhum cliente nesse recorte</div>
         <div class="cm-vazio-s">Mude os filtros ou cadastre uma assinatura.</div>
+        <button class="cm-btn cm-btn-forte" type="button" data-nova-assinatura>
+          <i data-lucide="plus"></i> Nova assinatura
+        </button>
       </div>`;
   }
   return `
@@ -372,7 +375,12 @@ export function telaHtml({ aba = 'visao', indicadores = {}, assinaturas = [], pl
     corpo = `
       <div class="cm-secao-topo">
         ${filtrosHtml(filtro, busca)}
-        ${ordenacaoHtml(ordem)}
+        <div class="cm-secao-acoes">
+          ${ordenacaoHtml(ordem)}
+          <button class="cm-btn cm-btn-forte" type="button" data-nova-assinatura>
+            <i data-lucide="plus"></i> Nova assinatura
+          </button>
+        </div>
       </div>
       <div class="cm-contagem">${lista.length} ${lista.length === 1 ? 'cliente' : 'clientes'}</div>
       ${tabelaHtml(lista, hoje)}`;
@@ -493,6 +501,62 @@ function ligar(cx) {
         bubbles: true, detail: { assinaturaId: b.dataset.abrir },
       }));
     }));
+
+  cx.querySelectorAll('[data-novo-plano]').forEach(b =>
+    b.addEventListener('click', () => abrirPlano(cx, null)));
+
+  cx.querySelectorAll('[data-editar-plano]').forEach(b =>
+    b.addEventListener('click', () => {
+      abrirPlano(cx, _dados.planos.find(p => p.id === b.dataset.editarPlano) || null);
+    }));
+
+  cx.querySelectorAll('[data-nova-assinatura]').forEach(b =>
+    b.addEventListener('click', () => abrirAssinatura(cx)));
+}
+
+async function abrirPlano(cx, plano) {
+  const [{ abrirFormularioPlano }, dados] = await Promise.all([
+    import('./comercial-formularios.js'),
+    import('./comercial-data.js'),
+  ]);
+  abrirFormularioPlano({
+    plano,
+    aoSalvar: async (paraBanco, original) => {
+      if (original) await dados.salvarPlano(original.id, paraBanco);
+      else await dados.criarPlano(paraBanco);
+      await initComercialUI(cx, _estado.aba);
+    },
+  });
+}
+
+async function abrirAssinatura(cx) {
+  const [{ abrirFormularioAssinatura }, dados] = await Promise.all([
+    import('./comercial-formularios.js'),
+    import('./comercial-data.js'),
+  ]);
+
+  const [pacientes, planos] = await Promise.all([
+    dados.pacientesSemAssinatura(),
+    dados.listarPlanos(),
+  ]);
+
+  abrirFormularioAssinatura({
+    pacientes,
+    planos,
+    aoSalvar: async (paraBanco, { criarCobranca }) => {
+      const nova = await dados.criarAssinatura(paraBanco);
+      // A cobrança do período vence no FIM dele, que é quando o cliente precisa
+      // renovar — é a mesma data que a planilha usava para disparar o aviso.
+      if (criarCobranca && nova.valor_contratado != null) {
+        await dados.criarCobranca({
+          assinatura: nova,
+          vencimento: nova.fim_periodo,
+          valor: nova.valor_contratado,
+        });
+      }
+      await initComercialUI(cx, _estado.aba);
+    },
+  });
 }
 
 export function erroHtml() {
