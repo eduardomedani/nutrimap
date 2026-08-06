@@ -259,7 +259,7 @@ export function brl(v) {
  * `uq_comercial_assinatura_ativa` é a rede embaixo disso. Rodar duas vezes não
  * duplica ninguém.
  */
-export function montarSql(dentro, fora, { todos = false } = {}) {
+export function montarSql(dentro, fora, { todos = false, nutriId = null } = {}) {
   const linhas = todos ? dentro : dentro.filter(r => r.status !== 'cancelada');
   const planos = [...new Set(linhas.map(r => r.pacote))].sort();
   const ativos = linhas.filter(r => r.status === 'ativa');
@@ -332,13 +332,18 @@ declare
   v_novos_a int := 0;
   r         record;
 begin
-  select count(distinct nutri_id) into v_quantos from public.pacientes;
+${nutriId
+  ? `v_nutri := '${nutriId}'::uuid;
+  if not exists (select 1 from auth.users where id = v_nutri) then
+    raise exception 'O nutri_id fixado neste script nao existe em auth.users.';
+  end if;`
+  : `select count(distinct nutri_id) into v_quantos from public.pacientes;
   if v_quantos = 0 then
     raise exception 'Nenhum paciente no projeto: nao da para descobrir o nutri dono.';
   elsif v_quantos > 1 then
-    raise exception 'Ha % nutris no projeto. Edite este script e fixe o nutri_id.', v_quantos;
+    raise exception 'Ha % nutris no projeto. Rode o gerador com --nutri <uuid>.', v_quantos;
   end if;
-  select distinct nutri_id into v_nutri from public.pacientes;
+  select distinct nutri_id into v_nutri from public.pacientes;`}
 
   for r in
     select * from (values
@@ -409,10 +414,18 @@ select
 if (process.argv[1] && process.argv[1].endsWith('gerador_clientes.mjs')) {
   const args = process.argv.slice(2);
   const todos = args.includes('--todos');
-  const entrada = args.find(a => !a.startsWith('--'));
+  const iNutri = args.indexOf('--nutri');
+  const nutriId = iNutri >= 0 ? args[iNutri + 1] : null;
+  const entrada = args.find((a, i) => !a.startsWith('--') && i !== iNutri + 1);
+
+  if (nutriId && !/^[0-9a-f-]{36}$/i.test(nutriId)) {
+    console.error(`--nutri não parece um uuid: ${nutriId}`);
+    process.exit(1);
+  }
   if (!entrada) {
-    console.error('Uso: node db/gerador_clientes.mjs caminho/Controle.csv [--todos]');
+    console.error('Uso: node db/gerador_clientes.mjs caminho/Controle.csv [--todos] [--nutri <uuid>]');
     console.error('  --todos  importa também os cancelados (padrão: só vínculo vivo)');
+    console.error('  --nutri  fixa o dono quando há mais de um profissional no banco');
     process.exit(1);
   }
   const { dentro, fora } = mapear(lerCsv(readFileSync(resolve(entrada), 'utf8')));
@@ -427,7 +440,7 @@ if (process.argv[1] && process.argv[1].endsWith('gerador_clientes.mjs')) {
   writeFileSync(resolve(AQUI, 'comercial_clientes_dados.json'),
     JSON.stringify({ dentro, fora }, null, 2), 'utf8');
   writeFileSync(resolve(AQUI, 'comercial_clientes_seed.sql'),
-    montarSql(dentro, fora, { todos }), 'utf8');
+    montarSql(dentro, fora, { todos, nutriId }), 'utf8');
   console.log('\nGerados (fora do git):');
   console.log('  db/comercial_clientes_dados.json');
   console.log('  db/comercial_clientes_seed.sql');
