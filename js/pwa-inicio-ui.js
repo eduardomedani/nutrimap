@@ -65,7 +65,9 @@ export function linhaHoje({ icone, rotulo, valor, detalhe = '', destino = '', ca
 }
 
 /** O bloco "Hoje". `refeicao === undefined` significa "ainda carregando". */
-export function hojeHtml({ refeicao, treino, exercicios = 0, grupos = '', consulta = null } = {}) {
+export function hojeHtml({
+  refeicao, treino, exercicios = 0, grupos = '', consulta = null, treinoCarregando = false,
+} = {}) {
   const linhas = [];
 
   if (refeicao === undefined) {
@@ -80,7 +82,9 @@ export function hojeHtml({ refeicao, treino, exercicios = 0, grupos = '', consul
     }));
   }
 
-  if (treino) {
+  if (!treino && treinoCarregando) {
+    linhas.push(linhaHoje({ rotulo: 'Treino do dia', carregando: true }));
+  } else if (treino) {
     linhas.push(linhaHoje({
       icone: treino.feito ? 'circle-check-big' : 'dumbbell',
       rotulo: 'Treino do dia',
@@ -134,11 +138,16 @@ export function metasHtml(metas = []) {
  * Peso e aderência à dieta ficaram de fora porque não há tabela para nenhum dos
  * dois. Um tile "Peso: —" convida ao toque e não leva a lugar nenhum.
  */
-export function progressoHtml({ sequencia = 0, recordes = 0, semana = 0 } = {}) {
+export function progressoHtml({ sequencia = 0, recordes = 0, semana = 0, carregando = false } = {}) {
+  // Enquanto o treino não chega, o número é esqueleto e não zero. "0 dias"
+  // piscando antes de virar "3 dias" é pior do que não mostrar: por um
+  // instante a tela afirma algo falso sobre o esforço de quem está olhando.
   const tile = (ic, rot, val, un = '') => `
     <div class="pa-stat">
       <div class="pa-stat-top"><span class="pa-stat-ic">${ic}</span> ${esc(rot)}</div>
-      <div class="pa-stat-val">${esc(String(val))}${un ? ` <small>${esc(un)}</small>` : ''}</div>
+      ${carregando
+        ? '<div class="pa-stat-val"><span class="in-sk in-sk-num"></span></div>'
+        : `<div class="pa-stat-val">${esc(String(val))}${un ? ` <small>${esc(un)}</small>` : ''}</div>`}
     </div>`;
 
   return `
@@ -181,10 +190,10 @@ export function inicioHtml(d = {}) {
     saudacao = 'Olá', nome = '', hoje = '',
     refeicao, treino = null, exercicios = 0, grupos = '', consulta = null,
     sequencia = 0, recordes = 0, semana = 0, metas = [],
-    temTreino = false, temDieta = false,
+    temTreino = false, temDieta = false, treinoCarregando = false,
   } = d;
 
-  const corpo = hojeHtml({ refeicao, treino, exercicios, grupos, consulta });
+  const corpo = hojeHtml({ refeicao, treino, exercicios, grupos, consulta, treinoCarregando });
 
   return `
     <div class="inicio">
@@ -201,7 +210,7 @@ export function inicioHtml(d = {}) {
         <div class="pa-empty-s">Assim que seu profissional publicar um treino ou uma dieta, ele aparece aqui.</div>
       </section>`}
 
-      ${progressoHtml({ sequencia, recordes, semana })}
+      ${progressoHtml({ sequencia, recordes, semana, carregando: treinoCarregando })}
       ${metasHtml(metas)}
       ${atalhosHtml({ temTreino, temDieta })}
     </div>`;
@@ -239,10 +248,14 @@ export async function renderInicioPaciente(alvo, bruto = {}, opcoes = {}) {
   const cx = typeof alvo === 'string' ? document.getElementById(alvo) : alvo;
   if (!cx) return;
 
-  const dados = montarDados(bruto);
-
-  // 1ª pintura: tudo o que já se sabe, com a refeição em esqueleto.
-  cx.innerHTML = inicioHtml({ ...dados, refeicao: undefined });
+  // 1ª pintura: IMEDIATA, com o que não custa rede — a saudação e a data. O
+  // treino, a dieta, a consulta e as metas entram em esqueleto. Esperar
+  // qualquer uma delas para desenhar deixa o app parado em "Abrindo...".
+  cx.innerHTML = inicioHtml({
+    ...montarDados(bruto),
+    refeicao: undefined,
+    treinoCarregando: !!opcoes.treino,
+  });
   ligarAtalhos(cx, opcoes.ir);
 
   // As três fontes vão JUNTAS e cada uma cai sozinha. São independentes: a
@@ -257,11 +270,32 @@ export async function renderInicioPaciente(alvo, bruto = {}, opcoes = {}) {
   const carregarMetas = opcoes.carregarMetas
     || (async () => (await import('./paciente-data.js')).minhasMetas());
 
-  const [dieta, consultaBruta, metasBrutas] = await Promise.all([
+  // As QUATRO vão juntas. Antes o treino era esperado primeiro e só então
+  // estas três começavam: quatro esperas em fila viravam a soma dos tempos, e
+  // não o maior deles.
+  const [rTreino, rDieta, rConsulta, rMetas] = await Promise.all([
+    opcoes.treino ? tentar(() => opcoes.treino, 'treino') : { ok: true, valor: null },
     tentar(carregarDieta, 'dieta'),
     tentar(carregarConsulta, 'consulta'),
     tentar(carregarMetas, 'metas'),
   ]);
+
+  // Com a rede fora, TODAS falham. Aí a tela não pode dizer "nada programado":
+  // isso afirma sobre o plano do paciente uma coisa que ela não sabe.
+  const consultadas = [rDieta, rConsulta, rMetas].concat(opcoes.treino ? [rTreino] : []);
+  if (consultadas.every(r => !r.ok)) {
+    cx.innerHTML = erroHtml();
+    const b = cx.querySelector('#inRetry');
+    if (b) b.addEventListener('click', () => renderInicioPaciente(alvo, bruto, opcoes));
+    return;
+  }
+
+  const treino = rTreino.valor;
+  const dieta = rDieta.valor;
+  const consultaBruta = rConsulta.valor;
+  const metasBrutas = rMetas.valor;
+
+  const dados = montarDados({ ...bruto, ...(treino || {}) });
 
   // Ter dieta e ter PRÓXIMA refeição são coisas diferentes: um plano cujas
   // refeições não têm horário não produz "próxima", mas continua existindo e
@@ -281,9 +315,28 @@ export async function renderInicioPaciente(alvo, bruto = {}, opcoes = {}) {
 
 // Cada fonte falha por si. O log fica, porque um RPC que sumiu é problema
 // real — mas não é problema do paciente, que só veria a tela pela metade.
+//
+// Devolve `{ ok }` em vez do valor cru porque "carregou e está vazio" e "não
+// carregou" são coisas diferentes: as duas dariam `null`, e a tela precisa
+// dizer "você não tem plano" num caso e "não deu para carregar" no outro.
 async function tentar(fn, rotulo) {
-  try { return await fn(); }
-  catch (e) { console.error(`Início · ${rotulo}:`, e); return null; }
+  try { return { ok: true, valor: await fn() }; }
+  catch (e) { console.error(`Início · ${rotulo}:`, e); return { ok: false, valor: null }; }
+}
+
+/** Quando NENHUMA fonte respondeu, o problema é a conexão — não o plano. */
+export function erroHtml() {
+  return `
+    <div class="inicio">
+      <section class="pa-empty pa-empty-lg">
+        <i data-lucide="cloud-off"></i>
+        <div class="pa-empty-t">Não foi possível carregar</div>
+        <div class="pa-empty-s">Verifique sua conexão e tente novamente.</div>
+        <button class="in-atalho in-atalho-forte" type="button" id="inRetry">
+          <i data-lucide="rotate-cw"></i> Tentar novamente
+        </button>
+      </section>
+    </div>`;
 }
 
 function ligarAtalhos(cx, ir) {

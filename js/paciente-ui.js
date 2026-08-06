@@ -89,7 +89,9 @@ export async function iniciarApp() {
     const sessao = await sessaoAtual();
     if (!sessao) { renderAuth(); return; }
 
-    _paciente = await meuPaciente();
+    // O usuário vem da sessão que acabou de ser lida: sem ele, `meuPaciente`
+    // chamaria `getUser()`, que é mais uma ida à rede antes da primeira tela.
+    _paciente = await meuPaciente(sessao.user);
 
     // Vínculo automático pelo código do link (app.html?codigo=XYZ).
     if (!_paciente) {
@@ -834,31 +836,24 @@ function irParaTreino() {
 //
 // Água, check-in, peso e aderência ficaram de fora porque não há tabela para
 // nenhum dos quatro. Ver js/pwa-inicio-data.js.
+// A tela pinta ANTES de o treino chegar. Bloquear a primeira pintura na carga
+// do treino custava tres idas a rede encadeadas (treinos -> itens ->
+// progressao) com o app parado em "Abrindo...". O nome do paciente ja basta
+// para desenhar; o resto entra quando chegar.
 function renderInicio() {
   _secao = 'inicio';
-  if (_treinosCarregados) { pintarInicio(); return; }
-
-  renderCarregando('Abrindo...');
-  carregarTreino()
-    .then(pintarInicio)
-    .catch(e => renderErro(traduzirErro(e.message)));
+  const treino = _treinosCarregados
+    ? Promise.resolve(brutoDoTreino())
+    : carregarTreino().then(brutoDoTreino);
+  pintarInicio(treino);
 }
 
-function pintarInicio() {
-  app().innerHTML = `
-    ${topo()}
-    <main class="pa-main"><div id="paInicio"></div></main>
-    ${bottomNav()}`;
-  ligarShell();
-
+// O que a tela sabe sobre o treino, a partir do que já está em memória.
+function brutoDoTreino() {
   const proximo = proximoDiaSugerido();
   const treinadoHoje = diaTreinadoHoje();
   const dia = treinadoHoje || proximo || '';
-
-  const bruto = {
-    saudacao: saudacao(),
-    nome: (_paciente?.nome || '').trim().split(' ')[0],
-    hoje: hoje(),
+  return {
     dias: _dias,
     proximo,
     treinadoHoje,
@@ -868,9 +863,23 @@ function pintarInicio() {
     recordes: calcRecordes(),
     datasTreinadas: datasTreinadas(),
   };
+}
+
+function pintarInicio(treino) {
+  app().innerHTML = `
+    ${topo()}
+    <main class="pa-main"><div id="paInicio"></div></main>
+    ${bottomNav()}`;
+  ligarShell();
+
+  const base = {
+    saudacao: saudacao(),
+    nome: (_paciente?.nome || '').trim().split(' ')[0],
+    hoje: hoje(),
+  };
 
   import('./pwa-inicio-ui.js')
-    .then(m => m.renderInicioPaciente('paInicio', bruto, { ir: irParaSecao }))
+    .then(m => m.renderInicioPaciente('paInicio', base, { treino, ir: irParaSecao }))
     .catch(e => {
       console.error('Início:', e);
       const cx = document.getElementById('paInicio');

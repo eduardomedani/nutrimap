@@ -103,6 +103,7 @@ main.pa-main:has(.inicio) { padding-bottom: 0; }
 }
 .in-sk-ic  { width: 40px; height: 40px; border-radius: 12px; }
 .in-sk-val { width: 62%; height: 15px; margin-top: 3px; }
+.in-sk-num { width: 48px; height: 19px; }
 @keyframes in-brilho { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
 /* ── Progresso: três tiles em vez dos dois da tela de treino ───────────── */

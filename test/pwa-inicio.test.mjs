@@ -414,6 +414,7 @@ grupo('início · a montagem, com a dieta chegando depois', () => {
     set innerHTML(v) { this._html = v; },
     get innerHTML() { return this._html; },
     querySelectorAll: () => [],
+    querySelector: () => null,
   });
   const BRUTO = { saudacao: 'Bom dia', nome: 'Eduardo', hoje: '2026-08-06', dias: ['A'], proximo: 'A' };
 
@@ -424,6 +425,57 @@ grupo('início · a montagem, com a dieta chegando depois', () => {
     await Promise.resolve();
     contem(cx.innerHTML, 'Treino A');
     contem(cx.innerHTML, 'in-sk');
+  });
+
+  teste('a tela pinta ANTES de o treino chegar', async () => {
+    // O app ficava em "Abrindo..." esperando treinos -> itens -> progressão,
+    // três idas à rede encadeadas, para só então desenhar. O nome já basta.
+    const cx = alvo();
+    let liberar;
+    const treino = new Promise(r => { liberar = r; });
+
+    const pronto = renderInicioPaciente(cx, BRUTO, {
+      treino,
+      carregarDieta: async () => null,
+      carregarConsulta: async () => null,
+      carregarMetas: async () => [],
+    });
+
+    contem(cx.innerHTML, 'Bom dia, Eduardo');       // já desenhou
+    contem(cx.innerHTML, 'Treino do dia');
+    contem(cx.innerHTML, 'in-sk');                  // em esqueleto
+
+    liberar({ dias: ['A', 'B'], proximo: 'B', datasTreinadas: ['2026-08-05'] });
+    await pronto;
+    contem(cx.innerHTML, 'Treino B');
+    naoContem(cx.innerHTML, 'in-sk');
+  });
+
+  teste('enquanto carrega, o progresso não mente zero', async () => {
+    // "0 dias" piscando antes de virar "3 dias" afirma algo falso sobre o
+    // esforço de quem está olhando.
+    const cx = alvo();
+    const treino = new Promise(() => {});          // nunca resolve
+    renderInicioPaciente(cx, BRUTO, {
+      treino,
+      carregarDieta: async () => null,
+      carregarConsulta: async () => null,
+      carregarMetas: async () => [],
+    });
+    contem(cx.innerHTML, 'in-sk-num');
+    naoContem(cx.innerHTML, '0 <small>dias</small>');
+    naoContem(cx.innerHTML, '0 <small>treinos</small>');
+  });
+
+  teste('sem promessa de treino, nada fica em esqueleto à toa', async () => {
+    const cx = alvo();
+    await renderInicioPaciente(cx, { ...BRUTO, dias: ['A'], proximo: 'A' }, {
+      carregarDieta: async () => null,
+      carregarConsulta: async () => null,
+      carregarMetas: async () => [],
+    });
+    naoContem(cx.innerHTML, 'in-sk');
+    contem(cx.innerHTML, 'Treino A');
   });
 
   teste('plano SEM horário nenhum ainda oferece o atalho da dieta', async () => {
@@ -455,6 +507,41 @@ grupo('início · a montagem, com a dieta chegando depois', () => {
     contem(cx.innerHTML, 'Iniciar treino');
     naoContem(cx.innerHTML, 'Ver dieta');
     naoContem(cx.innerHTML, 'in-sk');       // o esqueleto não pode ficar preso
+  });
+
+  teste('com TUDO falhando, a tela diz que não carregou — não que não há nada', async () => {
+    // "Nada programado ainda" com a rede fora afirma sobre o plano do paciente
+    // uma coisa que a tela não sabe.
+    const cx = alvo();
+    const err = console.error;
+    console.error = () => {};
+    try {
+      await renderInicioPaciente(cx, BRUTO, {
+        treino: Promise.reject(new Error('rede')),
+        carregarDieta: async () => { throw new Error('rede'); },
+        carregarConsulta: async () => { throw new Error('rede'); },
+        carregarMetas: async () => { throw new Error('rede'); },
+      });
+    } finally { console.error = err; }
+    contem(cx.innerHTML, 'Não foi possível carregar');
+    contem(cx.innerHTML, 'Tentar novamente');
+    naoContem(cx.innerHTML, 'Nada programado ainda');
+  });
+
+  teste('uma fonte de pé já basta para a tela normal aparecer', async () => {
+    const cx = alvo();
+    const err = console.error;
+    console.error = () => {};
+    try {
+      await renderInicioPaciente(cx, BRUTO, {
+        treino: Promise.resolve({ dias: ['A'], proximo: 'A', datasTreinadas: [] }),
+        carregarDieta: async () => { throw new Error('rede'); },
+        carregarConsulta: async () => { throw new Error('rede'); },
+        carregarMetas: async () => { throw new Error('rede'); },
+      });
+    } finally { console.error = err; }
+    naoContem(cx.innerHTML, 'Não foi possível carregar');
+    contem(cx.innerHTML, 'Treino A');
   });
 
   teste('paciente sem plano não vê atalho de dieta', async () => {

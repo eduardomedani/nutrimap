@@ -54,9 +54,15 @@ export async function minhasMetas() {
 
 // ── VÍNCULO CONTA <-> PACIENTE ────────────────────────────────
 
-/** Registro do paciente ligado à conta logada (ou null se ainda não vinculado). */
-export async function meuPaciente() {
-  const { data: { user } } = await sb.auth.getUser();
+/** Registro do paciente ligado à conta logada (ou null se ainda não vinculado).
+ *
+ *  `usuario` é opcional e existe por causa da abertura do app: `getUser()` vai
+ *  à REDE validar o token, e quem acabou de chamar `sessaoAtual()` já tem o
+ *  usuário em mãos. Passá-lo economiza uma ida inteira antes da primeira
+ *  pintura. Sem argumento, o comportamento é o de antes. */
+export async function meuPaciente(usuario = null) {
+  let user = usuario;
+  if (!user) ({ data: { user } } = await sb.auth.getUser());
   if (!user) return null;
   const { data, error } = await sb
     .from('pacientes')
