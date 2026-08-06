@@ -20,6 +20,13 @@ db/financeiro_lancamentos_seed.sql
 # custos: sao pessoas fisicas, nao fornecedores.
 db/financeiro_vendas_seed.sql
 
+# Controle de clientes da GoUp: 144 pessoas com NOME COMPLETO, TELEFONE, preco
+# contratado e observacoes comerciais ("pediu desconto", "vai viajar"). Mesma
+# regra dos outros seeds — db/gerador_clientes.mjs vai versionado, os dados
+# nao. Quem tiver a planilha reproduz os arquivos com um comando.
+db/comercial_clientes_seed.sql
+db/comercial_clientes_dados.json
+
 # Correcao de folha ja gravada: traz nome de colaborador e valor de bonus.
 # Mesma regra dos seeds — a decisao esta documentada no proprio arquivo, que
 # fica na maquina e no Supabase.
