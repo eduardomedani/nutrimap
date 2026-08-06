@@ -11,7 +11,7 @@ import { grupo, teste, ok, igual, contem, naoContem } from './runner.mjs';
 import { readFileSync } from 'node:fs';
 import {
   lerCsv, dataIso, preco, telefone, somarDias, mapear, resumo, PLANOS, STATUS,
-  montarSql, lit, num, brl,
+  montarSql, lit, num, brl, observacaoUtil,
 } from '../db/gerador_clientes.mjs';
 
 const CAB = 'Data de início,Paciente,Status,Horário,Dias Vencidos,Pacote,Status Pagamento,Preço,Data de término,Mês,Ano,MENSAGEM,STATUS,CONTATO,CONTATO Z-API,OBSERVAÇÕES,DISPARO';
@@ -243,5 +243,28 @@ grupo('gerador · dados pessoais não entram no repositório', () => {
     // Terminal vira print, e print vira grupo de WhatsApp.
     naoContem(fonte, 'console.log(JSON.stringify({ dentro');
     contem(fonte, 'console.log(JSON.stringify({ ...resumo(dentro)');
+  });
+});
+
+grupo('gerador · a coluna OBSERVAÇÕES guarda duas coisas misturadas', () => {
+  teste('código de disparo NÃO vira observação comercial', () => {
+    // 56 das 57 linhas preenchidas trazem "OK03"/"OK01": registro da automação
+    // de mensagem, não anotação sobre o cliente. Importados, encheriam o campo
+    // do §28 de lixo e marcariam 56 clientes como "tem anotação" sem ter.
+    igual(observacaoUtil('OK03'), null);
+    igual(observacaoUtil('OK01'), null);
+    igual(observacaoUtil('ENVIADO'), null);
+    igual(observacaoUtil('VENCE03'), null);
+    igual(observacaoUtil('  ok 3  '), null);
+  });
+
+  teste('anotação de gente passa inteira', () => {
+    igual(observacaoUtil('Retorna mes 4 ou 5'), 'Retorna mes 4 ou 5');
+    igual(observacaoUtil('pediu vencimento dia 10'), 'pediu vencimento dia 10');
+  });
+
+  teste('vazio continua vazio', () => {
+    igual(observacaoUtil(''), null);
+    igual(observacaoUtil(null), null);
   });
 });

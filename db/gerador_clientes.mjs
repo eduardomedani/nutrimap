@@ -111,6 +111,24 @@ export function preco(bruto) {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * A coluna OBSERVAÇÕES da planilha guarda DUAS coisas misturadas.
+ *
+ * Em 56 das 57 linhas preenchidas ela tem um código de disparo — "OK03",
+ * "OK01" — que é registro da automação de mensagem, não anotação sobre o
+ * cliente. Só uma linha traz texto de gente ("Retorna mes 4 ou 5").
+ *
+ * Importar os códigos encheria o campo de observação comercial (§28) de lixo,
+ * e faria 56 clientes exibirem o marcador de "tem anotação" sem ter nenhuma.
+ * Os códigos serão reconstruídos pela Etapa 3 a partir de regras — copiá-los
+ * agora seria congelar o estado de um disparo que já aconteceu.
+ */
+export function observacaoUtil(bruto) {
+  const t = String(bruto || '').trim();
+  if (!t) return null;
+  return /^(ok|vence|vencida|enviado)\s*\d*$/i.test(t) ? null : t;
+}
+
 /** Só dígitos, com o 55 do Brasil quando faltar. */
 export function telefone(bruto) {
   let d = String(bruto || '').replace(/\D/g, '');
@@ -185,7 +203,7 @@ export function mapear(linhas) {
       fimPlanilha,
       preco: preco(r[iPreco]),
       horario: String(r[iHorario] || '').trim() || null,
-      observacoes: String(r[iObs] || '').trim() || null,
+      observacoes: observacaoUtil(r[iObs]),
     });
   }
 
@@ -205,6 +223,7 @@ export function resumo(dentro) {
     semTelefone: dentro.filter(r => !r.telefone).length,
     semPreco: dentro.filter(r => r.preco == null).length,
     divergentes: dentro.filter(r => r.divergeDaPlanilha).length,
+    comObservacao: dentro.filter(r => r.observacoes).length,
     receitaAtivos: Math.round(ativos.reduce((s, r) => s + (r.preco || 0) * 100, 0)) / 100,
   };
 }
