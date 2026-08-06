@@ -27,7 +27,7 @@ let _dias     = [];
 let _diaSel   = 'A';
 let _progAbertas = new Set();
 let _progCache = new Map();   // id do item -> regs (progressão) já carregada
-let _secao    = 'treino';     // seção ativa: 'treino' | 'dieta'
+let _secao    = 'inicio';     // seção ativa: 'inicio' | 'treino' | 'dieta'
 let _view     = 'lista';      // dentro de treino: 'lista' (escolher dia) | 'treino' (página do dia)
 let _treinosCarregados = false;
 
@@ -108,7 +108,9 @@ export async function iniciarApp() {
 
     if (!_paciente) { renderVincular(codigoDaUrl()); return; }
 
-    await abrirTreino();
+    // O app abre no Início, não no Treino: quem entra quer saber o que vem
+    // agora, e só então decidir para onde ir.
+    renderInicio();
   } catch (e) {
     renderErro(traduzirErro(e.message));
   }
@@ -307,24 +309,33 @@ async function fazerVinculo() {
 // ═══════════════════════════════════════════════════════════
 // TELA 3 — Treino do aluno
 // ═══════════════════════════════════════════════════════════
+// Carrega treinos, itens, dias e progressão — sem desenhar nada. Quem chama
+// decide a tela. Início e Treino comem da MESMA fonte: se cada um buscasse a
+// sua, o "Treino do dia" do Início poderia discordar da lista de dias.
+async function carregarTreino() {
+  _treinos = await meusTreinos(_paciente?.id);
+  _treinosCarregados = true;
+  if (!_treinos.length) return false;
+  _cron = cronCarregar();          // retoma a contagem de um treino em andamento
+  if (!_cron) Exec.encerrarDescanso();   // sem sessão, descanso guardado é lixo
+
+  if (!_treinoSel || !_treinos.some(t => t.id === _treinoSel)) {
+    _treinoSel = _treinos[0].id;
+  }
+  _itens = await itensDoTreino(_treinoSel);
+  _dias = diasComExercicios(_itens);
+  if (!_dias.includes(_diaSel)) _diaSel = _dias[0] || 'A';
+  _progAbertas.clear();
+  await preCarregarProgressao();   // 1 consulta: deixa o "Registrar séries" instantâneo
+  return true;
+}
+
 async function abrirTreino() {
+  _secao = 'treino';
   renderCarregando('Carregando seu treino...');
   try {
-    _treinos = await meusTreinos(_paciente?.id);
-    _treinosCarregados = true;
-    if (!_treinos.length) { renderSemTreino(); return; }
-    _cron = cronCarregar();          // retoma a contagem de um treino em andamento
-    if (!_cron) Exec.encerrarDescanso();   // sem sessão, descanso guardado é lixo
-
-    if (!_treinoSel || !_treinos.some(t => t.id === _treinoSel)) {
-      _treinoSel = _treinos[0].id;
-    }
-    _itens = await itensDoTreino(_treinoSel);
-    _dias = diasComExercicios(_itens);
-    if (!_dias.includes(_diaSel)) _diaSel = _dias[0] || 'A';
-    _progAbertas.clear();
+    if (!await carregarTreino()) { renderSemTreino(); return; }
     _view = 'lista';                 // sempre abre na seleção de dias
-    await preCarregarProgressao();   // 1 consulta: deixa o "Registrar séries" instantâneo
     renderTreino();
   } catch (e) {
     renderErro(traduzirErro(e.message));
@@ -761,6 +772,7 @@ function bottomNav() {
        <i data-lucide="${icone}"></i><span>${label}</span>
      </button>`;
   return `<nav class="pa-bottomnav">
+    ${item('inicio', 'house', 'Início')}
     ${item('treino', 'dumbbell', 'Treino')}
     ${item('dieta', 'salad', 'Dieta')}
   </nav>`;
@@ -801,6 +813,7 @@ function ligarShell() {
       const sec = b.dataset.sec;
       if (sec === _secao) return;
       if (sec === 'dieta') renderDieta();
+      else if (sec === 'inicio') renderInicio();
       else irParaTreino();
     }));
 }
@@ -813,6 +826,68 @@ function irParaTreino() {
   } else {
     abrirTreino();
   }
+}
+
+// ── Seção Início ────────────────────────────────────────────
+// A tela de abertura. Vive de dado que JÁ existe: o treino (em memória, vindo
+// de `carregarTreino`) e a próxima refeição (que o módulo busca sozinho).
+//
+// Água, check-in, peso e aderência ficaram de fora porque não há tabela para
+// nenhum dos quatro. Ver js/pwa-inicio-data.js.
+function renderInicio() {
+  _secao = 'inicio';
+  if (_treinosCarregados) { pintarInicio(); return; }
+
+  renderCarregando('Abrindo...');
+  carregarTreino()
+    .then(pintarInicio)
+    .catch(e => renderErro(traduzirErro(e.message)));
+}
+
+function pintarInicio() {
+  app().innerHTML = `
+    ${topo()}
+    <main class="pa-main"><div id="paInicio"></div></main>
+    ${bottomNav()}`;
+  ligarShell();
+
+  const proximo = proximoDiaSugerido();
+  const treinadoHoje = diaTreinadoHoje();
+  const dia = treinadoHoje || proximo || '';
+
+  const bruto = {
+    saudacao: saudacao(),
+    nome: (_paciente?.nome || '').trim().split(' ')[0],
+    hoje: hoje(),
+    dias: _dias,
+    proximo,
+    treinadoHoje,
+    exercicios: dia ? contarDia(dia) : 0,
+    grupos: dia ? gruposDoDia(dia).slice(0, 2).join(' · ') : '',
+    sequencia: calcSequencia(),
+    recordes: calcRecordes(),
+    datasTreinadas: datasTreinadas(),
+  };
+
+  import('./pwa-inicio-ui.js')
+    .then(m => m.renderInicioPaciente('paInicio', bruto, { ir: irParaSecao }))
+    .catch(e => {
+      console.error('Início:', e);
+      const cx = document.getElementById('paInicio');
+      if (cx) cx.innerHTML = `
+        <div class="pa-empty pa-empty-lg">
+          <i data-lucide="cloud-off"></i>
+          <div class="pa-empty-t">Não foi possível abrir seu início</div>
+          <div class="pa-empty-s">Verifique sua conexão e tente novamente.</div>
+        </div>`;
+    });
+}
+
+// Destino dos atalhos do Início. A tela nova não conhece a casca — ela devolve
+// o nome da seção e quem sabe navegar é quem está aqui.
+function irParaSecao(sec) {
+  if (sec === 'dieta') renderDieta();
+  else if (sec === 'treino') irParaTreino();
 }
 
 // Seção Dieta — a casca; a tela mora em js/pwa-dieta-ui.js.

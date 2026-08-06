@@ -1,0 +1,158 @@
+/* ═══════════════════════════════════════════════════════════
+   PWA · INÍCIO — tela de abertura do app do aluno
+   ═══════════════════════════════════════════════════════════
+   Reaproveita o vocabulário que já existe no app.html (.pa-hero, .pa-stats,
+   .pa-empty). O que mora aqui é só o que é do Início: o bloco "Hoje", os
+   títulos de seção e os atalhos.
+
+   Sem cor literal: a identidade do Evollo vem dos tokens em css/tokens.css.
+   Um #hexadecimal aqui é uma cor que não muda quando a marca mudar. */
+
+/* ── Respiro para a barra inferior ─────────────────────────────────────── */
+/* A casca (.pa-main, em app.html) reserva 96px fixos para a navegação. Somar
+   uma segunda reserva aqui abriria o mesmo vão de ~112px que a dieta teve. A
+   reserva passa a ser desta folha, que conta a faixa do gesto de home do
+   iPhone — coisa que os 96px da casca ignoram. */
+main.pa-main:has(.inicio) { padding-bottom: 0; }
+.inicio { padding-bottom: calc(var(--pa-nav-h, 64px) + env(safe-area-inset-bottom, 0px) + 16px); }
+
+/* ── Títulos de seção ──────────────────────────────────────────────────── */
+.in-t {
+  margin: 22px 0 10px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-mute);
+}
+
+/* ── Bloco "Hoje" ──────────────────────────────────────────────────────── */
+/* Uma pilha de linhas dentro de um cartão só. Cartões separados por linha
+   fariam duas informações curtas ocuparem a tela inteira do celular. */
+.in-bloco {
+  background: var(--bg-card);
+  border: 1px solid var(--hair);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.in-linha {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  padding: 14px 15px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--hair);
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.in-linha:first-child { border-top: none; }
+.in-linha:hover { background: var(--bg-warm); }
+.in-linha:focus-visible { outline: 2px solid var(--moss); outline-offset: -2px; }
+
+.in-linha-ic {
+  flex: 0 0 auto;
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 12px;
+  background: var(--cream);
+  color: var(--moss-deep);
+}
+.in-linha-ic svg { width: 19px; height: 19px; }
+
+.in-linha-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.in-linha-rot {
+  font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--ink-mute);
+}
+.in-linha-val {
+  font-size: 15.5px; font-weight: 800; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.in-linha-det {
+  font-size: 12.5px; font-weight: 600; color: var(--ink-soft);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.in-linha-seta { flex: 0 0 auto; color: var(--ink-mute); display: flex; }
+.in-linha-seta svg { width: 19px; height: 19px; }
+
+/* Linha ainda carregando: não é botão e não recebe toque. */
+.in-linha-esq { cursor: default; }
+.in-linha-esq:hover { background: none; }
+
+.in-sk {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(90deg,
+    var(--surface-subtle) 0%,
+    color-mix(in srgb, var(--surface-subtle) 55%, transparent) 50%,
+    var(--surface-subtle) 100%);
+  background-size: 200% 100%;
+  animation: in-brilho 1.2s ease-in-out infinite;
+}
+.in-sk-ic  { width: 40px; height: 40px; border-radius: 12px; }
+.in-sk-val { width: 62%; height: 15px; margin-top: 3px; }
+@keyframes in-brilho { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* ── Progresso: três tiles em vez dos dois da tela de treino ───────────── */
+.in-stats3 { grid-template-columns: repeat(3, 1fr); gap: 9px; margin-bottom: 0; }
+.in-stats3 .pa-stat { padding: 12px 11px; }
+.in-stats3 .pa-stat-val { font-size: 20px; }
+.in-stats3 .pa-stat-val small { font-size: 11px; margin-left: 2px; }
+.in-stats3 .pa-stat-top { font-size: 11px; }
+
+/* Num celular estreito três colunas espremem "Recordes" até quebrar a palavra;
+   ali a terceira desce para a linha de baixo, ocupando a largura toda. */
+@media (max-width: 359px) {
+  .in-stats3 { grid-template-columns: 1fr 1fr; }
+  .in-stats3 .pa-stat:last-child { grid-column: 1 / -1; }
+}
+
+/* ── Acesso rápido ─────────────────────────────────────────────────────── */
+.in-atalhos { display: flex; flex-direction: column; gap: 10px; }
+
+.in-atalho {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 13px;
+  border: 1px solid var(--hair);
+  border-radius: 13px;
+  background: var(--bg-card);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: transform 0.15s, background 0.2s;
+}
+.in-atalho:hover { transform: translateY(-1px); }
+.in-atalho:focus-visible { outline: 2px solid var(--moss); outline-offset: 2px; }
+.in-atalho svg { width: 17px; height: 17px; }
+
+.in-atalho-forte {
+  border-color: transparent;
+  background: var(--moss);
+  color: var(--cream);
+}
+.in-atalho-forte:hover { background: var(--moss-deep); }
+
+@media (prefers-reduced-motion: reduce) {
+  .in-sk { animation: none; }
+  .in-atalho:hover { transform: none; }
+}
+
+/* ── Desktop ───────────────────────────────────────────────────────────── */
+/* Uma coluna, como no celular: o Início é uma lista curta de decisões, e
+   espalhá-la em duas colunas só faria o olho procurar onde já estava. */
+@media (min-width: 720px) {
+  .in-atalhos { flex-direction: row; }
+  .in-atalho { flex: 1; }
+}
