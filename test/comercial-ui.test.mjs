@@ -284,6 +284,46 @@ grupo('comercial · a tela inteira', () => {
   });
 });
 
+grupo('comercial · a página está ligada ao painel', () => {
+  const shell = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../css/comercial.css', import.meta.url), 'utf8');
+
+  teste('os cinco pontos de ligação existem', () => {
+    contem(shell, 'data-page="comercial"');                    // item da sidebar
+    contem(shell, 'id="page-comercial"');                      // container
+    contem(shell, "if (pagina === 'comercial')");              // rota
+    contem(shell, 'async function abrirComercial(secao)');     // montagem
+    contem(shell, 'href="css/comercial.css"');                 // estilo
+  });
+
+  teste('o item novo NÃO se chama "Clientes"', () => {
+    // Já existe um "Clientes" na sidebar (a lista clínica, data-page=pacientes).
+    // Dois itens com o mesmo rótulo fariam errar o clique todo dia.
+    const item = shell.slice(shell.indexOf('data-page="comercial"'));
+    contem(item.slice(0, 200), '<span>Comercial</span>');
+    contem(shell, 'data-page="pacientes"');
+  });
+
+  teste('o módulo é carregado sob demanda', () => {
+    // Import dinâmico: quem nunca abre Comercial não baixa o módulo.
+    contem(shell, "await import('./js/comercial-ui.js')");
+  });
+
+  teste('o CSS não tem cor literal fora dos fallbacks de token', () => {
+    // As cores de estado (danger, warning, info) ainda não existem em
+    // tokens.css; entram como fallback de var() e não soltas.
+    const soltas = (css.match(/:\s*#[0-9a-f]{3,8}\b/gi) || []);
+    igual(soltas, [], `cor literal solta: ${soltas.join(', ')}`);
+  });
+
+  teste('a tabela rola sozinha, sem arrastar a página', () => {
+    // Dez colunas não cabem num notebook pequeno; rolagem lateral na PÁGINA
+    // arrastaria a sidebar junto.
+    contem(css, '.cm-tabela-caixa');
+    contem(css, 'overflow-x: auto');
+  });
+});
+
 grupo('comercial · a camada de dados não inventa financeiro', () => {
   const fonte = readFileSync(new URL('../js/comercial-data.js', import.meta.url), 'utf8');
 

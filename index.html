@@ -1766,6 +1766,7 @@
      um pixel e mudaria quatro arquivos de teste. Carregada depois de
      brand.css, para poder ajustar .patient-row e .av-grid sem a marca desfazer. -->
 <link rel="stylesheet" href="css/financeiro.css">
+<link rel="stylesheet" href="css/comercial.css">
 <!-- O documento do contracheque. Folha própria porque ela é embutida no HTML
      publicado para o colaborador — ver js/contracheque-arquivo.js. -->
 <link rel="stylesheet" href="css/contracheque.css">
@@ -1985,6 +1986,7 @@
            documentos. Eram a mesma opção de menu e não são o mesmo assunto. -->
       <div class="nav-group">
         <div class="nav-group-title">Administração</div>
+        <div class="nav-item" data-page="comercial"><span class="nav-icon"><i data-lucide="handshake"></i></span><span>Comercial</span></div>
         <div class="nav-item" data-page="financeiro"><span class="nav-icon"><i data-lucide="wallet"></i></span><span>Financeiro</span></div>
         <!-- id-card, e não users-round: "Clientes" logo acima já usa gente, e
              dois desenhos de pessoas na mesma barra se leem como o mesmo item. -->
@@ -2093,6 +2095,12 @@
     <!-- FINANCEIRO DA EMPRESA — receitas, despesas, contas e fluxo de caixa
          (js/financeiro-ui.js). Custo de equipe aparece aqui só como indicador:
          a folha inteira mora em #page-equipe. -->
+    <!-- COMERCIAL — assinaturas, planos e cobranças da GoUp (js/comercial-ui.js).
+         O dinheiro NÃO mora aqui: cada cobrança é um lançamento de receita em
+         #page-financeiro. Esta tela é o contrato, não o caixa. -->
+    <div class="module-page" id="page-comercial">
+      <div class="loading"><div class="spinner"></div>Carregando...</div>
+    </div>
     <div class="module-page" id="page-financeiro">
       <div class="loading"><div class="spinner"></div>Carregando...</div>
     </div>
@@ -2179,6 +2187,9 @@
     if (pagina === 'gestao-treinos') {
       abrirGestaoTreinos().catch(console.error);
     }
+    if (pagina === 'comercial') {
+      abrirComercial(secao).catch(console.error);
+    }
     if (pagina === 'financeiro') {
       abrirFinanceiro(secao).catch(console.error);
     }
@@ -2258,6 +2269,14 @@
   async function abrirExercicios() {
     const sessao = await obterSessao();
     await initExerciciosUI(sessao?.user?.id);
+  }
+
+  // Comercial: assinaturas, planos e cobranças. Não duplica o Financeiro —
+  // cada cobrança É um lançamento de receita, e é lá que o dinheiro entra.
+  // Esta tela responde "quem está ativo e quando vence", não "quanto entrou".
+  async function abrirComercial(secao) {
+    const { initComercialUI } = await import('./js/comercial-ui.js');
+    await initComercialUI('page-comercial', secao || 'visao');
   }
 
   // Financeiro da empresa: receitas, despesas, contas e fluxo. A casca com as

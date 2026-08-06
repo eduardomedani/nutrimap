@@ -1,0 +1,266 @@
+/* ═══════════════════════════════════════════════════════════
+   COMERCIAL — visão geral, clientes e planos
+   ═══════════════════════════════════════════════════════════
+   Sem cor literal: a identidade vem dos tokens de css/tokens.css.
+
+   A regra visual que mais importa aqui: a LINHA da tabela nunca muda de cor.
+   Quando metade dos clientes está vencida — e na planilha isso acontece — uma
+   tabela de linhas coloridas vira uma parede onde não se lê nada. A cor mora
+   no badge, que é pequeno e o olho encontra. */
+
+.cm { display: flex; flex-direction: column; gap: 18px; }
+
+/* ── Abas ──────────────────────────────────────────────────────────────── */
+.cm-abas {
+  display: flex; gap: 4px;
+  border-bottom: 1px solid var(--border, var(--line));
+}
+.cm-aba {
+  padding: 10px 16px;
+  border: none; border-bottom: 2px solid transparent;
+  background: none; color: var(--text-secondary, var(--ink-mute));
+  font-family: inherit; font-size: 14px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  transition: color .15s, border-color .15s;
+}
+.cm-aba:hover { color: var(--text-primary, var(--ink)); }
+.cm-aba.ativa { color: var(--primary, var(--moss)); border-bottom-color: var(--primary, var(--moss)); }
+
+/* ── Indicadores ───────────────────────────────────────────────────────── */
+.cm-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 12px;
+}
+.cm-kpi {
+  padding: 15px 16px;
+  border: 1px solid var(--border, var(--hair));
+  border-left: 3px solid var(--border, var(--hair));
+  border-radius: 14px;
+  background: var(--surface, var(--bg-card));
+  box-shadow: var(--shadow-sm, var(--shadow));
+}
+.cm-kpi-rot {
+  font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-secondary, var(--ink-mute));
+}
+.cm-kpi-val {
+  margin-top: 6px; font-size: 25px; font-weight: 800; line-height: 1.05;
+  color: var(--text-primary, var(--ink)); letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.cm-kpi-det { margin-top: 3px; font-size: 11.5px; font-weight: 600; color: var(--text-secondary, var(--ink-mute)); }
+
+/* O tom entra só na borda esquerda: o número continua legível. */
+.cm-kpi-ok    { border-left-color: var(--success, var(--moss)); }
+.cm-kpi-aviso { border-left-color: var(--warning, var(--gold)); }
+.cm-kpi-risco { border-left-color: var(--danger, #B4453C); }
+
+/* ── Quebras ───────────────────────────────────────────────────────────── */
+.cm-quebras { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.cm-quebra {
+  padding: 15px 16px;
+  border: 1px solid var(--border, var(--hair));
+  border-radius: 14px;
+  background: var(--surface, var(--bg-card));
+}
+.cm-quebra-t {
+  margin: 0 0 10px; font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-secondary, var(--ink-mute));
+}
+.cm-quebra-lista { list-style: none; margin: 0; padding: 0; }
+.cm-quebra-lista li {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  padding: 7px 0; border-top: 1px solid var(--hair, var(--line));
+  font-size: 13.5px;
+}
+.cm-quebra-lista li:first-child { border-top: none; }
+.cm-quebra-lista b { font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* ── Topo da seção: filtros + ordenação ────────────────────────────────── */
+.cm-secao-topo {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 12px;
+}
+.cm-filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+.cm-busca {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border, var(--hair));
+  border-radius: 10px;
+  background: var(--surface, var(--bg-card));
+}
+.cm-busca svg { width: 16px; height: 16px; color: var(--text-secondary, var(--ink-mute)); }
+.cm-busca input {
+  border: none; outline: none; background: none;
+  font-family: inherit; font-size: 13.5px; color: inherit; min-width: 180px;
+}
+
+.cm-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cm-chip {
+  padding: 7px 13px;
+  border: 1px solid var(--border, var(--hair));
+  border-radius: 100px;
+  background: var(--surface, var(--bg-card));
+  color: var(--text-secondary, var(--ink-soft));
+  font-family: inherit; font-size: 12.5px; font-weight: 700;
+  cursor: pointer; white-space: nowrap;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.cm-chip:hover { color: var(--text-primary, var(--ink)); }
+.cm-chip.ativo {
+  background: var(--primary, var(--moss));
+  border-color: var(--primary, var(--moss));
+  color: var(--cream, #fff);
+}
+
+.cm-ordem { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--text-secondary, var(--ink-mute)); }
+.cm-ordem select {
+  padding: 8px 11px;
+  border: 1px solid var(--border, var(--hair));
+  border-radius: 10px;
+  background: var(--surface, var(--bg-card));
+  font-family: inherit; font-size: 13px; color: var(--text-primary, var(--ink));
+}
+
+.cm-contagem { font-size: 12.5px; font-weight: 700; color: var(--text-secondary, var(--ink-mute)); }
+
+/* ── Tabela ────────────────────────────────────────────────────────────── */
+/* A caixa rola sozinha na horizontal: dez colunas não cabem num notebook
+   pequeno, e deixar a PÁGINA rolar lateralmente arrasta a sidebar junto. */
+.cm-tabela-caixa {
+  overflow-x: auto;
+  border: 1px solid var(--border, var(--hair));
+  border-radius: 14px;
+  background: var(--surface, var(--bg-card));
+}
+.cm-tabela { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.cm-tabela th {
+  position: sticky; top: 0; z-index: 1;
+  padding: 11px 14px; text-align: left; white-space: nowrap;
+  background: var(--surface-subtle, var(--bg-warm));
+  border-bottom: 1px solid var(--border, var(--hair));
+  font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text-secondary, var(--ink-mute));
+}
+.cm-tabela td {
+  padding: 12px 14px;
+  border-top: 1px solid var(--hair, var(--line));
+  vertical-align: middle;
+}
+.cm-linha { cursor: pointer; transition: background .12s; }
+.cm-linha:hover { background: var(--surface-subtle, var(--bg-warm)); }
+.cm-linha:focus-visible { outline: 2px solid var(--primary, var(--moss)); outline-offset: -2px; }
+
+.cm-td-nome { min-width: 190px; }
+.cm-nome { font-weight: 700; color: var(--text-primary, var(--ink)); }
+.cm-tem-obs { width: 13px; height: 13px; margin-left: 6px; color: var(--text-secondary, var(--ink-mute)); vertical-align: -1px; }
+
+.cm-td-periodo { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--text-secondary, var(--ink-soft)); }
+.cm-td-vence { white-space: nowrap; }
+.cm-vence-data { display: block; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cm-vence-txt { display: block; margin-top: 1px; font-size: 11.5px; font-weight: 600; color: var(--text-secondary, var(--ink-mute)); }
+.cm-td-valor { white-space: nowrap; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cm-td-contato { white-space: nowrap; }
+.cm-td-acoes { width: 44px; text-align: right; }
+
+.cm-wa {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--text-secondary, var(--ink-soft)); text-decoration: none;
+  font-variant-numeric: tabular-nums;
+}
+.cm-wa:hover { color: var(--primary, var(--moss)); }
+.cm-wa svg { width: 15px; height: 15px; }
+
+.cm-vazio { color: var(--text-secondary, var(--ink-mute)); }
+
+.cm-acao {
+  width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: 8px; background: none;
+  color: var(--text-secondary, var(--ink-mute)); cursor: pointer;
+}
+.cm-acao:hover { background: var(--surface-subtle, var(--bg-warm)); color: var(--text-primary, var(--ink)); }
+.cm-acao svg { width: 17px; height: 17px; }
+
+/* ── Badges ────────────────────────────────────────────────────────────── */
+/* Fundo lavado e texto forte: legível, e sem competir com o resto da linha. */
+.cm-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 100px;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.02em; white-space: nowrap;
+}
+.cm-b-ativo,
+.cm-c-pago {
+  background: color-mix(in srgb, var(--success, var(--moss)) 14%, transparent);
+  color: var(--success, var(--moss-deep));
+}
+.cm-b-vence_em_breve,
+.cm-c-pendente {
+  background: color-mix(in srgb, var(--warning, var(--gold)) 20%, transparent);
+  color: var(--warning-ink, #8A6A17);
+}
+.cm-b-vencido,
+.cm-c-vencida {
+  background: color-mix(in srgb, var(--danger, #B4453C) 13%, transparent);
+  color: var(--danger, #B4453C);
+}
+.cm-b-pausado {
+  background: color-mix(in srgb, var(--info, #4A6B8A) 14%, transparent);
+  color: var(--info, #4A6B8A);
+}
+.cm-b-cancelado,
+.cm-c-cancelado,
+.cm-b-aguardando {
+  background: var(--surface-subtle, var(--bg-warm));
+  color: var(--text-secondary, var(--ink-mute));
+}
+
+/* ── Botões e vazios ───────────────────────────────────────────────────── */
+.cm-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  min-height: 40px; padding: 9px 16px;
+  border: 1px solid var(--border, var(--hair)); border-radius: 10px;
+  background: var(--surface, var(--bg-card)); color: var(--text-primary, var(--ink));
+  font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer;
+}
+.cm-btn:hover { background: var(--surface-subtle, var(--bg-warm)); }
+.cm-btn svg { width: 16px; height: 16px; }
+.cm-btn-forte {
+  border-color: transparent;
+  background: var(--primary, var(--moss));
+  color: var(--cream, #fff);
+}
+.cm-btn-forte:hover { background: var(--moss-deep, var(--primary)); }
+
+.cm-ajuda { margin: 0; max-width: 62ch; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary, var(--ink-soft)); }
+.cm-ajuda b { color: var(--text-primary, var(--ink)); font-weight: 800; }
+
+.cm-vazio-bloco {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 48px 24px; text-align: center;
+  border: 1px dashed var(--border, var(--hair));
+  border-radius: 14px;
+  color: var(--text-secondary, var(--ink-mute));
+}
+.cm-vazio-bloco svg { width: 30px; height: 30px; opacity: .6; }
+.cm-vazio-t { font-size: 15px; font-weight: 800; color: var(--text-primary, var(--ink)); }
+.cm-vazio-s { font-size: 13px; max-width: 46ch; line-height: 1.5; }
+.cm-vazio-s code {
+  padding: 1px 6px; border-radius: 5px;
+  background: var(--surface-subtle, var(--bg-warm));
+  font-size: 12px;
+}
+.cm-vazio-bloco .cm-btn { margin-top: 8px; }
+
+/* ── Telas estreitas ───────────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  .cm-secao-topo { align-items: stretch; }
+  .cm-busca input { min-width: 0; width: 100%; }
+  .cm-busca { flex: 1; }
+  .cm-kpi-val { font-size: 22px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cm-aba, .cm-chip, .cm-linha { transition: none; }
+}

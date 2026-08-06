@@ -385,6 +385,128 @@ export function telaHtml({ aba = 'visao', indicadores = {}, assinaturas = [], pl
     </div>`;
 }
 
+// ───────────────────────────────────────────────────────────
+// MONTAGEM
+// ───────────────────────────────────────────────────────────
+
+// O estado da tela vive aqui e não no DOM: reler filtro e ordem de dentro do
+// HTML a cada clique é como o módulo antigo perdia a seleção ao redesenhar.
+const _estado = { aba: 'visao', filtro: 'todos', busca: '', ordem: 'urgencia' };
+let _dados = { assinaturas: [], planos: [], indicadores: {} };
+
+const hojeISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+/** Tabela que ainda não existe no banco. O PostgREST devolve 42P01 do Postgres
+ *  ou PGRST205 do próprio cache de schema — os dois querem dizer o mesmo. */
+function ehSchemaFaltando(e) {
+  const t = `${e?.code || ''} ${e?.message || ''}`;
+  return t.includes('42P01') || t.includes('PGRST205') || /does not exist|não existe/i.test(t);
+}
+
+/**
+ * Monta a tela dentro de `#page-comercial`.
+ *
+ * Pinta o esqueleto antes de buscar: a lista de clientes são três consultas, e
+ * deixar a página em branco enquanto elas voltam foi o problema que o Início
+ * do PWA teve.
+ */
+export async function initComercialUI(alvo = 'page-comercial', secao = 'visao') {
+  const cx = typeof alvo === 'string' ? document.getElementById(alvo) : alvo;
+  if (!cx) return;
+
+  if (ABAS.some(a => a.id === secao)) _estado.aba = secao;
+  cx.innerHTML = `<div class="cm"><div class="loading"><div class="spinner"></div>Carregando...</div></div>`;
+
+  try {
+    const dados = await import('./comercial-data.js');
+    const hoje = hojeISO();
+    const [assinaturas, planos, receitas] = await Promise.all([
+      dados.listarAssinaturas(),
+      dados.listarPlanos({ incluirInativos: true }),
+      dados.receitasDeClientes(),
+    ]);
+
+    // A cobrança aberta de cada assinatura: a mais recente ainda não paga.
+    // Uma passada só sobre as receitas — não uma consulta por cliente.
+    const abertaPor = new Map();
+    for (const r of receitas) {
+      if (r.status !== 'pendente' || !r.assinatura_id) continue;
+      const atual = abertaPor.get(r.assinatura_id);
+      if (!atual || String(r.vencimento) < String(atual.vencimento)) abertaPor.set(r.assinatura_id, r);
+    }
+    for (const a of assinaturas) a.cobrancaAberta = abertaPor.get(a.id) || null;
+
+    const { indicadores } = await import('./comercial.js');
+    _dados = {
+      assinaturas,
+      planos,
+      indicadores: indicadores({ assinaturas, lancamentos: receitas, hoje }),
+    };
+    pintar(cx);
+  } catch (e) {
+    console.error('Comercial:', e);
+    cx.innerHTML = ehSchemaFaltando(e) ? semSchemaHtml() : erroHtml();
+    cx.querySelector('#cmRetry')?.addEventListener('click', () => initComercialUI(cx, _estado.aba));
+  }
+}
+
+function pintar(cx) {
+  cx.innerHTML = telaHtml({ ..._dados, ..._estado, hoje: hojeISO() });
+  ligar(cx);
+  window.renderIcons?.();
+}
+
+function ligar(cx) {
+  cx.querySelectorAll('[data-aba]').forEach(b =>
+    b.addEventListener('click', () => {
+      _estado.aba = b.dataset.aba;
+      pintar(cx);
+      try { history.replaceState(null, '', '#comercial/' + _estado.aba); } catch (e) {}
+    }));
+
+  cx.querySelectorAll('[data-filtro]').forEach(b =>
+    b.addEventListener('click', () => { _estado.filtro = b.dataset.filtro; pintar(cx); }));
+
+  const busca = cx.querySelector('#cmBusca');
+  if (busca) {
+    busca.addEventListener('input', () => {
+      _estado.busca = busca.value;
+      pintar(cx);
+      // Redesenhar troca o input por outro: sem devolver o foco e o cursor, a
+      // segunda letra da busca cairia fora do campo.
+      const novo = cx.querySelector('#cmBusca');
+      if (novo) { novo.focus(); novo.setSelectionRange(novo.value.length, novo.value.length); }
+    });
+  }
+
+  const ordem = cx.querySelector('#cmOrdem');
+  if (ordem) ordem.addEventListener('change', () => { _estado.ordem = ordem.value; pintar(cx); });
+
+  // O drawer do cliente ainda não existe; o clique fica registrado para quando
+  // existir, em vez de abrir algo pela metade.
+  cx.querySelectorAll('[data-abrir]').forEach(b =>
+    b.addEventListener('click', () => {
+      cx.dispatchEvent(new CustomEvent('comercial:abrir-cliente', {
+        bubbles: true, detail: { assinaturaId: b.dataset.abrir },
+      }));
+    }));
+}
+
+export function erroHtml() {
+  return `
+    <div class="cm-vazio-bloco">
+      <i data-lucide="cloud-off"></i>
+      <div class="cm-vazio-t">Não foi possível carregar</div>
+      <div class="cm-vazio-s">Verifique sua conexão e tente novamente.</div>
+      <button class="cm-btn cm-btn-forte" type="button" id="cmRetry">
+        <i data-lucide="rotate-cw"></i> Tentar novamente
+      </button>
+    </div>`;
+}
+
 /** Aviso de banco não migrado — a mesma linguagem que o financeiro já usa. */
 export function semSchemaHtml() {
   return `
