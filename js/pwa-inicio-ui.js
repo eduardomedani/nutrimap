@@ -11,7 +11,9 @@
 // (treino) e preenche a linha da refeição quando a rede responder. Esperar a
 // dieta para pintar a tela inteira deixaria o app em branco no primeiro toque.
 
-import { proximaRefeicaoDoDia, treinoDoDia, treinosNaSemana } from './pwa-inicio-data.js';
+import {
+  proximaRefeicaoDoDia, treinoDoDia, treinosNaSemana, formatarConsulta, formatarMeta,
+} from './pwa-inicio-data.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -42,20 +44,28 @@ export function linhaHoje({ icone, rotulo, valor, detalhe = '', destino = '', ca
         </span>
       </div>`;
   }
-  return `
-    <button class="in-linha" type="button" ${destino ? `data-ir="${esc(destino)}"` : ''}>
+
+  const miolo = `
       <span class="in-linha-ic"><i data-lucide="${esc(icone)}"></i></span>
       <span class="in-linha-txt">
         <span class="in-linha-rot">${esc(rotulo)}</span>
         <span class="in-linha-val">${esc(valor)}</span>
         ${detalhe ? `<span class="in-linha-det">${esc(detalhe)}</span>` : ''}
-      </span>
+      </span>`;
+
+  // Sem destino, a linha é informação e não caminho. Um <button> que não leva a
+  // lugar nenhum é uma promessa que o toque não cumpre — a consulta é o caso:
+  // o paciente não tem tela de consultas, só precisa saber a data.
+  if (!destino) return `<div class="in-linha in-linha-fixa">${miolo}</div>`;
+
+  return `
+    <button class="in-linha" type="button" data-ir="${esc(destino)}">${miolo}
       <span class="in-linha-seta" aria-hidden="true"><i data-lucide="chevron-right"></i></span>
     </button>`;
 }
 
 /** O bloco "Hoje". `refeicao === undefined` significa "ainda carregando". */
-export function hojeHtml({ refeicao, treino, exercicios = 0, grupos = '' } = {}) {
+export function hojeHtml({ refeicao, treino, exercicios = 0, grupos = '', consulta = null } = {}) {
   const linhas = [];
 
   if (refeicao === undefined) {
@@ -83,8 +93,39 @@ export function hojeHtml({ refeicao, treino, exercicios = 0, grupos = '' } = {})
     }));
   }
 
+  if (consulta) {
+    linhas.push(linhaHoje({
+      icone: consulta.online ? 'video' : 'calendar-check',
+      rotulo: 'Próxima consulta',
+      valor: `${consulta.data} · ${consulta.hora}`,
+      detalhe: [consulta.quando, consulta.online ? 'online' : 'presencial'].filter(Boolean).join(' · '),
+    }));
+  }
+
   if (!linhas.length) return '';
   return `<section class="in-bloco" aria-label="Hoje">${linhas.join('')}</section>`;
+}
+
+/**
+ * "Suas metas" — o que o profissional combinou com o paciente.
+ *
+ * Só leitura: não há policy de escrita para o paciente em `paciente_metas`, e
+ * um campo editável aqui sugeriria que ele pode mudar o combinado.
+ */
+export function metasHtml(metas = []) {
+  const lista = (metas || []).filter(Boolean);
+  if (!lista.length) return '';
+
+  const linha = m => `
+    <li class="in-meta">
+      <span class="in-meta-nome">${esc(m.nome)}</span>
+      ${m.alvo ? `<span class="in-meta-alvo">${esc(m.alvo)}</span>` : ''}
+      ${m.prazo ? `<span class="in-meta-prazo">até ${esc(m.prazo)}</span>` : ''}
+    </li>`;
+
+  return `
+    <h2 class="in-t">Suas metas</h2>
+    <ul class="in-metas">${lista.map(linha).join('')}</ul>`;
 }
 
 /**
@@ -138,12 +179,12 @@ export function atalhosHtml({ temTreino = false, temDieta = false } = {}) {
 export function inicioHtml(d = {}) {
   const {
     saudacao = 'Olá', nome = '', hoje = '',
-    refeicao, treino = null, exercicios = 0, grupos = '',
-    sequencia = 0, recordes = 0, semana = 0,
+    refeicao, treino = null, exercicios = 0, grupos = '', consulta = null,
+    sequencia = 0, recordes = 0, semana = 0, metas = [],
     temTreino = false, temDieta = false,
   } = d;
 
-  const corpo = hojeHtml({ refeicao, treino, exercicios, grupos });
+  const corpo = hojeHtml({ refeicao, treino, exercicios, grupos, consulta });
 
   return `
     <div class="inicio">
@@ -161,6 +202,7 @@ export function inicioHtml(d = {}) {
       </section>`}
 
       ${progressoHtml({ sequencia, recordes, semana })}
+      ${metasHtml(metas)}
       ${atalhosHtml({ temTreino, temDieta })}
     </div>`;
 }
@@ -203,27 +245,45 @@ export async function renderInicioPaciente(alvo, bruto = {}, opcoes = {}) {
   cx.innerHTML = inicioHtml({ ...dados, refeicao: undefined });
   ligarAtalhos(cx, opcoes.ir);
 
+  // As três fontes vão JUNTAS e cada uma cai sozinha. São independentes: a
+  // consulta não depende da dieta, e nenhuma delas justifica derrubar a tela.
+  // Enquanto db/paciente_inicio_leitura.sql não tiver rodado, os dois RPCs
+  // falham — e o Início precisa continuar de pé exatamente igual, só sem
+  // essas duas seções.
+  const carregarDieta = opcoes.carregarDieta
+    || (async () => (await import('./pwa-dieta-data.js')).carregarDieta());
+  const carregarConsulta = opcoes.carregarConsulta
+    || (async () => (await import('./paciente-data.js')).proximaConsulta());
+  const carregarMetas = opcoes.carregarMetas
+    || (async () => (await import('./paciente-data.js')).minhasMetas());
+
+  const [dieta, consultaBruta, metasBrutas] = await Promise.all([
+    tentar(carregarDieta, 'dieta'),
+    tentar(carregarConsulta, 'consulta'),
+    tentar(carregarMetas, 'metas'),
+  ]);
+
   // Ter dieta e ter PRÓXIMA refeição são coisas diferentes: um plano cujas
   // refeições não têm horário não produz "próxima", mas continua existindo e
   // continua valendo o atalho. Amarrar o atalho à linha esconderia a dieta de
   // quem tem uma.
-  let refeicao = null;
-  let temDieta = false;
-  try {
-    const carregar = opcoes.carregarDieta || (await import('./pwa-dieta-data.js')).carregarDieta;
-    const dieta = await carregar();
-    temDieta = !!dieta;
-    refeicao = dieta ? proximaRefeicaoDoDia(dieta.refeicoes, opcoes.agora ?? horaAgora()) : null;
-  } catch (e) {
-    // A dieta é UMA linha desta tela. Se ela falhar, o resto do Início continua
-    // de pé — derrubar a tela inteira por causa dela seria desproporcional.
-    console.error('Início · dieta:', e);
-    refeicao = null;
-    temDieta = false;
-  }
+  const refeicao = dieta ? proximaRefeicaoDoDia(dieta.refeicoes, opcoes.agora ?? horaAgora()) : null;
 
-  cx.innerHTML = inicioHtml({ ...dados, refeicao, temDieta });
+  cx.innerHTML = inicioHtml({
+    ...dados,
+    refeicao,
+    temDieta: !!dieta,
+    consulta: formatarConsulta(consultaBruta, bruto.hoje || ''),
+    metas: (metasBrutas || []).map(formatarMeta).filter(Boolean),
+  });
   ligarAtalhos(cx, opcoes.ir);
+}
+
+// Cada fonte falha por si. O log fica, porque um RPC que sumiu é problema
+// real — mas não é problema do paciente, que só veria a tela pela metade.
+async function tentar(fn, rotulo) {
+  try { return await fn(); }
+  catch (e) { console.error(`Início · ${rotulo}:`, e); return null; }
 }
 
 function ligarAtalhos(cx, ir) {
@@ -237,4 +297,4 @@ export function horaAgora(d = new Date()) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-export { proximaRefeicaoDoDia, treinoDoDia, treinosNaSemana };
+export { proximaRefeicaoDoDia, treinoDoDia, treinosNaSemana, formatarConsulta, formatarMeta };

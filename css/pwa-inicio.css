@@ -86,6 +86,11 @@ main.pa-main:has(.inicio) { padding-bottom: 0; }
 .in-linha-esq { cursor: default; }
 .in-linha-esq:hover { background: none; }
 
+/* Linha que é informação, não caminho (a consulta). Sem seta e sem hover: nada
+   nela pode sugerir que o toque leva a algum lugar. */
+.in-linha-fixa { cursor: default; }
+.in-linha-fixa:hover { background: none; }
+
 .in-sk {
   display: block;
   border-radius: 8px;
@@ -112,6 +117,34 @@ main.pa-main:has(.inicio) { padding-bottom: 0; }
 @media (max-width: 359px) {
   .in-stats3 { grid-template-columns: 1fr 1fr; }
   .in-stats3 .pa-stat:last-child { grid-column: 1 / -1; }
+}
+
+/* ── Metas ─────────────────────────────────────────────────────────────── */
+/* Lista, não cartões: são combinados curtos, e um cartão por meta faria três
+   linhas de texto ocuparem a tela toda. Sem controle nenhum — o paciente lê a
+   meta, quem a muda é o profissional. */
+.in-metas { list-style: none; margin: 0; padding: 0; }
+
+.in-meta {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 12px 15px;
+  border: 1px solid var(--hair);
+  border-radius: 14px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow);
+}
+.in-meta + .in-meta { margin-top: 9px; }
+
+.in-meta-nome { flex: 1 1 auto; font-size: 14.5px; font-weight: 800; color: var(--ink); }
+.in-meta-alvo {
+  flex: 0 0 auto; font-size: 13.5px; font-weight: 800; color: var(--moss-deep);
+  font-variant-numeric: tabular-nums;
+}
+.in-meta-prazo {
+  flex: 0 0 100%; font-size: 12px; font-weight: 600; color: var(--ink-mute);
 }
 
 /* ── Acesso rápido ─────────────────────────────────────────────────────── */

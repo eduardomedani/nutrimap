@@ -13,10 +13,11 @@ import { grupo, teste, ok, igual, contem, naoContem } from './runner.mjs';
 import { readFileSync } from 'node:fs';
 import {
   inicioDaSemana, somarDias, treinosNaSemana, proximaRefeicaoDoDia, treinoDoDia,
+  formatarConsulta, formatarMeta, diasAte,
 } from '../js/pwa-inicio-data.js';
 import {
   inicioHtml, hojeHtml, progressoHtml, atalhosHtml, linhaHoje, dataLonga, montarDados,
-  renderInicioPaciente,
+  metasHtml, renderInicioPaciente,
 } from '../js/pwa-inicio-ui.js';
 
 const css = readFileSync(new URL('../css/pwa-inicio.css', import.meta.url), 'utf8');
@@ -173,11 +174,136 @@ grupo('início · a tela', () => {
     }
   });
 
-  teste('nenhuma consulta ou meta, que o paciente não tem permissão de ler', () => {
-    // consultas_select e paciente_metas_select são `nutri_id = auth.uid()`:
-    // pelo app do paciente as duas voltam vazias.
-    naoContem(html, 'consulta');
-    naoContem(html, 'Meta');
+  teste('sem consulta agendada, a linha não existe', () => {
+    // `null` é resposta legítima do RPC: não há consulta marcada.
+    naoContem(html, 'Próxima consulta');
+  });
+
+  teste('sem metas, a seção inteira não existe', () => {
+    naoContem(html, 'Suas metas');
+  });
+});
+
+grupo('início · a próxima consulta', () => {
+  const consulta = (quando, modalidade = 'presencial') =>
+    formatarConsulta({ data_hora: quando, tipo: 'retorno', modalidade }, '2026-08-06');
+
+  teste('data e hora saem no formato do paciente', () => {
+    const c = consulta('2026-08-12T14:30:00-03:00');
+    igual(c.data, '12/08');
+    igual(c.hora, '14:30');
+  });
+
+  teste('perto, vira contagem; longe, vira data', () => {
+    // "em 3 dias" diz mais que "09/08" para quem abre o app de manhã. Depois
+    // de uma semana a contagem perde a graça e a data volta a ser o dado.
+    igual(consulta('2026-08-06T09:00:00-03:00').quando, 'hoje');
+    igual(consulta('2026-08-07T09:00:00-03:00').quando, 'amanhã');
+    igual(consulta('2026-08-09T09:00:00-03:00').quando, 'em 3 dias');
+    igual(consulta('2026-09-01T09:00:00-03:00').quando, '');
+  });
+
+  teste('online e presencial se distinguem', () => {
+    igual(consulta('2026-08-12T14:30:00-03:00', 'online').online, true);
+    igual(consulta('2026-08-12T14:30:00-03:00').online, false);
+  });
+
+  teste('resposta vazia ou inválida não vira linha', () => {
+    igual(formatarConsulta(null, '2026-08-06'), null);
+    igual(formatarConsulta({}, '2026-08-06'), null);
+    igual(formatarConsulta({ data_hora: 'abacaxi' }, '2026-08-06'), null);
+  });
+
+  teste('a linha da consulta NÃO é botão — não há tela de consultas', () => {
+    // Um botão que não leva a lugar nenhum é promessa que o toque não cumpre.
+    const html = hojeHtml({
+      refeicao: null, treino: null,
+      consulta: { data: '12/08', hora: '14:30', online: false, quando: 'em 6 dias' },
+    });
+    contem(html, 'Próxima consulta');
+    contem(html, 'in-linha-fixa');
+    naoContem(html, '<button');
+  });
+});
+
+grupo('início · as metas', () => {
+  teste('com início e alvo, mostra o percurso', () => {
+    const m = formatarMeta({ tipo: 'peso', valor_inicial: 82, valor_alvo: 76, unidade: 'kg', prazo: '2026-09-30' });
+    igual(m.nome, 'Peso');
+    igual(m.alvo, '82 → 76 kg');
+    igual(m.prazo, '30/09/2026');
+  });
+
+  teste('só com alvo, mostra só o alvo', () => {
+    const m = formatarMeta({ tipo: 'frequencia_treino', valor_alvo: 4, unidade: 'x/semana' });
+    igual(m.nome, 'Treinos por semana');
+    igual(m.alvo, '4 x/semana');
+    igual(m.prazo, '');
+  });
+
+  teste('o título do profissional ganha do rótulo do tipo', () => {
+    igual(formatarMeta({ tipo: 'habito', titulo: 'Dormir antes das 23h' }).nome, 'Dormir antes das 23h');
+    igual(formatarMeta({ tipo: 'habito', titulo: '   ' }).nome, 'Hábito');
+  });
+
+  teste('meta sem número nenhum ainda tem nome', () => {
+    const m = formatarMeta({ tipo: 'cintura' });
+    igual(m.nome, 'Cintura');
+    igual(m.alvo, '');
+  });
+
+  teste('a lista não oferece nenhum controle de edição', () => {
+    // A meta é combinada pelo profissional. Um campo aqui sugeriria que o
+    // paciente pode mudar o combinado — não há policy de escrita para ele.
+    const html = metasHtml([{ nome: 'Peso', alvo: '82 → 76 kg', prazo: '30/09/2026' }]);
+    contem(html, 'Suas metas');
+    contem(html, '82 → 76 kg');
+    naoContem(html, '<button');
+    naoContem(html, '<input');
+  });
+
+  teste('lista vazia não deixa um título órfão', () => {
+    igual(metasHtml([]), '');
+    igual(metasHtml(null), '');
+  });
+});
+
+grupo('início · a migração não pode vazar nota do profissional', () => {
+  const sql = readFileSync(new URL('../db/paciente_inicio_leitura.sql', import.meta.url), 'utf8');
+  // Só o corpo executável: os comentários explicam justamente o que não entra,
+  // e citam os nomes das colunas proibidas.
+  const codigo = sql.split('\n').filter(l => !l.trim().startsWith('--')).join('\n');
+
+  teste('nenhuma das colunas de nota interna é devolvida', () => {
+    // Só o que as funções DECLARAM devolver e o que elas selecionam. O bloco de
+    // conferência no fim do arquivo cita as colunas proibidas de propósito —
+    // ele é a checagem em tempo de execução da mesma regra.
+    const corpo = codigo.slice(0, codigo.lastIndexOf('select\n  count(*)'));
+    for (const coluna of ['observacoes', 'relato', 'conduta', 'resumo', 'motivo']) {
+      naoContem(corpo, coluna);
+    }
+    ok(corpo.includes('rpc_paciente_metas'), 'o corte não pode engolir a segunda função');
+  });
+
+  teste('são funções, não policies de select nas tabelas', () => {
+    // RLS filtra linha, não coluna: uma policy liberaria a linha inteira.
+    naoContem(codigo, 'create policy');
+    contem(codigo, 'security definer');
+  });
+
+  teste('as duas filtram pelo paciente da sessão', () => {
+    igual(codigo.split('paciente_do_auth()').length - 1, 2);
+  });
+
+  teste('anon não executa — o EXECUTE é revogado antes de ser dado', () => {
+    igual(codigo.split('revoke all on function').length - 1, 2);
+    igual(codigo.split('to authenticated;').length - 1, 2);
+  });
+
+  teste('existe o desfazer, e ele derruba as duas', () => {
+    const undo = readFileSync(new URL('../db/paciente_inicio_leitura_desfazer.sql', import.meta.url), 'utf8');
+    contem(undo, 'drop function if exists public.rpc_paciente_proxima_consulta()');
+    contem(undo, 'drop function if exists public.rpc_paciente_metas()');
   });
 });
 
@@ -357,6 +483,31 @@ grupo('início · o CSS', () => {
 
   teste('quem pediu menos movimento não recebe animação', () => {
     contem(css, '@media (prefers-reduced-motion: reduce)');
+  });
+});
+
+grupo('início · a barra inferior encosta no fim da TELA', () => {
+  const shell = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+
+  teste('a barra prolonga o próprio fundo para baixo', () => {
+    // No app instalado com navegação por gestos o sistema reserva uma tira
+    // abaixo do viewport e a pinta com o fundo da página — a barra fica
+    // boiando. O prolongamento fecha essa fresta.
+    contem(shell, '.pa-bottomnav::after');
+    contem(shell, 'top: 100%');
+  });
+
+  teste('o prolongamento não rouba o toque de nada', () => {
+    const regra = shell.slice(shell.indexOf('.pa-bottomnav::after'));
+    ok(regra.slice(0, 220).includes('pointer-events: none'),
+       'o prolongamento precisa ser inerte ao toque');
+  });
+
+  teste('a barra continua em bottom: 0, com o inset quando houver', () => {
+    // O prolongamento é rede de segurança, não substituto: onde o sistema
+    // informa o inset de verdade (iPhone), quem manda continua sendo ele.
+    contem(shell, '.pa-bottomnav { position: fixed; left: 0; right: 0; bottom: 0;');
+    contem(shell, 'padding-bottom: env(safe-area-inset-bottom); }');
   });
 });
 

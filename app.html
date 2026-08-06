@@ -122,6 +122,14 @@
 
   /* Navegação inferior (Treino | Dieta) */
   .pa-bottomnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: flex; background: rgba(255,255,255,0.94); backdrop-filter: blur(10px); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+  /* A barra encosta no fim do VIEWPORT — que nem sempre é o fim da TELA. No app
+     instalado com navegação por gestos, o sistema reserva uma tira embaixo do
+     viewport e a pinta com o fundo da página: a barra fica boiando, com fundo
+     aparecendo abaixo dela. `env(safe-area-inset-bottom)` não resolve porque
+     nesse caso ele vale 0 — não há inset a declarar, o viewport é que é menor.
+     Prolongar o fundo da barra para baixo fecha a fresta sem depender do que o
+     sistema informa. Fica fora da tela quando não há tira nenhuma. */
+  .pa-bottomnav::after { content: ''; position: absolute; top: 100%; left: 0; right: 0; height: 80px; background: inherit; pointer-events: none; }
   .pa-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 4px 8px; background: none; border: none; cursor: pointer; color: var(--ink-mute); font-size: 11px; font-weight: 700; font-family: inherit; transition: color 0.15s; }
   .pa-nav-item svg { width: 21px; height: 21px; }
   .pa-nav-item.active { color: var(--moss); }

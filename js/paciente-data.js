@@ -30,6 +30,28 @@ export async function sessaoAtual() {
   return data.session || null;
 }
 
+// ── INÍCIO: próxima consulta e metas ──────────────────────────
+// Vêm por RPC, e não por select direto na tabela, porque `consultas` e
+// `paciente_metas` guardam o que o profissional escreveu SOBRE o paciente e
+// não PARA ele (observacoes, relato, conduta, resumo). RLS filtra linha, não
+// coluna: uma policy de select liberaria a linha inteira pela API. A função
+// devolve só o que é do paciente. Ver db/paciente_inicio_leitura.sql.
+//
+// Quem chama trata a falha como "não há": enquanto a migração não rodar, o
+// erro do RPC inexistente não pode derrubar a tela.
+
+export async function proximaConsulta() {
+  const { data, error } = await sb.rpc('rpc_paciente_proxima_consulta');
+  if (error) throw error;
+  return (data && data[0]) || null;
+}
+
+export async function minhasMetas() {
+  const { data, error } = await sb.rpc('rpc_paciente_metas');
+  if (error) throw error;
+  return data || [];
+}
+
 // ── VÍNCULO CONTA <-> PACIENTE ────────────────────────────────
 
 /** Registro do paciente ligado à conta logada (ou null se ainda não vinculado). */
