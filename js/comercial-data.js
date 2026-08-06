@@ -259,6 +259,43 @@ export async function pacientesSemAssinatura() {
   return (pacientes || []).filter(p => !comContrato.has(p.id));
 }
 
+/**
+ * Assinaturas que têm ao menos uma cobrança em aberto, com as cobranças junto.
+ *
+ * É o que o formulário de receita do Financeiro precisa para oferecer "este
+ * pagamento quita qual cobrança". Duas consultas, não uma por cliente.
+ */
+export async function assinaturasComCobrancaAberta() {
+  const id = await nutriId();
+  const [{ data: assinaturas, error: e1 }, { data: abertas, error: e2 }] = await Promise.all([
+    sb.from('comercial_assinaturas')
+      .select('*, paciente:pacientes(id, nome), plano:comercial_planos(*)')
+      .eq('nutri_id', id)
+      .in('status', ['ativa', 'aguardando_inicio', 'pausada']),
+    sb.from('financeiro_lancamentos')
+      .select('id, descricao, valor, vencimento, competencia, categoria_id, assinatura_id, status')
+      .eq('nutri_id', id)
+      .eq('tipo', 'receita')
+      .eq('status', 'pendente')
+      .not('assinatura_id', 'is', null)
+      .order('vencimento'),
+  ]);
+  if (e1) throw e1;
+  if (e2) throw e2;
+
+  const porAssinatura = new Map();
+  for (const c of abertas || []) {
+    const lista = porAssinatura.get(c.assinatura_id) || [];
+    lista.push(c);
+    porAssinatura.set(c.assinatura_id, lista);
+  }
+
+  return (assinaturas || [])
+    .map(a => ({ ...a, cobrancas: porAssinatura.get(a.id) || [] }))
+    .filter(a => a.cobrancas.length)
+    .sort((x, y) => String(x.paciente?.nome || '').localeCompare(String(y.paciente?.nome || ''), 'pt-BR'));
+}
+
 /** Categorias de receita — o "Pacote" da planilha já virou categoria no
  *  import de vendas, então elas provavelmente já existem. */
 export async function categoriasDeReceita() {

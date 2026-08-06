@@ -36,8 +36,17 @@ import {
   validarLancamento, lancamentoParaBanco, preservarOriginal,
   STATUS, TERMOS, rotulosStatus, FORMAS_PAGAMENTO, competenciaDeData,
 } from './financeiro-lancamento-validacao.js';
+import {
+  secaoOrigemHtml, validarOrigem, modoDeSalvar, preencherDaCobranca, origemDoLancamento,
+} from './financeiro-origem.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/** As cobranças em aberto do cliente escolhido. Fora do `drawerHtml` para o
+ *  teste poder exercitar a lista sem montar o formulário inteiro. */
+export function cobrancasDoForm(form = {}, assinaturas = []) {
+  return (assinaturas.find(a => a.id === form.assinatura_id)?.cobrancas) || [];
+}
 
 /** O formulário zerado. Nada de fornecedor, categoria ou valor adivinhados —
  *  só o que é fato: ainda não pagou, é deste mês. */
@@ -96,8 +105,18 @@ export async function abrirLancamento({
   let sujo = false;
   let salvando = false;
 
-  let categorias = [], centros = [];
+  let categorias = [], centros = [], assinaturasCom = [];
   try { categorias = await listarCategorias(tipo); } catch (e) { categorias = []; }
+
+  // Clientes com cobrança em aberto. Só para receita, e sem derrubar nada se o
+  // módulo comercial ainda não estiver no banco — o financeiro existia antes
+  // dele e tem que continuar abrindo sem ele.
+  if (ehReceita) {
+    try {
+      const dados = await import('./comercial-data.js');
+      assinaturasCom = await dados.assinaturasComCobrancaAberta();
+    } catch (e) { assinaturasCom = []; }
+  }
   // Centro de custo só existe para despesa, e a tabela pode nem ter sido criada
   // ainda. O cadastro não pode ficar refém disso.
   if (!ehReceita) { try { centros = await listarCentrosCusto(); } catch (e) { centros = []; } }
@@ -135,7 +154,7 @@ export async function abrirLancamento({
   }
 
   function desenhar(erros = {}) {
-    fundo.innerHTML = drawerHtml({ tipo, form, erros, edicao, categorias, centros, lancamento });
+    fundo.innerHTML = drawerHtml({ tipo, form, erros, edicao, categorias, centros, lancamento, assinaturas: assinaturasCom });
     ligar();
     const alvo = fundo.querySelector('.dsp-erro-campo input, .dsp-erro-campo select') ||
                  fundo.querySelector('#dspDescricao');
@@ -159,6 +178,11 @@ export async function abrirLancamento({
       fornecedor: g('dspFornecedor')?.value || '',
       documento: g('dspDocumento')?.value || '',
       observacoes: g('dspObs')?.value || '',
+      // Origem só existe em receita; em despesa os três voltam vazios e nada
+      // no resto do formulário olha para eles.
+      origem: g('dspOrigem')?.value || form.origem || 'outra',
+      assinatura_id: g('dspCliente')?.value || '',
+      cobranca_id: g('dspCobranca')?.value || '',
     };
   }
 
@@ -173,6 +197,30 @@ export async function abrirLancamento({
 
     const semValor = fundo.querySelector('#dspSemValor');
     if (semValor) semValor.addEventListener('change', () => { form = coletar(); sujo = true; desenhar(); });
+
+    // Origem: trocar qualquer um dos três redesenha, porque os seletores
+    // seguintes dependem do anterior e a cobrança escolhida dita descrição,
+    // valor, categoria e datas.
+    const origem = fundo.querySelector('#dspOrigem');
+    if (origem) origem.addEventListener('change', () => {
+      form = { ...coletar(), assinatura_id: '', cobranca_id: '' };
+      sujo = true; desenhar();
+    });
+
+    const cliente = fundo.querySelector('#dspCliente');
+    if (cliente) cliente.addEventListener('change', () => {
+      form = { ...coletar(), cobranca_id: '' };
+      sujo = true; desenhar();
+    });
+
+    const cobranca = fundo.querySelector('#dspCobranca');
+    if (cobranca) cobranca.addEventListener('change', () => {
+      form = coletar();
+      const a = assinaturasCom.find(x => x.id === form.assinatura_id);
+      const c = (a?.cobrancas || []).find(x => x.id === form.cobranca_id);
+      if (c) form = { ...form, ...preencherDaCobranca(c, a) };
+      sujo = true; desenhar();
+    });
 
     fundo.querySelectorAll('[data-venc]').forEach(b => b.addEventListener('click', () => {
       const campo = fundo.querySelector('#dspVencimento');
@@ -231,7 +279,7 @@ export async function abrirLancamento({
     if (salvando) return;                       // trava o duplo envio
     form = coletar();
 
-    const erros = validarLancamento(form, { rascunho, tipo });
+    const erros = { ...validarLancamento(form, { rascunho, tipo }), ...validarOrigem(form) };
     if (Object.keys(erros).length) { desenhar(erros); return; }
 
     const botao = fundo.querySelector('#dspSalvar');
@@ -242,6 +290,27 @@ export async function abrirLancamento({
 
     try {
       const campos = lancamentoParaBanco(form, tipo);
+
+      // COM COBRANÇA ESCOLHIDA, NÃO SE CRIA NADA. A cobrança já é um
+      // lançamento pendente: criar outro faria o mesmo dinheiro aparecer duas
+      // vezes no caixa e deixaria a cobrança em aberto, cobrando quem pagou.
+      // Aqui se dá baixa nela — o mesmo caminho do drawer do cliente.
+      if (!edicao && modoDeSalvar(form) === 'pagamento') {
+        const a = assinaturasCom.find(x => x.id === form.assinatura_id);
+        const dados = await import('./comercial-data.js');
+        await dados.registrarPagamento({
+          lancamentoId: form.cobranca_id,
+          assinatura: a,
+          pagoEm: campos.pago_em || campos.data || hojeISO(),
+          valorPago: campos.valor,
+          formaPagamento: campos.forma_pagamento || null,
+        });
+        botao.innerHTML = '<i data-lucide="check"></i> Cobrança quitada';
+        sujo = false;
+        if (aoSalvar) await aoSalvar();
+        fechar(true);
+        return;
+      }
 
       if (edicao) {
         // Antes de a primeira edição sobrescrever, o que a planilha dizia vai
@@ -304,7 +373,7 @@ export { excluirLancamento, competenciaDe, lancamentoDoBanco as despesaDoBanco }
 export function drawerHtml(ctx = {}) {
   const {
     form = {}, erros = {}, edicao = false,
-    categorias = [], centros = [], lancamento = null,
+    categorias = [], centros = [], lancamento = null, assinaturas = [],
   } = ctx;
   const tipo = ctx.tipo === 'receita' ? 'receita' : 'despesa';
   const ehReceita = tipo === 'receita';
@@ -543,6 +612,7 @@ export function drawerHtml(ctx = {}) {
 
         <div class="dsp-body">
           ${edicao ? avisosHtml(lancamento) : ''}
+          ${ehReceita ? secaoOrigemHtml({ form, assinaturas, cobrancas: cobrancasDoForm(form, assinaturas), erros }) : ''}
           ${secaoIdentificacao(form, erros)}
           ${secaoValor(form, erros)}
           ${secaoDatas(form, erros)}
