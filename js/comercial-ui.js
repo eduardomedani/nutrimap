@@ -493,14 +493,22 @@ function ligar(cx) {
   const ordem = cx.querySelector('#cmOrdem');
   if (ordem) ordem.addEventListener('change', () => { _estado.ordem = ordem.value; pintar(cx); });
 
-  // O drawer do cliente ainda não existe; o clique fica registrado para quando
-  // existir, em vez de abrir algo pela metade.
+  const abrir = id => {
+    const a = _dados.assinaturas.find(x => x.id === id);
+    if (a) abrirCliente(cx, a);
+  };
+
   cx.querySelectorAll('[data-abrir]').forEach(b =>
-    b.addEventListener('click', () => {
-      cx.dispatchEvent(new CustomEvent('comercial:abrir-cliente', {
-        bubbles: true, detail: { assinaturaId: b.dataset.abrir },
-      }));
-    }));
+    b.addEventListener('click', e => { e.stopPropagation(); abrir(b.dataset.abrir); }));
+
+  // A linha inteira abre, não só a setinha: 44 pixels de alvo numa tabela de
+  // dez colunas é mira demais para o uso diário.
+  cx.querySelectorAll('.cm-linha').forEach(tr => {
+    tr.addEventListener('click', () => abrir(tr.dataset.assinatura));
+    tr.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(tr.dataset.assinatura); }
+    });
+  });
 
   cx.querySelectorAll('[data-novo-plano]').forEach(b =>
     b.addEventListener('click', () => abrirPlano(cx, null)));
@@ -512,6 +520,14 @@ function ligar(cx) {
 
   cx.querySelectorAll('[data-nova-assinatura]').forEach(b =>
     b.addEventListener('click', () => abrirAssinatura(cx)));
+}
+
+async function abrirCliente(cx, assinatura) {
+  const { abrirDrawerCliente } = await import('./comercial-drawer.js');
+  abrirDrawerCliente({
+    assinatura,
+    aoMudar: () => initComercialUI(cx, _estado.aba),
+  });
 }
 
 async function abrirPlano(cx, plano) {

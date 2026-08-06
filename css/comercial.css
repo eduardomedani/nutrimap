@@ -351,6 +351,91 @@ body.cm-travado { overflow: hidden; }
   .cm-linha-campos { grid-template-columns: 1fr; }
 }
 
+/* ── Drawer do cliente ─────────────────────────────────────────────────── */
+.cm-dw .cm-drawer-topo { align-items: flex-start; }
+.cm-dw-id { min-width: 0; }
+.cm-dw-id h2 { margin: 0 0 7px; font-size: 19px; font-weight: 800; line-height: 1.2; }
+.cm-dw-sub {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  font-size: 12.5px; font-weight: 600; color: var(--text-secondary, var(--ink-mute));
+}
+.cm-dw-tel {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 8px;
+  font-size: 13px; font-weight: 600; color: var(--text-secondary, var(--ink-soft));
+  text-decoration: none; font-variant-numeric: tabular-nums;
+}
+.cm-dw-tel:hover { color: var(--primary, var(--moss)); }
+.cm-dw-tel svg { width: 15px; height: 15px; }
+
+.cm-dw-secao { padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--hair, var(--line)); }
+.cm-dw-secao:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.cm-dw-t {
+  margin: 0 0 10px; font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-secondary, var(--ink-mute));
+}
+
+.cm-dw-linha {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
+  padding: 7px 0; font-size: 13.5px;
+}
+.cm-dw-rot { color: var(--text-secondary, var(--ink-mute)); flex-shrink: 0; }
+.cm-dw-val { font-weight: 700; text-align: right; color: var(--text-primary, var(--ink)); }
+.cm-dw-val small { font-weight: 600; color: var(--text-secondary, var(--ink-mute)); }
+
+.cm-dw-nota { margin: 4px 0 12px; font-size: 13px; line-height: 1.5; color: var(--text-secondary, var(--ink-mute)); }
+.cm-dw-obs { margin: 0; font-size: 13.5px; line-height: 1.55; white-space: pre-wrap; }
+
+.cm-dw-secao .cm-btn { margin-top: 12px; width: 100%; justify-content: center; }
+
+/* O aviso de cobrança já paga: ocupa o lugar do botão, para não haver como
+   registrar um segundo pagamento sem ver que já existe um. */
+.cm-dw-aviso {
+  display: flex; align-items: flex-start; gap: 11px;
+  padding: 13px 14px; border-radius: 12px;
+  background: color-mix(in srgb, var(--success, var(--moss)) 10%, transparent);
+  font-size: 13px; line-height: 1.5;
+}
+.cm-dw-aviso svg { width: 19px; height: 19px; flex-shrink: 0; color: var(--success, var(--moss)); margin-top: 1px; }
+.cm-dw-aviso b { display: block; margin-bottom: 2px; }
+
+.cm-dw-hists { list-style: none; margin: 0; padding: 0; }
+.cm-dw-hist {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 6px 12px;
+  align-items: center; padding: 9px 0;
+  border-top: 1px solid var(--hair, var(--line)); font-size: 13px;
+}
+.cm-dw-hist:first-child { border-top: none; }
+.cm-dw-hist-data { font-weight: 700; font-variant-numeric: tabular-nums; }
+.cm-dw-hist-valor { font-weight: 700; font-variant-numeric: tabular-nums; }
+.cm-dw-hist-pago {
+  grid-column: 1 / -1; font-size: 11.5px; font-weight: 600;
+  color: var(--text-secondary, var(--ink-mute));
+}
+
+/* ── Registro de pagamento ─────────────────────────────────────────────── */
+.cm-dw-resumo {
+  padding: 12px 14px; margin-bottom: 16px;
+  border: 1px solid var(--border, var(--hair)); border-radius: 12px;
+  background: var(--surface-subtle, var(--bg-warm));
+  font-size: 13px; line-height: 1.55;
+}
+
+/* A prévia da renovação: o que vai acontecer, ANTES de confirmar. Descobrir
+   trinta dias depois que o período contou da data errada é o erro que esta
+   caixa existe para impedir. */
+.cm-dw-previa {
+  padding: 13px 14px; margin: 4px 0 14px;
+  border: 1px solid var(--border, var(--hair)); border-radius: 12px;
+  background: var(--surface-subtle, var(--bg-warm));
+}
+.cm-dw-previa-t {
+  font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-secondary, var(--ink-mute)); margin-bottom: 7px;
+}
+.cm-dw-previa ul { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.6; }
+.cm-dw-previa li + li { margin-top: 3px; }
+.cm-dw-alerta { color: var(--danger, #B4453C); font-weight: 700; }
+
 /* ── Telas estreitas ───────────────────────────────────────────────────── */
 @media (max-width: 720px) {
   .cm-secao-topo { align-items: stretch; }
