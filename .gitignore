@@ -47,3 +47,7 @@ db/conferencia/48_comercial_importacao.sql
 
 # Versao sem comentarios, gerada para colar no SQL Editor.
 db/*_LIMPO.sql
+
+# Vendas que a importacao assumiu como recebidas: traz nome de cliente e valor.
+# O gerador vai versionado; a lista, nao.
+db/vendas_duvidosas.csv
