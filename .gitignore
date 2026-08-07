@@ -44,3 +44,6 @@ db/conferencia/47_desfazer_vinculo_indevido_rollback.sql
 # Conferencia da importacao comercial: traz o UUID real da conta do nutri.
 # Mesma regra dos outros arquivos de conferencia com UUID — fica na maquina.
 db/conferencia/48_comercial_importacao.sql
+
+# Versao sem comentarios, gerada para colar no SQL Editor.
+db/*_LIMPO.sql
