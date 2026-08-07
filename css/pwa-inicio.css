@@ -16,9 +16,22 @@
 main.pa-main:has(.inicio) { padding-bottom: 0; }
 .inicio { padding-bottom: calc(var(--pa-nav-h, 64px) + env(safe-area-inset-bottom, 0px) + 16px); }
 
+/* ── Hero do Início ────────────────────────────────────────────────────── */
+/* Três linhas viraram duas: o "Hoje" era palavra estática em corpo 27 — manchete
+   para informação zero. A saudação sobe para o lugar dele e a data continua
+   embaixo, o que economiza ~40px logo onde o olho chega primeiro.
+   O hero do Treino NÃO muda: lá o título diz "Vamos treinar?" ou "Mandou bem!",
+   que é informação de verdade. */
+.inicio .pa-hero {
+  padding: 16px 18px 14px;
+  margin-bottom: 14px;
+}
+.inicio .pa-hero-title { font-size: 22px; line-height: 1.15; }
+.inicio .pa-hero-sub { margin-top: 4px; }
+
 /* ── Títulos de seção ──────────────────────────────────────────────────── */
 .in-t {
-  margin: 22px 0 10px;
+  margin: 16px 0 8px;
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;

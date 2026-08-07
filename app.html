@@ -106,7 +106,12 @@
   .pa-link { display: block; width: 100%; margin-top: 14px; background: none; border: none; color: var(--ink-mute); font-size: 13px; cursor: pointer; text-decoration: underline; }
 
   /* ── Topbar ── */
-  .pa-topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; padding: calc(12px + env(safe-area-inset-top)) 18px 12px; background: rgba(255,255,255,0.86); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  /* `max`, não soma. O inset já é a distância exata que afasta da barra de
+     status; somar mais 12px dá folga em cima de folga e a topbar sai de 55px
+     para 102px no iPhone — 47px roubados de TODAS as telas, no lugar da tela
+     onde o conteúdo deveria estar. Sem inset (desktop, Android), os 12px
+     continuam valendo. */
+  .pa-topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; padding: max(12px, env(safe-area-inset-top)) 18px 12px; background: rgba(255,255,255,0.86); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
   .pa-topbrand { font-size: 19px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
   .pa-topbrand em { color: var(--moss); }
   .pa-topmark { width: 30px; height: 30px; background: linear-gradient(135deg, var(--moss), var(--olive)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--cream); font-size: 15px; font-weight: 600; font-style: italic; }

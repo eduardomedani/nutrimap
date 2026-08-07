@@ -197,9 +197,8 @@ export function inicioHtml(d = {}) {
 
   return `
     <div class="inicio">
-      <section class="pa-hero">
-        <div class="pa-hero-hi">${esc(saudacao)}${nome ? `, ${esc(nome)}` : ''} 👋</div>
-        <div class="pa-hero-title">Hoje</div>
+      <section class="pa-hero in-hero">
+        <div class="pa-hero-title">${esc(saudacao)}${nome ? `, ${esc(nome)}` : ''} 👋</div>
         ${hoje ? `<div class="pa-hero-sub">${esc(dataLonga(hoje))}</div>` : ''}
       </section>
 

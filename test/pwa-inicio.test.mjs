@@ -573,6 +573,32 @@ grupo('início · o CSS', () => {
   });
 });
 
+grupo('início · o topo não rouba meia tela', () => {
+  const shell = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../css/pwa-inicio.css', import.meta.url), 'utf8');
+
+  teste('a topbar usa MAX do inset, não SOMA', () => {
+    // Somar dava folga em cima de folga: 55px viravam 102px no iPhone, em
+    // TODAS as telas. O inset já é a distância que afasta da barra de status.
+    contem(shell, 'padding: max(12px, env(safe-area-inset-top)) 18px 12px');
+    naoContem(shell, 'padding: calc(12px + env(safe-area-inset-top)) 18px 12px');
+  });
+
+  teste('o hero do Início não tem título estático', () => {
+    // "Hoje" era palavra fixa em corpo 27 — manchete para informação zero.
+    const html = inicioHtml({ saudacao: 'Bom dia', nome: 'Eduardo', hoje: '2026-08-06', treino: null, refeicao: null });
+    naoContem(html, '<div class="pa-hero-title">Hoje</div>');
+    contem(html, 'Bom dia, Eduardo');
+    contem(html, 'Quinta-feira, 6 de agosto');
+  });
+
+  teste('o hero compacto é só do Início — o do Treino não muda', () => {
+    // No Treino o título diz "Vamos treinar?" ou "Mandou bem!": informação.
+    contem(css, '.inicio .pa-hero');
+    ok(!/^\.pa-hero \{/m.test(css), 'o Início não pode redefinir o hero global');
+  });
+});
+
 grupo('início · a barra inferior encosta no fim da TELA', () => {
   const shell = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
 
