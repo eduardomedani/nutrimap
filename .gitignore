@@ -51,3 +51,6 @@ db/*_LIMPO.sql
 # Vendas que a importacao assumiu como recebidas: traz nome de cliente e valor.
 # O gerador vai versionado; a lista, nao.
 db/vendas_duvidosas.csv
+
+# Conciliacao das vendas duvidosas: nome de cliente + memo do extrato.
+db/vendas_conciliadas.csv
