@@ -263,7 +263,7 @@ export async function renderInicioPaciente(alvo, bruto = {}, opcoes = {}) {
   // falham — e o Início precisa continuar de pé exatamente igual, só sem
   // essas duas seções.
   const carregarDieta = opcoes.carregarDieta
-    || (async () => (await import('./pwa-dieta-data.js')).carregarDieta());
+    || (async () => (await import('./pwa-dieta-data.js')).carregarDieta(bruto.pacienteId || null));
   const carregarConsulta = opcoes.carregarConsulta
     || (async () => (await import('./paciente-data.js')).proximaConsulta());
   const carregarMetas = opcoes.carregarMetas

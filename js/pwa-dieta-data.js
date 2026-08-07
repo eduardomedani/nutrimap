@@ -336,11 +336,41 @@ export function resumoDoDia(refeicoes) {
  * Devolve `null` quando não há plano — que NÃO é erro: é o estado normal de
  * quem ainda não recebeu a dieta, e a tela mostra o vazio. Erro de verdade
  * sobe como exceção, para a tela poder oferecer "tentar novamente".
+ *
+ * `pacienteId` é opcional: quem já tem o id em mãos passa e evita uma consulta;
+ * quem não tem deixa a função descobrir.
  */
-export async function carregarDieta() {
+
+/** O paciente ligado à conta logada. Filtra por `auth_user_id`, que é único —
+ *  ao contrário do RLS, que numa conta nutri+paciente casa pelos dois lados. */
+async function idDoPacienteLogado() {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) return null;
+  const { data } = await sb
+    .from('pacientes')
+    .select('id')
+    .eq('auth_user_id', user.id)
+    .maybeSingle();
+  return data?.id || null;
+}
+export async function carregarDieta(pacienteId = null) {
+  // O FILTRO POR PACIENTE É OBRIGATÓRIO, e não redundante com o RLS.
+  //
+  // As policies do projeto são OR'd: `planos_paciente_read` (o plano é meu) OU
+  // `planos_owner` (sou o nutri dono). Numa conta que é as duas coisas — e a
+  // do Eduardo é —, as duas valem, e esta consulta passava a devolver o plano
+  // ativo mais recente de QUALQUER um dos 93 pacientes dele. Com `.limit(1)`,
+  // o app do aluno abria a dieta de outra pessoa.
+  //
+  // O RLS é a segunda camada, nunca a primeira. Ver a memória
+  // [[conta-nutri-e-paciente]] e o mesmo cuidado em `meusTreinos`.
+  const meu = pacienteId || await idDoPacienteLogado();
+  if (!meu) return null;
+
   const { data: planos, error: e1 } = await sb
     .from('planos_alimentares')
     .select('id, nome, objetivo, data_inicio, data_fim, observacoes, criado_em, ativo, paciente_id')
+    .eq('paciente_id', meu)
     .eq('ativo', true)
     .order('criado_em', { ascending: false })
     .limit(1);

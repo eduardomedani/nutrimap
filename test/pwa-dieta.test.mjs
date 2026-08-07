@@ -552,3 +552,32 @@ grupo('dieta · segurança e fronteira do módulo', () => {
        'o treino sumiu do PWA');
   });
 });
+
+grupo('dieta · o RLS é a segunda camada, nunca a primeira', () => {
+  const fonte = readFileSync(new URL('../js/pwa-dieta-data.js', import.meta.url), 'utf8');
+  const casca = readFileSync(new URL('../js/paciente-ui.js', import.meta.url), 'utf8');
+
+  teste('a busca do plano filtra por paciente EXPLICITAMENTE', () => {
+    // As policies são OR'd: `planos_paciente_read` (o plano é meu) OU
+    // `planos_owner` (sou o nutri dono). Numa conta que é as duas coisas, a
+    // consulta sem filtro devolvia o plano ativo mais recente de QUALQUER
+    // paciente — e com .limit(1) o app abria a dieta de outra pessoa.
+    const trecho = fonte.slice(fonte.indexOf("from('planos_alimentares')"),
+                               fonte.indexOf("from('planos_alimentares')") + 300);
+    contem(trecho, ".eq('paciente_id', meu)");
+    contem(trecho, ".eq('ativo', true)");
+  });
+
+  teste('sem paciente identificado, não devolve plano nenhum', () => {
+    // Devolver "o primeiro que aparecer" seria pior que devolver nada.
+    contem(fonte, 'if (!meu) return null;');
+  });
+
+  teste('o id do paciente sai de auth_user_id, que é único', () => {
+    contem(fonte, "eq('auth_user_id', user.id)");
+  });
+
+  teste('a casca entrega o id que já tem, para não repetir a consulta', () => {
+    contem(casca, 'pacienteId: _paciente?.id');
+  });
+});

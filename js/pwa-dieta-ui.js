@@ -330,7 +330,10 @@ export async function renderDietaPaciente(alvo, opcoes = {}) {
   cx.innerHTML = esqueletoHtml();
 
   try {
-    const dieta = await carregarDieta();
+    // O id vem da casca, que já o tem: sem ele a função descobre sozinha, mas
+    // gasta uma ida ao banco. Passá-lo NÃO é opcional por segurança — o filtro
+    // acontece de todo jeito dentro de `carregarDieta` —, é só economia.
+    const dieta = await carregarDieta(opcoes.pacienteId || null);
     // Só aqui o vazio pode aparecer: antes disso não se sabe se há plano, e
     // mostrar "sua dieta está a caminho" para quem tem dieta é pior que
     // demorar meio segundo.

@@ -876,6 +876,7 @@ function pintarInicio(treino) {
     saudacao: saudacao(),
     nome: (_paciente?.nome || '').trim().split(' ')[0],
     hoje: hoje(),
+    pacienteId: _paciente?.id || null,
   };
 
   import('./pwa-inicio-ui.js')
@@ -916,7 +917,7 @@ function renderDieta() {
   ligarShell();
 
   import('./pwa-dieta-ui.js')
-    .then(m => m.renderDietaPaciente('paDieta'))
+    .then(m => m.renderDietaPaciente('paDieta', { pacienteId: _paciente?.id }))
     .catch(e => {
       console.error('Dieta:', e);
       const cx = document.getElementById('paDieta');
