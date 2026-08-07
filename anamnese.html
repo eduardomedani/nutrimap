@@ -133,6 +133,13 @@
   .upload-title { font-family: var(--font-sans); font-size: 18px; color: var(--ink); margin-bottom: 6px; font-weight: 500; }
   .upload-subtitle { font-size: 13px; color: var(--ink-soft); margin-bottom: 14px; }
   .upload-input { display: none; }
+  /* Aviso que substituiu a área de anexo. NÃO é clicável e não tem hover: o
+     que existia antes parecia um botão, e parecer botão foi o começo do
+     problema — a pessoa clicava, via "Enviado", e nada tinha sido enviado. */
+  .upload-aviso { display: flex; align-items: center; gap: 14px; border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; background: var(--bg); text-align: left; }
+  .upload-aviso .upload-icon { width: 44px; height: 44px; margin: 0; flex-shrink: 0; font-size: 22px; border-radius: 13px; }
+  .upload-aviso strong { display: block; font-family: var(--font-sans); font-size: 15px; color: var(--ink); font-weight: 500; margin-bottom: 2px; }
+  .upload-aviso div > div { font-size: 13px; color: var(--ink-soft); line-height: 1.45; }
   .upload-btn { display: inline-block; padding: 10px 24px; background: var(--moss); color: var(--cream); border-radius: 100px; font-size: 14px; font-weight: 500; margin-top: 14px; cursor: pointer; transition: all 0.2s; }
   .upload-btn:hover { background: var(--moss-deep); transform: translateY(-1px); }
   .file-list { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
@@ -639,14 +646,23 @@
           <div class="radio-option"><input type="radio" id="q3_7_opt1" name="q3_7" value="Sim" required onchange="toggleConditional('q3_upload_cond', true)"><label for="q3_7_opt1">Sim</label></div>
           <div class="radio-option"><input type="radio" id="q3_7_opt2" name="q3_7" value="Não" onchange="toggleConditional('q3_upload_cond', false)"><label for="q3_7_opt2">Não</label></div>
         </div>
+        <!-- O ANEXO SAIU DAQUI, e a razão importa: até 07/08/2026 esta área
+             chamava simulateUpload() — a barra de progresso enchia, aparecia
+             "Enviado", e o arquivo NUNCA saía do navegador. Só o nome e o
+             tamanho eram guardados. Quem preencheu acreditou que mandou os
+             exames, e o profissional nunca recebeu.
+             Enquanto não houver bucket privado e a tela de exames no hub
+             (js/paciente-modulos.js tem exames: false), pedir o arquivo aqui
+             é prometer o que não se cumpre. A pergunta fica — ela é
+             informação de verdade e vai para `respostas`. -->
         <div id="q3_upload_cond" class="conditional">
-          <div class="upload-area" id="uploadArea">
-            <input type="file" id="fileInput" class="upload-input" accept=".pdf,.jpg,.jpeg,.png" multiple>
+          <div class="upload-aviso">
             <div class="upload-icon">📎</div>
-            <div class="upload-title">Selecione exames</div>
-            <div class="upload-btn">Escolher</div>
+            <div>
+              <strong>Traga os exames na consulta</strong>
+              <div>Impressos ou no celular. Ainda não recebemos arquivos por aqui.</div>
+            </div>
           </div>
-          <div class="file-list" id="fileList"></div>
         </div>
       </div>
       <div class="nav-buttons">
@@ -2247,7 +2263,6 @@
 
   const TOTAL_MODULES = 13;
   let currentModule = 1;
-  let uploadedFiles = [];
   let pacienteSupabase = null; // Será preenchido ao validar o código
 
   const urlParams = new URLSearchParams(window.location.search);
@@ -2340,7 +2355,6 @@
         });
       }
     });
-    if (data._uploadedFiles) { uploadedFiles = data._uploadedFiles; renderFileList(); }
     calculateIMC();
     calculateMeta();
     calculatePSQI();
@@ -2584,53 +2598,9 @@
     saveAnswer('q11_supplements', supplements);
   }
 
-  // ===== UPLOAD =====
-  function handleFiles(files) {
-    Array.from(files).forEach(file => {
-      if (file.size > 10*1024*1024) { alert(`${file.name} > 10MB`); return; }
-      const fileObj = { id: Date.now()+Math.random(), name: file.name, size: file.size, status: 'uploading', progress: 0 };
-      uploadedFiles.push(fileObj);
-      renderFileList();
-      simulateUpload(fileObj);
-    });
-  }
-  function simulateUpload(fileObj) {
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += 15 + Math.random()*20;
-      if (progress >= 100) {
-        progress = 100; clearInterval(interval);
-        fileObj.status = 'success'; fileObj.progress = 100;
-        saveAnswer('_uploadedFiles', uploadedFiles);
-      } else fileObj.progress = progress;
-      renderFileList();
-    }, 300);
-  }
-  function renderFileList() {
-    const list = document.getElementById('fileList');
-    if (!list) return;
-    list.innerHTML = uploadedFiles.map(f => `
-      <div class="file-item ${f.status}">
-        <div class="file-icon">${f.status==='success'?'✓':'📄'}</div>
-        <div class="file-info">
-          <div class="file-name">${f.name}</div>
-          <div class="file-size">${formatFileSize(f.size)} ${f.status==='success'?'· Enviado':''}</div>
-          ${f.status==='uploading'?`<div class="file-progress"><div class="file-progress-fill" style="width:${f.progress}%;"></div></div>`:''}
-        </div>
-        <button class="file-remove" onclick="removeFile(${f.id})">×</button>
-      </div>
-    `).join('');
-  }
-  function removeFile(id) {
-    uploadedFiles = uploadedFiles.filter(f => f.id !== id);
-    renderFileList();
-    saveAnswer('_uploadedFiles', uploadedFiles);
-  }
-  function formatFileSize(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
-    return (bytes/(1024*1024)).toFixed(1) + ' MB';
-  }
+  // O bloco de UPLOAD saiu daqui em 07/08/2026: era simulateUpload(), que
+  // enchia a barra de progresso e nunca enviava nada. Ver o comentario no
+  // campo de exames (modulo 3).
 
   // ===== REVIEW + SUBMIT =====
   function goToReview() {
@@ -2653,9 +2623,11 @@
         `${data.q4_1} kg · ${data.q4_2} cm · meta ${data.q4_4} kg`;
     }
 
-    if (uploadedFiles.length > 0) {
+    // O resumo dizia "N arquivos enviados" para arquivos que nunca saíram do
+    // navegador. Agora reflete só o que a pessoa RESPONDEU sobre ter exames.
+    if (data.q3_7) {
       document.getElementById('summary_exams').textContent =
-        `${uploadedFiles.length} arquivo${uploadedFiles.length > 1 ? 's' : ''} enviado${uploadedFiles.length > 1 ? 's' : ''}`;
+        data.q3_7 === 'Sim' ? 'Tem exames recentes — levar na consulta' : 'Sem exames recentes';
     }
 
     showScreen('screen-review');
@@ -2842,18 +2814,6 @@
 
     restoreAnswers();
 
-    const fileInput = document.getElementById('fileInput');
-    const uploadArea = document.getElementById('uploadArea');
-    if (fileInput) fileInput.addEventListener('change', (e) => { handleFiles(e.target.files); e.target.value = ''; });
-    if (uploadArea) {
-      uploadArea.addEventListener('click', () => fileInput && fileInput.click());
-      uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
-      uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
-      uploadArea.addEventListener('drop', (e) => {
-        e.preventDefault(); uploadArea.classList.remove('dragover');
-        handleFiles(e.dataTransfer.files);
-      });
-    }
   });
 
   // ═══════════════════════════════════════════════════════════
@@ -2868,7 +2828,6 @@
   window.submitQuestionnaire = submitQuestionnaire;
   window.addSupplement = addSupplement;
   window.removeSupplement = removeSupplement;
-  window.removeFile = removeFile;
   window.toggleMeal = toggleMeal;
   window.toggleConditional = toggleConditional;
 </script>
