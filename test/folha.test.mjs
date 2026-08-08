@@ -399,7 +399,15 @@ grupo('folha · fiação da tela', () => {
 
 grupo('folha · schema e histórico', () => {
   const schema = readFileSync(new URL('../db/folha_schema.sql', import.meta.url), 'utf8');
-  const seed = readFileSync(new URL('../db/folha_historico_seed.sql', import.meta.url), 'utf8');
+
+  // O seed do histórico não é versionado: traz nome, salário e chave Pix de
+  // gente real, e o repositório é público. Mesma regra do seed da equipe — os
+  // testes que dependem dele rodam na máquina de quem tem o arquivo e se calam
+  // onde ele não existe. O SCHEMA, esse sim, é conferido em qualquer máquina.
+  let seed = null;
+  try {
+    seed = readFileSync(new URL('../db/folha_historico_seed.sql', import.meta.url), 'utf8');
+  } catch (e) { /* sem seed local */ }
 
   teste('as três tabelas e a visão de totais', () => {
     for (const t of ['public.folhas', 'public.folha_itens', 'public.folha_adicionais', 'public.folha_itens_totais']) {
@@ -425,15 +433,18 @@ grupo('folha · schema e histórico', () => {
   });
 
   teste('o histórico importado tem as 31 competências', () => {
+    if (!seed) { ok(true, 'sem o seed local não há o que conferir'); return; }
     const inserts = seed.match(/insert into public\.folhas/g) || [];
     igual(inserts.length, 31, 'a planilha tem 31 meses de pagamento');
   });
 
   teste('o histórico entra como folha fechada', () => {
+    if (!seed) { ok(true, 'sem o seed local'); return; }
     ok(seed.includes("'fechada'"), 'pagamento antigo não é rascunho');
   });
 
   teste('quem saiu da equipe entra desligado, não some', () => {
+    if (!seed) { ok(true, 'sem o seed local'); return; }
     for (const nome of ['Adriany', 'Thayssa', 'Samara']) {
       ok(seed.includes(`'${nome}'`), `faltou ${nome} no histórico`);
     }
