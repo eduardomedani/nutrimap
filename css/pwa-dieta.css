@@ -518,15 +518,11 @@ body.dt-travado { overflow: hidden; }
 }
 
 /* ── Respiro para a barra inferior ─────────────────────────────────────── */
-/* A última refeição não pode ficar embaixo da navegação — nem no iPhone, onde
-   ainda há a faixa do gesto de home. */
-/* A casca (.pa-main, em app.html) já reserva 96px fixos para a mesma barra. Sem
-   zerar aquela reserva as duas se somam e sobra um vão de ~112px embaixo da
-   última refeição — a barra parece solta, longe do fim do conteúdo. Quem manda
-   aqui é a reserva desta folha, porque ela conta a faixa do gesto do iPhone,
-   que os 96px da casca ignoram. */
-main.pa-main:has(.dt) { padding-bottom: 0; }
-.dt { padding-bottom: calc(var(--pa-nav-h, 64px) + env(safe-area-inset-bottom, 0px) + 16px); }
+/* Nada aqui. A última refeição não fica embaixo da navegação porque a casca
+   (.pa-main, em app.html) reserva --pa-nav-reserva, que já conta a faixa do
+   gesto de home do iPhone. Esta folha declarava a própria reserva e zerava a
+   da casca com `:has()`; eram dois lugares para o mesmo número, e é assim que
+   o vão embaixo da última refeição voltava a aparecer. */
 
 /* ── Desktop ───────────────────────────────────────────────────────────── */
 /* NUNCA duas colunas. O que muda no desktop é só a largura máxima do conteúdo

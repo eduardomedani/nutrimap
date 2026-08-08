@@ -559,13 +559,12 @@ grupo('início · o CSS', () => {
   });
 
   teste('a barra inferior não cobre o último atalho', () => {
-    contem(css, 'var(--pa-nav-h');
-    contem(css, 'env(safe-area-inset-bottom');
-  });
-
-  teste('a reserva da casca é zerada, para as duas não se somarem', () => {
-    // O bug que a dieta teve: 96px da casca + 73px da folha = vão de 112px.
-    contem(css, 'main.pa-main:has(.inicio) { padding-bottom: 0; }');
+    // A reserva não mora mais aqui: é da casca, em --pa-nav-reserva. Esta
+    // folha só não pode reabrir uma segunda — ver o grupo da barra inferior.
+    const shell = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+    contem(shell, 'padding: 18px 16px var(--pa-nav-reserva);');
+    ok(!/padding-bottom/.test(css.slice(0, css.indexOf('.inicio .pa-hero'))),
+       'reserva declarada aqui volta a somar com a da casca');
   });
 
   teste('quem pediu menos movimento não recebe animação', () => {
@@ -601,26 +600,116 @@ grupo('início · o topo não rouba meia tela', () => {
 
 grupo('início · a barra inferior encosta no fim da TELA', () => {
   const shell = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  const inicioCss = readFileSync(new URL('../css/pwa-inicio.css', import.meta.url), 'utf8');
+  const dietaCss = readFileSync(new URL('../css/pwa-dieta.css', import.meta.url), 'utf8');
+  const ui = readFileSync(new URL('../js/paciente-ui.js', import.meta.url), 'utf8');
 
-  teste('a barra prolonga o próprio fundo para baixo', () => {
-    // No app instalado com navegação por gestos o sistema reserva uma tira
-    // abaixo do viewport e a pinta com o fundo da página — a barra fica
-    // boiando. O prolongamento fecha essa fresta.
-    contem(shell, '.pa-bottomnav::after');
-    contem(shell, 'top: 100%');
+  // Só a regra da barra, para as asserções não pegarem env() de outra tela.
+  const regraNav = shell.slice(shell.indexOf('.pa-bottomnav {'));
+  const corpoNav = regraNav.slice(0, regraNav.indexOf('}') + 1);
+
+  teste('a barra pertence à viewport, não ao fluxo da página', () => {
+    // Dashboard curto, dieta longa, estado vazio, loading, erro: a posição não
+    // pode depender de quanto conteúdo existe acima.
+    contem(corpoNav, 'position: fixed');
+    contem(corpoNav, 'bottom: 0');
+    contem(corpoNav, 'left: 0');
+    contem(corpoNav, 'right: 0');
+    ok(!/position:\s*(absolute|sticky)/.test(corpoNav),
+       'absolute ou sticky prendem a barra ao conteúdo');
   });
 
-  teste('o prolongamento não rouba o toque de nada', () => {
-    const regra = shell.slice(shell.indexOf('.pa-bottomnav::after'));
-    ok(regra.slice(0, 220).includes('pointer-events: none'),
-       'o prolongamento precisa ser inerte ao toque');
+  teste('não sobrou spacer artificial abaixo da barra', () => {
+    // Eram 80px pintados com a cor da própria barra logo abaixo dela. Onde o
+    // fim do viewport não é o fim da tela, viravam a faixa vazia que fazia o
+    // menu parecer boiando no meio da tela.
+    naoContem(shell, '.pa-bottomnav::after');
+    naoContem(shell, '.pa-bottomnav::before');
+    ok(!/\.pa-bottomnav[^{]*\{[^}]*margin-bottom/.test(shell),
+       'margem embaixo da barra é vão artificial');
+    ok(!/\.pa-bottomnav[^{]*\{[^}]*bottom:\s*-/.test(shell),
+       'bottom negativo é valor mágico, não correção');
   });
 
-  teste('a barra continua em bottom: 0, com o inset quando houver', () => {
-    // O prolongamento é rede de segurança, não substituto: onde o sistema
-    // informa o inset de verdade (iPhone), quem manda continua sendo ele.
-    contem(shell, '.pa-bottomnav { position: fixed; left: 0; right: 0; bottom: 0;');
-    contem(shell, 'padding-bottom: env(safe-area-inset-bottom); }');
+  teste('a safe-area é contada UMA vez, e é na barra', () => {
+    // Contar duas vezes (body + barra, ou barra + conteúdo dela) é o que
+    // empurra o menu para cima e abre a faixa embaixo.
+    igual((corpoNav.match(/env\(safe-area-inset-bottom/g) || []).length, 2,
+          'uma na altura mínima, uma no padding — e nada além disso');
+    contem(corpoNav, 'padding-bottom: env(safe-area-inset-bottom, 0px);');
+    // `[\s;{]` antes: sem isso o próprio `padding-bottom:` casaria com o
+    // padrão e a guarda acusaria a regra certa.
+    ok(!/[\s;{]bottom:\s*env\(safe-area-inset-bottom/.test(corpoNav),
+       'bottom: env(...) junto com padding-bottom: env(...) aplica o inset duas vezes');
+
+    const regraBody = shell.slice(shell.indexOf('  body {'));
+    ok(!regraBody.slice(0, regraBody.indexOf('}')).includes('safe-area-inset-bottom'),
+       'o body não move uma barra fixed — só cria tira morta e dobra o inset');
+  });
+
+  teste('sem inset, a barra encosta sozinha — nada de altura de iPhone', () => {
+    // Android e desktop: env() vale 0 e a barra fica rente ao fim da tela.
+    contem(corpoNav, 'env(safe-area-inset-bottom, 0px)');
+    ok(!/\b(34|44|83)px\b/.test(corpoNav),
+       'altura de um modelo específico de iPhone não pode virar constante');
+  });
+
+  teste('a área útil é compacta: entre 64 e 72px, fora a safe-area', () => {
+    const m = shell.match(/--pa-nav-h:\s*(\d+)px/);
+    ok(m, 'a altura da barra tem que ser uma variável, não número solto');
+    const h = Number(m[1]);
+    ok(h >= 64 && h <= 72, `área útil de ${h}px — fora da faixa 64–72px`);
+    contem(corpoNav, 'min-height: calc(var(--pa-nav-h) + env(safe-area-inset-bottom, 0px));');
+  });
+
+  teste('ícone e rótulo ficam centralizados no item', () => {
+    const item = shell.slice(shell.indexOf('.pa-nav-item {'));
+    const corpo = item.slice(0, item.indexOf('}') + 1);
+    contem(corpo, 'justify-content: center');
+    contem(corpo, 'align-items: center');
+    contem(corpo, 'flex-direction: column');
+  });
+
+  teste('o conteúdo reserva espaço, e a reserva sai da MESMA variável', () => {
+    // O último cartão precisa poder rolar acima da barra sem ficar escondido.
+    contem(shell, '--pa-nav-reserva: calc(var(--pa-nav-h) + env(safe-area-inset-bottom, 0px) + 16px);');
+    contem(shell, '.pa-main { max-width: 620px; margin: 0 auto; padding: 18px 16px var(--pa-nav-reserva); }');
+    ok(!/\.pa-main \{[^}]*96px/.test(shell),
+       'reserva em número solto descola da barra no primeiro ajuste');
+  });
+
+  teste('a reserva mora em UM lugar — nenhuma tela declara a sua', () => {
+    // O vão nascia disto: casca e folha reservando o mesmo espaço, e um
+    // `:has()` para cancelar uma delas. Duas fontes para o mesmo número.
+    for (const [nome, css] of [['pwa-inicio.css', inicioCss], ['pwa-dieta.css', dietaCss]]) {
+      ok(!/^\s*(\.inicio|\.dt)\s*\{[^}]*padding-bottom/m.test(css),
+         `${nome} não pode declarar a própria reserva`);
+      ok(!css.includes('main.pa-main:has('),
+         `${nome} zerando a reserva da casca é sinal de reserva duplicada`);
+    }
+  });
+
+  teste('Início, Treino e Dieta usam a MESMA barra', () => {
+    // Uma fonte de verdade: bottomNav(). Nada de .inicio-bottomnav.
+    igual((ui.match(/\$\{bottomNav\(\)\}/g) || []).length, 5,
+          'toda tela do app do aluno monta a barra pelo mesmo componente');
+    igual((ui.match(/class="pa-bottomnav"/g) || []).length, 1,
+          'a marcação da barra existe em um lugar só');
+    for (const css of [inicioCss, dietaCss]) {
+      ok(!/bottomnav|bottom-nav/i.test(css), 'nenhuma tela redefine a barra por conta própria');
+    }
+  });
+
+  teste('as telas de altura cheia usam dvh, com vh de reserva', () => {
+    // No Safari 100vh é sempre a altura MAIOR, com a barra dinâmica recolhida.
+    contem(shell, 'min-height: 100vh; min-height: 100dvh;');
+    contem(shell, 'min-height: 80vh; min-height: 80dvh;');
+  });
+
+  teste('o viewport declara viewport-fit=cover, uma vez só', () => {
+    // Sem isso o iOS não informa env(safe-area-inset-*) nenhum.
+    contem(shell, 'viewport-fit=cover');
+    igual((shell.match(/name="viewport"/g) || []).length, 1);
   });
 });
 

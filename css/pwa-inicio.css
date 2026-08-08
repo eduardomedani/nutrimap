@@ -9,12 +9,10 @@
    Um #hexadecimal aqui é uma cor que não muda quando a marca mudar. */
 
 /* ── Respiro para a barra inferior ─────────────────────────────────────── */
-/* A casca (.pa-main, em app.html) reserva 96px fixos para a navegação. Somar
-   uma segunda reserva aqui abriria o mesmo vão de ~112px que a dieta teve. A
-   reserva passa a ser desta folha, que conta a faixa do gesto de home do
-   iPhone — coisa que os 96px da casca ignoram. */
-main.pa-main:has(.inicio) { padding-bottom: 0; }
-.inicio { padding-bottom: calc(var(--pa-nav-h, 64px) + env(safe-area-inset-bottom, 0px) + 16px); }
+/* Nada aqui. A reserva é uma só, da casca (.pa-main, em app.html), e já conta
+   a safe-area: --pa-nav-reserva. Esta folha declarava a própria reserva e
+   precisava zerar a da casca com `:has()` para as duas não se somarem — dois
+   lugares para o mesmo número, que era justamente como o vão nascia. */
 
 /* ── Hero do Início ────────────────────────────────────────────────────── */
 /* Três linhas viraram duas: o "Hoje" era palavra estática em corpo 27 — manchete

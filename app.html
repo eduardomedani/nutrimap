@@ -60,8 +60,12 @@
     color: var(--text-primary);
     font-family: var(--font-sans); font-size: 15px; line-height: 1.55;
     -webkit-font-smoothing: antialiased;
-    padding-bottom: env(safe-area-inset-bottom);
   }
+  /* Sem `padding-bottom: env(safe-area-inset-bottom)` aqui. A barra inferior é
+     `position: fixed`: o padding do body não a move um pixel — só acrescenta
+     uma tira morta no fim da rolagem de TODAS as telas, e faz a safe-area ser
+     contada duas vezes (aqui e na própria barra). Quem declara a safe-area é
+     quem encosta nela: .pa-bottomnav, uma vez só. */
   em { font-style: italic; }
   a { color: inherit; }
   input, select, button { font-family: inherit; }
@@ -69,7 +73,7 @@
   svg.lucide { stroke-width: 1.6; }
 
   /* ── Boot / carregando ── */
-  .pa-boot { min-height: 80vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; text-align: center; color: var(--ink-soft); padding: 24px; }
+  .pa-boot { min-height: 80vh; min-height: 80dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; text-align: center; color: var(--ink-soft); padding: 24px; }
   .pa-boot svg { width: 34px; height: 34px; color: var(--gold); }
   .pa-spin { display: inline-block; width: 18px; height: 18px; border: 2.5px solid var(--line); border-top-color: var(--moss); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; }
   .pa-spin-lg { width: 30px; height: 30px; border-width: 3px; }
@@ -77,7 +81,10 @@
   @keyframes slideInRight { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
   /* ── Auth / vincular ── */
-  .pa-auth { max-width: 420px; margin: 0 auto; padding: 40px 20px 32px; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; }
+  /* `dvh` depois de `vh`: no Safari a barra dinâmica muda a altura visível, e
+     100vh é sempre a MAIOR — a tela de entrar nascia com rolagem inútil. Quem
+     não conhece dvh fica com o vh, que continua na linha de cima. */
+  .pa-auth { max-width: 420px; margin: 0 auto; padding: 40px 20px 32px; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; justify-content: center; }
   .pa-brand { text-align: center; margin-bottom: 22px; }
   .pa-brand-mark { width: 56px; height: 56px; margin: 0 auto 12px; background: linear-gradient(135deg, var(--moss), var(--olive)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--cream); font-size: 26px; font-weight: 600; font-style: italic; box-shadow: var(--shadow); }
   .pa-brand-name { font-size: 28px; font-weight: 500; }
@@ -122,20 +129,52 @@
   .pa-logout:hover { background: var(--bg-warm); color: var(--ink); }
   .pa-logout svg { width: 19px; height: 19px; }
 
-  /* ── Treino ── */
-  .pa-main { max-width: 620px; margin: 0 auto; padding: 18px 16px 96px; }
+  /* Altura útil da barra inferior (ícone + rótulo, sem a safe-area) e a reserva
+     que o conteúdo precisa deixar embaixo para o último item não sumir atrás
+     dela. Uma variável, uma verdade: a barra se mede por --pa-nav-h e o
+     conteúdo reserva --pa-nav-reserva. Mexeu numa, a outra acompanha.
+     A safe-area entra aqui porque é reserva de CONTEÚDO — não é a mesma
+     aplicação que a da barra, que empurra o próprio miolo para cima. */
+  :root {
+    --pa-nav-h: 66px;
+    --pa-nav-reserva: calc(var(--pa-nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
+  }
 
-  /* Navegação inferior (Treino | Dieta) */
-  .pa-bottomnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: flex; background: rgba(255,255,255,0.94); backdrop-filter: blur(10px); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
-  /* A barra encosta no fim do VIEWPORT — que nem sempre é o fim da TELA. No app
-     instalado com navegação por gestos, o sistema reserva uma tira embaixo do
-     viewport e a pinta com o fundo da página: a barra fica boiando, com fundo
-     aparecendo abaixo dela. `env(safe-area-inset-bottom)` não resolve porque
-     nesse caso ele vale 0 — não há inset a declarar, o viewport é que é menor.
-     Prolongar o fundo da barra para baixo fecha a fresta sem depender do que o
-     sistema informa. Fica fora da tela quando não há tira nenhuma. */
-  .pa-bottomnav::after { content: ''; position: absolute; top: 100%; left: 0; right: 0; height: 80px; background: inherit; pointer-events: none; }
-  .pa-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 4px 8px; background: none; border: none; cursor: pointer; color: var(--ink-mute); font-size: 11px; font-weight: 700; font-family: inherit; transition: color 0.15s; }
+  /* ── Treino ── */
+  /* A reserva embaixo é a MESMA variável que dá altura à barra — ver
+     --pa-nav-reserva. Número solto aqui (era 96px) descola da barra real no
+     primeiro ajuste e reabre o vão. */
+  .pa-main { max-width: 620px; margin: 0 auto; padding: 18px 16px var(--pa-nav-reserva); }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     NAVEGAÇÃO INFERIOR (Início | Treino | Dieta)
+     ══════════════════════════════════════════════════════════════════════
+     Fonte única: bottomNav() em js/paciente-ui.js monta esta barra, e TODAS as
+     telas do app do aluno a usam. Não existe .inicio-bottomnav nem
+     .dt-bottomnav — três implementações voltariam a divergir.
+
+     A barra pertence ao VIEWPORT, não ao fluxo da página: `fixed` + bottom 0.
+     Dashboard curto, dieta longa, estado vazio, loading ou erro — sempre no
+     mesmo lugar.
+
+     Safe-area UMA vez, aqui. Não no body, não no conteúdo: contar duas vezes
+     é o que empurra a barra para cima e abre a faixa vazia embaixo. Onde não
+     há inset (Android, desktop, Safari sem notch), env() vale 0 e a barra
+     encosta direto no fim da tela. */
+  .pa-bottomnav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    display: flex; align-items: stretch;
+    min-height: calc(var(--pa-nav-h) + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: rgba(255,255,255,0.94); backdrop-filter: blur(10px);
+    border-top: 1px solid var(--line);
+  }
+  /* Nada de pseudo-elemento prolongando o fundo para baixo. Eram 80px pintados
+     com a cor da própria barra logo abaixo dela: onde o fim do viewport não
+     coincide com o fim da tela, esses 80px viram uma faixa vazia da cor da
+     barra — exatamente o "menu boiando no meio da tela". A tira do gesto do
+     Android se resolve com viewport-fit=cover no <meta>, que já está lá. */
+  .pa-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 8px 4px; background: none; border: none; cursor: pointer; color: var(--ink-mute); font-size: 11px; font-weight: 700; font-family: inherit; transition: color 0.15s; }
   .pa-nav-item svg { width: 21px; height: 21px; }
   .pa-nav-item.active { color: var(--moss); }
   .pa-select { padding: 9px 12px; border: 1px solid var(--hair); border-radius: 10px; background: var(--bg-card); font-size: 13.5px; color: var(--ink); max-width: 100%; }
@@ -154,12 +193,16 @@
   /* ══════════════════════════════════════════════════════════════════════
      TREINO EM ANDAMENTO — cabeçalho fixo, cronômetro e barra de finalizar
      ══════════════════════════════════════════════════════════════════════ */
-  /* Altura da topbar (12 + avatar 30 + 12) e da navegação inferior. */
-  :root { --pa-top-h: 54px; --pa-nav-h: 57px; }
+  /* Altura da topbar (12 + avatar 30 + 12). A da navegação inferior mora lá em
+     cima, junto da própria barra — ver --pa-nav-h. */
+  :root { --pa-top-h: 54px; }
 
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
 
-  .pa-main-run { max-width: 720px; padding-bottom: 150px; }
+  /* Treino em andamento tem DUAS barras embaixo: a navegação e a .pa-finishbar
+     logo acima dela. A reserva é a da navegação + a altura da finishbar, e não
+     um 150px solto — que era o número certo só enquanto a barra media 57px. */
+  .pa-main-run { max-width: 720px; padding-bottom: calc(var(--pa-nav-reserva) + 68px); }
 
   /* Cabeçalho do treino: acompanha a rolagem, logo abaixo da topbar. */
   .pa-runbar { position: sticky; top: calc(var(--pa-top-h) + env(safe-area-inset-top)); z-index: 15;
