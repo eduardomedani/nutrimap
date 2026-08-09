@@ -147,6 +147,24 @@ async function renderAba(abaId) {
     return;
   }
 
+  if (abaId === 'checkins') {
+    cont.innerHTML = '';
+    try {
+      const { initCheckinsPaciente } = await import('./checkin-paciente-ui.js');
+      await initCheckinsPaciente({ cont, paciente: p, irParaAba });
+    } catch (e) { erroAba(cont, 'Não foi possível carregar os check-ins.', e); }
+    return;
+  }
+
+  if (abaId === 'documentos') {
+    cont.innerHTML = '';
+    try {
+      const { initDocumentos } = await import('./paciente-documentos-ui.js');
+      await initDocumentos({ cont, paciente: p, irParaAba });
+    } catch (e) { erroAba(cont, 'Não foi possível carregar os documentos.', e); }
+    return;
+  }
+
   if (abaId === 'anamnese') {
     cont.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando relatório...</div>`;
     try {

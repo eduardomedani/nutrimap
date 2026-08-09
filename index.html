@@ -1503,6 +1503,10 @@
   .pv-card-head h3 svg { width: 15px; height: 15px; color: var(--text-secondary); }
   .pv-contador { font-size: 11.5px; font-weight: 800; color: var(--text-secondary); background: var(--surface-subtle); padding: 2px 9px; border-radius: 100px; }
   .pv-card-tit { font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
+  /* Documentos que o paciente ainda não abriu. Ganha realce porque é o único
+     número do card sobre o qual dá para fazer alguma coisa — "8 arquivos" não
+     sugere ação nenhuma; "2 pendentes" entra na pauta da próxima consulta. */
+  .pv-doc-pend { color: var(--warning, var(--gold)); font-weight: 800; }
   .pv-card-linhas { display: flex; flex-direction: column; gap: 5px; }
   .pv-linha { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 12.5px; color: var(--text-secondary); }
   .pv-linha b { color: var(--text-primary); font-weight: 700; text-align: right; }
@@ -1770,6 +1774,11 @@
 <!-- O documento do contracheque. Folha própria porque ela é embutida no HTML
      publicado para o colaborador — ver js/contracheque-arquivo.js. -->
 <link rel="stylesheet" href="css/contracheque.css">
+<!-- Aba Documentos do Hub do paciente. Depois de brand.css, como as outras
+     folhas de módulo: ela ajusta .pdoc-* apenas, sem tocar em nada global. -->
+<link rel="stylesheet" href="css/paciente-documentos.css">
+<!-- Check-ins: tela global (Análise) e aba do Hub do paciente. -->
+<link rel="stylesheet" href="css/checkin.css">
 </head>
 <body>
 
@@ -1970,7 +1979,11 @@
       <div class="nav-group">
         <div class="nav-group-title">Análise</div>
         <div class="nav-item disabled" data-page="evolucao"><span class="nav-icon"><i data-lucide="chart-column"></i></span><span>Evolução</span></div>
-        <div class="nav-item disabled" data-page="documentos"><span class="nav-icon"><i data-lucide="paperclip"></i></span><span>Documentos</span></div>
+        <!-- Check-ins entra em Análise, e não em Gestão: aquele grupo guarda
+             catálogos-ingrediente (alimentos, exercícios). Esta tela é
+             operação — quem respondeu, quem atrasou —, e os modelos são meio. -->
+        <div class="nav-item" data-page="checkins"><span class="nav-icon"><i data-lucide="clipboard-check"></i></span><span>Check-ins</span></div>
+        <div class="nav-item" data-page="documentos"><span class="nav-icon"><i data-lucide="paperclip"></i></span><span>Documentos</span></div>
         <div class="nav-item disabled" data-page="ia"><span class="nav-icon"><i data-lucide="bot"></i></span><span>IA Nutricional</span></div>
       </div>
       <div class="nav-group">
@@ -2083,9 +2096,11 @@
     <div class="module-page" id="page-evolucao">
       <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="chart-column"></i></div><div class="em-breve-titulo">Evolução</div><div class="em-breve-sub">Acompanhe a evolução de cada cliente ao longo do tempo: peso, medidas, exames e adesão ao plano.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
     </div>
-    <div class="module-page" id="page-documentos">
-      <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="paperclip"></i></div><div class="em-breve-titulo">Documentos</div><div class="em-breve-sub">Armazene exames, laudos, atestados e prescrições. Tudo seguro, organizado por cliente e acessível de qualquer lugar.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
-    </div>
+    <!-- Central de documentos: cadastro e visão de todos os pacientes. A aba
+         Documentos dentro da ficha continua existindo e usa o MESMO serviço —
+         lá o paciente já está escolhido, aqui ele é o primeiro campo. -->
+    <div class="module-page" id="page-checkins"></div>
+    <div class="module-page" id="page-documentos"></div>
     <div class="module-page" id="page-ia">
       <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="bot"></i></div><div class="em-breve-titulo">IA Nutricional</div><div class="em-breve-sub">Análise automática de recordatórios alimentares, sugestão de planos baseados em cronotipo e patologias, e relatórios inteligentes.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
     </div>
@@ -2177,6 +2192,12 @@
     }
     if (pagina === 'treinos') {
       abrirTreinosBiblioteca().catch(console.error);
+    }
+    if (pagina === 'checkins') {
+      abrirCheckins().catch(console.error);
+    }
+    if (pagina === 'documentos') {
+      abrirDocumentos().catch(console.error);
     }
     if (pagina === 'alimentos') {
       abrirAlimentos().catch(console.error);
@@ -2297,6 +2318,26 @@
     const sessao = await obterSessao();
     const { initEquipeUI } = await import('./js/equipe-admin-ui.js');
     await initEquipeUI(sessao?.user?.id, secao || 'resumo');
+  }
+
+  // Central de documentos. O clique no nome do paciente abre a ficha já na aba
+  // Documentos — é o mesmo módulo visto de perto, não uma segunda tela.
+  // Check-ins: visão transversal. O clique no nome do paciente abre a ficha já
+  // na aba Check-ins — mesmo módulo visto de perto.
+  async function abrirCheckins() {
+    const { initCheckins } = await import('./js/checkin-ui.js');
+    await initCheckins({
+      cont: 'page-checkins',
+      irParaFicha: (pacienteId) => abrirRelatorio(pacienteId, 'checkins'),
+    });
+  }
+
+  async function abrirDocumentos() {
+    const { initDocumentosCentral } = await import('./js/paciente-documentos-central.js');
+    await initDocumentosCentral({
+      cont: 'page-documentos',
+      irParaFicha: (pacienteId) => abrirRelatorio(pacienteId, 'documentos'),
+    });
   }
 
   async function abrirTreinosBiblioteca() {

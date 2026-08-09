@@ -29,8 +29,16 @@ export const FUNDACOES = {
 
   // Fases seguintes — sem tabela/serviço hoje, então não aparecem no Hub.
   consultas:    true,    // módulo-base de consultas (Fase 2A)
-  checkins:     false,   // Fase 3 (aderência depende disto)
-  documentos:   false,   // Fase 4 (depende de storage privado)
+  // Schema, RPC de materialização e finalização (db/checkin_schema.sql), mais
+  // atribuir, gerar e ler respostas na ficha. A regra do topo foi respeitada:
+  // a flag só virou quando a aba passou a fazer alguma coisa. O PWA de
+  // resposta é a Etapa 3 e não depende dela — lá quem manda é o RLS.
+  checkins:     true,    // acompanhamento entre consultas
+  // Storage privado + RLS + RPC de visualização (db/paciente_documentos.sql),
+  // serviço e aba de verdade. A regra do topo deste arquivo foi respeitada: a
+  // flag só virou depois de a tela existir, na Etapa 2. O PWA do paciente
+  // (Etapa 3) não depende dela — lá o que manda é o RLS.
+  documentos:   true,    // exames, laudos e receitas do prontuário
   exames:       false,   // Fase 4
   fotos:        false,   // Fase 5
   agendamentos: false,   // Fase 6 (próximo retorno depende disto)
