@@ -364,8 +364,15 @@ grupo('início · progresso e atalhos', () => {
     naoContem(html, 'Ver dieta');
   });
 
-  teste('sem nada para onde ir, a seção inteira some', () => {
-    igual(atalhosHtml({ temTreino: false, temDieta: false }), '');
+  teste('a seção nunca fica vazia — Documentos é permanente', () => {
+    // Antes ela sumia inteira sem treino nem dieta. Agora Documentos é módulo
+    // permanente e sempre ocupa uma linha, então "Acesso rápido" sempre tem
+    // pelo menos um destino de verdade — nada de título sobre o nada.
+    const so = atalhosHtml({ temTreino: false, temDieta: false });
+    contem(so, 'Acesso rápido');
+    contem(so, 'data-ir="documentos"');
+    naoContem(so, 'data-ir="treino"');
+    naoContem(so, 'data-ir="dieta"');
   });
 });
 
@@ -691,7 +698,17 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
 
   teste('Início, Treino e Dieta usam a MESMA barra', () => {
     // Uma fonte de verdade: bottomNav(). Nada de .inicio-bottomnav.
-    igual((ui.match(/\$\{bottomNav\(\)\}/g) || []).length, 5,
+    //
+    // A conferência compara as DUAS contagens entre si, e não com um número
+    // fixo: o invariante é "toda tela que pinta a casca tem a barra", não
+    // "existem N telas". Fixar o número faz a guarda quebrar na próxima tela
+    // que nascer — foi o que aconteceu quando Documentos virou a sexta — e uma
+    // guarda que grita por crescimento normal é uma guarda que se aprende a
+    // desligar.
+    const telas = (ui.match(/<main class="pa-main/g) || []).length;
+    const barras = (ui.match(/\$\{bottomNav\(\)\}/g) || []).length;
+    ok(telas >= 5, `só achei ${telas} telas — o app do aluno tem mais que isso`);
+    igual(barras, telas,
           'toda tela do app do aluno monta a barra pelo mesmo componente');
     igual((ui.match(/class="pa-bottomnav"/g) || []).length, 1,
           'a marcação da barra existe em um lugar só');

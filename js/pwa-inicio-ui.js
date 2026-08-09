@@ -14,6 +14,7 @@
 import {
   proximaRefeicaoDoDia, treinoDoDia, treinosNaSemana, formatarConsulta, formatarMeta,
 } from './pwa-inicio-data.js';
+import { resumoParaInicio } from './pwa-documentos-data.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -167,7 +168,25 @@ export function progressoHtml({ sequencia = 0, recordes = 0, semana = 0, carrega
  * abrem um aviso de "em breve" — e um app cheio de portas falsas ensina o
  * paciente a não tocar em nada.
  */
-export function atalhosHtml({ temTreino = false, temDieta = false } = {}) {
+/**
+ * O contador do atalho de Documentos.
+ *
+ *   null  → a consulta falhou. NÃO dizer "0 arquivos": isso afirma que o
+ *           paciente não tem nenhum, e a tela não sabe disso. O atalho aparece
+ *           sem número, porque a funcionalidade existe independentemente de a
+ *           consulta ter respondido.
+ *   novos → o que há de novo vence a contagem total: quem tem 8 arquivos e 2
+ *           por abrir quer saber dos 2.
+ */
+export function rotuloDocumentos(documentos) {
+  if (!documentos) return '';
+  const { total = 0, novos = 0 } = documentos;
+  if (novos > 0) return `${novos} ${novos === 1 ? 'novo' : 'novos'}`;
+  if (total > 0) return `${total} ${total === 1 ? 'arquivo' : 'arquivos'}`;
+  return 'Nenhum arquivo';
+}
+
+export function atalhosHtml({ temTreino = false, temDieta = false, documentos } = {}) {
   const botoes = [];
   if (temTreino) botoes.push(`
     <button class="in-atalho in-atalho-forte" type="button" data-ir="treino">
@@ -178,10 +197,48 @@ export function atalhosHtml({ temTreino = false, temDieta = false } = {}) {
       <i data-lucide="salad"></i> Ver dieta
     </button>`);
 
-  if (!botoes.length) return '';
+  // Documentos é módulo PERMANENTE: o atalho existe mesmo sem nenhum arquivo.
+  // Um módulo que só aparece quando já tem conteúdo é um módulo que o paciente
+  // nunca descobre — ele não tem como saber que existe um lugar onde os exames
+  // vão chegar. Encontrabilidade não pode depender de o profissional já ter
+  // compartilhado alguma coisa.
+  const rotulo = rotuloDocumentos(documentos);
+  botoes.push(`
+    <button class="in-atalho" type="button" data-ir="documentos">
+      <i data-lucide="folder-open"></i> Documentos
+      ${rotulo ? `<span class="in-atalho-n">${esc(rotulo)}</span>` : ''}
+    </button>`);
+
   return `
     <h2 class="in-t">Acesso rápido</h2>
     <div class="in-atalhos">${botoes.join('')}</div>`;
+}
+
+/**
+ * O cartão de documento NOVO — e só quando há novo.
+ *
+ * Sem novidade este bloco não existe (quem responde pelo acesso é o atalho lá
+ * embaixo), e sem documento nenhum não existe nada: espaço vazio reservado
+ * para o que pode nunca chegar é espaço roubado do que chega todo dia.
+ *
+ * Vem DEPOIS de refeição e treino de propósito. Um exame compartilhado é
+ * importante, mas não é o que o paciente abriu o app para ver às 7h.
+ */
+export function documentosHtml({ novos = 0, titulo = null } = {}) {
+  if (!novos) return '';
+  const um = novos === 1;
+  return `
+    <section class="in-doc" aria-label="${um ? 'Novo documento' : `${novos} novos documentos`}">
+      <div class="in-doc-ico"><i data-lucide="file-text"></i></div>
+      <div class="in-doc-txt">
+        <div class="in-doc-tag">${um ? 'Novo documento' : `${novos} novos documentos`}</div>
+        ${um && titulo ? `<div class="in-doc-tit">${esc(titulo)}</div>` : ''}
+        <div class="in-doc-sub">Compartilhado pelo seu profissional</div>
+      </div>
+      <button class="in-doc-btn" type="button" data-ir="documentos">
+        ${um ? 'Ver documento' : 'Ver documentos'}
+      </button>
+    </section>`;
 }
 
 /** A tela inteira. */
@@ -191,6 +248,7 @@ export function inicioHtml(d = {}) {
     refeicao, treino = null, exercicios = 0, grupos = '', consulta = null,
     sequencia = 0, recordes = 0, semana = 0, metas = [],
     temTreino = false, temDieta = false, treinoCarregando = false,
+    documentos = null,
   } = d;
 
   const corpo = hojeHtml({ refeicao, treino, exercicios, grupos, consulta, treinoCarregando });
@@ -209,9 +267,10 @@ export function inicioHtml(d = {}) {
         <div class="pa-empty-s">Assim que seu profissional publicar um treino ou uma dieta, ele aparece aqui.</div>
       </section>`}
 
+      ${documentosHtml(documentos || {})}
       ${progressoHtml({ sequencia, recordes, semana, carregando: treinoCarregando })}
       ${metasHtml(metas)}
-      ${atalhosHtml({ temTreino, temDieta })}
+      ${atalhosHtml({ temTreino, temDieta, documentos })}
     </div>`;
 }
 
@@ -268,15 +327,21 @@ export async function renderInicioPaciente(alvo, bruto = {}, opcoes = {}) {
     || (async () => (await import('./paciente-data.js')).proximaConsulta());
   const carregarMetas = opcoes.carregarMetas
     || (async () => (await import('./paciente-data.js')).minhasMetas());
+  // UMA leitura para os dois números do bloco (total e novos) — nada de uma
+  // consulta por documento só para mostrar uma contagem. O RLS já entrega
+  // apenas o que está disponível e não arquivado.
+  const carregarDocumentos = opcoes.carregarDocumentos
+    || (async () => (await import('./paciente-documentos.js')).meusDocumentos({ limite: 100 }));
 
   // As QUATRO vão juntas. Antes o treino era esperado primeiro e só então
   // estas três começavam: quatro esperas em fila viravam a soma dos tempos, e
   // não o maior deles.
-  const [rTreino, rDieta, rConsulta, rMetas] = await Promise.all([
+  const [rTreino, rDieta, rConsulta, rMetas, rDocs] = await Promise.all([
     opcoes.treino ? tentar(() => opcoes.treino, 'treino') : { ok: true, valor: null },
     tentar(carregarDieta, 'dieta'),
     tentar(carregarConsulta, 'consulta'),
     tentar(carregarMetas, 'metas'),
+    tentar(carregarDocumentos, 'documentos'),
   ]);
 
   // Com a rede fora, TODAS falham. Aí a tela não pode dizer "nada programado":
@@ -308,6 +373,10 @@ export async function renderInicioPaciente(alvo, bruto = {}, opcoes = {}) {
     temDieta: !!dieta,
     consulta: formatarConsulta(consultaBruta, bruto.hoje || ''),
     metas: (metasBrutas || []).map(formatarMeta).filter(Boolean),
+    // Documentos que não carregaram viram ausência de bloco, não bloco vazio:
+    // "0 arquivos" afirmaria que o paciente não tem nenhum, e isso a tela não
+    // sabe quando a consulta falhou.
+    documentos: rDocs.ok ? resumoParaInicio(rDocs.valor || []) : null,
   });
   ligarAtalhos(cx, opcoes.ir);
 }

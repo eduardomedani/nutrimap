@@ -1,0 +1,168 @@
+/* ═══════════════════════════════════════════════════════════
+   PWA · DOCUMENTOS — a tela do paciente e o bloco no Início
+   ═══════════════════════════════════════════════════════════
+   Mobile-first sem ressalva: esta tela praticamente só existe no celular.
+   Cartão de largura total, alvo de toque grande, título sem compressão.
+
+   Sem cor literal: a identidade vem dos tokens em css/tokens.css. */
+
+/* Respiro para a barra inferior vem da casca (--pa-nav-reserva, em app.html).
+   Declarar uma segunda reserva aqui reabriria o vão embaixo do último cartão —
+   é o que aconteceu na dieta e no início antes de a reserva virar uma só. */
+
+/* ── Cabeçalho ────────────────────────────────────────────────────────────── */
+.pd-head { margin-bottom: 18px; }
+.pd-h1 {
+  margin: 0; font-size: 25px; font-weight: 800; letter-spacing: -0.015em;
+  color: var(--moss-deep, var(--text-primary));
+}
+.pd-sub {
+  margin: 4px 0 0; font-size: 13.5px; line-height: 1.5;
+  color: var(--ink-soft, var(--text-secondary));
+}
+
+/* ── Agrupamento por ano ──────────────────────────────────────────────────── */
+/* Só aparece quando há mais de um ano — ver agruparPorAno(). Um "2026" sozinho
+   sobre a lista inteira rouba uma linha e não informa nada. */
+.pd-ano {
+  margin: 22px 0 10px; font-size: 12px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-mute, var(--text-secondary));
+}
+.pd-ano:first-child { margin-top: 4px; }
+
+/* ── Cartão ───────────────────────────────────────────────────────────────── */
+.pd-lista { display: flex; flex-direction: column; gap: 11px; }
+
+.pd-card {
+  padding: 15px;
+  border: 1px solid var(--line, var(--border)); border-radius: 16px;
+  background: var(--bg-card, var(--surface));
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(16, 24, 40, .05));
+}
+.pd-card-topo { display: flex; align-items: flex-start; gap: 12px; }
+
+.pd-ico {
+  width: 42px; height: 42px; flex-shrink: 0;
+  display: grid; place-items: center; border-radius: 12px;
+  background: var(--bg-warm, var(--surface-subtle));
+  color: var(--moss, var(--primary));
+}
+.pd-ico svg { width: 20px; height: 20px; }
+
+.pd-card-txt { flex: 1; min-width: 0; }
+/* Sem truncamento: o título é a única coisa que identifica o documento para o
+   paciente, e "Exames laboratoriais — ago..." não identifica nada. */
+.pd-titulo {
+  margin: 0; font-size: 15.5px; font-weight: 700; line-height: 1.3;
+  color: var(--ink, var(--text-primary));
+  overflow-wrap: anywhere;
+}
+.pd-data { margin-top: 3px; font-size: 13px; color: var(--ink-soft, var(--text-secondary)); }
+.pd-meta { margin-top: 2px; font-size: 12.5px; color: var(--ink-mute, var(--text-secondary)); }
+.pd-sep { margin: 0 5px; opacity: .5; }
+
+/* O selo "Novo" traz TEXTO, não só cor: quem não distingue as cores e quem usa
+   leitor de tela precisam da mesma informação. O aria-label do botão repete o
+   estado, para o selo não depender da ordem de leitura. */
+.pd-novo {
+  flex-shrink: 0; align-self: flex-start;
+  padding: 3px 9px; border-radius: 100px;
+  background: color-mix(in srgb, var(--moss, var(--primary)) 14%, transparent);
+  color: var(--moss-deep, var(--primary));
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
+}
+
+.pd-abrir {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  width: 100%; margin-top: 13px;
+  /* 44px de alvo de toque: abaixo disso o dedo erra e o paciente toca duas
+     vezes, o que aqui significa duas assinaturas de URL. */
+  min-height: 44px; padding: 11px 14px;
+  border: 1px solid var(--line, var(--border)); border-radius: 12px;
+  background: var(--bg, var(--surface-subtle));
+  color: var(--moss-deep, var(--primary));
+  font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer;
+  transition: background .15s;
+}
+.pd-abrir:hover { background: var(--bg-warm, var(--surface-subtle)); }
+.pd-abrir:disabled { opacity: .6; cursor: default; }
+.pd-abrir svg { width: 16px; height: 16px; }
+
+.pd-aviso {
+  margin-top: 9px; font-size: 12.5px; line-height: 1.45;
+  color: var(--danger, #C0392B);
+}
+
+/* ── Skeleton ─────────────────────────────────────────────────────────────── */
+/* Nunca mostrar o vazio antes dos dados: "você não possui documentos" seguido
+   de três documentos é uma mentira de meio segundo que o paciente lê. */
+.pd-sk {
+  height: 122px; border-radius: 16px;
+  border: 1px solid var(--line, var(--border));
+  background: linear-gradient(90deg,
+    var(--bg-card, var(--surface)) 0%,
+    var(--bg-warm, var(--surface-subtle)) 50%,
+    var(--bg-card, var(--surface)) 100%);
+  background-size: 200% 100%;
+  animation: pd-brilho 1.3s ease-in-out infinite;
+}
+@keyframes pd-brilho { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* ═══════════════════════════════════════════════════════════
+   O BLOCO NO INÍCIO
+   ═══════════════════════════════════════════════════════════ */
+
+/* Cartão contextual: só existe quando há documento NOVO. Destaque moderado —
+   ele não pode competir com a próxima refeição nem com o treino do dia, que
+   são o motivo de o paciente abrir o app. */
+.in-doc {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px; margin-bottom: 18px;
+  border: 1px solid color-mix(in srgb, var(--moss, var(--primary)) 26%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--moss, var(--primary)) 7%, transparent);
+}
+.in-doc-ico {
+  width: 38px; height: 38px; flex-shrink: 0;
+  display: grid; place-items: center; border-radius: 11px;
+  background: var(--bg-card, var(--surface));
+  color: var(--moss, var(--primary));
+}
+.in-doc-ico svg { width: 18px; height: 18px; }
+.in-doc-txt { flex: 1; min-width: 0; }
+.in-doc-tag {
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--moss-deep, var(--primary));
+}
+.in-doc-tit {
+  margin-top: 2px; font-size: 14.5px; font-weight: 700; line-height: 1.25;
+  color: var(--ink, var(--text-primary));
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.in-doc-sub { margin-top: 2px; font-size: 12.5px; color: var(--ink-soft, var(--text-secondary)); }
+.in-doc-btn {
+  flex-shrink: 0; min-height: 38px; padding: 9px 14px;
+  border: none; border-radius: 11px;
+  background: var(--moss, var(--primary)); color: var(--on-primary, #fff);
+  font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer;
+}
+
+/* O contador do acesso persistente, no Acesso rápido. */
+.in-atalho-n {
+  margin-left: auto; font-size: 12px; font-weight: 600;
+  color: var(--ink-mute, var(--text-secondary));
+}
+
+/* ── Telas estreitas ──────────────────────────────────────────────────────── */
+/* O cartão contextual empilha em vez de espremer o botão contra o título. Em
+   nenhuma largura há rolagem horizontal. */
+@media (max-width: 400px) {
+  .in-doc { flex-wrap: wrap; }
+  .in-doc-btn { width: 100%; }
+  .in-atalho-n { margin-left: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pd-sk { animation: none; }
+}

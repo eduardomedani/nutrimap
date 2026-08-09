@@ -112,7 +112,14 @@ export async function iniciarApp() {
 
     // O app abre no Início, não no Treino: quem entra quer saber o que vem
     // agora, e só então decidir para onde ir.
-    renderInicio();
+    //
+    // A exceção é o deep link da notificação: quem tocou em "novo documento"
+    // já disse para onde quer ir, e cair no Início obrigaria a procurar de
+    // novo o que o aviso acabou de anunciar. O hash é só um NOME DE ROTA — a
+    // notificação nunca carrega URL assinada, e abrir o arquivo continua
+    // exigindo o toque em Visualizar, com o RLS validando na hora.
+    if (secaoDoHash() === 'documentos') renderDocumentos();
+    else renderInicio();
   } catch (e) {
     renderErro(traduzirErro(e.message));
   }
@@ -160,6 +167,18 @@ function seguirDepoisDoDescanso(est) {
     return;
   }
   focarProxima(box, est.serie);
+}
+
+/**
+ * Rota pedida no hash (app.html#documentos), usada pelo deep link do push.
+ *
+ * Lista fechada de propósito: o hash vem de fora e não decide nada além de
+ * qual tela abre. Um valor desconhecido cai no Início, sem erro.
+ */
+const ROTAS_DO_HASH = ['documentos'];
+function secaoDoHash() {
+  const h = String(location.hash || '').replace(/^#\/?/, '').split(/[/?]/)[0].toLowerCase();
+  return ROTAS_DO_HASH.includes(h) ? h : null;
 }
 
 // Código embutido no link de convite (?codigo=XYZ), se houver.
@@ -898,6 +917,39 @@ function pintarInicio(treino) {
 function irParaSecao(sec) {
   if (sec === 'dieta') renderDieta();
   else if (sec === 'treino') irParaTreino();
+  else if (sec === 'documentos') renderDocumentos();
+}
+
+// Seção Documentos — subtela do Início, não uma quarta aba.
+//
+// `_secao` continua 'inicio': é ele que a barra inferior lê para acender o
+// item ativo, e Documentos se chega PELO Início. Mesmo padrão do treino em
+// andamento, que mantém _secao = 'treino' enquanto troca de view. Uma regra
+// isolada aqui faria a barra apagar todos os itens em uma tela só.
+//
+// A barra inferior segue sendo a mesma — Início | Treino | Dieta. Enquanto não
+// existir "Mais", uma quarta aba só para Documentos desequilibraria a barra em
+// troca de um módulo que o paciente abre uma vez por mês.
+function renderDocumentos() {
+  _secao = 'inicio';
+  app().innerHTML = `
+    ${topo()}
+    <main class="pa-main"><div id="paDocs"></div></main>
+    ${bottomNav()}`;
+  ligarShell();
+
+  import('./pwa-documentos-ui.js')
+    .then(m => m.renderDocumentosPaciente('paDocs', { aoVoltar: renderInicio }))
+    .catch(e => {
+      console.error('Documentos:', e);
+      const cx = document.getElementById('paDocs');
+      if (cx) cx.innerHTML = `
+        <div class="pa-empty pa-empty-lg">
+          <i data-lucide="cloud-off"></i>
+          <div class="pa-empty-t">Não foi possível carregar seus documentos.</div>
+          <div class="pa-empty-s">Verifique sua conexão e tente novamente.</div>
+        </div>`;
+    });
 }
 
 // Seção Dieta — a casca; a tela mora em js/pwa-dieta-ui.js.

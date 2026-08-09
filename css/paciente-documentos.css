@@ -1,0 +1,490 @@
+/* ═══════════════════════════════════════════════════════════
+   DOCUMENTOS DO PACIENTE — aba do Hub (painel do profissional)
+   ═══════════════════════════════════════════════════════════
+   Lista, não tabela: são poucos arquivos por paciente, e uma grade de sete
+   colunas para oito linhas gasta mais tela do que informa.
+
+   Sem cor literal: a identidade vem dos tokens em css/tokens.css. Um
+   #hexadecimal aqui é uma cor que não muda quando a marca mudar. O fallback
+   `var(--x, var(--y))` segue o padrão do comercial.css — token novo primeiro,
+   nome antigo como rede. */
+
+/* ── Cabeçalho da aba ─────────────────────────────────────────────────────── */
+.pdoc-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 18px;
+}
+.pdoc-head h2 {
+  margin: 0 0 3px; font-size: 20px; font-weight: 800;
+  color: var(--text-primary, var(--ink));
+}
+.pdoc-sub {
+  margin: 0; font-size: 13.5px; line-height: 1.5;
+  color: var(--text-secondary, var(--ink-mute));
+}
+
+/* ── Filtros ──────────────────────────────────────────────────────────────── */
+.pdoc-filtros {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+/* Rola no celular em vez de quebrar em quatro linhas. O `-webkit-` mantém a
+   inércia do toque no iOS. */
+.pdoc-chips {
+  display: flex; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px; scrollbar-width: none;
+}
+.pdoc-chips::-webkit-scrollbar { display: none; }
+.pdoc-chip {
+  flex: 0 0 auto;
+  padding: 6px 12px; border-radius: 100px;
+  border: 1px solid var(--border, var(--hair));
+  background: var(--surface, var(--bg-card));
+  color: var(--text-secondary, var(--ink-mute));
+  font-size: 13px; font-weight: 700; font-family: inherit;
+  cursor: pointer; white-space: nowrap; transition: all .15s;
+}
+.pdoc-chip:hover { background: var(--surface-subtle, var(--bg-warm)); }
+/* Ativo troca cor, nunca peso nem borda: mudar font-weight faria a linha
+   inteira de chips saltar de altura a cada clique. */
+.pdoc-chip.ativo {
+  background: var(--primary, var(--moss)); border-color: var(--primary, var(--moss));
+  color: var(--on-primary, #fff);
+}
+/* O contador continua legível no chip aceso — some por contraste, não por
+   desaparecer, senão o número que importa sai justo quando é o selecionado. */
+.pdoc-chip-n { opacity: .7; margin-left: 3px; font-weight: 800; }
+.pdoc-chip.ativo .pdoc-chip-n { opacity: .85; }
+
+.pdoc-busca { position: relative; flex: 1 1 200px; min-width: 160px; }
+.pdoc-busca input {
+  width: 100%; padding: 8px 12px 8px 34px;
+  border: 1px solid var(--border, var(--hair)); border-radius: 10px;
+  background: var(--surface, var(--bg-card)); color: inherit;
+  font-size: 13.5px; font-family: inherit;
+}
+.pdoc-busca svg {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  width: 15px; height: 15px; color: var(--text-secondary, var(--ink-mute));
+  pointer-events: none;
+}
+.pdoc-select {
+  padding: 8px 10px; border: 1px solid var(--border, var(--hair)); border-radius: 10px;
+  background: var(--surface, var(--bg-card)); color: inherit;
+  font-size: 13.5px; font-family: inherit;
+}
+
+/* ── A lista ──────────────────────────────────────────────────────────────── */
+.pdoc-lista { display: flex; flex-direction: column; gap: 8px; }
+
+.pdoc-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center; gap: 14px;
+  padding: 13px 15px;
+  border: 1px solid var(--border, var(--hair)); border-radius: 14px;
+  background: var(--surface, var(--bg-card));
+  transition: border-color .15s, box-shadow .15s;
+}
+.pdoc-item:hover {
+  border-color: var(--primary, var(--moss));
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(16,24,40,.06));
+}
+/* Arquivado continua legível — some do app do paciente, não da vista de quem
+   precisa achá-lo depois. */
+.pdoc-item.arquivado { opacity: .62; }
+
+.pdoc-ico {
+  width: 40px; height: 40px; flex-shrink: 0;
+  display: grid; place-items: center; border-radius: 11px;
+  background: var(--surface-subtle, var(--bg-warm));
+  color: var(--text-secondary, var(--ink-mute));
+}
+.pdoc-ico svg { width: 19px; height: 19px; }
+
+.pdoc-corpo { min-width: 0; }
+.pdoc-titulo {
+  font-size: 14.5px; font-weight: 700; line-height: 1.3;
+  color: var(--text-primary, var(--ink));
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pdoc-linha2 {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  margin-top: 3px; font-size: 12.5px;
+  color: var(--text-secondary, var(--ink-mute));
+}
+.pdoc-linha2 .sep { opacity: .5; }
+.pdoc-badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+
+.pdoc-acoes { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+/* ── Central: faixa de indicadores ────────────────────────────────────────── */
+/* Faixa, não quatro cartões grandes: são quatro números de uma linha cada, e
+   cartão para número solto gasta meia tela para dizer "8". */
+.pdoc-inds {
+  display: flex; flex-wrap: wrap; gap: 0;
+  margin-bottom: 16px;
+  border: 1px solid var(--border, var(--hair)); border-radius: 14px;
+  background: var(--surface, var(--bg-card));
+  overflow: hidden;
+}
+.pdoc-ind {
+  flex: 1 1 130px; min-width: 0;
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 12px 16px;
+  border-left: 1px solid var(--border, var(--hair));
+}
+.pdoc-ind:first-child { border-left: none; }
+.pdoc-ind-n {
+  font-size: 21px; font-weight: 800; line-height: 1.1;
+  color: var(--text-primary, var(--ink));
+  font-variant-numeric: tabular-nums;
+}
+.pdoc-ind-r {
+  font-size: 11.5px; font-weight: 700;
+  color: var(--text-secondary, var(--ink-mute));
+}
+/* "Não visualizados" é o número operacional — o único sobre o qual dá para
+   agir. Ganha cor só quando é maior que zero; zero pendente não é aviso. */
+.pdoc-ind.destaque .pdoc-ind-n { color: var(--warning, var(--gold)); }
+
+/* ── Central: toolbar em duas faixas ──────────────────────────────────────── */
+.pdoc-toolbar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.pdoc-campos { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pdoc-campos .pdoc-busca { flex: 1 1 220px; }
+.pdoc-limpar {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 8px 12px; border: 1px solid transparent; border-radius: 10px;
+  background: none; color: var(--text-secondary, var(--ink-mute));
+  font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.pdoc-limpar:hover {
+  background: var(--surface-subtle, var(--bg-warm));
+  border-color: var(--border, var(--hair));
+  color: var(--text-primary, var(--ink));
+}
+.pdoc-limpar svg { width: 13px; height: 13px; }
+
+/* ── Central: a linha ganha o dono por cima ───────────────────────────────── */
+/* Numa lista transversal o título sozinho não identifica nada — "Exames
+   laboratoriais" aparece cinco vezes e nenhuma diz de quem é. */
+.pdoc-central-linha { display: flex; flex-direction: column; gap: 4px; }
+.pdoc-central-quem {
+  align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 0; border: none; background: none;
+  color: var(--text-secondary, var(--ink-mute));
+  font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.pdoc-central-quem:hover { color: var(--primary, var(--moss)); text-decoration: underline; }
+.pdoc-central-quem svg { width: 13px; height: 13px; }
+.pdoc-central .pdoc-lista { gap: 14px; }
+
+/* ── Badges ───────────────────────────────────────────────────────────────── */
+/* Quatro tons, e só. Privado é o estado mais comum: cinza, para não competir
+   com o que é exceção. */
+.pdoc-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 100px;
+  font-size: 11.5px; font-weight: 700; white-space: nowrap;
+}
+.pdoc-badge svg { width: 12px; height: 12px; }
+.pdoc-badge.privado {
+  background: var(--surface-subtle, var(--bg-warm));
+  color: var(--text-secondary, var(--ink-mute));
+}
+.pdoc-badge.disponivel {
+  background: color-mix(in srgb, var(--success, var(--moss)) 13%, transparent);
+  color: var(--success, var(--moss));
+}
+.pdoc-badge.novo {
+  background: color-mix(in srgb, var(--info, var(--sage)) 16%, transparent);
+  color: var(--info-ink, var(--moss-deep));
+}
+.pdoc-badge.visto {
+  background: transparent; padding-left: 0;
+  color: var(--text-secondary, var(--ink-mute));
+}
+.pdoc-badge.arquivado {
+  background: var(--surface-subtle, var(--bg-warm));
+  color: var(--text-secondary, var(--ink-mute)); opacity: .8;
+}
+
+/* ── Menu de ações ────────────────────────────────────────────────────────── */
+.pdoc-menu-wrap { position: relative; }
+.pdoc-menu-btn {
+  width: 32px; height: 32px;
+  display: grid; place-items: center;
+  border: 1px solid transparent; border-radius: 9px;
+  background: none; color: var(--text-secondary, var(--ink-mute)); cursor: pointer;
+}
+.pdoc-menu-btn:hover {
+  background: var(--surface-subtle, var(--bg-warm));
+  border-color: var(--border, var(--hair));
+}
+.pdoc-menu-btn svg { width: 17px; height: 17px; }
+
+.pdoc-menu {
+  position: absolute; right: 0; top: calc(100% + 5px); z-index: 40;
+  min-width: 215px; padding: 5px;
+  border: 1px solid var(--border, var(--hair)); border-radius: 12px;
+  background: var(--surface, var(--bg-card));
+  box-shadow: 0 10px 30px rgba(16, 24, 40, .14);
+}
+.pdoc-menu button {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 8px 10px; border: none; border-radius: 8px;
+  background: none; color: inherit; cursor: pointer;
+  font-size: 13.5px; font-weight: 600; font-family: inherit; text-align: left;
+}
+.pdoc-menu button:hover { background: var(--surface-subtle, var(--bg-warm)); }
+.pdoc-menu button svg { width: 15px; height: 15px; flex-shrink: 0; }
+.pdoc-menu-sep { height: 1px; margin: 5px 4px; background: var(--border, var(--hair)); }
+/* Excluir é a ação de maior risco: fica por último, separada, e só fica
+   vermelha no hover — vermelho permanente vira ruído e ensina a ignorar. */
+.pdoc-menu button.risco:hover {
+  background: color-mix(in srgb, var(--danger, #C0392B) 10%, transparent);
+  color: var(--danger, #C0392B);
+}
+
+/* ── Estado vazio ─────────────────────────────────────────────────────────── */
+.pdoc-vazio {
+  padding: 46px 24px; text-align: center;
+  border: 1px dashed var(--border, var(--hair)); border-radius: 16px;
+  color: var(--text-secondary, var(--ink-mute));
+}
+.pdoc-vazio svg { width: 30px; height: 30px; margin-bottom: 10px; opacity: .55; }
+.pdoc-vazio-t {
+  font-size: 15px; font-weight: 700; margin-bottom: 4px;
+  color: var(--text-primary, var(--ink));
+}
+.pdoc-vazio-s { font-size: 13.5px; line-height: 1.5; max-width: 380px; margin: 0 auto 14px; }
+
+/* ── Skeleton ─────────────────────────────────────────────────────────────── */
+/* Skeleton e não spinner: a lista tem forma conhecida, então o carregamento
+   mostra a forma. Spinner num layout previsível é um susto a mais. */
+.pdoc-sk {
+  height: 68px; border-radius: 14px;
+  border: 1px solid var(--border, var(--hair));
+  background: linear-gradient(90deg,
+    var(--surface, var(--bg-card)) 0%,
+    var(--surface-subtle, var(--bg-warm)) 50%,
+    var(--surface, var(--bg-card)) 100%);
+  background-size: 200% 100%;
+  animation: pdoc-brilho 1.3s ease-in-out infinite;
+}
+@keyframes pdoc-brilho { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* ── Erro ─────────────────────────────────────────────────────────────────── */
+.pdoc-erro {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 13px 15px; margin-bottom: 14px;
+  border: 1px solid color-mix(in srgb, var(--danger, #C0392B) 30%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--danger, #C0392B) 7%, transparent);
+  font-size: 13.5px; line-height: 1.5;
+}
+.pdoc-erro svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; color: var(--danger, #C0392B); }
+.pdoc-erro button {
+  margin-top: 7px; padding: 5px 11px;
+  border: 1px solid var(--border, var(--hair)); border-radius: 8px;
+  background: var(--surface, var(--bg-card)); color: inherit;
+  font-size: 12.5px; font-weight: 700; font-family: inherit; cursor: pointer;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DRAWER — novo documento, editar, substituir arquivo
+   ═══════════════════════════════════════════════════════════
+   Mesmo comportamento do drawer do comercial e do financeiro: fundo escuro,
+   painel à direita, Escape fecha, clique no fundo fecha. */
+.pdoc-drawer-raiz {
+  position: fixed; inset: 0; z-index: 1200;
+  display: flex; justify-content: flex-end;
+  background: rgba(15, 23, 32, .42);
+  animation: pdoc-fade .16s ease-out;
+}
+@keyframes pdoc-fade { from { opacity: 0; } to { opacity: 1; } }
+body.pdoc-travado { overflow: hidden; }
+
+.pdoc-drawer {
+  display: flex; flex-direction: column;
+  width: min(540px, 100%); max-height: 100%;
+  background: var(--surface, var(--bg-card));
+  box-shadow: -12px 0 40px rgba(0, 0, 0, .16);
+  animation: pdoc-entra .22s cubic-bezier(.2, .8, .3, 1);
+}
+@keyframes pdoc-entra { from { transform: translateX(24px); opacity: .6; } to { transform: none; opacity: 1; } }
+
+.pdoc-drawer-topo {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border, var(--hair));
+}
+.pdoc-drawer-topo h2 {
+  margin: 0; font-size: 18px; font-weight: 800;
+  color: var(--text-primary, var(--ink));
+}
+.pdoc-drawer-x {
+  width: 34px; height: 34px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border: 1px solid var(--border, var(--hair)); border-radius: 10px;
+  background: none; color: inherit; cursor: pointer;
+}
+.pdoc-drawer-x:hover { background: var(--surface-subtle, var(--bg-warm)); }
+.pdoc-drawer-x svg { width: 17px; height: 17px; }
+
+.pdoc-drawer-corpo { flex: 1; overflow-y: auto; padding: 18px 20px; }
+.pdoc-drawer-pe {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--border, var(--hair));
+  background: var(--surface, var(--bg-card));
+}
+
+.pdoc-campo { margin-bottom: 15px; }
+.pdoc-campo label {
+  display: block; margin-bottom: 5px;
+  font-size: 12.5px; font-weight: 700;
+  color: var(--text-secondary, var(--ink-mute));
+}
+.pdoc-campo label .req { color: var(--danger, #C0392B); }
+.pdoc-campo input[type="text"],
+.pdoc-campo input[type="date"],
+.pdoc-campo select,
+.pdoc-campo textarea {
+  width: 100%; padding: 9px 11px;
+  border: 1px solid var(--border, var(--hair)); border-radius: 10px;
+  background: var(--surface, var(--bg-card)); color: inherit;
+  font-size: 14px; font-family: inherit;
+}
+.pdoc-campo textarea { min-height: 74px; resize: vertical; }
+.pdoc-campo-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* Validação inline, sem alert do navegador. */
+.pdoc-erro-campo { margin-top: 5px; font-size: 12.5px; font-weight: 600; color: var(--danger, #C0392B); }
+.pdoc-campo.invalido input,
+.pdoc-campo.invalido select { border-color: var(--danger, #C0392B); }
+
+/* ── Área de upload ───────────────────────────────────────────────────────── */
+.pdoc-drop {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 30px 20px;
+  border: 2px dashed var(--border, var(--hair)); border-radius: 14px;
+  background: var(--surface-subtle, var(--bg-warm));
+  text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+}
+.pdoc-drop:hover, .pdoc-drop.sobre {
+  border-color: var(--primary, var(--moss));
+  background: color-mix(in srgb, var(--primary, var(--moss)) 6%, transparent);
+}
+.pdoc-drop svg { width: 26px; height: 26px; color: var(--text-secondary, var(--ink-mute)); }
+.pdoc-drop-t { font-size: 14px; font-weight: 700; color: var(--text-primary, var(--ink)); }
+.pdoc-drop-s { font-size: 12.5px; color: var(--text-secondary, var(--ink-mute)); }
+
+/* Depois de escolher: o arquivo aparece e pode ser trocado antes de salvar. */
+.pdoc-arquivo {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border, var(--hair)); border-radius: 12px;
+  background: var(--surface-subtle, var(--bg-warm));
+}
+.pdoc-arquivo-ico {
+  width: 36px; height: 36px; flex-shrink: 0;
+  display: grid; place-items: center; border-radius: 10px;
+  background: var(--surface, var(--bg-card));
+  color: var(--text-secondary, var(--ink-mute));
+}
+.pdoc-arquivo-ico svg { width: 17px; height: 17px; }
+.pdoc-arquivo-txt { flex: 1; min-width: 0; }
+.pdoc-arquivo-nome {
+  font-size: 13.5px; font-weight: 700;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pdoc-arquivo-meta { font-size: 12px; color: var(--text-secondary, var(--ink-mute)); margin-top: 1px; }
+.pdoc-arquivo-trocar {
+  flex-shrink: 0; padding: 5px 11px;
+  border: 1px solid var(--border, var(--hair)); border-radius: 8px;
+  background: var(--surface, var(--bg-card)); color: inherit;
+  font-size: 12.5px; font-weight: 700; font-family: inherit; cursor: pointer;
+}
+
+/* ── Switch de disponibilizar ─────────────────────────────────────────────── */
+.pdoc-switch {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px; margin-top: 4px;
+  border: 1px solid var(--border, var(--hair)); border-radius: 12px;
+}
+.pdoc-switch-txt { flex: 1; min-width: 0; }
+.pdoc-switch-t { font-size: 13.5px; font-weight: 700; color: var(--text-primary, var(--ink)); }
+.pdoc-switch-s { font-size: 12.5px; line-height: 1.45; color: var(--text-secondary, var(--ink-mute)); margin-top: 2px; }
+
+.pdoc-sw { position: relative; flex-shrink: 0; width: 42px; height: 24px; }
+.pdoc-sw input { position: absolute; opacity: 0; width: 0; height: 0; }
+.pdoc-sw-ui {
+  display: block; width: 42px; height: 24px; border-radius: 100px;
+  background: var(--border, var(--hair)); cursor: pointer; transition: background .18s;
+}
+.pdoc-sw-ui::after {
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2); transition: transform .18s;
+}
+.pdoc-sw input:checked + .pdoc-sw-ui { background: var(--success, var(--moss)); }
+.pdoc-sw input:checked + .pdoc-sw-ui::after { transform: translateX(18px); }
+.pdoc-sw input:focus-visible + .pdoc-sw-ui { outline: 2px solid var(--primary, var(--moss)); outline-offset: 2px; }
+
+/* O aviso de privacidade só aparece com o switch ligado: é a última coisa que
+   se lê antes de um exame ficar visível para outra pessoa. */
+.pdoc-aviso {
+  display: flex; align-items: flex-start; gap: 9px;
+  margin-top: 12px; padding: 12px 14px; border-radius: 12px;
+  background: color-mix(in srgb, var(--success, var(--moss)) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success, var(--moss)) 24%, transparent);
+  font-size: 13px; line-height: 1.5;
+}
+.pdoc-aviso svg { width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px; color: var(--success, var(--moss)); }
+.pdoc-aviso b { font-weight: 800; }
+
+/* ── Responsividade ───────────────────────────────────────────────────────── */
+/* Tablet: a lista fica compacta — o ícone sai, o resto continua. */
+@media (max-width: 900px) {
+  .pdoc-item { gap: 11px; padding: 12px 13px; }
+  .pdoc-ico { width: 34px; height: 34px; }
+}
+
+/* Mobile administrativo: cada documento vira cartão, com as ações embaixo. A
+   grade de três colunas viraria scroll horizontal, que não existe aqui. */
+/* Tablet: a faixa de indicadores vira duas colunas em vez de espremer quatro. */
+@media (max-width: 900px) {
+  .pdoc-ind { flex: 1 1 45%; }
+  .pdoc-ind:nth-child(3) { border-left: none; }
+  .pdoc-ind:nth-child(n+3) { border-top: 1px solid var(--border, var(--hair)); }
+}
+
+@media (max-width: 640px) {
+  .pdoc-head { flex-direction: column; align-items: stretch; }
+  /* Os campos empilham: três selects lado a lado em 360px viram três caixas
+     de 100px, e nenhuma mostra o nome inteiro do paciente. */
+  .pdoc-campos { flex-direction: column; align-items: stretch; }
+  .pdoc-campos .pdoc-busca,
+  .pdoc-campos .pdoc-select { flex: 1 1 auto; width: 100%; }
+  .pdoc-limpar { align-self: flex-start; }
+  /* O nome do paciente não corta no meio da palavra. */
+  .pdoc-central-quem { max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+  .pdoc-item { grid-template-columns: auto 1fr; grid-template-areas: 'ico corpo' 'acoes acoes'; }
+  .pdoc-ico { grid-area: ico; }
+  .pdoc-corpo { grid-area: corpo; }
+  .pdoc-acoes {
+    grid-area: acoes; justify-content: flex-end;
+    padding-top: 10px; margin-top: 2px;
+    border-top: 1px solid var(--border, var(--hair));
+  }
+  .pdoc-titulo { white-space: normal; }
+  .pdoc-campo-2 { grid-template-columns: 1fr; }
+  .pdoc-drawer { width: 100%; }
+  .pdoc-menu { right: 0; left: auto; min-width: 195px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pdoc-drawer, .pdoc-drawer-raiz, .pdoc-sk { animation: none; }
+}

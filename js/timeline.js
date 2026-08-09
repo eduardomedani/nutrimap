@@ -24,6 +24,7 @@ const TABELA_DA_ENTIDADE = {
   treino:    'treinos',
   avaliacao: 'avaliacoes',
   paciente:  'pacientes',
+  documento: 'paciente_documentos',
 };
 
 const hojeISO = () => new Date().toISOString().slice(0, 10);

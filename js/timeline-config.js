@@ -42,6 +42,7 @@ const ACAO = {
   treino:    { label: 'Abrir treino',   aba: 'treinos',      entidade: 'treino' },
   avaliacao: { label: 'Ver avaliação',  aba: 'avaliacoes',   entidade: 'avaliacao' },
   anamnese:  { label: 'Ver anamnese',   aba: 'anamnese',     entidade: null },
+  documento: { label: 'Ver documento',  aba: 'documentos',   entidade: 'documento' },
 };
 
 // tom: neutro | sucesso | info | alerta | perigo  (só muda cor do ícone/realce)
@@ -82,9 +83,19 @@ export const TIPOS = {
   EVOLUTION_PRESENTED:         { label: 'Evolução apresentada',      icone: 'presentation', tom: 'sucesso', modulo: 'avaliacoes', importancia: 'alta',   acao: ACAO.avaliacao },
   PROGRESS_PHOTOS_ADDED:       { label: 'Fotos de progresso',        icone: 'image',        tom: 'info',    modulo: 'avaliacoes', importancia: 'normal' },
 
-  // ── Exames e documentos (módulo ainda não existe) ─────────
+  // ── Exames e documentos ───────────────────────────────────
   LAB_EXAM_ADDED: { label: 'Exame anexado',     icone: 'flask-conical', tom: 'info',   modulo: 'documentos', importancia: 'alta' },
-  DOCUMENT_ADDED: { label: 'Documento anexado', icone: 'paperclip',     tom: 'neutro', modulo: 'documentos', importancia: 'normal' },
+  DOCUMENT_ADDED: { label: 'Documento anexado', icone: 'paperclip',     tom: 'neutro', modulo: 'documentos', importancia: 'normal', acao: ACAO.documento },
+
+  // O evento é a DISPONIBILIZAÇÃO, não o upload: guardar um exame no
+  // prontuário não é acontecimento na história do paciente — compartilhá-lo
+  // com ele é. Documento privado não gera evento nenhum.
+  //
+  // Não existe DOCUMENT_VIEWED como tipo próprio, e é de propósito: dois cards
+  // consecutivos ("enviado", "visualizado") por arquivo transformariam a
+  // timeline num log de sistema. O "visualizado em" é lido do documento na
+  // hora de desenhar — ver estadoParaTimeline() em paciente-documentos-eventos.
+  DOCUMENT_SHARED: { label: 'Documento compartilhado', icone: 'share-2', tom: 'sucesso', modulo: 'documentos', importancia: 'alta', acao: ACAO.documento },
 
   // ── Orientações e materiais ───────────────────────────────
   NUTRITION_GUIDANCE_PUBLISHED: { label: 'Orientação nutricional publicada', icone: 'file-pen', tom: 'sucesso', modulo: 'alimentacao', importancia: 'normal' },

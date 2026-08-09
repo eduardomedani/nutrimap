@@ -24,6 +24,7 @@ let _tarefas = [];
 let _metas = [];
 let _verTodos = false;
 let _cont = null;
+let _documentos = null;   // indicador do bloco de Documentos (null = ainda carregando)
 
 /**
  * @param {HTMLElement} opts.cont
@@ -48,12 +49,23 @@ export async function initPainel360({ cont, paciente, irParaAba, aoCarregar }) {
   try {
     const r = await carregarResumo(paciente);
     aoCarregar?.(r);
-    // Tarefas e metas são opcionais: se as tabelas ainda não existirem no
-    // banco deste ambiente, o painel continua de pé sem elas.
-    [_tarefas, _metas] = await Promise.all([
+    // Tarefas, metas e documentos são opcionais: se as tabelas ainda não
+    // existirem no banco deste ambiente, o painel continua de pé sem elas.
+    // Documentos que não carregaram viram `null`, e o bloco simplesmente não
+    // aparece — "0 arquivos" afirmaria uma coisa que a tela não sabe.
+    let docs = [];
+    [_tarefas, _metas, docs] = await Promise.all([
       moduloAtivo('tarefas') ? listarTarefas(paciente.id).catch(() => []) : [],
       moduloAtivo('metas') ? listarMetas(paciente.id).catch(() => []) : [],
+      moduloAtivo('documentos')
+        ? import('./paciente-documentos.js')
+            .then(m => m.listarDocumentos({ pacienteId: paciente.id, incluirArquivados: true, limite: 500 }))
+            .catch(() => null)
+        : null,
     ]);
+    _documentos = docs
+      ? (await import('./paciente-documentos-eventos.js')).indicadorDocumentos(docs)
+      : null;
     renderPainel(r);
   } catch (e) {
     console.error('[painel]', e);
@@ -119,6 +131,7 @@ function renderPainel(r) {
       <div class="pv-col">
         ${planoHtml(r)}
         ${treinoHtml(r)}
+        ${documentosHtml()}
         ${metasHtml(r)}
       </div>
       <div class="pv-col">
@@ -219,6 +232,46 @@ function tomVariacao(v, objetivo) {
 }
 
 // ── Plano e treino ativos ──────────────────────────────────
+/**
+ * Documentos no Saúde 360°.
+ *
+ * O número que interessa não é o total: é quantos o paciente ainda não abriu.
+ * "8 arquivos" não sugere ação nenhuma; "2 pendentes de visualização" é o que
+ * o profissional consegue tratar na próxima consulta.
+ *
+ * Privado NÃO conta como pendente — ninguém está esperando abrir um documento
+ * que não foi compartilhado. Arquivado não entra em nada.
+ *
+ * Sem documento nenhum o card some, como o resto do painel: módulo sem dado
+ * real não vira card vazio.
+ */
+function documentosHtml() {
+  if (!moduloAtivo('documentos')) return '';
+  const d = _documentos;
+  if (!d) return '';                 // ainda carregando, ou falhou: nada a afirmar
+  if (!d.total) return '';           // consistente com plano/treino/metas vazios
+
+  const linhas = [
+    linha('Compartilhados', String(d.disponiveis)),
+    d.privados ? linha('Privados', String(d.privados)) : '',
+    d.ultimo ? linha('Último', `${esc(d.ultimo.titulo)}${d.ultimo.data ? ` · ${fmtData(d.ultimo.data)}` : ''}`) : '',
+  ].filter(Boolean).join('');
+
+  return `
+    <section class="pv-card">
+      <div class="pv-card-head">
+        <h3><i data-lucide="paperclip"></i> Documentos</h3>
+        <button class="pv-link" data-pv-aba="documentos">Ver documentos</button>
+      </div>
+      <div class="pv-card-tit">
+        ${d.total} ${d.total === 1 ? 'arquivo' : 'arquivos'}${
+          d.pendentes ? ` · <span class="pv-doc-pend">${d.pendentes} ${
+            d.pendentes === 1 ? 'pendente' : 'pendentes'} de visualização</span>` : ''}
+      </div>
+      <div class="pv-card-linhas">${linhas}</div>
+    </section>`;
+}
+
 function planoHtml(r) {
   const p = r.planoAtivo;
   return `
