@@ -54,3 +54,7 @@ db/vendas_duvidosas.csv
 
 # Conciliacao das vendas duvidosas: nome de cliente + memo do extrato.
 db/vendas_conciliadas.csv
+
+# Preferencias do Claude Code desta MAQUINA (permissoes locais). O
+# .claude/settings.json vai versionado; este nao.
+.claude/settings.local.json
