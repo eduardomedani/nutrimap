@@ -1,0 +1,345 @@
+/* ═══════════════════════════════════════════════════════════
+   CHECK-INS — painel do profissional
+   ═══════════════════════════════════════════════════════════
+   Mesmo vocabulário visual do resto do Evollo: fundo neutro, cartão claro,
+   pouca borda, badge suave, verde institucional. Nada de formulário
+   administrativo de 2008.
+
+   Sem cor literal: a identidade vem dos tokens em css/tokens.css. */
+
+.ck-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 16px;
+}
+.ck-head h2 { margin: 0 0 3px; font-size: 20px; font-weight: 800; color: var(--text-primary, var(--ink)); }
+.ck-sub { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text-secondary, var(--ink-mute)); }
+.ck-secao {
+  margin: 24px 0 10px; font-size: 12px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text-secondary, var(--ink-mute));
+}
+
+/* ── Abas ─────────────────────────────────────────────────────────────────── */
+.ck-abas {
+  display: flex; gap: 4px; margin-bottom: 16px;
+  border-bottom: 1px solid var(--border, var(--hair));
+}
+.ck-aba {
+  padding: 9px 14px; border: none; border-bottom: 2px solid transparent;
+  background: none; color: var(--text-secondary, var(--ink-mute));
+  font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer;
+}
+.ck-aba:hover { color: var(--text-primary, var(--ink)); }
+/* Só a cor e a linha mudam: mexer no peso faria a fileira saltar a cada clique. */
+.ck-aba.ativa { color: var(--primary, var(--moss)); border-bottom-color: var(--primary, var(--moss)); }
+
+/* ── Indicadores ──────────────────────────────────────────────────────────── */
+.ck-inds {
+  display: flex; flex-wrap: wrap; margin-bottom: 18px;
+  border: 1px solid var(--border, var(--hair)); border-radius: 14px;
+  background: var(--surface, var(--bg-card)); overflow: hidden;
+}
+.ck-ind {
+  flex: 1 1 120px; min-width: 0; padding: 12px 15px;
+  display: flex; flex-direction: column; gap: 1px;
+  border-left: 1px solid var(--border, var(--hair));
+}
+.ck-ind:first-child { border-left: none; }
+.ck-ind-n {
+  font-size: 21px; font-weight: 800; line-height: 1.1;
+  font-variant-numeric: tabular-nums; color: var(--text-primary, var(--ink));
+}
+.ck-ind-r { font-size: 11.5px; font-weight: 700; color: var(--text-secondary, var(--ink-mute)); }
+/* Atrasados é o único número que pede ação — ganha cor só quando existe. */
+.ck-ind.destaque .ck-ind-n { color: var(--warning, var(--gold)); }
+
+/* ── Filtros ──────────────────────────────────────────────────────────────── */
+/* Filtros à esquerda, ação principal no cabeçalho: não disputam a mesma
+   flex-wrap, então nada quebra em tela estreita. */
+.ck-filtros { margin-bottom: 16px; }
+.ck-campos { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ck-select {
+  padding: 8px 10px; border: 1px solid var(--border, var(--hair)); border-radius: 10px;
+  background: var(--surface, var(--bg-card)); color: inherit;
+  font-size: 13.5px; font-family: inherit;
+}
+.ck-limpar {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 8px 12px; border: 1px solid transparent; border-radius: 10px;
+  background: none; color: var(--text-secondary, var(--ink-mute));
+  font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.ck-limpar:hover { background: var(--surface-subtle, var(--bg-warm)); color: var(--text-primary, var(--ink)); }
+.ck-limpar svg { width: 13px; height: 13px; }
+
+/* ── Listas ───────────────────────────────────────────────────────────────── */
+.ck-lista { display: flex; flex-direction: column; gap: 8px; }
+
+.ck-modelo, .ck-oc, .ck-atr {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 13px 15px;
+  border: 1px solid var(--border, var(--hair)); border-radius: 14px;
+  background: var(--surface, var(--bg-card));
+  transition: border-color .15s;
+}
+.ck-modelo:hover, .ck-oc:hover, .ck-atr:hover { border-color: var(--primary, var(--moss)); }
+.ck-modelo.arquivado, .ck-atr.inativa { opacity: .6; }
+
+.ck-modelo-txt, .ck-oc-txt, .ck-atr-txt { min-width: 0; flex: 1; }
+.ck-modelo-nome, .ck-oc-modelo, .ck-atr-nome {
+  font-size: 14.5px; font-weight: 700; color: var(--text-primary, var(--ink));
+}
+.ck-modelo-desc { margin-top: 2px; font-size: 12.5px; color: var(--text-secondary, var(--ink-mute)); }
+.ck-modelo-meta, .ck-oc-meta, .ck-atr-meta {
+  display: flex; align-items: center; gap: 5px 8px; flex-wrap: wrap;
+  margin-top: 5px; font-size: 12px; font-weight: 600;
+  color: var(--text-secondary, var(--ink-mute));
+}
+.ck-modelo-meta .sep, .ck-oc-meta .sep, .ck-atr-meta .sep { opacity: .5; }
+.ck-atraso { color: var(--danger, #C0392B); font-weight: 800; }
+
+.ck-modelo-acoes, .ck-oc-acoes, .ck-atr-acoes {
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0; flex-wrap: wrap;
+}
+
+.ck-oc-quem {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 0 0 3px; border: none; background: none;
+  color: var(--text-secondary, var(--ink-mute));
+  font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.ck-oc-quem:hover { color: var(--primary, var(--moss)); text-decoration: underline; }
+.ck-oc-quem svg { width: 13px; height: 13px; }
+
+/* ── Badges ───────────────────────────────────────────────────────────────── */
+.ck-badge {
+  display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 100px;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+}
+.ck-s-agendado   { background: var(--surface-subtle, var(--bg-warm)); color: var(--text-secondary, var(--ink-mute)); }
+.ck-s-disponivel { background: color-mix(in srgb, var(--info, var(--sage)) 16%, transparent); color: var(--info-ink, var(--moss-deep)); }
+.ck-s-atrasado   { background: color-mix(in srgb, var(--danger, #C0392B) 11%, transparent); color: var(--danger, #C0392B); }
+.ck-s-respondido { background: color-mix(in srgb, var(--success, var(--moss)) 13%, transparent); color: var(--success, var(--moss)); }
+.ck-s-cancelado  { background: var(--surface-subtle, var(--bg-warm)); color: var(--text-secondary, var(--ink-mute)); opacity: .8; }
+
+/* ── Vazios e skeleton ────────────────────────────────────────────────────── */
+.ck-vazio {
+  padding: 44px 24px; text-align: center;
+  border: 1px dashed var(--border, var(--hair)); border-radius: 16px;
+  color: var(--text-secondary, var(--ink-mute));
+}
+.ck-vazio svg { width: 30px; height: 30px; margin-bottom: 10px; opacity: .55; }
+.ck-vazio-t { font-size: 15px; font-weight: 700; margin-bottom: 4px; color: var(--text-primary, var(--ink)); }
+.ck-vazio-s { font-size: 13.5px; line-height: 1.5; max-width: 420px; margin: 0 auto 14px; }
+.ck-vazio-txt { font-size: 13.5px; color: var(--text-secondary, var(--ink-mute)); margin: 0 0 12px; }
+
+.ck-sk {
+  height: 66px; border-radius: 14px;
+  border: 1px solid var(--border, var(--hair));
+  background: linear-gradient(90deg,
+    var(--surface, var(--bg-card)) 0%, var(--surface-subtle, var(--bg-warm)) 50%,
+    var(--surface, var(--bg-card)) 100%);
+  background-size: 200% 100%;
+  animation: ck-brilho 1.3s ease-in-out infinite;
+}
+@keyframes ck-brilho { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* ═══════════════════════════════════════════════════════════
+   DRAWER
+   ═══════════════════════════════════════════════════════════ */
+.ck-drawer-raiz {
+  position: fixed; inset: 0; z-index: 1200;
+  display: flex; justify-content: flex-end;
+  background: rgba(15, 23, 32, .42);
+  animation: ck-fade .16s ease-out;
+}
+@keyframes ck-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.ck-drawer {
+  display: flex; flex-direction: column;
+  width: min(600px, 100%); max-height: 100%;
+  background: var(--surface, var(--bg-card));
+  box-shadow: -12px 0 40px rgba(0, 0, 0, .16);
+  animation: ck-entra .22s cubic-bezier(.2, .8, .3, 1);
+}
+@keyframes ck-entra { from { transform: translateX(24px); opacity: .6; } to { transform: none; opacity: 1; } }
+
+.ck-drawer-topo {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 18px 20px 14px; border-bottom: 1px solid var(--border, var(--hair));
+}
+.ck-drawer-topo h2 { margin: 0; font-size: 18px; font-weight: 800; }
+.ck-drawer-x {
+  width: 34px; height: 34px; display: grid; place-items: center;
+  border: 1px solid var(--border, var(--hair)); border-radius: 10px;
+  background: none; color: inherit; cursor: pointer;
+}
+.ck-drawer-x:hover { background: var(--surface-subtle, var(--bg-warm)); }
+.ck-drawer-x svg { width: 17px; height: 17px; }
+.ck-drawer-corpo { flex: 1; overflow-y: auto; padding: 18px 20px; }
+.ck-drawer-pe {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--border, var(--hair));
+  background: var(--surface, var(--bg-card));
+}
+
+/* ── Campos ───────────────────────────────────────────────────────────────── */
+.ck-campo { margin-bottom: 14px; }
+.ck-campo > label {
+  display: block; margin-bottom: 5px;
+  font-size: 12.5px; font-weight: 700; color: var(--text-secondary, var(--ink-mute));
+}
+.ck-campo .req { color: var(--danger, #C0392B); }
+.ck-campo input[type="text"], .ck-campo input[type="date"], .ck-campo input[type="number"],
+.ck-campo input:not([type]), .ck-campo select, .ck-campo textarea {
+  width: 100%; padding: 9px 11px;
+  border: 1px solid var(--border, var(--hair)); border-radius: 10px;
+  background: var(--surface, var(--bg-card)); color: inherit;
+  font-size: 14px; font-family: inherit;
+}
+.ck-campo.invalido input, .ck-campo.invalido select { border-color: var(--danger, #C0392B); }
+.ck-campo-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ck-erro { margin-top: 5px; font-size: 12.5px; font-weight: 600; color: var(--danger, #C0392B); }
+.ck-erro-p { margin: -4px 0 12px; }
+.ck-ajuda { margin-top: 5px; font-size: 12px; line-height: 1.45; color: var(--text-secondary, var(--ink-mute)); }
+
+/* ── Construtor de perguntas ──────────────────────────────────────────────── */
+.ck-pergunta {
+  padding: 14px; margin-bottom: 10px;
+  border: 1px solid var(--border, var(--hair)); border-radius: 14px;
+  background: var(--surface-subtle, var(--bg-warm));
+}
+.ck-pergunta.inativa { opacity: .55; }
+.ck-pergunta-topo { display: flex; align-items: center; gap: 8px; }
+.ck-pergunta-n {
+  width: 22px; height: 22px; flex-shrink: 0;
+  display: grid; place-items: center; border-radius: 50%;
+  background: var(--surface, var(--bg-card));
+  font-size: 11px; font-weight: 800; color: var(--text-secondary, var(--ink-mute));
+}
+.ck-pergunta-texto {
+  flex: 1; min-width: 0; padding: 8px 10px;
+  border: 1px solid var(--border, var(--hair)); border-radius: 9px;
+  background: var(--surface, var(--bg-card)); color: inherit;
+  font-size: 14px; font-weight: 600; font-family: inherit;
+}
+.ck-pergunta-mover { display: flex; gap: 3px; flex-shrink: 0; }
+.ck-pergunta-linha { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+.ck-pergunta-linha .ck-cfg-campo { flex: 1 1 180px; }
+.ck-pergunta-acoes { display: flex; gap: 12px; margin-top: 10px; }
+
+/* A configuração vira CAMPO COM NOME — nunca `{"min":0,"max":10}` na tela. */
+.ck-cfg { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.ck-cfg-campo { display: flex; flex-direction: column; gap: 4px; flex: 1 1 130px; min-width: 0; }
+.ck-cfg-campo > span { font-size: 11.5px; font-weight: 700; color: var(--text-secondary, var(--ink-mute)); }
+.ck-cfg-campo input, .ck-cfg-campo select {
+  padding: 7px 9px; border: 1px solid var(--border, var(--hair)); border-radius: 9px;
+  background: var(--surface, var(--bg-card)); color: inherit;
+  font-size: 13.5px; font-family: inherit; width: 100%;
+}
+.ck-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+.ck-opcoes { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.ck-opcao { display: flex; align-items: center; gap: 5px; }
+.ck-opcao input {
+  flex: 1; padding: 7px 9px;
+  border: 1px solid var(--border, var(--hair)); border-radius: 9px;
+  background: var(--surface, var(--bg-card)); color: inherit;
+  font-size: 13.5px; font-family: inherit;
+}
+.ck-mini {
+  width: 26px; height: 26px; flex-shrink: 0;
+  display: grid; place-items: center;
+  border: 1px solid var(--border, var(--hair)); border-radius: 8px;
+  background: var(--surface, var(--bg-card)); color: var(--text-secondary, var(--ink-mute));
+  font-size: 12px; font-family: inherit; cursor: pointer;
+}
+.ck-mini:hover:not(:disabled) { background: var(--surface-subtle, var(--bg-warm)); }
+.ck-mini:disabled { opacity: .35; cursor: default; }
+.ck-mini-x:hover { color: var(--danger, #C0392B); }
+
+.ck-add, .ck-add-opcao {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 14px; margin-top: 4px;
+  border: 1px dashed var(--border, var(--hair)); border-radius: 10px;
+  background: none; color: var(--text-secondary, var(--ink-mute));
+  font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.ck-add:hover, .ck-add-opcao:hover { border-color: var(--primary, var(--moss)); color: var(--primary, var(--moss)); }
+.ck-add svg { width: 15px; height: 15px; }
+
+.ck-link {
+  padding: 0; border: none; background: none;
+  color: var(--primary, var(--moss));
+  font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.ck-link:hover { text-decoration: underline; }
+.ck-link-sutil { color: var(--text-secondary, var(--ink-mute)); }
+.ck-link-sutil:hover { color: var(--danger, #C0392B); }
+
+/* O aviso de identidade longitudinal: informa sem assustar — editar a redação
+   é legítimo; o que ele evita é mudar o SIGNIFICADO sem perceber. */
+.ck-aviso-hist {
+  display: flex; align-items: flex-start; gap: 8px;
+  margin: 10px 0 0; padding: 9px 11px; border-radius: 10px;
+  background: color-mix(in srgb, var(--warning, var(--gold)) 10%, transparent);
+  font-size: 12px; line-height: 1.45; color: var(--text-primary, var(--ink));
+}
+.ck-aviso-hist svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; }
+
+.ck-previa { margin-top: 6px; }
+.ck-previa-txt {
+  padding: 10px 12px; border-radius: 10px;
+  background: color-mix(in srgb, var(--primary, var(--moss)) 7%, transparent);
+  font-size: 13px; color: var(--text-primary, var(--ink));
+}
+
+/* ── Leitura de respostas ─────────────────────────────────────────────────── */
+.ck-resp-cab { margin-bottom: 16px; }
+.ck-resp-modelo { font-size: 16px; font-weight: 800; color: var(--text-primary, var(--ink)); }
+.ck-resp-meta {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 5px;
+  font-size: 12.5px; font-weight: 600; color: var(--text-secondary, var(--ink-mute));
+}
+.ck-resp-lista { display: flex; flex-direction: column; }
+.ck-resp-linha { padding: 12px 0; border-top: 1px solid var(--border, var(--hair)); }
+.ck-resp-linha:first-child { border-top: none; }
+.ck-resp-pergunta {
+  font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--text-secondary, var(--ink-mute));
+}
+.ck-resp-valor {
+  margin-top: 4px; font-size: 15.5px; font-weight: 700; line-height: 1.4;
+  color: var(--text-primary, var(--ink)); overflow-wrap: anywhere;
+}
+.ck-resp-vazio { color: var(--text-secondary, var(--ink-mute)); font-weight: 600; }
+/* A comparação mostra o número e cala: menos fome pode ser bom ou ruim, e a
+   tela não tem como saber. */
+.ck-resp-delta {
+  margin-left: 8px; font-size: 12px; font-weight: 600;
+  color: var(--text-secondary, var(--ink-mute));
+}
+.ck-resp-delta b { font-weight: 800; color: var(--text-primary, var(--ink)); }
+
+/* ── Responsivo ───────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .ck-ind { flex: 1 1 45%; }
+  .ck-ind:nth-child(3) { border-left: none; }
+  .ck-ind:nth-child(n+3) { border-top: 1px solid var(--border, var(--hair)); }
+}
+@media (max-width: 640px) {
+  .ck-head { flex-direction: column; align-items: stretch; }
+  .ck-campos { flex-direction: column; align-items: stretch; }
+  .ck-campos .ck-select { width: 100%; }
+  .ck-modelo, .ck-oc, .ck-atr { flex-direction: column; align-items: stretch; }
+  .ck-modelo-acoes, .ck-oc-acoes, .ck-atr-acoes {
+    padding-top: 10px; border-top: 1px solid var(--border, var(--hair)); justify-content: flex-end;
+  }
+  .ck-campo-2 { grid-template-columns: 1fr; }
+  .ck-drawer { width: 100%; }
+  .ck-abas { overflow-x: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ck-drawer, .ck-drawer-raiz, .ck-sk { animation: none; }
+}
