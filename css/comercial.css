@@ -233,6 +233,22 @@
 }
 .cm-btn-forte:hover { background: var(--moss-deep, var(--primary)); }
 
+/* Ação secundária ao lado de uma primária — "Remover cobrança" ao lado de
+   "Registrar pagamento". Sem borda e em texto apagado, porque a decisão que a
+   tela quer induzir é a de receber, não a de remover. Só ganha cor de risco no
+   hover: vermelho permanente vira ruído e ensina a ignorar. */
+.cm-btn-sutil {
+  border-color: transparent;
+  background: none;
+  color: var(--text-secondary, var(--ink-mute));
+  font-weight: 600;
+}
+.cm-btn-sutil:hover {
+  background: color-mix(in srgb, var(--danger, #C0392B) 9%, transparent);
+  color: var(--danger, #C0392B);
+}
+.cm-btn-sutil:disabled { opacity: .5; cursor: default; }
+
 .cm-ajuda { margin: 0; max-width: 62ch; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary, var(--ink-soft)); }
 .cm-ajuda b { color: var(--text-primary, var(--ink)); font-weight: 800; }
 
@@ -398,18 +414,77 @@ body.cm-travado { overflow: hidden; }
 .cm-dw-aviso svg { width: 19px; height: 19px; flex-shrink: 0; color: var(--success, var(--moss)); margin-top: 1px; }
 .cm-dw-aviso b { display: block; margin-bottom: 2px; }
 
+/* O histórico deixou de ser lista de leitura e virou lista de trabalho: cada
+   cobrança traz as ações que o STATUS dela permite. Por isso a linha empilha
+   em vez de ser uma grade de colunas — três botões não cabem numa célula. */
 .cm-dw-hists { list-style: none; margin: 0; padding: 0; }
 .cm-dw-hist {
-  display: grid; grid-template-columns: auto 1fr auto; gap: 6px 12px;
-  align-items: center; padding: 9px 0;
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 11px 0;
   border-top: 1px solid var(--hair, var(--line)); font-size: 13px;
 }
 .cm-dw-hist:first-child { border-top: none; }
-.cm-dw-hist-data { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.cm-dw-hist-id {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+}
+/* "Agosto/2026" — o período é o que o cliente reconhece, não a data solta. */
+.cm-dw-hist-comp { font-weight: 800; font-size: 13.5px; }
 .cm-dw-hist-valor { font-weight: 700; font-variant-numeric: tabular-nums; }
-.cm-dw-hist-pago {
-  grid-column: 1 / -1; font-size: 11.5px; font-weight: 600;
+
+/* O vencimento em linha própria: a hierarquia da leitura é competência →
+   valor → vencimento → situação, e amontoar tudo numa linha de meta fazia a
+   data competir com o badge. */
+.cm-dw-hist-venc {
+  font-size: 12px; font-weight: 600;
   color: var(--text-secondary, var(--ink-mute));
+}
+.cm-dw-hist-meta {
+  display: flex; align-items: center; gap: 5px 10px; flex-wrap: wrap;
+  font-size: 11.5px; font-weight: 600;
+  color: var(--text-secondary, var(--ink-mute));
+}
+.cm-dw-hist-atraso { color: var(--danger, #C0392B); font-weight: 800; }
+
+.cm-dw-hist-acoes { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 3px; }
+
+/* Cancelada continua legível — some da lista operacional, não da leitura de
+   quem foi procurá-la. Sem tarja e sem risco: ela não é erro, é decisão. */
+.cm-dw-hist-cancelada { opacity: .55; }
+
+.cm-btn-mini { min-height: 32px; padding: 6px 11px; font-size: 12.5px; border-radius: 9px; }
+.cm-btn-mini svg { width: 14px; height: 14px; }
+
+/* "Ver canceladas (2)" — entrada para o passado, discreta o suficiente para
+   não competir com o que é trabalho a fazer. */
+.cm-link-sutil {
+  margin-top: 10px; padding: 0;
+  border: none; background: none;
+  color: var(--text-secondary, var(--ink-mute));
+  font-family: inherit; font-size: 12.5px; font-weight: 700;
+  text-decoration: underline; cursor: pointer;
+}
+.cm-link-sutil:hover { color: var(--primary, var(--moss)); }
+
+/* Contexto do drawer de edição. É LEITURA, não campo desabilitado: campo
+   cinza convida a tentar clicar e depois frustra. Cliente, plano e competência
+   se apresentam como informação, e só valor e vencimento têm caixa de texto. */
+.cm-dw-leitura {
+  padding: 12px 14px; margin-bottom: 16px;
+  border-radius: 12px;
+  background: var(--surface-subtle, var(--bg-warm));
+}
+.cm-dw-leitura .cm-dw-linha { font-size: 12.5px; }
+
+/* Aviso de vencida na edição: informa sem alarmar — mudar o vencimento é
+   justamente o que se veio fazer aqui. */
+.cm-dw-aviso-sutil {
+  margin: 0 0 16px; padding: 10px 13px;
+  border-left: 3px solid var(--warning, var(--gold));
+  border-radius: 0 10px 10px 0;
+  background: color-mix(in srgb, var(--warning, var(--gold)) 9%, transparent);
+  font-size: 12.5px; line-height: 1.5;
+  color: var(--text-primary, var(--ink));
 }
 
 /* ── Registro de pagamento ─────────────────────────────────────────────── */

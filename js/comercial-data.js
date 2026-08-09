@@ -174,6 +174,93 @@ export async function criarCobranca({ assinatura, vencimento, valor, descricao, 
 }
 
 /**
+ * Tira a cobrança de cena — CANCELANDO, não apagando.
+ *
+ * Por que não `delete`: a cobrança É um lançamento de receita. Apagar a linha
+ * sumiria com o registro de que ela existiu, e um contas-a-receber que some
+ * sem rastro é o tipo de buraco que só aparece no fechamento do mês.
+ *
+ * Cancelar já era o desenho do módulo, não uma escolha nova: o índice
+ * `uq_comercial_cobranca_periodo` é PARCIAL (`status <> 'cancelado'`), e o
+ * comentário dele diz o motivo — "um lançamento cancelado é justamente o que
+ * se refaz". Ou seja, cancelar libera o período para a cobrança certa entrar
+ * no lugar, com o valor ou o vencimento corrigidos.
+ *
+ * `eq('status', 'pendente')` é a trava, e ela é do BANCO: cobrança paga não
+ * casa com nenhuma linha e a função devolve null. Não dá para cancelar um
+ * período já recebido por dois cliques rápidos ou por duas abas — o mesmo
+ * motivo pelo qual o botão some da tela quando ela está paga.
+ *
+ * @returns {object|null} a cobrança cancelada, ou null se ela não estava
+ *                        pendente (já paga, já cancelada, ou não é sua).
+ */
+export async function cancelarCobranca(cobrancaId) {
+  const id = await nutriId();
+  const { data, error } = await sb
+    .from('financeiro_lancamentos')
+    .update({ status: 'cancelado' })
+    .eq('id', cobrancaId)
+    .eq('nutri_id', id)
+    .eq('status', 'pendente')
+    // Só cobrança de assinatura. O Financeiro tem os próprios caminhos para
+    // lançamento avulso, e esta função não pode virar atalho para eles.
+    .not('assinatura_id', 'is', null)
+    .select()
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
+/**
+ * Corrige valor, vencimento ou observação de uma cobrança em aberto.
+ *
+ * ATUALIZA O MESMO LANÇAMENTO. Cancelar-e-recriar para trocar um vencimento
+ * deixaria duas linhas onde há uma cobrança só, e a auditoria contaria uma
+ * história que não aconteceu ("cancelada" + "criada" no lugar de "editada").
+ *
+ * O que NÃO se edita por aqui, e por quê:
+ *   . cliente e assinatura — mudar o dono de uma cobrança não é correção, é
+ *     outra cobrança;
+ *   . competência — é o mês do PERÍODO, derivado do vencimento pela regra de
+ *     competenciaDaCobranca(). Recalculada junto quando o vencimento muda,
+ *     nunca escolhida à mão;
+ *   . qualquer coisa numa cobrança paga — `eq('status','pendente')` barra.
+ *
+ * O índice `uq_comercial_cobranca_periodo` continua valendo: mudar o
+ * vencimento para uma data que já tem cobrança viva na mesma assinatura falha
+ * no banco, em vez de criar duas cobranças para o mesmo período.
+ *
+ * @returns {object|null} a cobrança atualizada, ou null se não estava pendente.
+ */
+export async function editarCobranca(cobrancaId, { valor, vencimento, observacoes } = {}) {
+  const id = await nutriId();
+  const patch = {};
+  if (valor !== undefined) patch.valor = valor;
+  if (vencimento !== undefined) {
+    patch.vencimento = vencimento;
+    // `data` e `competencia` acompanham o vencimento — é assim que
+    // criarCobranca() as define, e deixá-las para trás faria a cobrança
+    // aparecer num mês no Comercial e noutro no Financeiro.
+    patch.data = vencimento;
+    patch.competencia = competenciaDaCobranca(vencimento);
+  }
+  if (observacoes !== undefined) patch.observacoes = observacoes;
+  if (!Object.keys(patch).length) return null;
+
+  const { data, error } = await sb
+    .from('financeiro_lancamentos')
+    .update(patch)
+    .eq('id', cobrancaId)
+    .eq('nutri_id', id)
+    .eq('status', 'pendente')
+    .not('assinatura_id', 'is', null)
+    .select()
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
+/**
  * O CORAÇÃO DO MÓDULO: registra o pagamento e renova o período.
  *
  * Um pagamento só, num lugar só. O lançamento vira `pago`, a assinatura anda
