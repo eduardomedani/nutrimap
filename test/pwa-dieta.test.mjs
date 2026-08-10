@@ -439,7 +439,7 @@ grupo('dieta · acessibilidade e identidade', () => {
     // telas. Aqui só se garante que a dieta não abre uma segunda, que era como
     // o vão de ~112px embaixo da última refeição nascia.
     const shell = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
-    contem(shell, '--pa-nav-reserva: calc(var(--pa-nav-h) + env(safe-area-inset-bottom, 0px) + 16px);');
+    contem(shell, '--pa-nav-reserva: calc(var(--pa-nav-h) + var(--pa-nav-safe) + 16px);');
     contem(shell, 'padding: 18px 16px var(--pa-nav-reserva);');
     ok(!/^\s*\.dt\s*\{[^}]*padding-bottom/m.test(css), 'a dieta não declara reserva própria');
     ok(!css.includes('main.pa-main:has('), 'zerar a reserva da casca é sinal de reserva duplicada');

@@ -129,15 +129,30 @@
   .pa-logout:hover { background: var(--bg-warm); color: var(--ink); }
   .pa-logout svg { width: 19px; height: 19px; }
 
-  /* Altura útil da barra inferior (ícone + rótulo, sem a safe-area) e a reserva
-     que o conteúdo precisa deixar embaixo para o último item não sumir atrás
-     dela. Uma variável, uma verdade: a barra se mede por --pa-nav-h e o
-     conteúdo reserva --pa-nav-reserva. Mexeu numa, a outra acompanha.
-     A safe-area entra aqui porque é reserva de CONTEÚDO — não é a mesma
-     aplicação que a da barra, que empurra o próprio miolo para cima. */
+  /* Geometria da barra inferior, num lugar só. Quem mede a barra, mede a
+     reserva do conteúdo e mede a barra de finalizar do treino — as três saem
+     daqui, e por isso não têm como divergir.
+
+     A ÁREA ÚTIL é só respiro de cima + altura de toque do item. A safe-area
+     NÃO entra nela: é padding da barra, e mora em --pa-nav-safe.
+
+     Antes a área útil era 66px e os itens (57px de conteúdo) eram
+     centralizados dentro dela — sobravam ~4,5px de folga que, somados ao
+     padding do item e à safe-area, viravam ~46px de branco abaixo do rótulo
+     quando só 34 são obrigatórios. Agora a altura do item É a área de toque:
+     não há caixa maior para centralizar dentro. */
   :root {
-    --pa-nav-h: 66px;
-    --pa-nav-reserva: calc(var(--pa-nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
+    --pa-nav-pad-top: 9px;    /* respiro acima do ícone */
+    --pa-nav-item-h: 43px;    /* ícone 22 + gap 4 + rótulo ~13, com folga */
+    --pa-nav-h: calc(var(--pa-nav-pad-top) + var(--pa-nav-item-h));   /* 52px úteis */
+
+    /* A safe-area REAL do aparelho, com um piso para quem não tem nenhuma
+       (Android, desktop, iPhone sem indicador Home): sem o piso a barra fica
+       rente demais na borda. Declarada UMA vez, usada como variável — é o que
+       impede a mesma medida de ser escrita em dois lugares e sair de sincronia. */
+    --pa-nav-safe: max(6px, env(safe-area-inset-bottom, 0px));
+
+    --pa-nav-reserva: calc(var(--pa-nav-h) + var(--pa-nav-safe) + 16px);
   }
 
   /* ── Treino ── */
@@ -157,15 +172,27 @@
      Dashboard curto, dieta longa, estado vazio, loading ou erro — sempre no
      mesmo lugar.
 
-     Safe-area UMA vez, aqui. Não no body, não no conteúdo: contar duas vezes
-     é o que empurra a barra para cima e abre a faixa vazia embaixo. Onde não
-     há inset (Android, desktop, Safari sem notch), env() vale 0 e a barra
-     encosta direto no fim da tela. */
+     Safe-area UMA vez, aqui, e SÓ como padding interno de baixo. Nunca no
+     `bottom` — `bottom: env(...)` levantaria a barra do fim da tela e deixaria
+     a faixa do sistema aparecendo por baixo dela. `bottom: 0` + padding é o
+     que faz a barra terminar no fim da tela e o conteúdo dela parar logo
+     acima do indicador Home.
+
+     A altura NÃO é fixa: é a área útil (--pa-nav-h) mais a safe-area real do
+     aparelho. Nada de 120/130/150px chumbado, que seria certo num modelo e
+     errado em todos os outros. */
   .pa-bottomnav {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
     display: flex; align-items: stretch;
-    min-height: calc(var(--pa-nav-h) + env(safe-area-inset-bottom, 0px));
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    /* content-box só aqui, contra o `* { box-sizing: border-box }` do topo.
+       Com border-box, min-height passaria a INCLUIR o padding da safe-area e
+       os 34px do iPhone comeriam a área de toque, espremendo ícone e rótulo.
+       Aqui min-height é a área útil e a safe-area soma por fora — que é
+       exatamente o contrato descrito em --pa-nav-h. */
+    box-sizing: content-box;
+    min-height: var(--pa-nav-h);
+    padding-top: 0;
+    padding-bottom: var(--pa-nav-safe);
     /* Fundo OPACO, sem backdrop-filter. O blur obriga o navegador a compor a
        barra numa camada própria alimentada pelo que passa atrás dela — e é aí
        que o WebView do Android, quando o conteúdo troca de altura embaixo de
@@ -180,8 +207,15 @@
      coincide com o fim da tela, esses 80px viram uma faixa vazia da cor da
      barra — exatamente o "menu boiando no meio da tela". A tira do gesto do
      Android se resolve com viewport-fit=cover no <meta>, que já está lá. */
-  .pa-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 8px 4px; background: none; border: none; cursor: pointer; color: var(--ink-mute); font-size: 11px; font-weight: 700; font-family: inherit; transition: color 0.15s; }
-  .pa-nav-item svg { width: 21px; height: 21px; }
+  /* O item NÃO tem padding embaixo, e o conteúdo começa no topo
+     (`flex-start`). Centralizar dentro de uma caixa maior que o conteúdo é o
+     que empurrava o rótulo para longe do indicador Home: a folga ia parar
+     TODA embaixo dele, somada à safe-area. O respiro de cima é explícito e
+     mora em --pa-nav-pad-top; embaixo do rótulo só existe a safe-area.
+     `line-height: 1.1` no rótulo pelo mesmo motivo — o 1.55 herdado do body
+     virava ~6px de entrelinha invisível dentro de um texto de uma linha só. */
+  .pa-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px; min-height: var(--pa-nav-item-h); padding: var(--pa-nav-pad-top) 4px 0; background: none; border: none; cursor: pointer; color: var(--ink-mute); font-size: 12px; line-height: 1.1; font-weight: 700; font-family: inherit; transition: color 0.15s; }
+  .pa-nav-item svg { width: 22px; height: 22px; }
   .pa-nav-item.active { color: var(--moss); }
   .pa-select { padding: 9px 12px; border: 1px solid var(--hair); border-radius: 10px; background: var(--bg-card); font-size: 13.5px; color: var(--ink); max-width: 100%; }
 
@@ -239,7 +273,11 @@
   @media (prefers-reduced-motion: reduce) { .pa-cron-dot { animation: none; } }
 
   /* Barra de finalizar: fica acima do menu inferior, sem cobri-lo. */
-  .pa-finishbar { position: fixed; left: 0; right: 0; bottom: calc(var(--pa-nav-h) + env(safe-area-inset-bottom)); z-index: 25;
+  /* Encostada no topo da barra inferior. Mede-se pelas MESMAS variáveis dela
+     (--pa-nav-h + --pa-nav-safe): repetir env() aqui faria a barra de
+     finalizar ignorar o piso de 6px e descolar da navegação onde não há
+     inset. Não é ajuste no treino — é a mesma geometria, lida de uma fonte só. */
+  .pa-finishbar { position: fixed; left: 0; right: 0; bottom: calc(var(--pa-nav-h) + var(--pa-nav-safe)); z-index: 25;
     background: linear-gradient(to top, var(--background) 62%, color-mix(in srgb, var(--background) 0%, transparent)); pointer-events: none; }
   .pa-finishbar-in { max-width: 720px; margin: 0 auto; padding: 14px 16px 10px; pointer-events: auto; }
   .pa-finishbar .pa-btn { margin-top: 0; min-height: 48px; box-shadow: var(--shadow-md); }

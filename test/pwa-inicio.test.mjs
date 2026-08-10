@@ -611,8 +611,15 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
   const dietaCss = readFileSync(new URL('../css/pwa-dieta.css', import.meta.url), 'utf8');
   const ui = readFileSync(new URL('../js/paciente-ui.js', import.meta.url), 'utf8');
 
+  // Recorte SEM COMENTÁRIOS, e é obrigatório que seja: as regras da barra
+  // explicam no próprio CSS por que são o que são, e essas explicações citam
+  // `}` e `env(...)`. Recortando o texto cru, o slice parava no primeiro `}`
+  // de dentro de um comentário e a guarda passava a conferir meia regra — pior
+  // que falhar, porque continua verde enquanto olha o lugar errado.
+  const semComentario = shell.replace(/\/\*[\s\S]*?\*\//g, '');
+
   // Só a regra da barra, para as asserções não pegarem env() de outra tela.
-  const regraNav = shell.slice(shell.indexOf('.pa-bottomnav {'));
+  const regraNav = semComentario.slice(semComentario.indexOf('.pa-bottomnav {'));
   const corpoNav = regraNav.slice(0, regraNav.indexOf('}') + 1);
 
   teste('a barra pertence à viewport, não ao fluxo da página', () => {
@@ -641,13 +648,22 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
   teste('a safe-area é contada UMA vez, e é na barra', () => {
     // Contar duas vezes (body + barra, ou barra + conteúdo dela) é o que
     // empurra o menu para cima e abre a faixa embaixo.
-    igual((corpoNav.match(/env\(safe-area-inset-bottom/g) || []).length, 2,
-          'uma na altura mínima, uma no padding — e nada além disso');
-    contem(corpoNav, 'padding-bottom: env(safe-area-inset-bottom, 0px);');
+    //
+    // A medida é declarada uma vez em --pa-nav-safe e daí em diante só se
+    // referencia. Quem quiser a safe-area — a barra, a reserva do conteúdo, a
+    // barra de finalizar do treino — lê a variável. Escrever env() de novo em
+    // qualquer uma dessas é abrir a porta para as duas saírem de sincronia.
+    igual((semComentario.match(/env\(safe-area-inset-bottom/g) || []).length, 1,
+          'o inset de baixo aparece uma vez no arquivo inteiro: na variável');
+    contem(shell, '--pa-nav-safe: max(6px, env(safe-area-inset-bottom, 0px));');
+    contem(corpoNav, 'padding-bottom: var(--pa-nav-safe);');
+    ok(!/env\(safe-area-inset-bottom/.test(corpoNav),
+       'a barra lê a variável; env() escrito aqui duplicaria a fonte da medida');
     // `[\s;{]` antes: sem isso o próprio `padding-bottom:` casaria com o
     // padrão e a guarda acusaria a regra certa.
-    ok(!/[\s;{]bottom:\s*env\(safe-area-inset-bottom/.test(corpoNav),
-       'bottom: env(...) junto com padding-bottom: env(...) aplica o inset duas vezes');
+    ok(!/[\s;{]bottom:\s*(env\(safe-area-inset-bottom|var\(--pa-nav-safe)/.test(corpoNav),
+       'safe-area no `bottom` levanta a barra do fim da tela — ela vai no padding');
+    contem(corpoNav, 'bottom: 0;');
 
     const regraBody = shell.slice(shell.indexOf('  body {'));
     ok(!regraBody.slice(0, regraBody.indexOf('}')).includes('safe-area-inset-bottom'),
@@ -655,34 +671,84 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
   });
 
   teste('sem inset, a barra encosta sozinha — nada de altura de iPhone', () => {
-    // Android e desktop: env() vale 0 e a barra fica rente ao fim da tela.
-    contem(corpoNav, 'env(safe-area-inset-bottom, 0px)');
+    // Android e desktop: env() vale 0, o piso de 6px assume e a barra fica
+    // rente ao fim da tela sem colar o rótulo na borda.
+    contem(shell, 'env(safe-area-inset-bottom, 0px)');
     ok(!/\b(34|44|83)px\b/.test(corpoNav),
        'altura de um modelo específico de iPhone não pode virar constante');
+    ok(!/\b(1[0-9]{2})px\b/.test(corpoNav),
+       'altura total chumbada (120/130/150px) é certa num aparelho e errada nos outros');
   });
 
-  teste('a área útil é compacta: entre 64 e 72px, fora a safe-area', () => {
-    const m = shell.match(/--pa-nav-h:\s*(\d+)px/);
-    ok(m, 'a altura da barra tem que ser uma variável, não número solto');
-    const h = Number(m[1]);
-    ok(h >= 64 && h <= 72, `área útil de ${h}px — fora da faixa 64–72px`);
-    contem(corpoNav, 'min-height: calc(var(--pa-nav-h) + env(safe-area-inset-bottom, 0px));');
+  teste('a área útil é compacta: entre 48 e 64px, fora a safe-area', () => {
+    // Referência: a tab bar nativa do iPhone tem 49pt de conteúdo + a safe-area.
+    // Acima de ~64px a barra passa a parecer um bloco, que é a queixa original.
+    const pad = Number((shell.match(/--pa-nav-pad-top:\s*(\d+)px/) || [])[1]);
+    const item = Number((shell.match(/--pa-nav-item-h:\s*(\d+)px/) || [])[1]);
+    ok(pad && item, 'a geometria da barra tem que ser variável, não número solto');
+    ok(pad >= 6 && pad <= 12, `respiro de cima de ${pad}px — fora da faixa 6–12px`);
+    const h = pad + item;
+    ok(h >= 48 && h <= 64, `área útil de ${h}px — fora da faixa 48–64px`);
+    contem(shell, '--pa-nav-h: calc(var(--pa-nav-pad-top) + var(--pa-nav-item-h));');
+    contem(corpoNav, 'min-height: var(--pa-nav-h);');
+    // min-height é a área ÚTIL: com border-box o inset entraria nela e
+    // espremeria ícone e rótulo em vez de somar por fora.
+    contem(corpoNav, 'box-sizing: content-box;');
   });
 
-  teste('ícone e rótulo ficam centralizados no item', () => {
+  teste('nada de folga abaixo do rótulo além da safe-area', () => {
+    // O defeito relatado: ícone e rótulo longe da borda, com uma área branca
+    // grande embaixo. Nascia de centralizar um conteúdo de ~57px dentro de uma
+    // caixa de 66px — a folga toda ia parar embaixo do rótulo, somada ao
+    // padding do item e à safe-area.
     const item = shell.slice(shell.indexOf('.pa-nav-item {'));
     const corpo = item.slice(0, item.indexOf('}') + 1);
-    contem(corpo, 'justify-content: center');
-    contem(corpo, 'align-items: center');
     contem(corpo, 'flex-direction: column');
+    contem(corpo, 'align-items: center');
+    contem(corpo, 'justify-content: flex-start');
+    ok(!/justify-content:\s*center/.test(corpo),
+       'centralizar dentro de caixa maior joga a folga toda para baixo do rótulo');
+    contem(corpo, 'padding: var(--pa-nav-pad-top) 4px 0;');
+    ok(!/padding-bottom/.test(corpo),
+       'padding embaixo do item soma à safe-area e recria a faixa branca');
+    // Entrelinha herdada do body (1.55) vira espaço invisível dentro de um
+    // rótulo de uma linha só.
+    contem(corpo, 'line-height: 1.1');
+  });
+
+  teste('ícone e rótulo continuam legíveis e tocáveis', () => {
+    const item = shell.slice(shell.indexOf('.pa-nav-item {'));
+    const corpo = item.slice(0, item.indexOf('}') + 1);
+    const fonte = Number((corpo.match(/font-size:\s*(\d+(?:\.\d+)?)px/) || [])[1]);
+    ok(fonte >= 12 && fonte <= 13, `rótulo de ${fonte}px — fora da faixa 12–13px`);
+    const gap = Number((corpo.match(/gap:\s*(\d+)px/) || [])[1]);
+    ok(gap >= 3 && gap <= 4, `gap de ${gap}px — fora da faixa 3–4px`);
+
+    const svg = shell.slice(shell.indexOf('.pa-nav-item svg {'));
+    const icone = Number((svg.slice(0, svg.indexOf('}')).match(/width:\s*(\d+)px/) || [])[1]);
+    ok(icone >= 22 && icone <= 24, `ícone de ${icone}px — fora da faixa 22–24px`);
+
+    // Área de toque: nem o rótulo menor nem a barra mais baixa podem deixar o
+    // alvo pequeno demais para o polegar.
+    const item_h = Number((shell.match(/--pa-nav-item-h:\s*(\d+)px/) || [])[1]);
+    ok(item_h >= 42, `área de toque de ${item_h}px é pequena demais`);
   });
 
   teste('o conteúdo reserva espaço, e a reserva sai da MESMA variável', () => {
     // O último cartão precisa poder rolar acima da barra sem ficar escondido.
-    contem(shell, '--pa-nav-reserva: calc(var(--pa-nav-h) + env(safe-area-inset-bottom, 0px) + 16px);');
+    // A reserva é do CONTEÚDO — ela não engorda a barra, que se mede sozinha.
+    contem(shell, '--pa-nav-reserva: calc(var(--pa-nav-h) + var(--pa-nav-safe) + 16px);');
     contem(shell, '.pa-main { max-width: 620px; margin: 0 auto; padding: 18px 16px var(--pa-nav-reserva); }');
     ok(!/\.pa-main \{[^}]*96px/.test(shell),
        'reserva em número solto descola da barra no primeiro ajuste');
+    ok(!/\.pa-bottomnav[^{]*\{[^}]*--pa-nav-reserva/.test(shell),
+       'a reserva do conteúdo não pode entrar na altura da própria barra');
+  });
+
+  teste('a barra de finalizar do treino lê a MESMA geometria', () => {
+    // Ela fica logo acima da navegação. Repetir env() ali a faria ignorar o
+    // piso de 6px e descolar da barra onde não há inset.
+    contem(shell, 'bottom: calc(var(--pa-nav-h) + var(--pa-nav-safe));');
   });
 
   teste('a reserva mora em UM lugar — nenhuma tela declara a sua', () => {
