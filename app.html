@@ -166,7 +166,13 @@
     display: flex; align-items: stretch;
     min-height: calc(var(--pa-nav-h) + env(safe-area-inset-bottom, 0px));
     padding-bottom: env(safe-area-inset-bottom, 0px);
-    background: rgba(255,255,255,0.94); backdrop-filter: blur(10px);
+    /* Fundo OPACO, sem backdrop-filter. O blur obriga o navegador a compor a
+       barra numa camada própria alimentada pelo que passa atrás dela — e é aí
+       que o WebView do Android, quando o conteúdo troca de altura embaixo de
+       um elemento `fixed`, reaproveita a camada antiga e desenha a barra onde
+       ela estava. Translúcido era enfeite; a barra encostada no fim da tela
+       não é. Um fundo chapado não tem camada para envelhecer. */
+    background: var(--bg-card);
     border-top: 1px solid var(--line);
   }
   /* Nada de pseudo-elemento prolongando o fundo para baixo. Eram 80px pintados

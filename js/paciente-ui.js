@@ -827,12 +827,26 @@ function ligarBotaoNotificacoes() {
   });
 }
 
+// Trocar de seção começa no topo da seção nova.
+//
+// Ninguém zerava a rolagem: `app().innerHTML = ...` troca o conteúdo e o
+// navegador MANTÉM o deslocamento antigo, só aparado no fim da página nova.
+// Sair de um treino rolado até o 8º exercício e cair no meio da Dieta é o
+// primeiro efeito, e o visível. O segundo é a barra inferior: um elemento
+// `fixed` sobre um conteúdo que muda de altura debaixo dele é exatamente o
+// caso em que o WebView do Android deixa de repintar e desenha a barra na
+// posição anterior — o "menu boiando acima do fim da tela".
+function aoTopo() {
+  window.scrollTo(0, 0);
+}
+
 function ligarShell() {
   document.getElementById('paLogout')?.addEventListener('click', logout);
   app().querySelectorAll('.pa-nav-item').forEach(b =>
     b.addEventListener('click', () => {
       const sec = b.dataset.sec;
       if (sec === _secao) return;
+      aoTopo();
       if (sec === 'dieta') renderDieta();
       else if (sec === 'inicio') renderInicio();
       else irParaTreino();
@@ -915,6 +929,7 @@ function pintarInicio(treino) {
 // Destino dos atalhos do Início. A tela nova não conhece a casca — ela devolve
 // o nome da seção e quem sabe navegar é quem está aqui.
 function irParaSecao(sec) {
+  aoTopo();
   if (sec === 'dieta') renderDieta();
   else if (sec === 'treino') irParaTreino();
   else if (sec === 'documentos') renderDocumentos();

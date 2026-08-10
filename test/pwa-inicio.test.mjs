@@ -728,6 +728,39 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
     contem(shell, 'viewport-fit=cover');
     igual((shell.match(/name="viewport"/g) || []).length, 1);
   });
+
+  teste('a barra não pede camada própria de composição', () => {
+    // backdrop-filter põe a barra numa camada alimentada pelo que passa atrás
+    // dela. Com `fixed` sobre conteúdo que muda de altura, o WebView do Android
+    // reaproveita a camada velha e desenha a barra na posição anterior — a
+    // barra "alta", com uma tira do fundo embaixo. Translúcido é enfeite.
+    //
+    // A conferência ignora COMENTÁRIOS: a regra explica no próprio CSS por que
+    // não há blur ali, e uma guarda que proíbe explicar é uma guarda que se
+    // resolve apagando a explicação.
+    const semComentario = corpoNav.replace(/\/\*[\s\S]*?\*\//g, '');
+    ok(!/backdrop-filter/.test(semComentario),
+       'blur na barra inferior é camada que envelhece — fundo chapado não tem esse modo de falhar');
+    ok(!/rgba\(/.test(semComentario),
+       'fundo translúcido deixa o conteúdo aparecer por baixo da barra');
+  });
+
+  teste('trocar de seção volta ao topo', () => {
+    // `app().innerHTML = ...` troca o conteúdo e o navegador MANTÉM a rolagem
+    // antiga. Sem zerar, sai-se de um treino rolado e cai-se no meio da Dieta —
+    // e a barra fixed fica sobre um conteúdo que encolheu debaixo dela.
+    contem(ui, 'function aoTopo()');
+    contem(ui, 'window.scrollTo(0, 0)');
+
+    // Os DOIS caminhos de troca de seção: a barra inferior e os atalhos do
+    // Início. Um só zerado deixa metade do app com o defeito.
+    const shellFn = ui.slice(ui.indexOf('function ligarShell()'));
+    ok(shellFn.slice(0, shellFn.indexOf('\n}')).includes('aoTopo()'),
+       'a barra inferior troca de seção sem zerar a rolagem');
+    const atalho = ui.slice(ui.indexOf('function irParaSecao('));
+    ok(atalho.slice(0, atalho.indexOf('\n}')).includes('aoTopo()'),
+       'os atalhos do Início trocam de seção sem zerar a rolagem');
+  });
 });
 
 grupo('início · datas por extenso', () => {
