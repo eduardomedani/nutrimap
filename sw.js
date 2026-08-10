@@ -6,7 +6,7 @@
 
 // Um SW só para os DOIS apps: o escopo é a raiz, e registrar um segundo
 // service worker no mesmo escopo só criaria disputa entre eles.
-const CACHE = 'evollo-apps-v10';
+const CACHE = 'evollo-apps-v11';
 // Caminhos relativos ao escopo do SW — funcionam tanto na raiz (localhost)
 // quanto numa subpasta (GitHub Pages: /nutrimap/).
 const SHELL = [
@@ -15,6 +15,13 @@ const SHELL = [
   'manifest.webmanifest',
   'css/brand.css',
   'css/execucao.css',
+  // As folhas do Início e da Dieta ficavam de fora e envelheciam sozinhas: o
+  // app.html chegava novo (é ele que estiliza o Treino inteiro) e estas duas
+  // continuavam na versão anterior, que declarava a própria reserva embaixo da
+  // barra. Daí "no Treino está certo, no Início e na Dieta o menu boia".
+  // Precachear junto amarra as três à mesma troca de CACHE.
+  'css/pwa-inicio.css',
+  'css/pwa-dieta.css',
   'js/paciente-ui.js',
   'js/paciente-execucao.js',
   'js/execucao-core.js',
