@@ -1,0 +1,19 @@
+# Finais de linha: LF em todo lugar, inclusive no Windows.
+#
+# Sem isto, um clone com core.autocrlf=true (o padrão do Git for Windows)
+# grava CRLF na worktree. Boa parte dos testes deste projeto é "regra
+# escrita": eles afirmam trechos literais do fonte, com \n dentro da string.
+#
+#   contem(codigo, "jsonb_set(\n           metadata, '{acessos}'")
+#
+# Sob CRLF nada disso casa — e o pior caso é silencioso: um
+# f.indexOf('\n}\n') devolve -1, o slice(0, -1) pega o arquivo quase inteiro
+# no lugar do corpo da função, e o teste passa a olhar código que não é o
+# dele. O CI e o build do Vercel rodam em Linux e nunca veem isso, então a
+# quebra só aparece na máquina de quem desenvolve no Windows.
+#
+# `eol=lf` vale para todos, independente do core.autocrlf de cada um.
+* text=auto eol=lf
+
+*.png binary
+*.ico binary
