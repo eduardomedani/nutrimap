@@ -45,8 +45,13 @@ db/conferencia/47_desfazer_vinculo_indevido_rollback.sql
 # Mesma regra dos outros arquivos de conferencia com UUID — fica na maquina.
 db/conferencia/48_comercial_importacao.sql
 
-# Versao sem comentarios, gerada para colar no SQL Editor.
+# Versao sem comentarios, gerada para colar no SQL Editor. O "--" se perde no
+# paste e o resto da linha vira comando, entao a copia limpa e artefato de
+# trabalho: sempre gerada a partir do arquivo com comentario, que esse sim vai
+# versionado. As duas linhas convivem — a primeira ja cobria db/, e a segunda
+# passou a ser necessaria quando os scripts de conferencia ganharam subpasta.
 db/*_LIMPO.sql
+db/**/*_LIMPO.sql
 
 # Vendas que a importacao assumiu como recebidas: traz nome de cliente e valor.
 # O gerador vai versionado; a lista, nao.
