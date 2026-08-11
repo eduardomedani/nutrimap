@@ -10,8 +10,21 @@
 // primeira.
 
 import { sb } from './supabase.js';
+import { organizacaoAtual } from './organizacao.js';
 import { renovar, competenciaDaCobranca, PLANO_PADRAO } from './comercial.js';
 
+/**
+ * O dono do dado ANTES da Etapa 4 — o uuid da própria pessoa.
+ *
+ * Continua aqui porque `comercial_assinaturas`, `financeiro_lancamentos`,
+ * `financeiro_categorias` e `pacientes` ainda têm policies em
+ * `nutri_id = auth.uid()`. Trocar por `organizacaoAtual()` nessas funções
+ * faria a camada de dados pedir a organização contra uma policy que exige a
+ * pessoa — para o proprietário daria no mesmo, e para mais ninguém.
+ *
+ * Some quando o último módulo migrar. Enquanto existirem os dois, a diferença
+ * entre `nutriId()` e `organizacaoAtual()` é o mapa de quem já migrou.
+ */
 async function nutriId() {
   const { data: { user } } = await sb.auth.getUser();
   if (!user) throw new Error('sem_sessao');
@@ -19,21 +32,38 @@ async function nutriId() {
 }
 
 // ── PLANOS ────────────────────────────────────────────────────
+// MIGRADO NA ETAPA 4A. As três funções abaixo resolvem o dono por
+// `organizacaoAtual()`, e as policies de `comercial_planos` exigem
+// `organizacao_do_auth()` + `tem_permissao()`. É o único bloco do módulo nesse
+// estado; ver db/multiusuario_comercial_planos_rls.sql.
 
 export async function listarPlanos({ incluirInativos = false } = {}) {
-  const id = await nutriId();
-  let q = sb.from('comercial_planos').select('*').eq('nutri_id', id);
+  const org = await organizacaoAtual();
+  let q = sb.from('comercial_planos').select('*').eq('nutri_id', org);
   if (!incluirInativos) q = q.eq('ativo', true);
   const { data, error } = await q.order('ordem').order('nome');
   if (error) throw error;
   return data || [];
 }
 
+/**
+ * O INSERT NÃO MANDA `nutri_id`, e isso é a decisão, não um esquecimento.
+ *
+ * Quem determina o tenant é o banco, pelo `default organizacao_do_auth()` da
+ * coluna. O frontend manda dado de negócio e mais nada — assim não existe
+ * caminho em que uma tela escolha o dono de um registro, nem por engano nem
+ * por request adulterado.
+ *
+ * O `nutri_id` sai do payload mesmo se vier em `dados`: quem chama não tem o
+ * que dizer sobre isso, e deixar passar em silêncio devolveria ao frontend
+ * justamente a autoridade que esta mudança tira dele. O `with check` da policy
+ * recusaria de qualquer forma — isto é a primeira porta, não a única.
+ */
 export async function criarPlano(dados) {
-  const id = await nutriId();
+  const { nutri_id: _naoUsado, ...negocio } = dados || {};
   const { data, error } = await sb
     .from('comercial_planos')
-    .insert({ ...dados, nutri_id: id })
+    .insert(negocio)
     .select()
     .single();
   if (error) throw error;
@@ -41,7 +71,7 @@ export async function criarPlano(dados) {
 }
 
 export async function salvarPlano(planoId, dados) {
-  const id = await nutriId();
+  const org = await organizacaoAtual();
   // `nutri_id` fora do update de propósito: mudar o dono de um plano não é uma
   // edição, é um erro.
   const { nutri_id, id: _ignorado, ...limpo } = dados;
@@ -49,7 +79,7 @@ export async function salvarPlano(planoId, dados) {
     .from('comercial_planos')
     .update(limpo)
     .eq('id', planoId)
-    .eq('nutri_id', id)
+    .eq('nutri_id', org)
     .select()
     .single();
   if (error) throw error;

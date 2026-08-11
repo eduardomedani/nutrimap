@@ -1771,6 +1771,9 @@
      brand.css, para poder ajustar .patient-row e .av-grid sem a marca desfazer. -->
 <link rel="stylesheet" href="css/financeiro.css">
 <link rel="stylesheet" href="css/comercial.css">
+<!-- Usuários e acessos: o primeiro módulo do painel a respeitar o motor de
+     permissões. Ver js/permissoes.js. -->
+<link rel="stylesheet" href="css/usuarios.css">
 <!-- O documento do contracheque. Folha própria porque ela é embutida no HTML
      publicado para o colaborador — ver js/contracheque-arquivo.js. -->
 <link rel="stylesheet" href="css/contracheque.css">
@@ -2004,6 +2007,12 @@
         <!-- id-card, e não users-round: "Clientes" logo acima já usa gente, e
              dois desenhos de pessoas na mesma barra se leem como o mesmo item. -->
         <div class="nav-item" data-page="equipe"><span class="nav-icon"><i data-lucide="id-card"></i></span><span>Equipe</span></div>
+        <!-- Usuários e acessos é o PRIMEIRO item do painel a respeitar o motor
+             de permissões: ele só aparece para quem tem `usuarios.visualizar`.
+             Os outros continuam visíveis para todos até a Etapa 4 migrar cada
+             um. E esconder aqui é conforto, não segurança — quem barra de
+             verdade é a RPC no banco. -->
+        <div class="nav-item" data-page="usuarios" data-exige="usuarios.visualizar" hidden><span class="nav-icon"><i data-lucide="shield-check"></i></span><span>Usuários e acessos</span></div>
       </div>
     </nav>
 
@@ -2125,6 +2134,9 @@
     <div class="module-page" id="page-equipe">
       <div class="loading"><div class="spinner"></div>Carregando...</div>
     </div>
+    <div class="module-page" id="page-usuarios">
+      <div class="loading"><div class="spinner"></div>Carregando...</div>
+    </div>
     <div class="module-page" id="page-materiais">
       <div class="em-breve-card"><div class="em-breve-icon"><i data-lucide="book-open"></i></div><div class="em-breve-titulo">Materiais</div><div class="em-breve-sub">Biblioteca de materiais educativos, e-books, vídeos e receitas para compartilhar com seus clientes.</div><div class="em-breve-tag">Em desenvolvimento</div></div>
     </div>
@@ -2160,6 +2172,9 @@
   import { fazerLogin, criarConta, fazerLogout, obterSessao, obterPerfilNutri, validarCodigoConvite, registrarUsoCodigo } from './js/auth.js';
   import { listarPacientes, criarPaciente, excluirPaciente, calcularEstatisticas } from './js/pacientes.js';
   import { formatarData, iniciaisDoNome, copiarParaClipboard, mostrarToast, gerarLinkWhatsapp, montarMensagemQuestionario } from './js/utils.js';
+  import { carregarPermissoes, limparPermissoes, registrarAcesso, pode } from './js/permissoes.js';
+  import { limparOrganizacao } from './js/organizacao.js';
+  import { abrirUsuarios } from './js/usuarios-ui.js';
   import { gerarRelatorio } from './js/relatorio.js';
   import { processarRecordatorioIA } from './js/recordatorio-ia.js';
   import { abrirFichaPaciente } from './js/ficha.js';
@@ -2177,6 +2192,21 @@
   // chamava navegar() e depois a abertura da aba, e a página desenhava duas
   // vezes — a primeira na aba errada, bem à vista de quem abre pelo link.
   function navegar(pagina, secao) {
+    // Sem permissão, a rota não abre — nem digitando #usuarios na barra de
+    // endereço. O módulo nem chega a ser chamado.
+    if (!podeAbrir(pagina)) {
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.module-page').forEach(el => el.classList.toggle('active', el.id === 'page-' + pagina));
+      const caixa = document.getElementById('page-' + pagina);
+      if (caixa) {
+        caixa.innerHTML = '<div class="us-bloqueado"><i data-lucide="lock"></i>'
+          + '<h2>Você não tem acesso a esta área.</h2>'
+          + '<p>Fale com o proprietário da conta se precisar deste módulo.</p></div>';
+        window.renderIcons?.();
+      }
+      try { history.replaceState(null, '', '#' + pagina); } catch (e) {}
+      return;
+    }
     document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.page === pagina));
     document.querySelectorAll('.module-page').forEach(el => el.classList.toggle('active', el.id === 'page-' + pagina));
     document.getElementById('sidebar').classList.remove('open');
@@ -2217,7 +2247,34 @@
     if (pagina === 'equipe') {
       abrirEquipe(secao).catch(console.error);
     }
+    if (pagina === 'usuarios') {
+      abrirUsuarios().catch(console.error);
+    }
     try { history.replaceState(null, '', '#' + pagina); } catch (e) {}
+  }
+
+  // A permissão é conferida ANTES de trocar de página, não depois. Renderizar
+  // a tela e só então esconder o conteúdo deixaria o dado passar pela rede e
+  // pelo DOM antes de alguém decidir que não podia.
+  //
+  // Só `usuarios` exige permissão nesta etapa. Os outros módulos entram um a
+  // um na Etapa 4 — começar a esconder Financeiro e Equipe agora, com as
+  // policies antigas ainda em `nutri_id = auth.uid()`, esconderia o menu do
+  // proprietário sem motivo.
+  const EXIGE_PERMISSAO = { usuarios: 'usuarios.visualizar' };
+
+  function podeAbrir(pagina) {
+    const chave = EXIGE_PERMISSAO[pagina];
+    return !chave || pode(chave);
+  }
+
+  // Item de menu com `data-exige` nasce oculto no HTML e só aparece se a
+  // permissão existir. Nascer oculto e não escondido depois evita o piscar do
+  // item aparecendo e sumindo enquanto as permissões carregam.
+  function aplicarPermissoesNoMenu() {
+    document.querySelectorAll('.nav-item[data-exige]').forEach(el => {
+      el.hidden = !pode(el.dataset.exige);
+    });
   }
 
   // Restaura a rota (página ou ficha+aba) a partir do #hash da URL, no load.
@@ -2499,6 +2556,39 @@
 
     ocupado(btn, true, 'Validando...');
     try {
+      // ── Código de organização (EVL-…) ────────────────────────────────────
+      // Dois códigos diferentes entram pelo mesmo campo, e o prefixo os separa:
+      //
+      //   EDUARDO2026   convite do SaaS — cria uma organização NOVA
+      //   EVL-7K9P2     convite de organização — entra numa que já existe
+      //
+      // O prefixo evita uma terceira aba na tela de entrada. Mexer na estrutura
+      // do login para acomodar isso era o maior risco desta etapa: um erro ali
+      // derruba o acesso do proprietário.
+      //
+      // Aqui NÃO se valida código de SaaS: quem entra por convite de
+      // organização não tem um, e não deve ter — ele criaria outra organização.
+      if (codigo.startsWith('EVL-')) {
+        ocupado(btn, true, 'Criando conta...');
+        const data = await criarConta({ nome, email, senha });
+        if (!data.session) {
+          mostrarMsg(success, 'Conta criada! Confirme o e-mail e entre para concluir o acesso.', 'ok');
+          ocupado(btn, false, null, 'Criar conta');
+          return;
+        }
+        // O vínculo exige sessão: é auth.uid() que a RPC amarra ao convite.
+        const { vincular, traduzirErro } = await import('./js/usuarios-data.js');
+        try {
+          await vincular(codigo);
+        } catch (e) {
+          const err = new Error(traduzirErro(e));
+          err.amigavel = true;
+          throw err;
+        }
+        await iniciarApp();
+        return;
+      }
+
       // 1. Valida o código de convite ANTES de criar a conta
       const validacao = await validarCodigoConvite(codigo);
       if (!validacao.valido) {
@@ -2535,6 +2625,8 @@
 
   document.getElementById('btnLogout').addEventListener('click', async () => {
     if (!confirm('Tem certeza que quer sair?')) return;
+    limparPermissoes();    // senão a próxima conta herda o menu desta
+    limparOrganizacao();   // e senão ela herda o DONO dos dados — pior ainda
     await fazerLogout();
     location.reload();
   });
@@ -2542,6 +2634,16 @@
   async function iniciarApp() {
     document.getElementById('authWrapper').style.display = 'none';
     document.getElementById('app').classList.add('active');
+
+    // As permissões da sessão, UMA vez. Antes de restaurarRota(), senão abrir
+    // o painel direto em #usuarios cairia na tela de bloqueio mesmo para quem
+    // tem acesso — `pode()` nega enquanto não sabe, e é isso que ele deve fazer.
+    try {
+      await carregarPermissoes();
+      aplicarPermissoesNoMenu();
+      registrarAcesso();          // sem await: a coluna é conveniência administrativa
+    } catch (e) { console.warn('permissões:', e); }
+
     try {
       const perfil = await obterPerfilNutri();
       if (perfil) {
