@@ -566,12 +566,13 @@ grupo('início · o CSS', () => {
   });
 
   teste('a barra inferior não cobre o último atalho', () => {
-    // A reserva não mora mais aqui: é da casca, em --pa-nav-reserva. Esta
-    // folha só não pode reabrir uma segunda — ver o grupo da barra inferior.
+    // Não há mais o que reservar: a barra ocupa espaço próprio no fim da casca
+    // e não passa por cima de nada. Esta folha só não pode inventar um respiro
+    // embaixo, que hoje seria um vão puro.
     const shell = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
-    contem(shell, 'padding: 18px 16px var(--pa-nav-reserva);');
+    contem(shell, '.pa-main { max-width: 620px; margin: 0 auto; padding: 18px 16px; }');
     ok(!/padding-bottom/.test(css.slice(0, css.indexOf('.inicio .pa-hero'))),
-       'reserva declarada aqui volta a somar com a da casca');
+       'respiro embaixo declarado aqui é vão, não reserva');
   });
 
   teste('quem pediu menos movimento não recebe animação', () => {
@@ -622,15 +623,46 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
   const regraNav = semComentario.slice(semComentario.indexOf('.pa-bottomnav {'));
   const corpoNav = regraNav.slice(0, regraNav.indexOf('}') + 1);
 
-  teste('a barra pertence à viewport, não ao fluxo da página', () => {
-    // Dashboard curto, dieta longa, estado vazio, loading, erro: a posição não
-    // pode depender de quanto conteúdo existe acima.
-    contem(corpoNav, 'position: fixed');
-    contem(corpoNav, 'bottom: 0');
-    contem(corpoNav, 'left: 0');
-    contem(corpoNav, 'right: 0');
-    ok(!/position:\s*(absolute|sticky)/.test(corpoNav),
-       'absolute ou sticky prendem a barra ao conteúdo');
+  teste('a barra é o fim da casca, e não um elemento posicionado', () => {
+    // Era `fixed; bottom: 0`, e no iOS em modo standalone isso a ancorava numa
+    // viewport de layout que no lançamento não é a tela: a barra parava ACIMA
+    // do fim, com uma faixa do fundo embaixo. O toque duplo que ressincronizava
+    // a viewport e "consertava" a barra foi o que entregou o caso.
+    //
+    // Item de fluxo não tem régua para errar: ele está no fim da coluna.
+    ok(!/position:\s*(fixed|absolute|sticky)/.test(corpoNav),
+       'qualquer position aqui devolve a barra para a viewport de layout do iOS');
+    contem(corpoNav, 'flex: 0 0 auto');
+  });
+
+  teste('a casca ocupa a viewport dinâmica e é ela quem rola', () => {
+    const shellRegra = semComentario.slice(semComentario.indexOf('#app.pa-shell {'));
+    const corpo = shellRegra.slice(0, shellRegra.indexOf('}') + 1);
+    // dvh, não vh: é justamente a medida que muda entre o lançamento do app e
+    // a primeira interação, e dvh reresolve quando ela muda.
+    contem(corpo, 'height: 100dvh');
+    contem(corpo, 'flex-direction: column');
+    contem(corpo, 'overflow: hidden');
+
+    const mainRegra = semComentario.slice(semComentario.indexOf('.pa-shell .pa-main {'));
+    const main = mainRegra.slice(0, mainRegra.indexOf('}') + 1);
+    contem(main, 'overflow-y: auto');
+    // Sem isto o item flex não encolhe abaixo do conteúdo e a rolagem some.
+    contem(main, 'min-height: 0');
+  });
+
+  teste('toda tela com barra entra na casca, por um caminho só', () => {
+    contem(ui, "app()?.classList.add('pa-shell')");
+    const shellFn = ui.slice(ui.indexOf('function ligarShell()'));
+    ok(shellFn.slice(0, shellFn.indexOf('\n}')).includes("classList.add('pa-shell')"),
+       'a casca tem que ser ligada em ligarShell — é por onde toda tela com barra passa');
+    // E as telas SEM barra têm que sair dela, senão o login herda a altura
+    // travada da casca e o formulário não rola no teclado aberto.
+    for (const tela of ['renderAuth', 'renderVincular', 'renderCarregando', 'renderErro']) {
+      const f = ui.slice(ui.indexOf(`function ${tela}(`));
+      ok(f.slice(0, f.indexOf('app().innerHTML')).includes('semCasca()'),
+         `${tela} tem que sair da casca`);
+    }
   });
 
   teste('não sobrou spacer artificial abaixo da barra', () => {
@@ -662,8 +694,7 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
     // `[\s;{]` antes: sem isso o próprio `padding-bottom:` casaria com o
     // padrão e a guarda acusaria a regra certa.
     ok(!/[\s;{]bottom:\s*(env\(safe-area-inset-bottom|var\(--pa-nav-safe)/.test(corpoNav),
-       'safe-area no `bottom` levanta a barra do fim da tela — ela vai no padding');
-    contem(corpoNav, 'bottom: 0;');
+       'safe-area em `bottom` não é reserva de espaço — ela vai no padding');
 
     const regraBody = shell.slice(shell.indexOf('  body {'));
     ok(!regraBody.slice(0, regraBody.indexOf('}')).includes('safe-area-inset-bottom'),
@@ -734,21 +765,31 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
     ok(item_h >= 42, `área de toque de ${item_h}px é pequena demais`);
   });
 
-  teste('o conteúdo reserva espaço, e a reserva sai da MESMA variável', () => {
-    // O último cartão precisa poder rolar acima da barra sem ficar escondido.
-    // A reserva é do CONTEÚDO — ela não engorda a barra, que se mede sozinha.
-    contem(shell, '--pa-nav-reserva: calc(var(--pa-nav-h) + var(--pa-nav-safe) + 16px);');
-    contem(shell, '.pa-main { max-width: 620px; margin: 0 auto; padding: 18px 16px var(--pa-nav-reserva); }');
-    ok(!/\.pa-main \{[^}]*96px/.test(shell),
-       'reserva em número solto descola da barra no primeiro ajuste');
-    ok(!/\.pa-bottomnav[^{]*\{[^}]*--pa-nav-reserva/.test(shell),
-       'a reserva do conteúdo não pode entrar na altura da própria barra');
+  teste('não existe mais reserva embaixo — a barra não cobre nada', () => {
+    // A reserva existia porque a barra flutuava por cima do conteúdo. Fora da
+    // viewport, ela ocupa espaço próprio no fim da coluna, e reservar de novo
+    // seria o vão embaixo do último cartão de volta — agora sem nenhum jeito
+    // de descobrir de onde veio, já que não haveria barra por cima para
+    // justificar o buraco.
+    ok(!semComentario.includes('--pa-nav-reserva'),
+       'a reserva não pode voltar: a barra não cobre mais o conteúdo');
+    contem(semComentario, '.pa-main { max-width: 620px; margin: 0 auto; padding: 18px 16px; }');
+    ok(!/\.pa-main \{[^}]*(96px|nav-reserva)/.test(semComentario),
+       'reserva em número solto ou em variável reabre o vão');
   });
 
-  teste('a barra de finalizar do treino lê a MESMA geometria', () => {
-    // Ela fica logo acima da navegação. Repetir env() ali a faria ignorar o
-    // piso de 6px e descolar da barra onde não há inset.
-    contem(shell, 'bottom: calc(var(--pa-nav-h) + var(--pa-nav-safe));');
+  teste('a barra de finalizar também está em fluxo, não fixa', () => {
+    // Ela era `fixed` medida por --pa-nav-h + --pa-nav-safe: a mesma exposição
+    // ao erro de viewport do iOS que levantava a navegação. Em fluxo ela é a
+    // penúltima linha da coluna e a navegação é a última — não há medida para
+    // acertar, e nenhuma das duas cobre o miolo.
+    const r = semComentario.slice(semComentario.indexOf('.pa-finishbar {'));
+    const corpo = r.slice(0, r.indexOf('}') + 1);
+    ok(!/position:\s*fixed/.test(corpo), 'fixed devolve a barra à viewport de layout');
+    contem(corpo, 'flex: 0 0 auto');
+    // Nenhum elemento da casca pode voltar a ser fixed pelo mesmo motivo.
+    ok(!/position:\s*fixed/.test(semComentario),
+       'a casca inteira vive em fluxo — um fixed reabre o defeito do iOS');
   });
 
   teste('a reserva mora em UM lugar — nenhuma tela declara a sua', () => {

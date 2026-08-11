@@ -194,6 +194,7 @@ function limparCodigoDaUrl() {
 // TELA 1 — Entrar / criar conta
 // ═══════════════════════════════════════════════════════════
 function renderAuth(modo = 'entrar') {
+  semCasca();
   const entrarAtivo = modo === 'entrar';
   app().innerHTML = `
     <div class="pa-auth">
@@ -280,6 +281,7 @@ async function fazerCadastro() {
 // TELA 2 — Vincular pelo código
 // ═══════════════════════════════════════════════════════════
 function renderVincular(prefill = '', erro = '') {
+  semCasca();
   app().innerHTML = `
     <div class="pa-auth">
       <div class="pa-brand evo-logo evo-logo--stacked evo-logo--lg">
@@ -827,20 +829,38 @@ function ligarBotaoNotificacoes() {
   });
 }
 
+/**
+ * O que rola.
+ *
+ * Dentro da casca é o `<main>`, não a janela: a casca ocupa a viewport e o
+ * miolo rola por dentro dela, que é o que tira a barra inferior da mão do
+ * cálculo de viewport do iOS. Fora da casca (login, boot, erro) não há main, e
+ * quem rola volta a ser a janela.
+ */
+function rolador() {
+  return app()?.querySelector('.pa-main') || null;
+}
+
+/** Sai da casca: login, vinculação, boot e erro não têm barra nem main. */
+function semCasca() {
+  app()?.classList.remove('pa-shell');
+}
+
 // Trocar de seção começa no topo da seção nova.
 //
-// Ninguém zerava a rolagem: `app().innerHTML = ...` troca o conteúdo e o
-// navegador MANTÉM o deslocamento antigo, só aparado no fim da página nova.
-// Sair de um treino rolado até o 8º exercício e cair no meio da Dieta é o
-// primeiro efeito, e o visível. O segundo é a barra inferior: um elemento
-// `fixed` sobre um conteúdo que muda de altura debaixo dele é exatamente o
-// caso em que o WebView do Android deixa de repintar e desenha a barra na
-// posição anterior — o "menu boiando acima do fim da tela".
+// `app().innerHTML = ...` troca o conteúdo e o navegador MANTÉM o
+// deslocamento antigo, só aparado no fim do conteúdo novo. Sair de um treino
+// rolado até o 8º exercício e cair no meio da Dieta era o efeito visível.
 function aoTopo() {
-  window.scrollTo(0, 0);
+  const r = rolador();
+  if (r) r.scrollTop = 0; else window.scrollTo(0, 0);
 }
 
 function ligarShell() {
+  // A casca é o que dá altura à tela e põe a barra inferior no fim do fluxo.
+  // Fica aqui porque `ligarShell` é o ponto por onde TODA tela com barra
+  // passa — marcar em cada render deixaria a próxima tela nova de fora.
+  app()?.classList.add('pa-shell');
   document.getElementById('paLogout')?.addEventListener('click', logout);
   app().querySelectorAll('.pa-nav-item').forEach(b =>
     b.addEventListener('click', () => {
@@ -1485,18 +1505,27 @@ function recolherProg(id) {
   card.querySelector('.pa-exh')?.setAttribute('aria-expanded', 'false');
 }
 
-// Altura do que está fixo no topo (topbar + cabeçalho do treino).
+// Altura do que cobre o topo do que ROLA.
+//
+// A topbar saiu da conta: na casca ela é irmã do `<main>`, e não fica mais por
+// cima dele. Somá-la aqui descontaria uma altura que não cobre nada, e o card
+// pararia baixo demais.
 function alturaFixaTopo() {
-  const t = document.querySelector('.pa-topbar')?.offsetHeight || 0;
   const r = document.querySelector('.pa-runbar')?.offsetHeight || 0;
-  return t + r;
+  return r;
 }
 
 // Posiciona o card logo abaixo do cabeçalho fixo, sem movimento exagerado.
 function rolarAteCard(card) {
   if (!card) return;
-  const y = card.getBoundingClientRect().top + window.scrollY - alturaFixaTopo() - 10;
-  window.scrollTo({ top: Math.max(0, y), behavior: prefereMenosMovimento() ? 'auto' : 'smooth' });
+  // Quem rola é o `<main>` da casca, não a janela: `window.scrollY` vale 0 lá
+  // dentro, e a conta daria sempre a posição do card em relação à tela — o
+  // card do fim da lista rolaria para o lugar errado.
+  const box = rolador();
+  const base = box ? box.scrollTop - box.getBoundingClientRect().top : window.scrollY;
+  const y = card.getBoundingClientRect().top + base - alturaFixaTopo() - 10;
+  const destino = { top: Math.max(0, y), behavior: prefereMenosMovimento() ? 'auto' : 'smooth' };
+  if (box) box.scrollTo(destino); else window.scrollTo(destino);
 }
 
 // Pré-carrega a progressão de TODOS os itens do treino numa consulta só.
@@ -2210,10 +2239,12 @@ function renderSemTreino() {
 }
 
 function renderCarregando(txt) {
+  semCasca();
   app().innerHTML = `<div class="pa-boot"><span class="pa-spin pa-spin-lg"></span><div>${esc(txt || 'Carregando...')}</div></div>`;
 }
 
 function renderErro(txt) {
+  semCasca();
   app().innerHTML = `
     <div class="pa-boot">
       <i data-lucide="triangle-alert"></i>

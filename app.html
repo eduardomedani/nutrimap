@@ -53,7 +53,10 @@
 <style>
   /* As cores da marca vivem em css/tokens.css — ver o <link> antes de </head>. */
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { min-height: 100%; }
+  /* `dvh` depois de `%`: a viewport do iOS em modo standalone muda de altura
+     entre o lançamento e a primeira interação, e `100%` resolve contra a
+     medida ANTIGA. Quem não conhece dvh fica com o `%`, que continua acima. */
+  html, body { min-height: 100%; min-height: 100dvh; }
   /* Fundo chapado: os gradientes radiais quentes saíram com a identidade antiga. */
   body {
     background: var(--background);
@@ -61,16 +64,51 @@
     font-family: var(--font-sans); font-size: 15px; line-height: 1.55;
     -webkit-font-smoothing: antialiased;
   }
-  /* Sem `padding-bottom: env(safe-area-inset-bottom)` aqui. A barra inferior é
-     `position: fixed`: o padding do body não a move um pixel — só acrescenta
-     uma tira morta no fim da rolagem de TODAS as telas, e faz a safe-area ser
-     contada duas vezes (aqui e na própria barra). Quem declara a safe-area é
-     quem encosta nela: .pa-bottomnav, uma vez só. */
+  /* Sem `padding-bottom: env(safe-area-inset-bottom)` aqui. Quem encosta na
+     borda de baixo é a barra, e é ela quem declara a safe-area — uma vez só.
+     Repetir no body só acrescentaria uma tira morta no fim de TODAS as telas e
+     faria o inset ser contado duas vezes. */
   em { font-style: italic; }
   a { color: inherit; }
   input, select, button { font-family: inherit; }
   /* Ícones minimalistas: traço mais fino em todo o app do aluno. */
   svg.lucide { stroke-width: 1.6; }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     A CASCA — quem manda na altura da tela
+     ══════════════════════════════════════════════════════════════════════
+     A barra inferior parou de ser `position: fixed`. Este é o motivo, e vale
+     escrito porque a correção anterior (mexer na geometria da barra) não
+     podia funcionar:
+
+     No iOS em modo standalone, a viewport de LAYOUT no lançamento do app não
+     é a mesma que a tela. Um elemento `fixed; bottom: 0` se ancora nessa
+     viewport errada e para ACIMA do fim da tela, com uma faixa do fundo
+     embaixo. O sintoma que entregou o caso: um toque duplo na tela fazia o
+     conteúdo descer, a topbar sair do lugar e a barra inferior acertar
+     sozinha — o toque forçava o Safari a ressincronizar a viewport. Nenhuma
+     medida de altura da barra corrige isso, porque o erro não é a altura
+     dela: é a régua contra a qual ela se posiciona.
+
+     Aqui a casca ocupa a viewport DINÂMICA (dvh, que reresolve quando a
+     medida muda) e é ela quem rola por dentro. A barra é o último item de uma
+     coluna flex: não existe régua para errar, ela está no fim do fluxo. A
+     topbar deixa de precisar de `sticky` pelo mesmo motivo.
+
+     Efeito colateral bem-vindo: o conteúdo não reserva mais espaço embaixo. A
+     família inteira de defeitos "reserva contada duas vezes / spacer / vão
+     abaixo do último cartão" deixa de ter onde nascer, porque a barra não
+     cobre mais nada. */
+  #app.pa-shell {
+    height: 100vh; height: 100dvh;
+    display: flex; flex-direction: column;
+    overflow: hidden;   /* quem rola é o .pa-main, não a página */
+  }
+  .pa-shell .pa-main {
+    flex: 1 1 auto; min-height: 0;   /* min-height: 0 senão o flex não deixa encolher e a rolagem some */
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;    /* a rolagem do miolo não vira rolagem da página atrás */
+  }
 
   /* ── Boot / carregando ── */
   .pa-boot { min-height: 80vh; min-height: 80dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; text-align: center; color: var(--ink-soft); padding: 24px; }
@@ -118,7 +156,7 @@
      para 102px no iPhone — 47px roubados de TODAS as telas, no lugar da tela
      onde o conteúdo deveria estar. Sem inset (desktop, Android), os 12px
      continuam valendo. */
-  .pa-topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; padding: max(12px, env(safe-area-inset-top)) 18px 12px; background: rgba(255,255,255,0.86); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  .pa-topbar { flex: 0 0 auto; z-index: 20; display: flex; align-items: center; justify-content: space-between; padding: max(12px, env(safe-area-inset-top)) 18px 12px; background: rgba(255,255,255,0.86); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
   .pa-topbrand { font-size: 19px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
   .pa-topbrand em { color: var(--moss); }
   .pa-topmark { width: 30px; height: 30px; background: linear-gradient(135deg, var(--moss), var(--olive)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--cream); font-size: 15px; font-weight: 600; font-style: italic; }
@@ -151,15 +189,16 @@
        rente demais na borda. Declarada UMA vez, usada como variável — é o que
        impede a mesma medida de ser escrita em dois lugares e sair de sincronia. */
     --pa-nav-safe: max(6px, env(safe-area-inset-bottom, 0px));
-
-    --pa-nav-reserva: calc(var(--pa-nav-h) + var(--pa-nav-safe) + 16px);
   }
+  /* Não existe mais --pa-nav-reserva. A barra é o último item da coluna flex
+     da casca: ela não cobre o conteúdo, e conteúdo que não é coberto não tem
+     o que reservar. Era essa reserva — escrita em dois lugares, cancelada com
+     `:has()` num terceiro — que produzia o vão embaixo do último cartão. */
 
   /* ── Treino ── */
-  /* A reserva embaixo é a MESMA variável que dá altura à barra — ver
-     --pa-nav-reserva. Número solto aqui (era 96px) descola da barra real no
-     primeiro ajuste e reabre o vão. */
-  .pa-main { max-width: 620px; margin: 0 auto; padding: 18px 16px var(--pa-nav-reserva); }
+  /* Sem reserva embaixo. A barra deixou de cobrir o conteúdo quando virou item
+     da coluna flex da casca — ver o bloco A CASCA lá em cima. */
+  .pa-main { max-width: 620px; margin: 0 auto; padding: 18px 16px; }
 
   /* ══════════════════════════════════════════════════════════════════════
      NAVEGAÇÃO INFERIOR (Início | Treino | Dieta)
@@ -168,21 +207,20 @@
      telas do app do aluno a usam. Não existe .inicio-bottomnav nem
      .dt-bottomnav — três implementações voltariam a divergir.
 
-     A barra pertence ao VIEWPORT, não ao fluxo da página: `fixed` + bottom 0.
-     Dashboard curto, dieta longa, estado vazio, loading ou erro — sempre no
-     mesmo lugar.
+     A barra é o ÚLTIMO ITEM da coluna flex da casca — não é mais um elemento
+     `fixed`. Dashboard curto, dieta longa, estado vazio, loading ou erro:
+     sempre no fim da casca, que por sua vez ocupa a viewport dinâmica. Foi
+     trocar `fixed` por isto que resolveu a barra parando acima do fim da tela
+     no iOS; o motivo inteiro está no bloco A CASCA.
 
-     Safe-area UMA vez, aqui, e SÓ como padding interno de baixo. Nunca no
-     `bottom` — `bottom: env(...)` levantaria a barra do fim da tela e deixaria
-     a faixa do sistema aparecendo por baixo dela. `bottom: 0` + padding é o
-     que faz a barra terminar no fim da tela e o conteúdo dela parar logo
-     acima do indicador Home.
+     Safe-area UMA vez, aqui, e SÓ como padding interno de baixo: é o que faz o
+     rótulo parar logo acima do indicador Home em vez de embaixo dele.
 
      A altura NÃO é fixa: é a área útil (--pa-nav-h) mais a safe-area real do
      aparelho. Nada de 120/130/150px chumbado, que seria certo num modelo e
      errado em todos os outros. */
   .pa-bottomnav {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    flex: 0 0 auto; z-index: 30;
     display: flex; align-items: stretch;
     /* content-box só aqui, contra o `* { box-sizing: border-box }` do topo.
        Com border-box, min-height passaria a INCLUIR o padding da safe-area e
@@ -240,12 +278,15 @@
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
 
   /* Treino em andamento tem DUAS barras embaixo: a navegação e a .pa-finishbar
-     logo acima dela. A reserva é a da navegação + a altura da finishbar, e não
-     um 150px solto — que era o número certo só enquanto a barra media 57px. */
-  .pa-main-run { max-width: 720px; padding-bottom: calc(var(--pa-nav-reserva) + 68px); }
+     logo acima dela. Nenhuma das duas cobre o miolo — as três são itens da
+     mesma coluna —, então aqui só sobra a largura. */
+  .pa-main-run { max-width: 720px; }
 
   /* Cabeçalho do treino: acompanha a rolagem, logo abaixo da topbar. */
-  .pa-runbar { position: sticky; top: calc(var(--pa-top-h) + env(safe-area-inset-top)); z-index: 15;
+  /* `top: 0`: quem rola agora é o `<main>`, e a topbar está FORA dele. Descontar
+     a altura da topbar aqui deixaria o cabeçalho do treino grudado 54px abaixo
+     do topo da área que rola, com uma faixa morta em cima dele. */
+  .pa-runbar { position: sticky; top: 0; z-index: 15;
     background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
     padding: 12px 14px 13px; margin-bottom: 14px; box-shadow: var(--shadow-sm); }
   .pa-runbar-row { display: flex; align-items: center; gap: 10px; }
@@ -273,11 +314,12 @@
   @media (prefers-reduced-motion: reduce) { .pa-cron-dot { animation: none; } }
 
   /* Barra de finalizar: fica acima do menu inferior, sem cobri-lo. */
-  /* Encostada no topo da barra inferior. Mede-se pelas MESMAS variáveis dela
-     (--pa-nav-h + --pa-nav-safe): repetir env() aqui faria a barra de
-     finalizar ignorar o piso de 6px e descolar da navegação onde não há
-     inset. Não é ajuste no treino — é a mesma geometria, lida de uma fonte só. */
-  .pa-finishbar { position: fixed; left: 0; right: 0; bottom: calc(var(--pa-nav-h) + var(--pa-nav-safe)); z-index: 25;
+  /* Também item da casca, logo acima da navegação — a marcação já a põe entre
+     o <main> e a barra. Era `fixed` medida por --pa-nav-h + --pa-nav-safe, o
+     que a deixava exposta ao mesmo erro de viewport do iOS que levantava a
+     barra inferior. Em fluxo não há medida para acertar: ela é a penúltima
+     linha da coluna, e a navegação é a última. */
+  .pa-finishbar { flex: 0 0 auto; z-index: 25;
     background: linear-gradient(to top, var(--background) 62%, color-mix(in srgb, var(--background) 0%, transparent)); pointer-events: none; }
   .pa-finishbar-in { max-width: 720px; margin: 0 auto; padding: 14px 16px 10px; pointer-events: auto; }
   .pa-finishbar .pa-btn { margin-top: 0; min-height: 48px; box-shadow: var(--shadow-md); }
