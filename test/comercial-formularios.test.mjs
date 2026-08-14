@@ -6,10 +6,13 @@
 // renovações seguintes.
 
 import { grupo, teste, ok, igual, contem, naoContem } from './runner.mjs';
+import { readFileSync } from 'node:fs';
 import {
   planoVazio, planoDoBanco, validarPlano, planoParaBanco,
   assinaturaVazia, validarAssinatura, assinaturaParaBanco,
   formPlanoHtml, formAssinaturaHtml,
+  cobrancaDoPeriodoVazia, mudancaDaRenovacao, validarCobrancaDoPeriodo,
+  formCobrancaPeriodoHtml, resumoRenovacaoHtml, valorSugeridoAoTrocarPlano,
 } from '../js/comercial-formularios.js';
 
 const MENSAL = { id: 'p1', nome: 'Mensal - 3x', duracao_valor: 30, duracao_unidade: 'dia', preco_padrao: 330, tolerancia_dias: 5 };
@@ -185,7 +188,7 @@ grupo('comercial · o formulário de plano na tela', () => {
 });
 
 grupo('comercial · o formulário de assinatura na tela', () => {
-  const pacientes = [{ id: 'pac1', nome: 'Claudia Marcia' }];
+  const pacientes = [{ id: 'pac1', nome: 'Paciente Teste B Teste B' }];
   const html = formAssinaturaHtml({
     form: { ...assinaturaVazia(), plano_id: 'p1', inicio_periodo: '2026-08-06' },
     pacientes, planos: [MENSAL], plano: MENSAL,
@@ -223,5 +226,188 @@ grupo('comercial · o formulário de assinatura na tela', () => {
     contem(html, '<datalist');
     contem(html, 'Diurno');
     contem(html, 'Noturno');
+  });
+});
+
+// ───────────────────────────────────────────────────────────
+// COBRANÇA DO PERÍODO + RENOVAÇÃO PROGRAMADA (Migration A)
+// ---------------------------------------------------------------------------
+// A confusão que este formulário existe para tornar impossível: o que ele cria
+// é a cobrança do período que JÁ ESTÁ CORRENDO; o plano escolhido embaixo vale
+// só a partir do PRÓXIMO ciclo. Se os dois se misturassem, o período vigente
+// passaria a parecer que pertence ao plano novo.
+// ───────────────────────────────────────────────────────────
+grupo('comercial · cobrança do período', () => {
+  const TRI = { id: 'p-tri', nome: 'Trimestral - 5x', duracao_valor: 90, duracao_unidade: 'dia', preco_padrao: 1121, tolerancia_dias: 5 };
+  const MEN = { id: 'p-men', nome: 'Mensal - 3x',     duracao_valor: 30, duracao_unidade: 'dia', preco_padrao: 330,  tolerancia_dias: 5 };
+  const PLANOS = [TRI, MEN];
+
+  const ASS = {
+    id: 'a1', paciente_id: 'pac1', plano_id: 'p-tri', plano: TRI,
+    inicio_periodo: '2025-05-19', fim_periodo: '2025-08-17',
+    valor_contratado: 1121,
+  };
+
+  // A data de criação da cobrança, EXPLÍCITA. Sem ela a função lê o relógio e
+  // o teste passa a depender do dia em que roda.
+  const HOJE_CP = '2026-08-13';
+
+  teste('abre com o vencimento em hoje + 30, e o resto do período vigente', () => {
+    // `hoje` vai EXPLÍCITO. Sem ele a função lê o relógio, e o teste passa a
+    // depender do dia em que roda — foi o que aconteceu quando a data virou.
+    const f = cobrancaDoPeriodoVazia(ASS, '2026-08-13');
+    igual(f.vencimento, '2026-09-12', 'prazo de pagamento, não fim do período');
+    ok(f.vencimento !== ASS.fim_periodo);
+    igual(f.valor, '1121,00', 'o valor da cobrança é o do período que correu');
+    // O plano atual vem selecionado: renovar no mesmo plano é o caso comum e
+    // não pode custar trabalho nenhum.
+    igual(f.proximo_plano_id, 'p-tri');
+    igual(f.proximo_valor, '1121,00');
+  });
+
+  teste('A. mesmo plano e mesmo valor NÃO programam renovação', () => {
+    const m = mudancaDaRenovacao(cobrancaDoPeriodoVazia(ASS, HOJE_CP), ASS);
+    igual(m.mudou, false);
+    igual(m.trocaPlano, false);
+    igual(m.trocaValor, false);
+  });
+
+  teste('B. plano diferente programa', () => {
+    const m = mudancaDaRenovacao({ ...cobrancaDoPeriodoVazia(ASS, HOJE_CP), proximo_plano_id: 'p-men' }, ASS);
+    igual(m.trocaPlano, true);
+    igual(m.mudou, true);
+    igual(m.planoFuturo, 'p-men');
+  });
+
+  teste('C. mesmo plano com valor diferente programa', () => {
+    const m = mudancaDaRenovacao({ ...cobrancaDoPeriodoVazia(ASS, HOJE_CP), proximo_valor: '990,00' }, ASS);
+    igual(m.trocaPlano, false);
+    igual(m.trocaValor, true);
+    igual(m.mudou, true);
+    igual(m.valorFuturo, 990);
+  });
+
+  teste('plano E valor diferentes programam os dois', () => {
+    const m = mudancaDaRenovacao(
+      { ...cobrancaDoPeriodoVazia(ASS, HOJE_CP), proximo_plano_id: 'p-men', proximo_valor: '330,00' }, ASS);
+    ok(m.trocaPlano && m.trocaValor && m.mudou);
+  });
+
+  teste('campo de valor vazio é "não mexi nisso", não "mudou para nada"', () => {
+    // Espelha o `p_proximo_valor is not null and ...` da RPC.
+    const m = mudancaDaRenovacao({ ...cobrancaDoPeriodoVazia(ASS, HOJE_CP), proximo_valor: '' }, ASS);
+    igual(m.trocaValor, false);
+    igual(m.valorFuturo, null);
+  });
+
+  teste('"Manter o atual" no select não conta como troca', () => {
+    const m = mudancaDaRenovacao({ ...cobrancaDoPeriodoVazia(ASS, HOJE_CP), proximo_plano_id: '' }, ASS);
+    igual(m.trocaPlano, false);
+    igual(m.planoFuturo, 'p-tri');
+  });
+
+  teste('o formulário separa a cobrança de agora do contrato futuro', () => {
+    const html = formCobrancaPeriodoHtml({ assinatura: ASS, planos: PLANOS, form: cobrancaDoPeriodoVazia(ASS, HOJE_CP) });
+    contem(html, 'Cobrança deste período');
+    contem(html, 'Próxima renovação');
+    contem(html, 'Valor da cobrança');
+    contem(html, 'Valor contratado futuro');
+    // E o período vigente aparece como LEITURA, nunca como campo.
+    contem(html, '19/05/2025 → 17/08/2025');
+    naoContem(html, 'id="cmcpInicio"');
+    naoContem(html, 'id="cmcpFim"');
+  });
+
+  teste('sem mudança o botão é "Criar cobrança", e não há resumo', () => {
+    const html = formCobrancaPeriodoHtml({ assinatura: ASS, planos: PLANOS, form: cobrancaDoPeriodoVazia(ASS, HOJE_CP) });
+    contem(html, '> Criar cobrança\n');
+    naoContem(html, 'data-resumo');
+    naoContem(html, 'programar renovação');
+  });
+
+  teste('com mudança o botão avisa, e o resumo mostra o de-para', () => {
+    const form = { ...cobrancaDoPeriodoVazia(ASS, HOJE_CP), proximo_plano_id: 'p-men', proximo_valor: '330,00' };
+    const html = formCobrancaPeriodoHtml({ assinatura: ASS, planos: PLANOS, form });
+    contem(html, 'Criar cobrança e programar renovação');
+    contem(html, 'data-resumo');
+    contem(html, 'class="cm-dw-depara"');
+    contem(html, '<span class="cm-dw-de">Trimestral - 5x</span>');
+    contem(html, '<b class="cm-dw-para">Mensal - 3x</b>');
+    contem(html, 'Vale a partir do <b>próximo período</b>');
+  });
+
+  teste('o resumo só fala do que mudou', () => {
+    const soPlano = resumoRenovacaoHtml(
+      mudancaDaRenovacao({ ...cobrancaDoPeriodoVazia(ASS, HOJE_CP), proximo_plano_id: 'p-men' }, ASS), PLANOS);
+    contem(soPlano, '<span class="cm-dw-de">Trimestral - 5x</span>');
+    contem(soPlano, '<b class="cm-dw-para">Mensal - 3x</b>');
+    naoContem(soPlano, 'Valor contratado');
+  });
+
+  teste('validação: vencimento e valor da cobrança são obrigatórios', () => {
+    ok(validarCobrancaDoPeriodo({ vencimento: '', valor: '100' }).vencimento);
+    ok(validarCobrancaDoPeriodo({ vencimento: '2025-08-17', valor: '' }).valor);
+    ok(validarCobrancaDoPeriodo({ vencimento: '2025-08-17', valor: '0' }).valor);
+    igual(Object.keys(validarCobrancaDoPeriodo({ vencimento: '2025-08-17', valor: '1121,00' })).length, 0);
+  });
+
+  teste('o valor futuro é opcional, mas se vier tem que ser válido', () => {
+    igual(validarCobrancaDoPeriodo({ vencimento: '2025-08-17', valor: '100', proximo_valor: '' }).proximo_valor, undefined);
+    ok(validarCobrancaDoPeriodo({ vencimento: '2025-08-17', valor: '100', proximo_valor: 'abacaxi' }).proximo_valor);
+  });
+});
+
+// ───────────────────────────────────────────────────────────
+// O PREÇO SUGERIDO AO TROCAR DE PLANO
+// ---------------------------------------------------------------------------
+// No E2E de 13/08/2026 a CASO_TROCA_DE_PLANO saiu de um Mensal de R$ 330 para um
+// Trimestral e o campo de valor futuro continuou R$ 330 — um trimestre pelo
+// preço de um mês. Foi pego a olho antes de salvar; quem não olhar, contrata
+// errado em silêncio.
+// ───────────────────────────────────────────────────────────
+grupo('comercial · preço sugerido na troca de plano', () => {
+  const MENSAL = { id: 'p-m', nome: 'Mensal - 3x',     preco_padrao: 330 };
+  const TRI    = { id: 'p-t', nome: 'Trimestral - 3x', preco_padrao: 990 };
+  const SEMPRECO = { id: 'p-s', nome: 'Sem preço',     preco_padrao: null };
+  const PLANOS = [MENSAL, TRI, SEMPRECO];
+  const ASS = { id: 'a1', plano_id: 'p-m', valor_contratado: 330, fim_periodo: '2026-07-09' };
+
+  teste('F. trocar de plano sugere o preço padrão dele', () => {
+    igual(valorSugeridoAoTrocarPlano('p-t', PLANOS, ASS), '990,00');
+  });
+
+  teste('H. trocar de novo sugere o preço do novo plano', () => {
+    igual(valorSugeridoAoTrocarPlano('p-t', PLANOS, ASS), '990,00');
+    igual(valorSugeridoAoTrocarPlano('p-m', PLANOS, ASS), '330,00');
+  });
+
+  teste('"Manter o atual" volta ao valor vigente', () => {
+    igual(valorSugeridoAoTrocarPlano('', PLANOS, ASS), '330,00');
+  });
+
+  teste('plano sem preço padrão não vira R$ 0,00', () => {
+    // `null` quer dizer "não tenho o que sugerir, deixe como está". Zero
+    // afirmaria que o cliente não paga nada.
+    igual(valorSugeridoAoTrocarPlano('p-s', PLANOS, ASS), null);
+  });
+
+  teste('G. só a troca de plano escreve no valor — o resto lê o form', () => {
+    // A regra do §9 mora na ligação dos eventos: o handler do PLANO sobrescreve
+    // `form.proximo_valor`; o do VALOR só redesenha. Como o desenho lê `form`,
+    // nada reaplica o preço padrão por cima do que foi digitado.
+    const fonte = readFileSync(new URL('../js/comercial-formularios.js', import.meta.url), 'utf8');
+    const doPlano = fonte.slice(fonte.indexOf("querySelector('#cmcpPlano')"),
+                                fonte.indexOf("querySelector('#cmcpProxValor')"));
+    contem(doPlano, 'valorSugeridoAoTrocarPlano(form.proximo_plano_id, planos, assinatura)');
+    contem(doPlano, 'if (sugerido !== null) form.proximo_valor = sugerido;');
+
+    const doValor = fonte.slice(fonte.indexOf("querySelector('#cmcpProxValor')"));
+    const corpo = doValor.slice(0, doValor.indexOf('\n      });'));
+    ok(!/proximo_valor\s*=/.test(corpo), 'mexer no valor não pode sobrescrever o valor');
+
+    // E o desenho nunca calcula preço: ele só imprime o que está no form.
+    const desenho = fonte.slice(fonte.indexOf('export function formCobrancaPeriodoHtml'));
+    ok(!/valorSugeridoAoTrocarPlano/.test(desenho.slice(0, desenho.indexOf('\n}'))),
+       'sugerir no render sobrescreveria edição manual a cada tecla');
   });
 });

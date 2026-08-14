@@ -83,6 +83,22 @@ export function fimDoPeriodo(inicioISO, plano = PLANO_PADRAO) {
 /**
  * Onde começa o PRÓXIMO período quando esta cobrança é paga.
  *
+ * `fimVigente` É `assinatura.fim_periodo`, E NUNCA
+ * `financeiro_lancamentos.vencimento`. As duas datas coincidiram até
+ * 12/08/2026 e a distinção não existia; hoje são coisas separadas:
+ *
+ *   CALENDÁRIO DA ASSINATURA  -> `fim_periodo`. É contra ele que o atraso da
+ *                                renovação se mede, e é o que mantém o período
+ *                                encadeado ao calendário do cliente.
+ *   PRAZO FINANCEIRO           -> `vencimento` da cobrança. Varia por evento de
+ *                                negócio, e uma cobrança manual vence em
+ *                                criação + 30 dias.
+ *
+ * Medir o atraso pelo vencimento financeiro empurraria a base do período para
+ * frente a cada ciclo: a CASO_COBRANCA_MANUAL, período 03/08→02/09, com cobrança vencendo
+ * 13/09, pagando em 05/09, ganharia 11 dias — e de novo no ciclo seguinte.
+ * Regra confirmada em 14/08/2026.
+ *
  * Esta é a regra que a planilha nunca teve, e é a que decide se o cliente
  * ganha ou perde dias:
  *
@@ -215,12 +231,45 @@ export function saldoDaCobranca(lancamento) {
   return { valor, pago, saldo, parcial: pago > 0 && saldo > 0 };
 }
 
-/** A competência de uma cobrança: o mês em que o período COMEÇA. O CHECK da
- *  tabela exige o dia 1º. */
-export function competenciaDaCobranca(vencimentoISO) {
-  const d = comoData(vencimentoISO);
+/** O primeiro dia do mês de uma data. O CHECK da tabela exige o dia 1º em
+ *  `competencia`, e os indicadores da tela agrupam pelo mesmo critério. */
+export function primeiroDiaDoMes(iso) {
+  const d = comoData(iso);
   if (!d) return null;
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
+/**
+ * A competência de uma cobrança de assinatura: o mês em que o PERÍODO COBRADO
+ * COMEÇA.
+ *
+ * O PARÂMETRO NÃO É O VENCIMENTO, e já foi. Enquanto toda cobrança vencia no
+ * fim do período, as duas contas davam no mesmo e ninguém precisava escolher.
+ * Desde que a cobrança manual passou a vencer em `criação + 30 dias`, elas se
+ * separaram — e o vencimento passou a ser uma decisão comercial sobre QUANDO
+ * pagar, que varia por evento de negócio. Competência é outra pergunta: de que
+ * mês é essa receita.
+ *
+ * NEM O FIM DO PERÍODO, que foi a primeira proposta e caiu com os dados na
+ * mesa (conferência 103, decidido em 14/08/2026):
+ *
+ *   . numa mensalidade 09/08→08/09, 23 dos 30 dias caem em AGOSTO. Pelo fim,
+ *     toda mensalidade da GoUp virava receita do mês seguinte, e um semestral
+ *     ia seis meses para a frente;
+ *   . em 28 das 31 cobranças pagas, o mês do início é o mês em que o dinheiro
+ *     entrou. Pelo fim, 3 de 31.
+ *
+ * O que o início custa: uma cobrança PENDENTE de ciclo longo entra antes do
+ * caixa — a da CASO_TROCA_DE_PLANO, R$ 990 cobrindo 13/08→11/11, conta em agosto e será
+ * paga por volta de novembro. Foi aceito de olhos abertos: são 12 pendentes
+ * contra 31 pagas, e quem acompanha caixa tem `pago_em` e `pago` no Financeiro.
+ *
+ * O Financeiro já tratava competência e vencimento como independentes: o CHECK
+ * que as amarrava saiu em db/financeiro_lancamentos.sql, pelo caso da despesa
+ * de agosto que vence em setembro. Quem tinha divergido era o Comercial.
+ */
+export function competenciaDaCobranca(periodoInicioISO) {
+  return primeiroDiaDoMes(periodoInicioISO);
 }
 
 // ───────────────────────────────────────────────────────────
@@ -238,14 +287,14 @@ export function telefoneDigitos(bruto) {
   return d;
 }
 
-/** "(27) 99226-4711" — para ler na tela. */
+/** "(27) 90000-0000" — para ler na tela. */
 export function telefoneBonito(bruto) {
   const d = telefoneDigitos(bruto);
   const m = d.match(/^55(\d{2})(\d{4,5})(\d{4})$/);
   return m ? `(${m[1]}) ${m[2]}-${m[3]}` : String(bruto || '');
 }
 
-/** "5527992264711" — o que a API de mensagem espera. */
+/** "5527900000000" — o que a API de mensagem espera. */
 export function telefoneZApi(bruto) {
   return telefoneDigitos(bruto);
 }
@@ -276,12 +325,14 @@ export function indicadores({ assinaturas = [], lancamentos = [], hoje, avisoDia
     }
   }
 
-  const mes = comoData(hoje) ? competenciaDaCobranca(hoje) : null;
+  // `primeiroDiaDoMes`, e não `competenciaDaCobranca`: aqui é o mês corrente
+  // do painel, não a competência de cobrança nenhuma.
+  const mes = comoData(hoje) ? primeiroDiaDoMes(hoje) : null;
   let recebidoNoMes = 0, aReceber = 0;
   for (const l of lancamentos) {
     if (!l || l.tipo !== 'receita' || l.status === 'cancelado') continue;
     const { pago, saldo } = saldoDaCobranca(l);
-    if (l.status === 'pago' && mes && competenciaDaCobranca(l.pago_em) === mes) recebidoNoMes += pago;
+    if (l.status === 'pago' && mes && primeiroDiaDoMes(l.pago_em) === mes) recebidoNoMes += pago;
     if (l.status === 'pendente') aReceber += saldo;
   }
 

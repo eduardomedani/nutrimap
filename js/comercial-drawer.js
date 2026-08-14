@@ -15,7 +15,7 @@ import {
   textoDoVencimento, telefoneBonito, telefoneDigitos, saldoDaCobranca,
   renovar, diasEntre,
 } from './comercial.js';
-import { moeda, dataBR } from './comercial-ui.js';
+import { moeda, dataBR, dePara } from './comercial-ui.js';
 import { valorDeTexto, mostrarToast, mostrarErro } from './utils.js';
 
 /**
@@ -27,6 +27,11 @@ import { valorDeTexto, mostrarToast, mostrarErro } from './utils.js';
  */
 export const MSG = {
   criada:      'Cobrança criada.',
+  // Duas frases porque são dois fatos: programar a troca do próximo ciclo é
+  // decisão maior que criar a cobrança, e o toast é a única confirmação de que
+  // ela ficou registrada.
+  criadaComRenovacao:   'Cobrança criada e renovação programada.',
+  removidaComRenovacao: 'Cobrança removida. A renovação programada foi cancelada junto.',
   atualizada:  'Cobrança atualizada.',
   removida:    'Cobrança removida.',
   naoPendente: 'Esta cobrança não está mais pendente. Atualize os dados e tente novamente.',
@@ -38,6 +43,10 @@ export const MSG = {
 export function traduzirErroCobranca(e) {
   const m = String(e?.message || e || '').toLowerCase();
   if (m.includes('uq_comercial_cobranca_periodo') || m.includes('duplicate key')) return MSG.duplicada;
+  // A RPC de pagamento devolve `pagou: false` quando a cobrança já não estava
+  // pendente, e a camada de dados transforma isso em erro. É a mesma situação
+  // que o `null` do caminho antigo — então a mesma frase.
+  if (m.includes('nao_pendente')) return MSG.naoPendente;
   if (m.includes('row-level security') || m.includes('violates row-level')) return 'Sem permissão para esta cobrança.';
   if (m.includes('failed to fetch') || m.includes('networkerror')) return 'Sem conexão. Tente novamente.';
   return MSG.falhou;
@@ -68,11 +77,28 @@ function secao(titulo, conteudo) {
     </section>`;
 }
 
-function linha(rot, valor) {
+/**
+ * Uma linha de dado: rótulo à esquerda, valor à direita.
+ *
+ * `sub` é a informação de segunda ordem — "Vencido há 361 dias" debaixo da
+ * data. Ela vem em ELEMENTO PRÓPRIO, não concatenada ao valor com um "·", e
+ * essa é a diferença que faz a linha caber: no desktop as duas ficam na mesma
+ * célula, uma sob a outra, e no celular a coluna inteira desce. Grudadas na
+ * mesma frase, elas comprimiam a data justamente quando o texto era maior
+ * (que é quando o cliente está mais atrasado).
+ *
+ * `tom: 'alerta'` pinta a segunda linha de vermelho discreto. Fica no
+ * chamador porque quem sabe se é atraso é a regra, não a marcação.
+ *
+ * `valor` e `sub` entram como HTML — quem chama já escapou o que veio de dado.
+ */
+function linha(rot, valor, { sub = '', tom = '' } = {}) {
   return `
     <div class="cm-dw-linha">
       <span class="cm-dw-rot">${esc(rot)}</span>
-      <span class="cm-dw-val">${valor}</span>
+      <span class="cm-dw-val">${valor}${
+        sub ? `<span class="cm-dw-sub-val${tom ? ` cm-dw-${tom}` : ''}">${sub}</span>` : ''
+      }</span>
     </div>`;
 }
 
@@ -89,13 +115,29 @@ export function tempoDeCasa(desdeISO, hoje) {
   return resto ? `${anos}a ${resto}m` : `${anos} ${anos === 1 ? 'ano' : 'anos'}`;
 }
 
+/**
+ * O cabeçalho do cliente — identidade em cima, corpo rolando por baixo.
+ *
+ * A CLASSE `cm-drawer-topo` VOLTOU, e ela é o conserto do bug que causava
+ * quase tudo o que se via de errado aqui. Este header saía com `cm-dw-topo`
+ * sozinho, e essa classe NÃO EXISTIA no CSS — nenhum `padding`, nenhum
+ * `display: flex`, nenhuma borda. Daí o título encostado na quina, o X caindo
+ * numa linha só dele e a ausência de separação com o conteúdo. Não era falta
+ * de estilo, era estilo escrito para um nome de classe que ninguém usava.
+ * Agora ele carrega as duas: a base compartilhada com os outros drawers e a
+ * `cm-dw-topo` com o que só o cliente tem.
+ *
+ * A alça (`cm-dw-alca`) só aparece no celular, onde o painel vira sheet de
+ * baixo. Ela é `aria-hidden`: é affordance visual de arrasto, não informação.
+ */
 export function cabecalhoHtml(a, hoje) {
   const s = situacaoDoCliente(a, hoje);
   const tel = a.paciente?.telefone;
   return `
-    <header class="cm-dw-topo">
+    <header class="cm-drawer-topo cm-dw-topo">
+      <span class="cm-dw-alca" aria-hidden="true"></span>
       <div class="cm-dw-id">
-        <h2 id="cmDwTit">${esc(a.paciente?.nome || 'Sem nome')}</h2>
+        <h2 id="cmDwTit" class="cm-dw-nome">${esc(a.paciente?.nome || 'Sem nome')}</h2>
         <div class="cm-dw-sub">
           <span class="cm-badge cm-b-${esc(s)}">${esc(SITUACAO_ROTULO[s] || s)}</span>
           <span>${esc(a.plano?.nome || 'Sem plano')}</span>
@@ -110,10 +152,22 @@ export function cabecalhoHtml(a, hoje) {
 
 export function assinaturaHtml(a, hoje) {
   const casa = tempoDeCasa(a.data_inicio_original, hoje);
+  // Atraso é conta, não dado — os mesmos `diasEntre` que a tela usa em todo
+  // lugar. Aqui ele só decide a COR da segunda linha; o texto continua vindo
+  // de `textoDoVencimento`, para não existirem duas frases para o mesmo fato.
+  const dias = diasEntre(hoje, a.fim_periodo);
   return secao('Assinatura', `
-    ${linha('Cliente desde', `${esc(dataBR(a.data_inicio_original))}${casa ? ` <small>· ${esc(casa)}</small>` : ''}`)}
-    ${linha('Período atual', `${esc(dataBR(a.inicio_periodo))} → ${esc(dataBR(a.fim_periodo))}`)}
-    ${linha('Próximo vencimento', `${esc(dataBR(a.fim_periodo))} <small>· ${esc(textoDoVencimento(a.fim_periodo, hoje))}</small>`)}
+    ${linha('Cliente desde', esc(dataBR(a.data_inicio_original)), { sub: casa ? esc(casa) : '' })}
+    ${linha('Período atual', `<span class="cm-dw-periodo">${esc(dataBR(a.inicio_periodo))} → ${esc(dataBR(a.fim_periodo))}</span>`)}
+    ${/* "Período termina em", e não "Próximo vencimento". São conceitos
+          diferentes que, no ciclo em que a cobrança existe, têm a MESMA data —
+          e o rótulo repetido fazia a segunda seção parecer repetição ou dado
+          velho. Aqui é `assinatura.fim_periodo`; em "Próxima cobrança",
+          "Vencimento" é `financeiro_lancamentos.vencimento`. */''}
+    ${linha('Período termina em', esc(dataBR(a.fim_periodo)), {
+      sub: esc(textoDoVencimento(a.fim_periodo, hoje)),
+      tom: dias !== null && dias < 0 ? 'alerta' : '',
+    })}
     ${linha('Plano', esc(a.plano?.nome || '—'))}
     ${linha('Valor contratado', esc(moeda(a.valor_contratado)))}
     ${a.renovacao_automatica ? '' : '<p class="cm-dw-nota">Renovação automática desligada: a próxima cobrança não nasce sozinha.</p>'}
@@ -129,11 +183,16 @@ export function assinaturaHtml(a, hoje) {
  */
 export function cobrancaAbertaHtml(cobranca, hoje) {
   if (!cobranca) {
+    // Continua SECUNDÁRIA (`cm-btn`, não `cm-btn-forte`): criar cobrança é
+    // preparar trabalho, não concluir. Verde aqui competiria com "Registrar
+    // pagamento", que é a ação que a tela quer induzir.
     return secao('Próxima cobrança', `
       <p class="cm-dw-nota">Nenhuma cobrança em aberto.</p>
-      <button class="cm-btn" type="button" data-criar-cobranca>
-        <i data-lucide="plus"></i> Criar cobrança do período
-      </button>`);
+      <div class="cm-dw-acoes">
+        <button class="cm-btn" type="button" data-criar-cobranca>
+          <i data-lucide="plus"></i> Criar cobrança do período
+        </button>
+      </div>`);
   }
 
   const st = situacaoDaCobranca(cobranca, hoje);
@@ -148,22 +207,29 @@ export function cobrancaAbertaHtml(cobranca, hoje) {
           <div>Pago em ${esc(dataBR(cobranca.pago_em))} · ${esc(moeda(pago))}</div>
         </div>
       </div>
-      <button class="cm-btn" type="button" data-ver-receita="${esc(cobranca.id)}">
-        <i data-lucide="external-link"></i> Ver receita
-      </button>`);
+      <div class="cm-dw-acoes">
+        <button class="cm-btn" type="button" data-ver-receita="${esc(cobranca.id)}">
+          <i data-lucide="external-link"></i> Ver receita
+        </button>
+      </div>`);
   }
 
   return secao('Próxima cobrança', `
-    ${linha('Vencimento', `${esc(dataBR(cobranca.vencimento))} <small>· ${esc(textoDoVencimento(cobranca.vencimento, hoje))}</small>`)}
+    ${linha('Vencimento', esc(dataBR(cobranca.vencimento)), {
+      sub: esc(textoDoVencimento(cobranca.vencimento, hoje)),
+      tom: st === 'vencida' ? 'alerta' : '',
+    })}
     ${linha('Valor', esc(moeda(valor)))}
-    ${parcial ? linha('Já pago', `${esc(moeda(pago))} <small>· falta ${esc(moeda(saldo))}</small>`) : ''}
+    ${parcial ? linha('Já pago', esc(moeda(pago)), { sub: `falta ${esc(moeda(saldo))}` }) : ''}
     ${linha('Situação', `<span class="cm-badge cm-c-${esc(st)}">${esc(COBRANCA_ROTULO[st] || st)}</span>`)}
-    <button class="cm-btn cm-btn-forte" type="button" data-registrar="${esc(cobranca.id)}">
-      <i data-lucide="circle-dollar-sign"></i> Registrar pagamento
-    </button>
-    <button class="cm-btn cm-btn-sutil" type="button" data-cancelar-cobranca="${esc(cobranca.id)}">
-      <i data-lucide="x"></i> Remover cobrança
-    </button>`);
+    <div class="cm-dw-acoes">
+      <button class="cm-btn cm-btn-forte" type="button" data-registrar="${esc(cobranca.id)}">
+        <i data-lucide="circle-dollar-sign"></i> Registrar pagamento
+      </button>
+      <button class="cm-btn cm-btn-sutil" type="button" data-cancelar-cobranca="${esc(cobranca.id)}">
+        <i data-lucide="x"></i> Remover cobrança
+      </button>
+    </div>`);
 }
 
 const MES_EXT = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -288,7 +354,7 @@ export function observacoesHtml(a) {
   return secao('Observações comerciais', `<p class="cm-dw-obs">${esc(a.observacoes)}</p>`);
 }
 
-export function drawerHtml({ assinatura, cobrancas = [], hoje, mostrarCanceladas = false }) {
+export function drawerHtml({ assinatura, cobrancas = [], hoje, mostrarCanceladas = false, planos = [] }) {
   const aberta = cobrancas.find(c => c.status === 'pendente') ||
                  cobrancas.find(c => c.status === 'pago' && c.vencimento === assinatura.fim_periodo) || null;
   return `
@@ -296,6 +362,7 @@ export function drawerHtml({ assinatura, cobrancas = [], hoje, mostrarCanceladas
       ${cabecalhoHtml(assinatura, hoje)}
       <div class="cm-drawer-corpo">
         ${assinaturaHtml(assinatura, hoje)}
+        ${renovacaoProgramadaHtml(assinatura, planos)}
         ${cobrancaAbertaHtml(aberta, hoje)}
         ${observacoesHtml(assinatura)}
         ${historicoHtml(cobrancas, hoje, { mostrarCanceladas })}
@@ -308,7 +375,25 @@ export function drawerHtml({ assinatura, cobrancas = [], hoje, mostrarCanceladas
  * conferir a frase sem levantar DOM — e porque ela é a última coisa que o
  * profissional lê antes de tirar dinheiro do "a receber".
  */
-export function textoRemocao(cobranca, hoje) {
+/**
+ * A frase da confirmação de remoção.
+ *
+ * TRÊS ESTADOS, não dois. A versão anterior tratava "não há renovação" e "não
+ * sei se há" como a mesma coisa, e por isso falhava em SILÊNCIO: bastava o
+ * drawer ter sido aberto a partir do cache da lista para o aviso da troca de
+ * plano sumir, sem nada indicando que faltava informação.
+ *
+ *   renovacao_origem_id == esta cobrança  -> avisa a troca, nomeando os planos
+ *   `conferido` e sem renovação            -> a frase genérica de sempre
+ *   não `conferido`                        -> diz que NÃO SABE
+ *
+ * `conferido` é quem chama afirmando que acabou de ler a assinatura do banco.
+ * Sem essa afirmação, a tela não pode concluir "sem renovação" — e o banco vai
+ * cancelar a troca de qualquer forma, porque a RPC decide pelo
+ * `renovacao_origem_id` real. Calar sobre isso seria mentir sobre uma
+ * consequência que acontece.
+ */
+export function textoRemocao(cobranca, hoje, { assinatura = null, planos = [], conferido = false } = {}) {
   const atraso = atrasoEmDias(cobranca, hoje);
   const linhas = [
     `Remover a cobrança de ${competenciaExtenso(cobranca.competencia || cobranca.vencimento)}?`,
@@ -317,8 +402,49 @@ export function textoRemocao(cobranca, hoje) {
     `Vencimento em ${dataBR(cobranca.vencimento)}`,
   ];
   if (atraso?.vencida) linhas.push(`Vencida há ${atraso.dias} ${atraso.dias === 1 ? 'dia' : 'dias'}`);
+
+  const ligada = !!assinatura?.renovacao_origem_id &&
+                 assinatura.renovacao_origem_id === cobranca.id;
+
+  if (ligada) {
+    // Foi esta cobrança que programou a renovação, e o banco vai limpar as
+    // duas coisas na mesma transação. Descobrir depois que a troca de plano
+    // sumiu junto seria a pior forma de aprender a regra.
+    const nomeDe = id => planos.find(p => p.id === id)?.nome || 'outro plano';
+    const de = nomeDe(assinatura.plano_id);
+    const para = nomeDe(assinatura.proximo_plano_id);
+    linhas.push('', `Esta cobrança também programa a troca de ${de} para ${para} na próxima renovação. Removê-la cancela a troca.`);
+  } else if (!conferido) {
+    linhas.push('', 'Não foi possível confirmar com o servidor se esta cobrança programa uma troca de plano. Se programar, ela será cancelada junto.');
+  }
+
   linhas.push('', 'A cobrança será cancelada e deixará de fazer parte do valor a receber. O histórico será preservado.');
   return linhas.join('\n');
+}
+
+/**
+ * A renovação programada, quando existe — o "o que entra no próximo ciclo".
+ *
+ * Fica numa seção própria e não dentro de Assinatura de propósito: misturar as
+ * duas na mesma lista é exatamente a confusão que a Solução D existe para
+ * desfazer. O que está ali em cima é o vigente; isto aqui é o futuro.
+ */
+export function renovacaoProgramadaHtml(a, planos = []) {
+  if (!a?.proximo_plano_id) return '';
+  const nomeDe = id => planos.find(p => p.id === id)?.nome || '—';
+  const trocaPlano = a.proximo_plano_id !== a.plano_id;
+  const trocaValor = a.proximo_valor_contratado != null &&
+    Number(a.proximo_valor_contratado) !== Number(a.valor_contratado);
+
+  return secao('Próxima renovação', `
+    ${trocaPlano ? linha('Plano', dePara(esc(nomeDe(a.plano_id)), esc(nomeDe(a.proximo_plano_id)))) : ''}
+    ${trocaValor ? linha('Valor contratado', dePara(esc(moeda(a.valor_contratado)), esc(moeda(a.proximo_valor_contratado)))) : ''}
+    ${linha('Definida em', esc(dataBR(String(a.renovacao_definida_em || '').slice(0, 10))))}
+    <p class="cm-dw-nota">
+      Entra em vigor quando a cobrança deste período for paga. Até lá, o período
+      atual continua no plano e no valor de hoje.
+    </p>
+  `);
 }
 
 // ───────────────────────────────────────────────────────────
@@ -352,24 +478,82 @@ export function validarPagamento(form = {}, cobranca = null) {
   return erros;
 }
 
-/** O que a renovação vai fazer, mostrado ANTES de salvar. */
-export function previaDaRenovacao(assinatura, pagoEm) {
+/**
+ * O que a renovação vai fazer, mostrado ANTES de salvar.
+ *
+ * ELA PREVÊ O QUE A RPC VAI FAZER, e por isso resolve o PLANO QUE ENTRA
+ * exatamente como `comercial_registrar_pagamento` resolve:
+ *
+ *   com renovação programada -> `proximo_plano_id` e `proximo_valor_contratado`
+ *   sem                       -> o plano e o valor vigentes
+ *
+ * Até 13/08/2026 ela olhava só `assinatura.plano`. No primeiro pagamento real
+ * com troca programada — CASO_TROCA_DE_PLANO, Mensal - 3x para Trimestral - 3x — a tela
+ * previu 12/09 (30 dias do plano velho) e o banco gravou 11/11 (90 dias do
+ * plano novo). O banco estava certo; a tela mentia no exato momento em que o
+ * profissional aperta "Confirmar".
+ *
+ * `planos` é necessário porque o plano futuro NÃO vem embutido na assinatura:
+ * o embed traz só `plano_id`. Sem a lista, não há como saber a duração dele.
+ * Sem lista, cai no vigente — que é o comportamento de antes, e nunca pior.
+ *
+ * PARIDADE COM O SQL. Esta função e a RPC são duas implementações da mesma
+ * regra, e é dívida conhecida. `test/comercial-drawer.test.mjs` tem um grupo
+ * de paridade que compara as duas contra os mesmos casos: mudar uma sem a
+ * outra derruba o teste.
+ */
+export function previaDaRenovacao(assinatura, pagoEm, planos = []) {
   if (!assinatura || !pagoEm) return null;
-  const plano = assinatura.plano || {};
+
+  const temProgramada = !!assinatura.proximo_plano_id;
+  const planoFuturo = temProgramada
+    ? (planos.find(p => p.id === assinatura.proximo_plano_id) || null)
+    : null;
+
+  // O plano que ENTRA. Com programação sem o plano na lista, seguir com o
+  // vigente daria uma previsão errada com cara de certa — melhor devolver o
+  // que se sabe e marcar que a previsão está incompleta.
+  const plano = planoFuturo || assinatura.plano || {};
+
+  // Nem o futuro nem o vigente resolveram: sem plano não há duração nem
+  // tolerância, e `PLANO_PADRAO` inventaria 30 dias e 5 de tolerância com cara
+  // de regra. Duração inventada é pior que previsão recusada.
+  const semPlano = plano.duracao_valor == null;
   const novo = renovar({ fimVigente: assinatura.fim_periodo, dataPagamento: pagoEm, plano });
   if (!novo) return null;
+
   const atraso = diasEntre(assinatura.fim_periodo, pagoEm);
   const tol = plano.tolerancia_dias ?? 5;
+
+  // Mesmo `coalesce` da RPC: valor futuro em branco quer dizer "não mexi no
+  // preço", e aí vale o vigente.
+  const valorNovo = temProgramada
+    ? (assinatura.proximo_valor_contratado ?? assinatura.valor_contratado)
+    : assinatura.valor_contratado;
+
   return {
     ...novo,
     atraso,
     forada: atraso > tol,
     tolerancia: tol,
+    plano,
+    planoNome: plano?.nome ?? null,
+    planoAtualNome: assinatura.plano?.nome ?? null,
+    trocaPlano: temProgramada && assinatura.proximo_plano_id !== assinatura.plano_id,
+    valorNovo,
+    valorAtual: assinatura.valor_contratado,
+    trocaValor: temProgramada && Number(valorNovo) !== Number(assinatura.valor_contratado),
+    // A tela precisa saber que não conseguiu resolver o plano, para não
+    // apresentar como previsão firme o que é chute. Duas causas: a programação
+    // aponta para um plano que não veio na lista, ou a assinatura não tem
+    // plano nenhum.
+    incompleta: (temProgramada && !planoFuturo) || semPlano,
+    semPlano,
   };
 }
 
-export function formPagamentoHtml({ cobranca, assinatura, form = {}, erros = {}, hoje }) {
-  const previa = previaDaRenovacao(assinatura, form.pago_em);
+export function formPagamentoHtml({ cobranca, assinatura, form = {}, erros = {}, hoje, planos = [] }) {
+  const previa = previaDaRenovacao(assinatura, form.pago_em, planos);
   const cls = c => (erros[c] ? ' cm-erro-campo' : '');
   const msg = c => (erros[c] ? `<div class="cm-erro-msg">${esc(erros[c])}</div>` : '');
 
@@ -412,13 +596,24 @@ export function formPagamentoHtml({ cobranca, assinatura, form = {}, erros = {},
           <div class="cm-dw-previa-t">O que vai acontecer</div>
           <ul>
             <li>A cobrança fica <b>paga</b> em ${esc(dataBR(form.pago_em))}.</li>
-            <li>O período passa a ser <b>${esc(dataBR(previa.inicio_periodo))} → ${esc(dataBR(previa.fim_periodo))}</b>.</li>
+            ${previa.trocaPlano
+              ? `<li>O plano passa de ${esc(previa.planoAtualNome || '—')} para <b>${esc(previa.planoNome || '—')}</b>, como foi programado.</li>`
+              : ''}
+            ${previa.trocaValor
+              ? `<li>O valor contratado passa de ${esc(moeda(previa.valorAtual))} para <b>${esc(moeda(previa.valorNovo))}</b>.</li>`
+              : ''}
+            <li>O período passa a ser <b>${esc(dataBR(previa.inicio_periodo))} → ${esc(dataBR(previa.fim_periodo))}</b>${
+              previa.trocaPlano ? ` — ${esc(String(previa.plano?.duracao_valor ?? ''))} ${esc(previa.plano?.duracao_unidade === 'mes' ? 'meses' : 'dias')} do plano novo` : ''
+            }.</li>
             ${previa.forada
               ? `<li class="cm-dw-alerta">Pagamento ${previa.atraso} dias após o vencimento — passou da tolerância de ${previa.tolerancia}. O período conta da data do pagamento.</li>`
               : (previa.atraso > 0
                   ? `<li>Atraso de ${previa.atraso} ${previa.atraso === 1 ? 'dia' : 'dias'}, dentro da tolerância de ${previa.tolerancia}: o período continua do término anterior.</li>`
                   : '<li>Pagamento antecipado: o período continua do término anterior, sem encurtar.</li>')}
             ${assinatura.renovacao_automatica ? '<li>A próxima cobrança é criada automaticamente.</li>' : ''}
+            ${previa.incompleta
+              ? '<li class="cm-dw-alerta">Há uma troca de plano programada que esta tela não conseguiu carregar. O período mostrado pode não ser o que será gravado — recarregue antes de confirmar.</li>'
+              : ''}
           </ul>
         </div>` : ''}
 
@@ -474,23 +669,75 @@ export async function abrirDrawerCliente({ assinatura, aoMudar }) {
   try { cobrancas = await dados.cobrancasDaAssinatura(assinatura.id); }
   catch (e) { console.error('Comercial · histórico:', e); }
 
+  // Os planos entram aqui porque três coisas precisam deles: o select da
+  // cobrança do período, o nome do plano futuro na seção de renovação e o
+  // aviso da remoção. Buscá-los três vezes seria ida à rede para o mesmo
+  // catálogo — e falhar a busca não pode impedir de abrir o cliente.
+  let planos = [];
+  try { planos = await dados.listarPlanos(); }
+  catch (e) { console.error('Comercial · planos:', e); }
+
   // Só de exibição: alternar não vai ao banco, porque `cobrancasDaAssinatura`
   // já traz as canceladas junto. Filtrar no cliente é o certo aqui — são
   // poucas linhas por assinatura, e uma segunda consulta para esconder/mostrar
   // o que já está em memória seria ida à rede para nada.
   let mostrarCanceladas = false;
 
+  /**
+   * A ÚNICA porta para reler a assinatura do banco.
+   *
+   * Devolve `true` quando conseguiu conferir, e `false` quando não — e essa
+   * diferença é a regra: campo ausente NÃO é ausência de renovação programada.
+   * Quem decide alguma coisa a partir do estado da assinatura precisa saber se
+   * está olhando o banco ou um objeto que pode ter vindo do cache da lista.
+   *
+   * O objeto que chega a `abrirDrawerCliente` vem de `_dados.assinaturas` em
+   * js/comercial-ui.js, que só é recarregado por `initComercialUI`. Em
+   * 13/08/2026 isso deixou a confirmação de remoção sem o aviso da troca de
+   * plano: a lista estava parada no estado anterior à criação da cobrança.
+   */
+  async function lerAssinatura() {
+    try {
+      const nova = await dados.assinaturaDoPaciente(assinatura.paciente_id);
+      if (nova) { assinatura = nova; return true; }
+      return false;
+    } catch (e) {
+      console.error('Comercial · assinatura:', e);
+      return false;
+    }
+  }
+
+  // Ao ABRIR já relê: o drawer inteiro — a seção "Próxima renovação", o aviso
+  // da remoção, a prévia do pagamento — passa a falar do estado do banco, e
+  // não do retrato que a lista tinha quando foi montada.
+  await lerAssinatura();
+
   return raiz((fundo, fechar) => {
     const desenhar = () => {
-      fundo.innerHTML = drawerHtml({ assinatura, cobrancas, hoje, mostrarCanceladas });
+      fundo.innerHTML = drawerHtml({ assinatura, cobrancas, hoje, mostrarCanceladas, planos });
       window.renderIcons?.();
       ligar();
     };
 
-    /** Recarrega o histórico sem fechar o drawer. */
-    async function recarregar() {
+    /**
+     * Recarrega sem fechar o drawer.
+     *
+     * `confirmada` é a assinatura que a RPC acabou de devolver. Quando ela
+     * vem, é a fonte: já é o estado que o banco gravou, e uma consulta a mais
+     * só serviria para reperguntar o que já foi respondido.
+     *
+     * O MERGE preserva `paciente` e `plano`, que são embeds do PostgREST e
+     * não vêm no retorno da RPC — ela devolve a LINHA, não a consulta. Sem o
+     * merge, o cabeçalho ficaria sem nome de cliente.
+     *
+     * Sem `confirmada`, relê — é o caminho de quem mudou algo por fora.
+     */
+    async function recarregar(confirmada = null) {
       try { cobrancas = await dados.cobrancasDaAssinatura(assinatura.id); }
       catch (e) { console.error('Comercial · histórico:', e); }
+
+      if (confirmada) assinatura = { ...assinatura, ...confirmada };
+      else await lerAssinatura();
       desenhar();
       aoMudar?.();
     }
@@ -505,25 +752,54 @@ export async function abrirDrawerCliente({ assinatura, aoMudar }) {
           const cob = cobrancas.find(c => c.id === b.dataset.registrar);
           if (!cob) return;
           fechar();
-          abrirRegistroPagamento({ assinatura, cobranca: cob, aoMudar });
+          abrirRegistroPagamento({ assinatura, cobranca: cob, aoMudar, planos });
         }));
 
+      // ABRE O FORMULÁRIO, não cria. O clique único assumia que o cliente
+      // seguiria no mesmo plano — e na renovação ele pode trocar de plano, de
+      // frequência ou de preço. Quem decide isso é quem está olhando o
+      // cliente, não o código.
+      //
+      // Fecha antes porque `raiz()` só permite um drawer por vez. `aoVoltar`
+      // devolve ao cliente: sair da cobrança não pode significar sair de quem
+      // se estava olhando.
       fundo.querySelector('[data-criar-cobranca]')?.addEventListener('click', async () => {
-        try {
-          await dados.criarCobranca({
-            assinatura,
-            vencimento: assinatura.fim_periodo,
-            valor: assinatura.valor_contratado,
-          });
-          mostrarToast(MSG.criada);
-          fechar();
-          aoMudar?.();
-        } catch (e) {
-          console.error('Comercial · criar cobrança:', e);
-          // Mesma tradução das outras duas ações. O caso comum aqui é o índice
-          // único: já existe cobrança viva para aquele vencimento.
-          mostrarErro(traduzirErroCobranca(e));
-        }
+        const { abrirFormularioCobrancaPeriodo } = await import('./comercial-formularios.js');
+        fechar();
+        abrirFormularioCobrancaPeriodo({
+          assinatura,
+          planos,
+          aoSalvar: async ({ vencimento, valor, proximoPlanoId, proximoValor }) => {
+            try {
+              const r = await dados.criarCobrancaDoPeriodo({
+                assinaturaId: assinatura.id,
+                vencimento, valor, proximoPlanoId, proximoValor,
+              });
+              mostrarToast(r?.programou ? MSG.criadaComRenovacao : MSG.criada);
+              // A LISTA ATRÁS TAMBÉM PRECISA SABER. `aoMudar` é o que recarrega
+              // `_dados.assinaturas` em js/comercial-ui.js; sem ela o cache fica
+              // no estado anterior à criação, e um drawer reaberto pela lista
+              // volta sem os campos da renovação programada. Foi assim que a
+              // confirmação de remoção perdeu o aviso da troca de plano.
+              aoMudar?.();
+              // REABRE COM O QUE O BANCO CONFIRMOU, não com a cópia que estava
+              // em memória antes da ação. Reabrindo com a velha, a seção
+              // "Próxima renovação" só aparecia depois de fechar e abrir o
+              // cliente — a confirmação da decisão mais importante da tela
+              // ficava invisível justamente na hora de tomá-la.
+              abrirDrawerCliente({
+                assinatura: r?.assinatura ? { ...assinatura, ...r.assinatura } : assinatura,
+                aoMudar,
+              });
+            } catch (e) {
+              console.error('Comercial · criar cobrança:', e);
+              // O caso comum aqui é o índice único: já existe cobrança viva
+              // para aquele vencimento. Sobe para o formulário mostrar no
+              // campo, em vez de fechar tudo e perder o que foi digitado.
+              throw new Error(traduzirErroCobranca(e));
+            }
+          },
+        });
       });
 
       // Remover = cancelar. O período volta a ficar livre (o índice único
@@ -534,20 +810,30 @@ export async function abrirDrawerCliente({ assinatura, aoMudar }) {
         btn.addEventListener('click', async () => {
           const cob = cobrancas.find(c => c.id === btn.dataset.cancelarCobranca);
           if (!cob) return;
-          if (!confirm(textoRemocao(cob, hoje))) return;
+
+          // CONFERE O BANCO ANTES DE PERGUNTAR. A frase da confirmação é a
+          // última coisa que o profissional lê antes de cancelar uma troca de
+          // plano combinada com o cliente — ela não pode sair de um objeto que
+          // pode estar velho. `conferido` diz ao texto se ele PODE afirmar que
+          // não há renovação, ou se só não sabe.
+          const conferido = await lerAssinatura();
+          if (!confirm(textoRemocao(cob, hoje, { assinatura, planos, conferido }))) return;
 
           btn.disabled = true;
           try {
-            const r = await dados.cancelarCobranca(cob.id);
-            // null = o banco não achou a linha PENDENTE. Quase sempre porque
-            // ela foi paga ou removida em outra aba — não é erro, mas a tela
-            // está velha e insistir seria mentir sobre o que aconteceu.
-            if (!r) mostrarErro(MSG.naoPendente);
-            else mostrarToast(MSG.removida);
+            const r = await dados.cancelarCobrancaDetalhado(cob.id);
+            // `cancelou: false` = o banco não achou a linha PENDENTE. Quase
+            // sempre porque ela foi paga ou removida em outra aba — não é
+            // erro, mas a tela está velha e insistir seria mentir sobre o que
+            // aconteceu.
+            if (!r?.cancelou) mostrarErro(MSG.naoPendente);
+            else mostrarToast(r.limpou_renovacao ? MSG.removidaComRenovacao : MSG.removida);
+            // A RPC devolve a assinatura já sem a renovação programada: a
+            // seção "Próxima renovação" some no mesmo redesenho, sem F5.
             // O drawer CONTINUA aberto: histórico, cobrança do topo e total a
             // receber saem do dado recarregado. Fechar obrigaria a reabrir o
             // cliente para ver o efeito do próprio clique.
-            await recarregar();
+            await recarregar(r?.assinatura || null);
           } catch (e) {
             console.error('Comercial · cancelar cobrança:', e);
             mostrarErro(traduzirErroCobranca(e));
@@ -733,14 +1019,14 @@ export function abrirEdicaoCobranca({ assinatura, cobranca, aoMudar, aoVoltar })
 }
 
 /** O formulário de pagamento. É ele que dispara a renovação. */
-export function abrirRegistroPagamento({ assinatura, cobranca, aoMudar }) {
+export function abrirRegistroPagamento({ assinatura, cobranca, aoMudar, planos = [] }) {
   let form = pagamentoVazio(cobranca);
   let salvando = false;
   const hoje = hojeISO();
 
   return raiz((fundo, fechar) => {
     const desenhar = (erros = {}) => {
-      fundo.innerHTML = formPagamentoHtml({ cobranca, assinatura, form, erros, hoje });
+      fundo.innerHTML = formPagamentoHtml({ cobranca, assinatura, form, erros, hoje, planos });
       window.renderIcons?.();
       ligar();
       fundo.querySelector('.cm-erro-campo input, .cm-erro-campo select')?.focus();

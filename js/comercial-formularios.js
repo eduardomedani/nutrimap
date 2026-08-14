@@ -12,7 +12,8 @@
 // `valorDeTexto` vem do utils e não de uma cópia local: ela já resolve o caso
 // de "2.000" ser milhar e não decimal — ler como 2,00 cobraria dois reais no
 // lugar de dois mil.
-import { fimDoPeriodo } from './comercial.js';
+import { fimDoPeriodo, somarDias } from './comercial.js';
+import { moeda, dataBR, dePara } from './comercial-ui.js';
 import { valorDeTexto as moedaParaNumero } from './utils.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -149,6 +150,278 @@ export function assinaturaParaBanco(form = {}, plano = null) {
     renovacao_automatica: form.renovacao_automatica !== false,
     status: 'ativa',
   };
+}
+
+// ───────────────────────────────────────────────────────────
+// COBRANÇA DO PERÍODO — e a renovação que vem depois dela
+// ───────────────────────────────────────────────────────────
+// A distinção que este formulário existe para tornar impossível de confundir:
+//
+//   a assinatura           -> o que está VIGENTE agora
+//   a renovação programada -> o que ENTRA no próximo ciclo
+//
+// Criar a cobrança NÃO mexe em plano, valor nem período da assinatura. Se
+// mexesse, o período que ainda está correndo passaria a parecer que pertence
+// ao plano novo — e o histórico deixaria de responder "qual plano estava
+// vigente naquele período".
+
+/**
+ * O PRAZO DE PAGAMENTO de uma cobrança criada à mão: 30 dias corridos.
+ *
+ * NÃO é a duração de plano nenhum, e por isso não sai de `PLANO_PADRAO` nem do
+ * plano do cliente. É outra coisa: o tempo que a GoUp dá para pagar uma
+ * cobrança emitida hoje. Amarrar os dois faria mudar a duração de um plano
+ * mexer no prazo de pagamento de todo mundo.
+ *
+ * DIAS CORRIDOS, não "+1 mês": 01/02 vira 03/03 em ano não bissexto, e é isso
+ * mesmo. `somarDias` é o helper que o módulo já usa em `fimDoPeriodo`.
+ */
+export const PRAZO_COBRANCA_DIAS = 30;
+
+/**
+ * O estado inicial do formulário de cobrança do período.
+ *
+ * O VENCIMENTO É `hoje + 30`, e NÃO `assinatura.fim_periodo`.
+ *
+ * Até 13/08/2026 ele era o fim do período — e uma cobrança emitida hoje para
+ * um período encerrado em julho nascia vencida há 28 dias. A regra da GoUp é
+ * outra: o cliente recebe a cobrança agora e tem 30 dias para pagar. O atraso
+ * do período é assunto da ASSINATURA ("Período termina em"), não do prazo que
+ * o financeiro concede.
+ *
+ * São conceitos independentes, e é por isso que a tela os separa: a assinatura
+ * pode ter terminado em 16/07 e a cobrança criada em 13/08 vencer em 12/09.
+ *
+ * `hoje` é ARGUMENTO — a data de referência nunca é implícita neste módulo, e
+ * é o que permite testar "criada em 13/08" sem esperar 13/08.
+ */
+export function cobrancaDoPeriodoVazia(assinatura = {}, hoje = hojeISO()) {
+  return {
+    vencimento: somarDias(hoje, PRAZO_COBRANCA_DIAS) || '',
+    valor: paraCampoValor(assinatura.valor_contratado),
+    // Sugestões, não decisões: o plano atual vem selecionado porque é o caso
+    // comum (§8 — renovar no mesmo plano não pode custar trabalho nenhum).
+    proximo_plano_id: assinatura.plano_id || '',
+    proximo_valor: paraCampoValor(assinatura.valor_contratado),
+  };
+}
+
+/**
+ * O vencimento da PRIMEIRA cobrança de uma assinatura nova.
+ *
+ * NÃO é `hoje + 30`, e a diferença tem motivo. A cobrança acima cobre um
+ * período que JÁ CORREU, e por isso não pode nascer vencida — daí os 30 dias.
+ * Esta cobre um ciclo que está COMEÇANDO, igual à cobrança automática que a
+ * RPC de pagamento cria: o cliente usa o período inteiro e paga no fim para
+ * renovar. Passá-la para `hoje + 30` faria um Trimestral vencer 60 dias antes
+ * de o período acabar.
+ *
+ * O PISO existe porque `inicio_periodo` é campo editável no formulário: a
+ * validação só impede começar antes de `data_inicio_original`, então dá para
+ * cadastrar uma assinatura com período retroativo, e a primeira cobrança dela
+ * nasceria vencida. A regra inteira cabe numa frase: vence no fim do período,
+ * nunca antes de 30 dias da criação.
+ *
+ * A automática não precisa do piso — o período novo dela sempre termina no
+ * futuro, mesmo no pior atraso que a tolerância aceita.
+ */
+export function vencimentoDaPrimeiraCobranca(assinatura = {}, hoje = hojeISO()) {
+  const piso = somarDias(hoje, PRAZO_COBRANCA_DIAS);
+  const fim = assinatura?.fim_periodo || '';
+  if (!fim) return piso || '';
+  if (!piso) return fim;
+  // Datas ISO comparam como texto: 2026-09-12 > 2026-07-16 sem converter nada.
+  return fim < piso ? piso : fim;
+}
+
+/**
+ * O valor futuro que a TROCA DE PLANO sugere.
+ *
+ * Só é chamada quando o usuário mexe no select — nunca a cada render. Essa
+ * distinção é a regra: trocar de plano sugere o preço dele; digitar um valor
+ * à mão vence; trocar de plano de novo volta a sugerir.
+ *
+ * Sem isto, o formulário mantinha o valor do plano ANTIGO ao trocar de plano.
+ * No E2E de 13/08/2026 a CASO_TROCA_DE_PLANO saiu de um Mensal de R$ 330 para um
+ * Trimestral e o campo continuou R$ 330 — um trimestre pelo preço de um mês.
+ * Foi pego a olho; quem não olhar, contrata errado em silêncio.
+ *
+ * `null` significa "não tenho o que sugerir, deixe como está": plano sem
+ * `preco_padrao` não vira R$ 0,00, que afirmaria que o cliente não paga nada.
+ */
+export function valorSugeridoAoTrocarPlano(planoId, planos = [], assinatura = {}) {
+  // "Manter o atual" volta ao valor vigente — é o que o campo tinha ao abrir.
+  if (!planoId) return paraCampoValor(assinatura.valor_contratado);
+
+  const plano = planos.find(p => p.id === planoId);
+  if (!plano || plano.preco_padrao == null) return null;
+  return paraCampoValor(plano.preco_padrao);
+}
+
+/**
+ * O que MUDA da vigência atual para a próxima — só para a tela contar.
+ *
+ * QUEM DECIDE O QUE É GRAVADO É O BANCO. A RPC recebe plano e valor futuros
+ * sempre, e só escreve a intenção se diferirem do que está vigente. Esta
+ * função existe para o botão saber se diz "Criar cobrança" ou "Criar cobrança
+ * e programar renovação", e para o resumo aparecer só quando há o que resumir.
+ *
+ * Duas fontes decidindo a mesma coisa divergiriam no primeiro arredondamento;
+ * por isso aqui é descrição, e lá é decisão.
+ */
+export function mudancaDaRenovacao(form = {}, assinatura = {}) {
+  const planoAtual = assinatura.plano_id || null;
+  const planoFuturo = form.proximo_plano_id || planoAtual;
+
+  const valorAtual = assinatura.valor_contratado == null ? null : Number(assinatura.valor_contratado);
+  const bruto = String(form.proximo_valor ?? '').trim();
+  const valorFuturo = bruto ? moedaParaNumero(bruto) : null;
+
+  const trocaPlano = planoFuturo !== planoAtual;
+  // Espelha o `p_proximo_valor is not null and ... is distinct from` da RPC:
+  // campo vazio não é "mudou para nada", é "não mexi nisso".
+  const trocaValor = valorFuturo != null &&
+    (valorAtual == null || Math.abs(valorFuturo - valorAtual) >= 0.005);
+
+  return { planoAtual, planoFuturo, valorAtual, valorFuturo, trocaPlano, trocaValor,
+           mudou: trocaPlano || trocaValor };
+}
+
+export function validarCobrancaDoPeriodo(form = {}) {
+  const erros = {};
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(form.vencimento || ''))) {
+    erros.vencimento = 'Informe o vencimento.';
+  }
+
+  const v = String(form.valor ?? '').trim() ? moedaParaNumero(form.valor) : null;
+  if (v == null || !(v > 0)) erros.valor = 'Informe o valor da cobrança.';
+
+  if (String(form.proximo_valor ?? '').trim()) {
+    const f = moedaParaNumero(form.proximo_valor);
+    if (f == null || f < 0) erros.proximo_valor = 'Valor inválido.';
+  }
+
+  return erros;
+}
+
+/** O resumo só existe quando há mudança. Sem troca, o §13 pede silêncio: é
+ *  simplesmente criar a cobrança, e um bloco "renovação programada" repetindo
+ *  o plano atual só ensinaria o usuário a ignorar resumos. */
+export function resumoRenovacaoHtml(mudanca, planos = []) {
+  if (!mudanca?.mudou) return '';
+  const nomeDe = id => planos.find(p => p.id === id)?.nome || '—';
+
+  const linhaPlano = mudanca.trocaPlano
+    ? `<div class="cm-dw-linha">
+         <span class="cm-dw-rot">Plano</span>
+         <span class="cm-dw-val">${dePara(esc(nomeDe(mudanca.planoAtual)), esc(nomeDe(mudanca.planoFuturo)))}</span>
+       </div>`
+    : '';
+
+  const linhaValor = mudanca.trocaValor
+    ? `<div class="cm-dw-linha">
+         <span class="cm-dw-rot">Valor contratado</span>
+         <span class="cm-dw-val">${dePara(esc(moeda(mudanca.valorAtual)), esc(moeda(mudanca.valorFuturo)))}</span>
+       </div>`
+    : '';
+
+  // "O que vai mudar", não "Próxima renovação": esse já é o título da seção
+  // dos campos logo acima, e o mesmo rótulo duas vezes na mesma tela faz o
+  // resumo parecer repetição em vez de confirmação. Segue o padrão do
+  // formulário de pagamento, que chama a prévia dele de "O que vai acontecer".
+  return `
+    <div class="cm-dw-previa" data-resumo>
+      <div class="cm-dw-previa-t">O que vai mudar</div>
+      ${linhaPlano}${linhaValor}
+      <p class="cm-ajuda-campo">
+        Vale a partir do <b>próximo período</b>. O período atual continua no
+        plano e no valor de hoje até este pagamento ser registrado.
+      </p>
+    </div>`;
+}
+
+export function formCobrancaPeriodoHtml({ assinatura = {}, planos = [], form = {}, erros = {} } = {}) {
+  const mudanca = mudancaDaRenovacao(form, assinatura);
+  const planoAtualNome = planos.find(p => p.id === assinatura.plano_id)?.nome
+    || assinatura.plano?.nome || '—';
+
+  return `
+    <div class="cm-drawer cm-dw" role="dialog" aria-modal="true" aria-labelledby="cmCpTit">
+      <header class="cm-drawer-topo">
+        <h2 id="cmCpTit">Cobrança do período</h2>
+        <button class="cm-drawer-x" type="button" data-fechar aria-label="Fechar"><i data-lucide="x"></i></button>
+      </header>
+
+      <div class="cm-drawer-corpo">
+        <!-- LEITURA, nunca campo. O período vigente não se edita por aqui:
+             mudá-lo não seria correção, seria outro contrato. -->
+        <div class="cm-dw-leitura">
+          <div class="cm-dw-linha">
+            <span class="cm-dw-rot">Plano atual</span>
+            <span class="cm-dw-val">${esc(planoAtualNome)}</span>
+          </div>
+          <div class="cm-dw-linha">
+            <span class="cm-dw-rot">Período atual</span>
+            <span class="cm-dw-val">${esc(dataBR(assinatura.inicio_periodo))} → ${esc(dataBR(assinatura.fim_periodo))}</span>
+          </div>
+          <div class="cm-dw-linha">
+            <span class="cm-dw-rot">Valor contratado</span>
+            <span class="cm-dw-val">${esc(moeda(assinatura.valor_contratado))}</span>
+          </div>
+        </div>
+
+        <section class="cm-dw-secao">
+          <h3 class="cm-dw-t">Cobrança deste período</h3>
+          <div class="cm-linha-campos">
+            <div class="cm-campo${cls(erros, 'vencimento')}">
+              <label for="cmcpVenc">Vencimento</label>
+              <input id="cmcpVenc" type="date" value="${esc(form.vencimento)}">
+              ${msg(erros, 'vencimento')}
+            </div>
+            <div class="cm-campo${cls(erros, 'valor')}">
+              <label for="cmcpValor">Valor da cobrança</label>
+              <input id="cmcpValor" type="text" inputmode="decimal" value="${esc(form.valor)}">
+              ${msg(erros, 'valor')}
+            </div>
+          </div>
+          <p class="cm-ajuda-campo">
+            Esta cobrança é do período que <b>já está correndo</b>. Trocar o plano
+            abaixo não muda o que ela cobra.
+          </p>
+        </section>
+
+        <section class="cm-dw-secao">
+          <h3 class="cm-dw-t">Próxima renovação</h3>
+          <div class="cm-campo${cls(erros, 'proximo_plano_id')}">
+            <label for="cmcpPlano">Plano a partir da próxima renovação</label>
+            <select id="cmcpPlano">
+              <option value="">Manter o atual</option>
+              ${planos.map(p => `<option value="${esc(p.id)}"${p.id === form.proximo_plano_id ? ' selected' : ''}>${esc(p.nome)}</option>`).join('')}
+            </select>
+            ${msg(erros, 'proximo_plano_id')}
+          </div>
+          <div class="cm-campo${cls(erros, 'proximo_valor')}">
+            <label for="cmcpProxValor">Valor contratado futuro</label>
+            <input id="cmcpProxValor" type="text" inputmode="decimal" value="${esc(form.proximo_valor)}">
+            ${msg(erros, 'proximo_valor')}
+          </div>
+          <p class="cm-ajuda-campo">
+            Nada muda na assinatura agora. O plano e o valor daqui entram
+            <b>quando esta cobrança for paga</b>.
+          </p>
+        </section>
+
+        ${resumoRenovacaoHtml(mudanca, planos)}
+      </div>
+
+      <footer class="cm-drawer-pe">
+        <button class="cm-btn" type="button" data-fechar>Cancelar</button>
+        <button class="cm-btn cm-btn-forte" type="button" data-salvar>
+          <i data-lucide="check"></i> ${mudanca.mudou ? 'Criar cobrança e programar renovação' : 'Criar cobrança'}
+        </button>
+      </footer>
+    </div>`;
 }
 
 // ───────────────────────────────────────────────────────────
@@ -417,6 +690,89 @@ export function abrirFormularioPlano({ plano = null, aoSalvar } = {}) {
           salvando = false;
           console.error('Comercial · salvar plano:', e);
           desenhar({ nome: 'Não consegui salvar: ' + (e?.message || e) });
+        }
+      });
+    }
+
+    desenhar();
+  });
+}
+
+/**
+ * Cobrança do período, com a renovação do próximo ciclo junto.
+ *
+ * `aoSalvar({ vencimento, valor, proximoPlanoId, proximoValor })` — quem chama
+ * manda para a RPC. Plano e valor futuros vão SEMPRE, mesmo iguais aos atuais:
+ * é o banco que decide se aquilo é mudança, e mandar só quando a tela achou
+ * que mudou criaria duas fontes para a mesma regra.
+ *
+ * Nada é salvo enquanto o usuário mexe nos campos (§14): trocar o plano só
+ * redesenha o resumo e o texto do botão.
+ */
+export function abrirFormularioCobrancaPeriodo({ assinatura, planos = [], aoSalvar } = {}) {
+  let form = cobrancaDoPeriodoVazia(assinatura);
+  let salvando = false;
+
+  return abrirDrawer((fundo, fechar) => {
+    const desenhar = (erros = {}) => {
+      fundo.innerHTML = formCobrancaPeriodoHtml({ assinatura, planos, form, erros });
+      window.renderIcons?.();
+      ligar();
+      fundo.querySelector('.cm-erro-campo input, .cm-erro-campo select')?.focus();
+    };
+
+    const coletar = () => {
+      const g = id => fundo.querySelector('#' + id);
+      return {
+        vencimento: g('cmcpVenc')?.value || '',
+        valor: g('cmcpValor')?.value || '',
+        proximo_plano_id: g('cmcpPlano')?.value || '',
+        proximo_valor: g('cmcpProxValor')?.value || '',
+      };
+    };
+
+    function ligar() {
+      fundo.querySelectorAll('[data-fechar]').forEach(b => b.addEventListener('click', () => fechar()));
+
+      // TROCAR O PLANO sugere o preço dele. É a única ação que sobrescreve o
+      // campo de valor — digitar à mão vence, e o valor manual sobrevive a
+      // qualquer redesenho, porque o redesenho lê `form` e nada mais escreve
+      // nele. Trocar de plano de novo volta a sugerir, agora do plano novo.
+      fundo.querySelector('#cmcpPlano')?.addEventListener('change', () => {
+        form = coletar();
+        const sugerido = valorSugeridoAoTrocarPlano(form.proximo_plano_id, planos, assinatura);
+        if (sugerido !== null) form.proximo_valor = sugerido;
+        desenhar();
+      });
+
+      // Mexer no valor só redesenha o resumo e o texto do botão. Nada
+      // sobrescreve o que foi digitado.
+      fundo.querySelector('#cmcpProxValor')?.addEventListener('change', () => {
+        form = coletar();
+        desenhar();
+      });
+
+      fundo.querySelector('[data-salvar]')?.addEventListener('click', async () => {
+        if (salvando) return;
+        form = coletar();
+        const erros = validarCobrancaDoPeriodo(form);
+        if (Object.keys(erros).length) { desenhar(erros); return; }
+
+        salvando = true;
+        try {
+          await aoSalvar({
+            vencimento: form.vencimento,
+            valor: moedaParaNumero(form.valor),
+            proximoPlanoId: form.proximo_plano_id || null,
+            proximoValor: String(form.proximo_valor || '').trim()
+              ? moedaParaNumero(form.proximo_valor)
+              : null,
+          });
+          fechar();
+        } catch (e) {
+          salvando = false;
+          console.error('Comercial · cobrança do período:', e);
+          desenhar({ vencimento: e?.message || String(e) });
         }
       });
     }

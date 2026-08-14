@@ -4,14 +4,19 @@
 // Tudo com a anon-key + RLS (`nutri_id = auth.uid()`). As regras não moram
 // aqui: este arquivo busca e grava, js/comercial.js decide.
 //
-// FILTRO EXPLÍCITO, sempre. A conta do Eduardo é nutri E paciente ao mesmo
+// FILTRO EXPLÍCITO, sempre. A conta do proprietário é nutri E paciente ao mesmo
 // tempo, e as policies do projeto são OR'd — uma consulta que dependesse só do
 // RLS para isolar devolveria dado de mais. O RLS é a segunda camada, não a
 // primeira.
 
 import { sb } from './supabase.js';
 import { organizacaoAtual } from './organizacao.js';
-import { renovar, competenciaDaCobranca, PLANO_PADRAO } from './comercial.js';
+// `renovar` e `PLANO_PADRAO` SAÍRAM daqui na Migration B. A regra do período
+// passou a viver dentro de `comercial_registrar_pagamento` no banco, e manter
+// o import vivo aqui deixaria à mão a segunda lógica capaz de avançar o
+// período — que é exatamente o que "um pagamento = uma renovação" proíbe.
+// Elas seguem em js/comercial.js, usadas pela prévia da tela.
+import { competenciaDaCobranca } from './comercial.js';
 
 /**
  * O dono do dado ANTES da Etapa 4 — o uuid da própria pessoa.
@@ -89,12 +94,21 @@ export async function salvarPlano(planoId, dados) {
 // ── ASSINATURAS ───────────────────────────────────────────────
 
 /** As assinaturas com o nome do cliente e o plano juntos — uma consulta só.
- *  Uma por linha da tela; buscar o paciente separado seria N+1. */
+ *  Uma por linha da tela; buscar o paciente separado seria N+1.
+ *
+ *  `!plano_id` NÃO É ENFEITE. Desde a Migration A, `comercial_assinaturas` tem
+ *  DUAS chaves estrangeiras para `comercial_planos` — `plano_id`, o plano
+ *  vigente, e `proximo_plano_id`, o programado. Com duas, o PostgREST não sabe
+ *  qual seguir e recusa a consulta inteira (PGRST201), o que derrubava a tela
+ *  do Comercial no carregamento. A dica diz qual chave usar.
+ *
+ *  Vale para os cinco embeds de `comercial_planos` deste arquivo, e vai valer
+ *  para qualquer um novo. Há teste que falha se um deles vier sem a dica. */
 export async function listarAssinaturas({ incluirCanceladas = true } = {}) {
   const id = await nutriId();
   let q = sb
     .from('comercial_assinaturas')
-    .select('*, paciente:pacientes(id, nome, telefone, status), plano:comercial_planos(*)')
+    .select('*, paciente:pacientes(id, nome, telefone, status), plano:comercial_planos!plano_id(*)')
     .eq('nutri_id', id);
   if (!incluirCanceladas) q = q.neq('status', 'cancelada');
   const { data, error } = await q.order('fim_periodo');
@@ -106,7 +120,7 @@ export async function assinaturaDoPaciente(pacienteId) {
   const id = await nutriId();
   const { data, error } = await sb
     .from('comercial_assinaturas')
-    .select('*, paciente:pacientes(id, nome, telefone), plano:comercial_planos(*)')
+    .select('*, paciente:pacientes(id, nome, telefone), plano:comercial_planos!plano_id(*)')
     .eq('nutri_id', id)
     .eq('paciente_id', pacienteId)
     .in('status', ['ativa', 'aguardando_inicio', 'pausada'])
@@ -120,7 +134,7 @@ export async function criarAssinatura(dados) {
   const { data, error } = await sb
     .from('comercial_assinaturas')
     .insert({ ...dados, nutri_id: id })
-    .select('*, paciente:pacientes(id, nome, telefone), plano:comercial_planos(*)')
+    .select('*, paciente:pacientes(id, nome, telefone), plano:comercial_planos!plano_id(*)')
     .single();
   if (error) throw error;
   return data;
@@ -134,7 +148,7 @@ export async function salvarAssinatura(assinaturaId, dados) {
     .update(limpo)
     .eq('id', assinaturaId)
     .eq('nutri_id', id)
-    .select('*, paciente:pacientes(id, nome, telefone), plano:comercial_planos(*)')
+    .select('*, paciente:pacientes(id, nome, telefone), plano:comercial_planos!plano_id(*)')
     .single();
   if (error) throw error;
   return data;
@@ -176,12 +190,23 @@ export async function receitasDeClientes({ de, ate } = {}) {
  * Cria a cobrança de um período — um lançamento de receita PENDENTE.
  *
  * Não existe "criar cobrança" separado de "criar lançamento": é a mesma coisa.
- * O índice único (assinatura_id, vencimento) impede duas cobranças para o
- * mesmo período, então chamar isto duas vezes por engano falha no banco em vez
- * de dobrar o que o cliente deve.
+ *
+ * O QUE IDENTIFICA A COBRANÇA é `(assinatura_id, periodo_fim)`, e não o
+ * vencimento. O índice se chamava `uq_comercial_cobranca_periodo` porque
+ * vencimento ERA o fim do período; quando a cobrança manual passou a vencer em
+ * `criação + 30 dias`, ele começou a errar dos dois lados — deixava passar
+ * duas cobranças do mesmo período e rejeitava duas de períodos diferentes
+ * criadas no mesmo dia. Hoje é `uq_comercial_cobranca_do_periodo`, e chamar
+ * isto duas vezes para o mesmo período falha no banco em vez de dobrar o que o
+ * cliente deve.
+ *
+ * O período vem da assinatura, nunca de parâmetro: quem cria a cobrança não
+ * escolhe o que ela cobre.
  */
 export async function criarCobranca({ assinatura, vencimento, valor, descricao, categoriaId = null }) {
   const id = await nutriId();
+  const periodoInicio = assinatura?.inicio_periodo || null;
+  const periodoFim = assinatura?.fim_periodo || null;
   const { data, error } = await sb
     .from('financeiro_lancamentos')
     .insert({
@@ -190,7 +215,11 @@ export async function criarCobranca({ assinatura, vencimento, valor, descricao, 
       status: 'pendente',
       data: vencimento,
       vencimento,
-      competencia: competenciaDaCobranca(vencimento),
+      periodo_inicio: periodoInicio,
+      periodo_fim: periodoFim,
+      // Do INÍCIO do período, não do vencimento nem do fim. Ver
+      // competenciaDaCobranca() — a escolha saiu da conferência 103.
+      competencia: competenciaDaCobranca(periodoInicio),
       descricao: descricao || `${assinatura?.plano?.nome || 'Mensalidade'} — ${assinatura?.paciente?.nome || ''}`.trim(),
       valor,
       categoria_id: categoriaId,
@@ -199,6 +228,47 @@ export async function criarCobranca({ assinatura, vencimento, valor, descricao, 
     })
     .select()
     .single();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * A cobrança do período E a renovação programada, numa transação só.
+ *
+ * MIGRATION A. Esta é a porta nova de "Criar cobrança do período" — a de cima
+ * (`criarCobranca`) continua servindo o fluxo de "Nova assinatura", que cria a
+ * primeira cobrança de um contrato que acabou de nascer e não tem futuro a
+ * programar.
+ *
+ * POR QUE RPC E NÃO TRÊS CHAMADAS. São três tabelas: o lançamento, a intenção
+ * na assinatura e a trilha de auditoria. Sequenciais pelo PostgREST, uma falha
+ * no meio deixaria a assinatura com um plano futuro que nenhuma cobrança
+ * programou, ou uma cobrança sem a troca que a justificou. Aqui as três caem
+ * juntas ou nenhuma cai.
+ *
+ * NÃO MANDA `nutri_id` NEM `assinatura` INTEIRA. O dono sai de
+ * `organizacao_do_auth()` dentro da função, e o resto o banco busca pelo id.
+ * O frontend manda decisão de negócio e mais nada.
+ *
+ * `proximoPlanoId` e `proximoValor` são a INTENÇÃO, não o contrato de hoje: o
+ * banco só os grava se diferirem do que está vigente.
+ *
+ * @returns {{cobranca, assinatura, programou: boolean}}
+ */
+export async function criarCobrancaDoPeriodo({
+  assinaturaId, vencimento, valor,
+  categoriaId = null, observacoes = null,
+  proximoPlanoId = null, proximoValor = null,
+}) {
+  const { data, error } = await sb.rpc('comercial_criar_cobranca_do_periodo', {
+    p_assinatura_id: assinaturaId,
+    p_vencimento: vencimento,
+    p_valor: valor,
+    p_categoria_id: categoriaId,
+    p_observacoes: observacoes,
+    p_proximo_plano_id: proximoPlanoId,
+    p_proximo_valor: proximoValor,
+  });
   if (error) throw error;
   return data;
 }
@@ -225,20 +295,37 @@ export async function criarCobranca({ assinatura, vencimento, valor, descricao, 
  *                        pendente (já paga, já cancelada, ou não é sua).
  */
 export async function cancelarCobranca(cobrancaId) {
-  const id = await nutriId();
-  const { data, error } = await sb
-    .from('financeiro_lancamentos')
-    .update({ status: 'cancelado' })
-    .eq('id', cobrancaId)
-    .eq('nutri_id', id)
-    .eq('status', 'pendente')
-    // Só cobrança de assinatura. O Financeiro tem os próprios caminhos para
-    // lançamento avulso, e esta função não pode virar atalho para eles.
-    .not('assinatura_id', 'is', null)
-    .select()
-    .maybeSingle();
+  // MIGRATION A: virou RPC porque cancelar a cobrança que PROGRAMOU uma troca
+  // de plano tem que limpar a troca na MESMA transação. Deixar a intenção viva
+  // faria a próxima cobrança — criada por outro caminho — mudar o plano do
+  // cliente sem ninguém ter pedido.
+  //
+  // A trava de "só pendente" continua sendo do BANCO, agora dentro da função:
+  // cobrança paga devolve `cancelou: false` e a tela avisa. Não dá para
+  // cancelar um período já recebido por dois cliques rápidos ou por duas abas.
+  const { data, error } = await sb.rpc('comercial_cancelar_cobranca', {
+    p_lancamento_id: cobrancaId,
+  });
   if (error) throw error;
-  return data || null;
+  // A forma de retorno de antes era `null` quando não dava para cancelar, e
+  // quem chama depende disso para mostrar MSG.naoPendente.
+  if (!data?.cancelou) return null;
+  return data.cobranca || null;
+}
+
+/**
+ * O mesmo cancelamento, mas contando o que aconteceu com a renovação.
+ *
+ * `cancelarCobranca` devolve só a cobrança para não quebrar quem já a usava.
+ * Esta devolve o envelope inteiro — é o que a tela precisa para dizer "a troca
+ * de plano programada também foi cancelada".
+ */
+export async function cancelarCobrancaDetalhado(cobrancaId) {
+  const { data, error } = await sb.rpc('comercial_cancelar_cobranca', {
+    p_lancamento_id: cobrancaId,
+  });
+  if (error) throw error;
+  return data || { cancelou: false };
 }
 
 /**
@@ -251,14 +338,17 @@ export async function cancelarCobranca(cobrancaId) {
  * O que NÃO se edita por aqui, e por quê:
  *   . cliente e assinatura — mudar o dono de uma cobrança não é correção, é
  *     outra cobrança;
- *   . competência — é o mês do PERÍODO, derivado do vencimento pela regra de
- *     competenciaDaCobranca(). Recalculada junto quando o vencimento muda,
- *     nunca escolhida à mão;
+ *   . competência e período — é o mesmo motivo. A competência sai do
+ *     `periodo_fim`, e o período é o que a cobrança cobre: corrigir a data em
+ *     que o cliente paga não muda o mês que ele está pagando. Antes ela era
+ *     recalculada junto com o vencimento, e isso estava certo enquanto as duas
+ *     datas eram a mesma coisa — hoje faria a receita mudar de mês a cada
+ *     prorrogação;
  *   . qualquer coisa numa cobrança paga — `eq('status','pendente')` barra.
  *
- * O índice `uq_comercial_cobranca_periodo` continua valendo: mudar o
- * vencimento para uma data que já tem cobrança viva na mesma assinatura falha
- * no banco, em vez de criar duas cobranças para o mesmo período.
+ * O índice `uq_comercial_cobranca_do_periodo` é por período, então prorrogar
+ * um vencimento não esbarra mais nele — e não deve mesmo: continua sendo uma
+ * cobrança só, do mesmo período.
  *
  * @returns {object|null} a cobrança atualizada, ou null se não estava pendente.
  */
@@ -268,11 +358,12 @@ export async function editarCobranca(cobrancaId, { valor, vencimento, observacoe
   if (valor !== undefined) patch.valor = valor;
   if (vencimento !== undefined) {
     patch.vencimento = vencimento;
-    // `data` e `competencia` acompanham o vencimento — é assim que
-    // criarCobranca() as define, e deixá-las para trás faria a cobrança
-    // aparecer num mês no Comercial e noutro no Financeiro.
+    // `data` acompanha o vencimento: é o dia do movimento previsto.
+    //
+    // `competencia` NÃO acompanha mais. Ela é o mês do período cobrado, e o
+    // período não muda porque alguém prorrogou o prazo de pagamento. Recalcular
+    // aqui é o que jogava a receita de julho para setembro.
     patch.data = vencimento;
-    patch.competencia = competenciaDaCobranca(vencimento);
   }
   if (observacoes !== undefined) patch.observacoes = observacoes;
   if (!Object.keys(patch).length) return null;
@@ -293,70 +384,48 @@ export async function editarCobranca(cobrancaId, { valor, vencimento, observacoe
 /**
  * O CORAÇÃO DO MÓDULO: registra o pagamento e renova o período.
  *
- * Um pagamento só, num lugar só. O lançamento vira `pago`, a assinatura anda
- * para o próximo período e a cobrança seguinte nasce pendente — tudo a partir
- * da mesma informação, sem ninguém digitar duas vezes.
+ * UMA CHAMADA, UMA TRANSAÇÃO — desde a Migration B (13/08/2026,
+ * db/comercial_pagamento_transacional.sql). O lançamento vira `pago`, a
+ * assinatura anda para o próximo período, a renovação programada é consumida
+ * e a cobrança seguinte nasce pendente: as quatro escritas caem juntas ou
+ * nenhuma cai.
  *
- * NÃO É TRANSAÇÃO. O PostgREST não expõe transação de várias tabelas pelo
- * cliente, então os três passos são sequenciais. A ordem é escolhida para que
- * uma falha no meio deixe o estado CONSERVADOR e não o contrário:
+ * O QUE ISTO SUBSTITUIU. Até aqui eram três chamadas sequenciais pelo
+ * PostgREST, com a ordem escolhida para falhar de forma conservadora. Mas
+ * conservador não é íntegro: uma falha entre a 1ª e a 2ª deixava o dinheiro
+ * registrado com o período velho, e o cliente aparecia vencido tendo pago.
+ * Com a renovação programada seriam quatro escritas, e uma falha no meio
+ * podia deixar uma troca de plano pendurada depois de o pagamento dela ter
+ * entrado.
  *
- *   1º o pagamento     — se falhar aqui, nada mudou
- *   2º a renovação     — se falhar aqui, o dinheiro está registrado e o período
- *                        está velho: o cliente aparece como vencido, alguém vê
- *                        e corrige. O contrário (período renovado sem o
- *                        pagamento) esconderia um calote.
- *   3º a próxima cobrança — se falhar, é só uma cobrança a criar depois.
+ * O PERÍODO SÓ AVANÇA LÁ DENTRO. Não existe segundo lugar no sistema que
+ * chame a regra de renovação — e é isso que garante UM PAGAMENTO = UMA
+ * RENOVAÇÃO. A trava é do banco (`status = 'pendente'` no update), então dois
+ * cliques, duas abas ou um retry de rede não renovam duas vezes.
  *
- * Quando isto virar RPC no banco, os três viram um só. Está anotado.
+ * `assinatura` CONTINUA NA ASSINATURA DA FUNÇÃO e não é usada. Quem resolve a
+ * assinatura agora é o banco, pelo `assinatura_id` do próprio lançamento —
+ * confiar na cópia que a tela carregou seria confiar num `fim_periodo` velho,
+ * que é justamente o que decide o período novo. O parâmetro fica para não
+ * quebrar os dois chamadores; ignorá-lo é a correção, não um esquecimento.
+ *
+ * `pagou: false` é a cobrança que já não estava pendente. Vira exceção para
+ * quem chama continuar tratando erro num lugar só — `traduzirErroCobranca`
+ * mapeia para a mesma frase de sempre.
  */
-export async function registrarPagamento({ lancamentoId, assinatura, pagoEm, valorPago, formaPagamento, criarProxima = true }) {
-  const id = await nutriId();
-
-  const { data: pago, error: e1 } = await sb
-    .from('financeiro_lancamentos')
-    .update({
-      status: 'pago',
-      pago_em: pagoEm,
-      valor_pago: valorPago ?? null,
-      forma_pagamento: formaPagamento || null,
-    })
-    .eq('id', lancamentoId)
-    .eq('nutri_id', id)
-    .select()
-    .single();
-  if (e1) throw e1;
-
-  const plano = assinatura?.plano || PLANO_PADRAO;
-  const periodo = renovar({ fimVigente: assinatura.fim_periodo, dataPagamento: pagoEm, plano });
-  if (!periodo) return { lancamento: pago, assinatura, proxima: null };
-
-  const { data: renovada, error: e2 } = await sb
-    .from('comercial_assinaturas')
-    .update({ inicio_periodo: periodo.inicio_periodo, fim_periodo: periodo.fim_periodo, status: 'ativa' })
-    .eq('id', assinatura.id)
-    .eq('nutri_id', id)
-    .select('*, paciente:pacientes(id, nome, telefone), plano:comercial_planos(*)')
-    .single();
-  if (e2) throw e2;
-
-  let proxima = null;
-  if (criarProxima && renovada.renovacao_automatica) {
-    try {
-      proxima = await criarCobranca({
-        assinatura: renovada,
-        vencimento: renovada.fim_periodo,
-        valor: renovada.valor_contratado,
-        categoriaId: pago.categoria_id || null,
-      });
-    } catch (e) {
-      // Cobrança repetida (o índice único) não é erro de verdade: significa
-      // que ela já existia. Qualquer outra coisa sobe.
-      if (!String(e.message || '').includes('uq_comercial_cobranca_periodo')) throw e;
-    }
-  }
-
-  return { lancamento: pago, assinatura: renovada, proxima };
+export async function registrarPagamento({
+  lancamentoId, assinatura: _resolvidaNoBanco, pagoEm, valorPago, formaPagamento, criarProxima = true,
+}) {
+  const { data, error } = await sb.rpc('comercial_registrar_pagamento', {
+    p_lancamento_id: lancamentoId,
+    p_pago_em: pagoEm,
+    p_valor_pago: valorPago,
+    p_forma_pagamento: formaPagamento || null,
+    p_criar_proxima: criarProxima,
+  });
+  if (error) throw error;
+  if (!data?.pagou) throw new Error('cobranca nao_pendente');
+  return { lancamento: data.lancamento, assinatura: data.assinatura, proxima: data.proxima };
 }
 
 // ── CLIENTES SEM ASSINATURA ───────────────────────────────────
@@ -386,7 +455,7 @@ export async function assinaturasComCobrancaAberta() {
   const id = await nutriId();
   const [{ data: assinaturas, error: e1 }, { data: abertas, error: e2 }] = await Promise.all([
     sb.from('comercial_assinaturas')
-      .select('*, paciente:pacientes(id, nome), plano:comercial_planos(*)')
+      .select('*, paciente:pacientes(id, nome), plano:comercial_planos!plano_id(*)')
       .eq('nutri_id', id)
       .in('status', ['ativa', 'aguardando_inicio', 'pausada']),
     sb.from('financeiro_lancamentos')

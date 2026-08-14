@@ -38,6 +38,28 @@ export function dataBR(iso) {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
 }
 
+/**
+ * "R$ 311,00 → R$ 330,00" como UM elemento, nunca como texto solto.
+ *
+ * Escrito como texto corrido dentro da célula de valor, o navegador quebrava
+ * onde desse — e o que dava era logo depois da seta, deixando ela pendurada no
+ * fim da linha e o valor novo sozinho embaixo. A seta não é conteúdo: é a
+ * relação entre os dois valores, e separá-la deles é separar a frase do
+ * sentido.
+ *
+ * O bloco inteiro é `nowrap`. No celular ele desce para baixo do rótulo — a
+ * linha já empilha lá —, mas desce INTEIRO.
+ *
+ * `de` e `para` entram como HTML; quem chama já escapou o que veio de dado.
+ */
+export function dePara(de, para) {
+  return `<span class="cm-dw-depara">` +
+         `<span class="cm-dw-de">${de}</span>` +
+         `<span class="cm-dw-seta" aria-hidden="true">→</span>` +
+         `<b class="cm-dw-para">${para}</b>` +
+         `</span>`;
+}
+
 // ───────────────────────────────────────────────────────────
 // VISÃO GERAL
 // ───────────────────────────────────────────────────────────
@@ -159,7 +181,10 @@ export function linhaClienteHtml(assinatura, hoje) {
 }
 
 export const COLUNAS = [
-  'Cliente', 'Plano', 'Horário', 'Período', 'Próximo vencimento',
+  // "Período termina em", o MESMO rótulo do drawer para o MESMO campo
+  // (`assinatura.fim_periodo`). "Vencimento" fica reservado para
+  // `financeiro_lancamentos.vencimento`, que é outro conceito.
+  'Cliente', 'Plano', 'Horário', 'Período', 'Período termina em',
   'Situação', 'Valor', 'Pagamento', 'Contato', '',
 ];
 
@@ -546,7 +571,7 @@ async function abrirPlano(cx, plano) {
 }
 
 async function abrirAssinatura(cx) {
-  const [{ abrirFormularioAssinatura }, dados] = await Promise.all([
+  const [{ abrirFormularioAssinatura, vencimentoDaPrimeiraCobranca }, dados] = await Promise.all([
     import('./comercial-formularios.js'),
     import('./comercial-data.js'),
   ]);
@@ -561,12 +586,15 @@ async function abrirAssinatura(cx) {
     planos,
     aoSalvar: async (paraBanco, { criarCobranca }) => {
       const nova = await dados.criarAssinatura(paraBanco);
-      // A cobrança do período vence no FIM dele, que é quando o cliente precisa
-      // renovar — é a mesma data que a planilha usava para disparar o aviso.
+      // Vence no FIM do período, que é quando o cliente precisa renovar — a
+      // mesma data que a planilha usava para disparar o aviso, e a mesma regra
+      // da cobrança automática pós-pagamento: as duas cobrem um ciclo que
+      // começa. O piso de 30 dias só entra quando a assinatura é cadastrada
+      // com período retroativo. Ver vencimentoDaPrimeiraCobranca().
       if (criarCobranca && nova.valor_contratado != null) {
         await dados.criarCobranca({
           assinatura: nova,
-          vencimento: nova.fim_periodo,
+          vencimento: vencimentoDaPrimeiraCobranca(nova),
           valor: nova.valor_contratado,
         });
       }

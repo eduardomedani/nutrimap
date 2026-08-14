@@ -60,6 +60,18 @@ db/vendas_duvidosas.csv
 # Conciliacao das vendas duvidosas: nome de cliente + memo do extrato.
 db/vendas_conciliadas.csv
 
+# Atualizacao dos pagamentos: traz nome, valor e data de cliente real, e o
+# periodo contratado de cada um. Mesma regra dos seeds —
+# db/gerador_atualizacao_pagamentos.mjs vai versionado, os dados nao. Quem
+# tiver a planilha reproduz os quatro arquivos com um comando.
+#
+# O JSON e a UNICA parte que o gerador nao sabe deduzir: quem pagou sem ter
+# assinatura aparece sozinho, mas com que plano e por quanto a pessoa fechou e
+# leitura humana do historico. Por isso ele e dado de entrada, e nao saida.
+db/comercial_atualizar_pagamentos.sql
+db/comercial_atualizar_pagamentos_desfazer.sql
+db/comercial_clientes_novos.json
+
 # Preferencias do Claude Code desta MAQUINA (permissoes locais). O
 # .claude/settings.json vai versionado; este nao.
 .claude/settings.local.json

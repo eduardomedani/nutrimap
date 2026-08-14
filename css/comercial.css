@@ -272,12 +272,19 @@
 .cm-secao-acoes { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 /* ── Drawer de formulário ──────────────────────────────────────────────── */
-/* Mesmo comportamento do drawer do financeiro: fundo escuro, painel à direita,
-   Escape fecha, clique no fundo fecha. */
+/* UM componente, dois formatos. No desktop é painel lateral direito; no
+   celular é sheet que sobe de baixo. A troca é só CSS — a marcação é a mesma,
+   e por isso não existe drawerDesktop() e drawerMobile() para discordarem.
+   Escape fecha, clique no fundo fecha, o scroll acontece DENTRO do painel.
+
+   Escrito mobile-first: a regra base é a do celular, e os breakpoints somam.
+   Assim a tela pequena nunca herda largura de tela grande — que é como um
+   painel de 520px acaba espremendo um telefone de 360px. */
 .cm-drawer-raiz {
   position: fixed; inset: 0; z-index: 1200;
-  display: flex; justify-content: flex-end;
-  background: rgba(15, 23, 32, .42);
+  display: flex;
+  justify-content: center; align-items: flex-end;
+  background: rgba(15, 23, 32, .38);
   animation: cm-fade .16s ease-out;
 }
 @keyframes cm-fade { from { opacity: 0; } to { opacity: 1; } }
@@ -285,22 +292,34 @@ body.cm-travado { overflow: hidden; }
 
 .cm-drawer {
   display: flex; flex-direction: column;
-  width: min(520px, 100%);
-  max-height: 100%;
+  width: 100%;
+  /* Nunca sobe até debaixo do notch: o inset de topo é descontado da altura
+     máxima, em vez de virar padding dentro do painel. É o jeito de respeitar
+     `safe-area-inset-top` num sheet que nasce embaixo. */
+  max-height: calc(100% - env(safe-area-inset-top, 0px));
+  height: min(92vh, 100%);
+  height: min(92dvh, 100%);
   background: var(--surface, var(--bg-card));
-  box-shadow: -12px 0 40px rgba(0, 0, 0, .16);
-  animation: cm-entra .22s cubic-bezier(.2, .8, .3, 1);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, .18);
+  /* O recorte do canto arredondado precisa valer para o cabeçalho grudado no
+     topo — sem isto ele vaza por cima do raio. */
+  overflow: hidden;
+  animation: cm-sobe .24s cubic-bezier(.2, .8, .3, 1);
 }
 @keyframes cm-entra { from { transform: translateX(24px); opacity: .6; } to { transform: none; opacity: 1; } }
+@keyframes cm-sobe  { from { transform: translateY(18px); opacity: .7; } to { transform: none; opacity: 1; } }
 
 .cm-drawer-topo {
   display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  flex-shrink: 0;
   padding: 18px 20px 14px;
   border-bottom: 1px solid var(--border, var(--hair));
+  background: var(--surface, var(--bg-card));
 }
 .cm-drawer-topo h2 { margin: 0; font-size: 18px; font-weight: 800; color: var(--text-primary, var(--ink)); }
 .cm-drawer-x {
-  width: 34px; height: 34px; flex-shrink: 0;
+  width: 36px; height: 36px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   border: 1px solid var(--border, var(--hair)); border-radius: 10px;
   background: none; color: inherit; cursor: pointer;
@@ -308,12 +327,44 @@ body.cm-travado { overflow: hidden; }
 .cm-drawer-x:hover { background: var(--surface-subtle, var(--bg-warm)); }
 .cm-drawer-x svg { width: 17px; height: 17px; }
 
-.cm-drawer-corpo { flex: 1; overflow-y: auto; padding: 18px 20px; }
+/* `min-height: 0` é o que faz o scroll acontecer AQUI e não na página: sem
+   ele, um filho de flex column não encolhe abaixo do próprio conteúdo e o
+   painel inteiro é que cresce. `overscroll-behavior` impede que o fim da lista
+   passe a rolagem adiante para o fundo. */
+.cm-drawer-corpo {
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 18px 20px;
+}
 .cm-drawer-pe {
   display: flex; justify-content: flex-end; gap: 10px;
+  flex-shrink: 0;
   padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--border, var(--hair));
   background: var(--surface, var(--bg-card));
+}
+
+/* ── Tablet: painel lateral, ainda generoso com a tela ─────────────────── */
+@media (min-width: 641px) {
+  .cm-drawer-raiz { justify-content: flex-end; align-items: stretch; }
+  .cm-drawer {
+    width: min(520px, 70vw);
+    height: 100%; max-height: 100%;
+    border-radius: 0;
+    box-shadow: -12px 0 40px rgba(0, 0, 0, .16);
+    animation: cm-entra .22s cubic-bezier(.2, .8, .3, 1);
+  }
+}
+
+/* ── Desktop: painel de leitura confortável ────────────────────────────── */
+/* `clamp` em vez de `min`: o piso de 440px garante que rótulo e valor caibam
+   lado a lado num notebook de 1280px, e o teto de 560px impede que a tela
+   grande estique a linha até ficar cansativa de ler. Em 1366px dá 560px; em
+   1024px dá 440px, que ainda deixa 584px de lista visível atrás. */
+@media (min-width: 901px) {
+  .cm-drawer { width: clamp(440px, 42vw, 560px); }
 }
 
 .cm-campo { margin-bottom: 14px; }
@@ -363,17 +414,53 @@ body.cm-travado { overflow: hidden; }
 }
 .cm-check input { margin-top: 2px; flex-shrink: 0; }
 
-@media (max-width: 560px) {
-  .cm-linha-campos { grid-template-columns: 1fr; }
-}
+/* O empilhamento dos campos vive no bloco de celular, junto com o resto da
+   adaptação do drawer — ver o @media (max-width: 640px) no fim do arquivo. */
 
 /* ── Drawer do cliente ─────────────────────────────────────────────────── */
-.cm-dw .cm-drawer-topo { align-items: flex-start; }
+/* GRID, não flex, e é isso que tira o X de cima do nome: a coluna da esquerda
+   é `minmax(0, 1fr)` e a da direita é o botão. O espaço do X fica RESERVADO
+   antes de o nome existir, então nome comprido quebra em duas linhas dentro da
+   própria coluna em vez de empurrar o botão para a linha de baixo.
+
+   Vem depois de `.cm-drawer-topo` no arquivo de propósito: as duas classes
+   estão no mesmo elemento e têm a mesma especificidade, quem vier por último
+   vence. */
+.cm-dw-topo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 14px;
+  padding: 20px 22px 16px;
+}
 .cm-dw-id { min-width: 0; }
-.cm-dw-id h2 { margin: 0 0 7px; font-size: 19px; font-weight: 800; line-height: 1.2; }
+
+/* Duas linhas no máximo. Nome de cliente brasileiro passa fácil de 40
+   caracteres, e sem o limite ele empurrava a assinatura para fora da dobra. */
+.cm-dw-nome {
+  margin: 0 0 9px;
+  font-size: 19px; font-weight: 800; line-height: 1.3;
+  letter-spacing: -.01em;
+  color: var(--text-primary, var(--ink));
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* A alça do sheet: só existe no celular, onde o painel sobe de baixo. */
+.cm-dw-alca { display: none; }
+
 .cm-dw-sub {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
   font-size: 12.5px; font-weight: 600; color: var(--text-secondary, var(--ink-mute));
+}
+/* "Trimestral - 5x · Diurno". O ponto separa os TEXTOS entre si e não vem
+   depois do badge — ali a própria pílula já é a fronteira. Por isso o seletor
+   pede um irmão que não seja badge antes. */
+.cm-dw-sub > span:not(.cm-badge) + span::before {
+  content: '·';
+  margin-right: 8px;
+  color: var(--text-muted, var(--ink-mute));
 }
 .cm-dw-tel {
   display: inline-flex; align-items: center; gap: 6px; margin-top: 8px;
@@ -383,25 +470,73 @@ body.cm-travado { overflow: hidden; }
 .cm-dw-tel:hover { color: var(--primary, var(--moss)); }
 .cm-dw-tel svg { width: 15px; height: 15px; }
 
-.cm-dw-secao { padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid var(--hair, var(--line)); }
+.cm-dw-secao { padding-bottom: 22px; margin-bottom: 22px; border-bottom: 1px solid var(--hair, var(--line)); }
 .cm-dw-secao:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
 .cm-dw-t {
-  margin: 0 0 10px; font-size: 11px; font-weight: 800; text-transform: uppercase;
-  letter-spacing: 0.06em; color: var(--text-secondary, var(--ink-mute));
+  margin: 0 0 12px; font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--text-secondary, var(--ink-mute));
 }
 
+/* A grade de dado. Duas colunas fixas em proporção, não `space-between`: com
+   flex o rótulo curto e o rótulo longo alinhavam o valor em posições
+   diferentes, e a coluna da direita ficava serrilhada de cima a baixo. */
 .cm-dw-linha {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 14px;
-  padding: 7px 0; font-size: 13.5px;
+  display: grid;
+  grid-template-columns: minmax(130px, 0.8fr) minmax(0, 1.2fr);
+  gap: 16px;
+  align-items: baseline;
+  padding: 8px 0; font-size: 13.5px;
 }
-.cm-dw-rot { color: var(--text-secondary, var(--ink-mute)); flex-shrink: 0; }
-.cm-dw-val { font-weight: 700; text-align: right; color: var(--text-primary, var(--ink)); }
+.cm-dw-rot { color: var(--text-secondary, var(--ink-mute)); min-width: 0; }
+
+/* Coluna, para o valor e a informação secundária empilharem sem disputar a
+   mesma linha. `tabular-nums` mantém data e dinheiro alinhados entre linhas. */
+.cm-dw-val {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 3px;
+  min-width: 0;
+  font-weight: 700; text-align: right;
+  color: var(--text-primary, var(--ink));
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
 .cm-dw-val small { font-weight: 600; color: var(--text-secondary, var(--ink-mute)); }
 
-.cm-dw-nota { margin: 4px 0 12px; font-size: 13px; line-height: 1.5; color: var(--text-secondary, var(--ink-mute)); }
+/* "Vencido há 361 dias" — segunda ordem: menor, mais leve, e vermelho apenas
+   quando é atraso de verdade. */
+.cm-dw-sub-val {
+  font-size: 12px; font-weight: 600;
+  color: var(--text-secondary, var(--ink-mute));
+}
+.cm-dw-alerta { color: var(--danger, #C0392B); font-weight: 700; }
+
+/* O DE/PARA — "R$ 311,00 → R$ 330,00" — é UM bloco, nunca texto solto.
+   Escrito corrido dentro da célula de valor, o navegador quebrava logo depois
+   da seta: ela ficava pendurada no fim da linha e o valor novo sozinho
+   embaixo. A seta não é conteúdo, é a relação entre os dois valores.
+   `nowrap` no conjunto; no celular a linha inteira desce para baixo do
+   rótulo, mas desce INTEIRA. */
+.cm-dw-depara {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 6px;
+  white-space: nowrap;
+  min-width: 0;
+}
+.cm-dw-de   { color: var(--text-secondary, var(--ink-mute)); font-weight: 600; }
+.cm-dw-seta { color: var(--text-muted, var(--ink-mute)); font-weight: 600; }
+.cm-dw-para { font-weight: 800; }
+
+/* O período vigente tem a mesma natureza: duas datas ligadas por uma seta. */
+.cm-dw-periodo { white-space: nowrap; }
+
+.cm-dw-nota { margin: 4px 0 0; font-size: 13px; line-height: 1.5; color: var(--text-secondary, var(--ink-mute)); }
 .cm-dw-obs { margin: 0; font-size: 13.5px; line-height: 1.55; white-space: pre-wrap; }
 
 .cm-dw-secao .cm-btn { margin-top: 12px; width: 100%; justify-content: center; }
+
+/* As ações ficam num bloco só, colado na informação que explicam — soltas no
+   fim da seção elas pareciam pertencer ao drawer, não à cobrança. */
+.cm-dw-acoes { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.cm-dw-acoes .cm-btn { margin-top: 0; width: 100%; justify-content: center; }
 
 /* O aviso de cobrança já paga: ocupa o lugar do botão, para não haver como
    registrar um segundo pagamento sem ver que já existe um. */
@@ -420,17 +555,17 @@ body.cm-travado { overflow: hidden; }
 .cm-dw-hists { list-style: none; margin: 0; padding: 0; }
 .cm-dw-hist {
   display: flex; flex-direction: column; gap: 5px;
-  padding: 11px 0;
+  padding: 14px 0;
   border-top: 1px solid var(--hair, var(--line)); font-size: 13px;
 }
-.cm-dw-hist:first-child { border-top: none; }
+.cm-dw-hist:first-child { border-top: none; padding-top: 2px; }
 
 .cm-dw-hist-id {
   display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
 }
 /* "Agosto/2026" — o período é o que o cliente reconhece, não a data solta. */
-.cm-dw-hist-comp { font-weight: 800; font-size: 13.5px; }
-.cm-dw-hist-valor { font-weight: 700; font-variant-numeric: tabular-nums; }
+.cm-dw-hist-comp { font-weight: 800; font-size: 13.5px; min-width: 0; overflow-wrap: anywhere; }
+.cm-dw-hist-valor { font-weight: 700; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 
 /* O vencimento em linha própria: a hierarquia da leitura é competência →
    valor → vencimento → situação, e amontoar tudo numa linha de meta fazia a
@@ -446,7 +581,12 @@ body.cm-travado { overflow: hidden; }
 }
 .cm-dw-hist-atraso { color: var(--danger, #C0392B); font-weight: 800; }
 
-.cm-dw-hist-acoes { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 3px; }
+/* As ações da linha ficam LADO A LADO. Sem o `width: auto`, elas herdam o
+   `width: 100%` que a seção dá aos botões e viram três barras empilhadas —
+   o histórico inteiro passa a parecer uma pilha de chamadas para ação, e a
+   lista deixa de ser lista. */
+.cm-dw-hist-acoes { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.cm-dw-hist-acoes .cm-btn { width: auto; margin-top: 0; }
 
 /* Cancelada continua legível — some da lista operacional, não da leitura de
    quem foi procurá-la. Sem tarja e sem risco: ela não é erro, é decisão. */
@@ -519,6 +659,60 @@ body.cm-travado { overflow: hidden; }
   .cm-kpi-val { font-size: 22px; }
 }
 
+/* ── Celular e PWA: o painel vira sheet ────────────────────────────────── */
+/* A estrutura é a MESMA — o que muda é a direção da leitura. Rótulo e valor
+   deixam de disputar a largura e passam a empilhar, porque em 360px duas
+   colunas transformam "19/05/2025 → 17/08/2025" em três linhas quebradas. */
+@media (max-width: 640px) {
+  .cm-dw-alca {
+    display: block;
+    grid-column: 1 / -1;
+    width: 38px; height: 4px; margin: 0 auto 12px;
+    border-radius: 999px;
+    background: var(--border-strong, var(--hair));
+  }
+
+  .cm-drawer-topo { padding: 14px 18px 13px; }
+  .cm-dw-topo { padding: 12px 18px 14px; }
+  .cm-dw-nome { font-size: 18px; margin-bottom: 8px; }
+
+  /* Alvo de toque de 44px, o mínimo confortável de polegar. */
+  .cm-drawer-x { width: 44px; height: 44px; border-radius: 12px; }
+  .cm-drawer-x svg { width: 19px; height: 19px; }
+
+  /* O respiro de baixo soma o inset do aparelho à barra inferior do PWA:
+     sem isto a última cobrança do histórico fica atrás dela e ninguém
+     descobre que havia mais uma. */
+  .cm-drawer-corpo { padding: 16px 18px calc(28px + env(safe-area-inset-bottom, 0px)); }
+
+  .cm-dw-linha {
+    grid-template-columns: 1fr;
+    gap: 3px;
+    padding: 10px 0;
+  }
+  .cm-dw-rot {
+    font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .cm-dw-val {
+    align-items: flex-start; text-align: left;
+    font-size: 14.5px;
+  }
+
+  .cm-dw-secao { padding-bottom: 20px; margin-bottom: 20px; }
+
+  /* Cada cobrança é um bloco compacto, nunca uma tabela larga espremida. */
+  .cm-dw-hist { padding: 15px 0; gap: 6px; }
+  .cm-dw-hist-acoes { gap: 8px; }
+  .cm-dw-hist-acoes .cm-btn-mini { min-height: 38px; flex: 1 1 auto; justify-content: center; }
+  /* Cobrança paga tem uma ação só ("Ver receita"). Esticada na largura toda
+     ela pesaria como chamada principal — e é consulta, não trabalho. */
+  .cm-dw-hist-acoes .cm-btn-mini:only-child { flex: 0 0 auto; }
+
+  .cm-linha-campos { grid-template-columns: 1fr; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cm-aba, .cm-chip, .cm-linha { transition: none; }
+  .cm-drawer, .cm-drawer-raiz { animation: none; }
 }

@@ -18,7 +18,7 @@ const HOJE = '2026-08-06';
 
 const ass = (nome, fim, extra = {}) => ({
   id: 'a-' + nome, status: 'ativa',
-  paciente: { id: 'p-' + nome, nome, telefone: '5527992264711' },
+  paciente: { id: 'p-' + nome, nome, telefone: '5527900000000' },
   plano: { nome: 'Mensal - 3x', duracao_valor: 30, duracao_unidade: 'dia' },
   horario: 'Noturno',
   inicio_periodo: '2026-07-31', fim_periodo: fim,
@@ -81,11 +81,11 @@ grupo('comercial · indicadores', () => {
 });
 
 grupo('comercial · a tabela não é a planilha', () => {
-  const html = tabelaHtml([ass('Claudia', '2026-09-02')], HOJE);
+  const html = tabelaHtml([ass('Paciente Teste B', '2026-09-02')], HOJE);
 
   teste('são dez colunas, não dezessete', () => {
     igual(COLUNAS.length, 10);
-    contem(html, 'Próximo vencimento');
+    contem(html, 'Período termina em');
     contem(html, 'Situação');
     contem(html, 'Pagamento');
   });
@@ -94,6 +94,30 @@ grupo('comercial · a tabela não é a planilha', () => {
     for (const proibida of ['Dias Vencidos', 'Mês', 'Ano', 'CONTATO Z-API', 'DISPARO', 'Status Pagamento']) {
       naoContem(html, proibida);
     }
+  });
+
+  // ── UM CAMPO, UM NOME ──────────────────────────────────────────────────
+  // `fim_periodo` chamava-se "Próximo vencimento" aqui e no drawer, e
+  // `financeiro_lancamentos.vencimento` chamava-se "Vencimento" na seção de
+  // cobrança. Dois conceitos, e o nome de um deles emprestado ao outro — no
+  // ciclo em que a cobrança existe as duas datas coincidem, e a tela parecia
+  // estar repetindo ou mostrando dado velho.
+  teste('fim_periodo se chama "Período termina em" — nunca "Próximo vencimento"', () => {
+    contem(html, 'Período termina em');
+    naoContem(html, 'Próximo vencimento');
+    igual(COLUNAS.filter(c => /vencimento/i.test(c)).join(', '), '',
+          '"Vencimento" fica reservado para a cobrança, no drawer');
+  });
+
+  teste('o rótulo é o mesmo do drawer, para o mesmo campo', () => {
+    // Se um dos dois for renomeado sozinho, o vocabulário do módulo racha de
+    // novo — e a próxima pessoa a ler a tela volta a achar que são a mesma
+    // coisa, ou que uma delas está errada.
+    const drawer = readFileSync(new URL('../js/comercial-drawer.js', import.meta.url), 'utf8');
+    contem(drawer, "linha('Período termina em'");
+    ok(!/linha\('Próximo vencimento'/.test(drawer));
+    // E a cobrança continua com o nome dela.
+    contem(drawer, "linha('Vencimento'");
   });
 
   teste('a linha inteira NÃO é colorida — a cor vive no badge', () => {
@@ -109,8 +133,8 @@ grupo('comercial · a tabela não é a planilha', () => {
   });
 
   teste('o telefone vira link de WhatsApp com o número normalizado', () => {
-    contem(html, 'https://wa.me/5527992264711');
-    contem(html, '(27) 99226-4711');
+    contem(html, 'https://wa.me/5527900000000');
+    contem(html, '(27) 90000-0000');
   });
 
   teste('sem cliente, a tabela dá instrução em vez de cabeçalho vazio', () => {
@@ -129,7 +153,7 @@ grupo('comercial · a tabela não é a planilha', () => {
 
 grupo('comercial · situação do cliente e da cobrança são colunas diferentes', () => {
   teste('cliente ativo com cobrança pendente mostra os dois estados', () => {
-    const a = ass('Eduardo', '2026-09-02', {
+    const a = ass('Paciente Teste C', '2026-09-02', {
       cobrancaAberta: { status: 'pendente', vencimento: '2026-09-02', valor: 330 },
     });
     const html = linhaClienteHtml(a, HOJE);
@@ -248,7 +272,7 @@ grupo('comercial · catálogo de planos', () => {
 grupo('comercial · a tela inteira', () => {
   const dados = {
     indicadores: { ativos: 71, venceEmBreve: 8, vencidos: 5, recebidoNoMes: 28068, aReceber: 3300 },
-    assinaturas: [ass('Claudia', '2026-09-02'), ass('Ana', '2026-08-10')],
+    assinaturas: [ass('Paciente Teste B', '2026-09-02'), ass('Ana', '2026-08-10')],
     planos: [{ id: 'p1', nome: 'Mensal - 3x', duracao_valor: 30, duracao_unidade: 'dia', ativo: true }],
     hoje: HOJE,
   };
@@ -269,7 +293,7 @@ grupo('comercial · a tela inteira', () => {
   teste('a aba de clientes conta quantos aparecem no recorte', () => {
     const html = telaHtml({ ...dados, aba: 'clientes' });
     contem(html, '2 clientes');
-    contem(html, 'Claudia');
+    contem(html, 'Paciente Teste B');
   });
 
   teste('o filtro muda a contagem', () => {
@@ -332,25 +356,51 @@ grupo('comercial · a camada de dados não inventa financeiro', () => {
     naoContem(fonte, "from('comercial_cobrancas')");
   });
 
+  // As duas regras abaixo MUDARAM DE CASA na Migration B (13/08/2026): saíram
+  // do JS e entraram em `comercial_registrar_pagamento`. Continuam valendo, e
+  // agora são cobradas onde moram — o que é mais forte, porque no banco nem
+  // outra aba nem outro cliente passam por cima.
+  const rpc = readFileSync(new URL('../db/comercial_pagamento_transacional.sql', import.meta.url), 'utf8');
+
   teste('o pagamento grava status, pago_em e forma numa operação só', () => {
-    contem(fonte, "status: 'pago'");
-    contem(fonte, 'pago_em: pagoEm');
-    contem(fonte, 'forma_pagamento');
+    const upd = rpc.slice(rpc.indexOf('update public.financeiro_lancamentos'));
+    contem(upd.slice(0, upd.indexOf('returning')), "set status          = 'pago'");
+    contem(upd.slice(0, upd.indexOf('returning')), 'pago_em         = p_pago_em');
+    contem(upd.slice(0, upd.indexOf('returning')), 'forma_pagamento = coalesce(p_forma_pagamento');
   });
 
   teste('o pagamento renova o período usando a regra, não +30 fixo', () => {
-    contem(fonte, 'renovar({ fimVigente: assinatura.fim_periodo');
-    naoContem(fonte, '+ 30');
+    // A mesma conta de inicioDaRenovacao()/fimDoPeriodo(), em SQL.
+    contem(rpc, 'v_atraso := p_pago_em - v_ass.fim_periodo;');
+    contem(rpc, 'if v_atraso <= v_tolerancia then');
+    contem(rpc, 'v_fim := v_inicio + v_duracao;');
+    ok(!/\+ 30\b/.test(rpc), 'duração fixa ignoraria o plano');
+    // E o JS não pode ter ficado com uma segunda cópia da regra.
+    ok(!/renovar\(\{/.test(fonte), 'a regra do período mora no banco desde a Migration B');
   });
 
   teste('toda consulta filtra pelo nutri explicitamente', () => {
-    // A conta do Eduardo é nutri E paciente; policies OR'd não bastam.
+    // A conta do proprietário é nutri E paciente; policies OR'd não bastam.
     const consultas = fonte.split('.from(').length - 1;
     const filtros = fonte.split(".eq('nutri_id'").length - 1;
     ok(filtros >= consultas - 3, `consultas=${consultas} filtros=${filtros}: falta filtro explícito`);
   });
 
-  teste('a competência da cobrança sai da regra, não é digitada', () => {
-    contem(fonte, 'competencia: competenciaDaCobranca(vencimento)');
+  // DUAS REGRAS ANTERIORES saíram daqui, nesta ordem: primeiro
+  // `competenciaDaCobranca(vencimento)`, quando o vencimento deixou de ser o
+  // fim do período; depois `(periodoFim)`, derrubada pela conferência 103.
+  teste('a competência sai do INÍCIO do período', () => {
+    contem(fonte, 'competencia: competenciaDaCobranca(periodoInicio)');
+    ok(!/competenciaDaCobranca\((vencimento|periodoFim)\)/.test(fonte),
+      'nem o vencimento nem o fim do período — ver js/comercial.js');
+  });
+
+  teste('a cobrança grava o período que cobre, tirado da assinatura', () => {
+    const f = fonte.slice(fonte.indexOf('export async function criarCobranca'));
+    const corpo = f.slice(0, f.indexOf('\n}'));
+    contem(corpo, 'const periodoInicio = assinatura?.inicio_periodo');
+    contem(corpo, 'const periodoFim = assinatura?.fim_periodo');
+    contem(corpo, 'periodo_inicio: periodoInicio');
+    contem(corpo, 'periodo_fim: periodoFim');
   });
 });
