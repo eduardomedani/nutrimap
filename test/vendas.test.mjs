@@ -66,6 +66,32 @@ grupo('xlsx · sharedStrings e estilos', () => {
     </styleSheet>`;
     igual(lerEstilosDeData(xml), [false]);
   });
+
+  teste('o "d" de [Red] não faz a coluna de moeda virar data', () => {
+    // Formato real da planilha "Pagamentos": moeda com negativo em vermelho.
+    // Lendo o [Red] como código de data, a coluna Valor virava 1900-10-26.
+    const xml = `<styleSheet>
+      <numFmts><numFmt numFmtId="8" formatCode="&quot;R$&quot;\\ #,##0.00;[Red]\\-&quot;R$&quot;\\ #,##0.00"/></numFmts>
+      <cellXfs><xf numFmtId="8"/></cellXfs>
+    </styleSheet>`;
+    igual(lerEstilosDeData(xml), [false]);
+  });
+
+  teste('locale entre colchetes não basta para virar data', () => {
+    const xml = `<styleSheet>
+      <numFmts><numFmt numFmtId="167" formatCode="[$-416]#,##0.00"/></numFmts>
+      <cellXfs><xf numFmtId="167"/></cellXfs>
+    </styleSheet>`;
+    igual(lerEstilosDeData(xml), [false]);
+  });
+
+  teste('data de verdade continua sendo data depois dos descartes', () => {
+    const xml = `<styleSheet>
+      <numFmts><numFmt numFmtId="168" formatCode="[$-416]dd/mm/yyyy;@"/></numFmts>
+      <cellXfs><xf numFmtId="168"/></cellXfs>
+    </styleSheet>`;
+    igual(lerEstilosDeData(xml), [true]);
+  });
 });
 
 // ───────────────────────────────────────────────────────────
@@ -95,6 +121,19 @@ grupo('xlsx · células viram linhas', () => {
   teste('a referência da coluna é decodificada de A..Z e além', () => {
     const s = `<worksheet><row r="1"><c r="AA1"><v>7</v></c></row></worksheet>`;
     igual(lerLinhas(s, [], [])[0].celulas[26], 7);
+  });
+
+  teste('célula vazia autofechada não rouba o valor da seguinte', () => {
+    // O Excel escreve <c r="B1" s="6"/> para a célula que tem só formatação.
+    // Casando o </c> da célula seguinte, o leitor gravava 42 na coluna B e
+    // perdia a C — a linha inteira andava sem aviso.
+    const s = `<worksheet><row r="1">` +
+              `<c r="A1"><v>1</v></c><c r="B1" s="6"/><c r="C1"><v>42</v></c>` +
+              `</row></worksheet>`;
+    const c = lerLinhas(s, [], [])[0].celulas;
+    igual(c[0], 1);
+    igual(c[1], null);   // a célula existe e está vazia — não é o 42 da C
+    igual(c[2], 42);
   });
 });
 

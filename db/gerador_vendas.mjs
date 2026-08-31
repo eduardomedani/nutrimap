@@ -100,7 +100,17 @@ const DATA_EMBUTIDOS = new Set([14, 15, 16, 17, 18, 19, 20, 21, 22, 45, 46, 47])
 export function lerEstilosDeData(xml) {
   const custom = new Set();
   for (const m of (xml || '').matchAll(/<numFmt[^>]*numFmtId="(\d+)"[^>]*formatCode="([^"]*)"/g)) {
-    const codigo = desescapar(m[2]).replace(/"[^"]*"/g, '');   // fora o texto literal
+    // Fora tudo o que NÃO é código de data, senão a letra do dia aparece onde
+    // não há dia nenhum:
+    //   "dias"\ 0        texto literal entre aspas
+    //   [Red] [$-409]    cor, condição e locale — o "d" de [Red] fazia toda
+    //                    moeda com negativo em vermelho virar coluna de data,
+    //                    e a planilha de pagamentos usa exatamente esse formato
+    //   \d               caractere escapado com barra é literal, não código
+    const codigo = desescapar(m[2])
+      .replace(/"[^"]*"/g, '')
+      .replace(/\[[^\]]*\]/g, '')
+      .replace(/\\./g, '');
     if (/[dmy]/i.test(codigo)) custom.add(Number(m[1]));
   }
   const bloco = /<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/.exec(xml || '');
@@ -138,14 +148,19 @@ export function lerLinhas(sheetXml, shared, ehData) {
   const linhas = [];
   for (const mr of (sheetXml || '').matchAll(/<row[^>]*r="(\d+)"[^>]*>([\s\S]*?)<\/row>/g)) {
     const celulas = [];
-    for (const mc of mr[2].matchAll(/<c([^>]*)>([\s\S]*?)<\/c>/g)) {
+    // A alternativa `\/>` é o que trata a célula VAZIA COM ESTILO, que o Excel
+    // escreve autofechada: <c r="G2" s="6"/>. Sem ela o `</c>` casado era o da
+    // PRÓXIMA célula preenchida, e o valor dessa outra coluna era gravado na
+    // vazia — deslocando o resto da linha em silêncio.
+    for (const mc of mr[2].matchAll(/<c([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
       const attrs  = mc[1];
+      const corpo  = mc[2] ?? '';
       const ref    = /r="([A-Z]+\d+)"/.exec(attrs)?.[1] || '';
       const tipo   = /t="([^"]+)"/.exec(attrs)?.[1] || 'n';
       const estilo = Number(/s="(\d+)"/.exec(attrs)?.[1] ?? -1);
 
-      const mv  = /<v>([\s\S]*?)<\/v>/.exec(mc[2]);
-      const mis = /<is>[\s\S]*?<t[^>]*>([\s\S]*?)<\/t>/.exec(mc[2]);
+      const mv  = /<v>([\s\S]*?)<\/v>/.exec(corpo);
+      const mis = /<is>[\s\S]*?<t[^>]*>([\s\S]*?)<\/t>/.exec(corpo);
 
       let valor = null;
       if (tipo === 's' && mv) valor = shared[Number(mv[1])] ?? '';
