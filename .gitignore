@@ -75,3 +75,19 @@ db/comercial_clientes_novos.json
 # Preferencias do Claude Code desta MAQUINA (permissoes locais). O
 # .claude/settings.json vai versionado; este nao.
 .claude/settings.local.json
+
+# Pagamentos da planilha "Pagamentos.xlsx": o retrato do banco traz NOME DE
+# CLIENTE, valor, data e periodo contratado, e os dois scripts gerados a partir
+# dele carregam a mesma coisa. Mesma regra dos outros seeds —
+# db/gerador_pagamentos_da_planilha.mjs vai versionado, os dados nao. Quem tiver
+# a planilha e rodar db/conferencia/107_pagamentos_da_planilha_estado.sql
+# reproduz os quatro arquivos com um comando.
+db/retrato_pagamentos.csv
+db/comercial_pagamentos_da_planilha.sql
+db/comercial_pagamentos_da_planilha_desfazer.sql
+
+# Molde de restauracao das observacoes apagadas em 31/08/2026: traz nome de
+# cliente na coluna de conferencia, e e preenchido a mao com a coluna K da
+# planilha "Vendas". O conserto que NAO tem nome
+# (db/comercial_pagamentos_observacao_corrigir.sql) vai versionado.
+db/comercial_pagamentos_observacao_restaurar.sql
