@@ -4,6 +4,20 @@
 -- Roda DEPOIS de db/conferencia/101, 102 e 103, nesta ordem. Para colar, use
 -- comercial_periodo_da_cobranca_LIMPO.sql
 --
+-- ATENCAO — AS DUAS RPCs DAQUI FORAM SUBSTITUIDAS EM 01/09/2026. A versao em
+-- vigor esta em db/multiusuario_etapa4b_rpc.sql, que e este mesmo texto MENOS
+-- os blocos "TETO TEMPORARIO". A Etapa 4B migrou `comercial_assinaturas` e
+-- `financeiro_lancamentos` para a organizacao, que era a condicao escrita no
+-- proprio teto para ele sair.
+--
+-- NAO APLIQUE ESTE ARQUIVO SOZINHO depois da 4B: o `create or replace`
+-- reporia o teto, e a Recepcao voltaria a nao conseguir registrar pagamento —
+-- em silencio, porque a tela continuaria listando tudo. Se precisar reaplicar
+-- a Migration C, rode db/multiusuario_etapa4b_rpc.sql logo em seguida.
+--
+-- Ele fica aqui na integra porque e dele que db/multiusuario_etapa4b_rpc.sql e
+-- extraido, e e dele que o desfazer da 4B tira o texto com o teto.
+--
 -- O QUE ESTA MIGRATION CONSERTA
 --
 -- Em 13/08/2026 a cobranca criada a mao passou a vencer em `criacao + 30 dias`,

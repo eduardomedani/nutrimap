@@ -13,6 +13,12 @@
 -- texto anterior. Nao aplique este arquivo depois da C sem aplicar a C de novo
 -- em seguida: o `create or replace` sobrescreveria a versao nova.
 --
+-- DESDE 01/09/2026 A CADEIA TEM MAIS UM ELO. A versao em vigor passou a ser
+-- db/multiusuario_etapa4b_rpc.sql (Etapa 4B), que e a Migration C sem os
+-- blocos "TETO TEMPORARIO". A ordem de reaplicacao, se um dia for preciso, e
+-- B -> C -> 4B. Parar em qualquer ponto antes do fim repoe o teto e tira da
+-- Recepcao a capacidade de registrar pagamento, sem nenhum erro na tela.
+--
 -- NAO APLICAR antes de os casos funcionais A-E da Migration A passarem e de a
 -- origem das cobrancas de 13/08 estar esclarecida.
 --
