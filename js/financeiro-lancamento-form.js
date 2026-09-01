@@ -84,14 +84,21 @@ let _aberto = false;
  * Abre o drawer.
  *
  * @param {object} opcoes
- *   nutriId     — dono das linhas
+ *   nutriId     — VESTIGIAL desde a Etapa 4B, Fase 1. O dono das linhas passou a
+ *                 sair do default da coluna no banco, e as funções de escrita
+ *                 (`criarCategoria`, `criarCentroCusto`, `criarDespesa`) não
+ *                 recebem mais dono. O parâmetro continua aceito para não
+ *                 quebrar os três chamadores em js/financeiro-ui.js e
+ *                 js/financeiro-despesas-ui.js; ignorá-lo é a correção, não um
+ *                 esquecimento. Sai quando o encanamento de `_nutriId` for
+ *                 removido — limpeza, não pré-requisito da Fase 2.
  *   tipo        — 'despesa' (padrão) ou 'receita'
  *   lancamento  — null cria; objeto edita
  *   inicial     — formulário pré-preenchido (duplicar)
  *   aoSalvar    — chamado depois de gravar, para a tela recarregar
  */
 export async function abrirLancamento({
-  nutriId, tipo = 'despesa', lancamento = null, inicial = null, aoSalvar = null,
+  nutriId: _donoVemDoBanco, tipo = 'despesa', lancamento = null, inicial = null, aoSalvar = null,
 } = {}) {
   if (_aberto) return;
   _aberto = true;
@@ -259,11 +266,11 @@ export async function abrirLancamento({
     form = coletar();
     try {
       if (qual === 'categoria') {
-        const c = await criarCategoria(nutriId, { nome: nome.trim(), tipo });
+        const c = await criarCategoria({ nome: nome.trim(), tipo });
         categorias = await listarCategorias(tipo);
         form.categoria_id = c.id;
       } else {
-        const c = await criarCentroCusto(nutriId, nome.trim());
+        const c = await criarCentroCusto(nome.trim());
         centros = await listarCentrosCusto();
         form.centro_custo_id = c.id;
       }
@@ -322,7 +329,7 @@ export async function abrirLancamento({
         }
         await salvarDespesa(lancamento.id, campos);
       } else {
-        await criarDespesa(nutriId, campos);
+        await criarDespesa(campos);
       }
 
       botao.innerHTML = '<i data-lucide="check"></i> Salvo';

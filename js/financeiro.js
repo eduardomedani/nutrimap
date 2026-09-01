@@ -14,6 +14,16 @@
 // Por isso `pendencias()` existe e a tela mostra o que falta em vez de exibir
 // um total com cara de completo.
 
+// O DONO SAI DO BANCO — Etapa 4B, Fase 1. Nenhuma escrita deste arquivo manda
+// `nutri_id`: quem determina o tenant é o default da coluna. Antes, as quatro
+// funções de criação recebiam o dono como PARÂMETRO, encanado desde
+// `initFinanceiroUI` — o que dava a uma tela o poder de escolher o dono de uma
+// linha, por engano ou por request adulterado.
+//
+// As LEITURAS continuam sem filtro de `nutri_id`, e isso é o desenho certo:
+// aqui é o RLS que isola, e a Fase 2 troca a policy sem tocar nesta camada.
+// Diferente do Comercial, que filtra explicitamente porque a conta do
+// proprietário é nutri E paciente ao mesmo tempo.
 import { sb } from './supabase.js';
 import { formatarBRL, valorDeTexto } from './utils.js';
 import { nomeCompetencia, competenciaDe, competenciaAtual } from './folha.js';
@@ -447,9 +457,11 @@ export async function listarCentrosCusto() {
   return data || [];
 }
 
-export async function criarCentroCusto(nutriId, nome) {
+/** Sem `nutri_id`: quem determina o tenant é o default da coluna. Ver o bloco
+ *  "O DONO SAI DO BANCO" no topo deste arquivo. */
+export async function criarCentroCusto(nome) {
   const { data, error } = await sb.from('financeiro_centros_custo')
-    .insert({ nutri_id: nutriId, nome: String(nome || '').trim() })
+    .insert({ nome: String(nome || '').trim() })
     .select('id, nome, ativo, ordem')
     .single();
   if (error) throw error;
@@ -468,9 +480,9 @@ export async function auditoriaDoLancamento(id, { limite = 30 } = {}) {
   return data || [];
 }
 
-export async function criarCategoria(nutriId, { nome, tipo = 'despesa', ordem = 0 }) {
+export async function criarCategoria({ nome, tipo = 'despesa', ordem = 0 }) {
   const { data, error } = await sb.from('financeiro_categorias')
-    .insert({ nutri_id: nutriId, nome: String(nome || '').trim(), tipo, ordem })
+    .insert({ nome: String(nome || '').trim(), tipo, ordem })
     .select('id, nome, tipo, ativo, ordem')
     .single();
   if (error) throw error;
@@ -517,11 +529,10 @@ export async function salvarLancamento(id, dados) {
   if (error) throw error;
 }
 
-export async function criarLancamento(nutriId, dados) {
+export async function criarLancamento(dados) {
   const data = String(dados.data || '').slice(0, 10);
   const { data: criado, error } = await sb.from('financeiro_lancamentos')
     .insert({
-      nutri_id: nutriId,
       tipo: dados.tipo || 'despesa',
       data,
       competencia: data.slice(0, 8) + '01',
@@ -546,9 +557,9 @@ export async function criarLancamento(nutriId, dados) {
  * usuário e é o campo que manda — derivar da data de pagamento poria a despesa
  * no mês errado toda vez que se paga em atraso.
  */
-export async function criarDespesa(nutriId, campos) {
+export async function criarDespesa(campos) {
   const { data, error } = await sb.from('financeiro_lancamentos')
-    .insert({ ...campos, nutri_id: nutriId, origem: 'manual' })
+    .insert({ ...campos, origem: 'manual' })
     .select('id')
     .single();
   if (error) throw error;

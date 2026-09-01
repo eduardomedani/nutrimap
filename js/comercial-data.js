@@ -1,13 +1,26 @@
 // ═══════════════════════════════════════════════════════════
 // COMERCIAL — camada de dados
 // ═══════════════════════════════════════════════════════════
-// Tudo com a anon-key + RLS (`nutri_id = auth.uid()`). As regras não moram
-// aqui: este arquivo busca e grava, js/comercial.js decide.
+// Tudo com a anon-key + RLS. As regras não moram aqui: este arquivo busca e
+// grava, js/comercial.js decide.
+//
+// O DONO É A ORGANIZAÇÃO, NÃO A PESSOA — Etapa 4B, Fase 1. Todas as funções
+// resolvem o tenant por `organizacaoAtual()`. Antes disto era `auth.uid()`, e
+// era essa suposição que deixava a tela do Comercial VAZIA para quem não fosse
+// o proprietário: a consulta pedia `nutri_id = <uuid da pessoa>` e nenhuma
+// linha tinha esse uuid.
+//
+// A FASE 1 VEM ANTES DA RLS, e a ordem não é preferência. Com a policy nova e o
+// frontend antigo, a tela abriria vazia sem erro — e o proprietário não
+// perceberia, porque para ele os dois uuid coincidem. Na ordem certa não há
+// janela de quebra: o frontend pede a organização, que para o proprietário é o
+// mesmo uuid de sempre, e a policy antiga (`nutri_id = auth.uid()`) aceita.
 //
 // FILTRO EXPLÍCITO, sempre. A conta do proprietário é nutri E paciente ao mesmo
 // tempo, e as policies do projeto são OR'd — uma consulta que dependesse só do
 // RLS para isolar devolveria dado de mais. O RLS é a segunda camada, não a
-// primeira.
+// primeira. Por isso o `.eq('nutri_id', ...)` continua em todas as leituras: o
+// que mudou foi o VALOR filtrado, não o desenho.
 
 import { sb } from './supabase.js';
 import { organizacaoAtual } from './organizacao.js';
@@ -18,29 +31,10 @@ import { organizacaoAtual } from './organizacao.js';
 // Elas seguem em js/comercial.js, usadas pela prévia da tela.
 import { competenciaDaCobranca } from './comercial.js';
 
-/**
- * O dono do dado ANTES da Etapa 4 — o uuid da própria pessoa.
- *
- * Continua aqui porque `comercial_assinaturas`, `financeiro_lancamentos`,
- * `financeiro_categorias` e `pacientes` ainda têm policies em
- * `nutri_id = auth.uid()`. Trocar por `organizacaoAtual()` nessas funções
- * faria a camada de dados pedir a organização contra uma policy que exige a
- * pessoa — para o proprietário daria no mesmo, e para mais ninguém.
- *
- * Some quando o último módulo migrar. Enquanto existirem os dois, a diferença
- * entre `nutriId()` e `organizacaoAtual()` é o mapa de quem já migrou.
- */
-async function nutriId() {
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) throw new Error('sem_sessao');
-  return user.id;
-}
-
 // ── PLANOS ────────────────────────────────────────────────────
-// MIGRADO NA ETAPA 4A. As três funções abaixo resolvem o dono por
-// `organizacaoAtual()`, e as policies de `comercial_planos` exigem
-// `organizacao_do_auth()` + `tem_permissao()`. É o único bloco do módulo nesse
-// estado; ver db/multiusuario_comercial_planos_rls.sql.
+// MIGRADO NA ETAPA 4A. As policies de `comercial_planos` já exigem
+// `organizacao_do_auth()` + `tem_permissao()`; ver
+// db/multiusuario_comercial_planos_rls.sql.
 
 export async function listarPlanos({ incluirInativos = false } = {}) {
   const org = await organizacaoAtual();
@@ -105,7 +99,7 @@ export async function salvarPlano(planoId, dados) {
  *  Vale para os cinco embeds de `comercial_planos` deste arquivo, e vai valer
  *  para qualquer um novo. Há teste que falha se um deles vier sem a dica. */
 export async function listarAssinaturas({ incluirCanceladas = true } = {}) {
-  const id = await nutriId();
+  const id = await organizacaoAtual();
   let q = sb
     .from('comercial_assinaturas')
     .select('*, paciente:pacientes(id, nome, telefone, status), plano:comercial_planos!plano_id(*)')
@@ -117,7 +111,7 @@ export async function listarAssinaturas({ incluirCanceladas = true } = {}) {
 }
 
 export async function assinaturaDoPaciente(pacienteId) {
-  const id = await nutriId();
+  const id = await organizacaoAtual();
   const { data, error } = await sb
     .from('comercial_assinaturas')
     .select('*, paciente:pacientes(id, nome, telefone), plano:comercial_planos!plano_id(*)')
@@ -129,11 +123,14 @@ export async function assinaturaDoPaciente(pacienteId) {
   return data || null;
 }
 
+/** O INSERT NÃO MANDA `nutri_id` — quem determina o tenant é o banco, pelo
+ *  default da coluna. Mesma decisão de `criarPlano` na Etapa 4A: o frontend
+ *  manda dado de negócio e mais nada, então não existe caminho em que uma tela
+ *  escolha o dono de um registro, nem por engano nem por request adulterado. */
 export async function criarAssinatura(dados) {
-  const id = await nutriId();
   const { data, error } = await sb
     .from('comercial_assinaturas')
-    .insert({ ...dados, nutri_id: id })
+    .insert({ ...dados })
     .select('*, paciente:pacientes(id, nome, telefone), plano:comercial_planos!plano_id(*)')
     .single();
   if (error) throw error;
@@ -141,7 +138,7 @@ export async function criarAssinatura(dados) {
 }
 
 export async function salvarAssinatura(assinaturaId, dados) {
-  const id = await nutriId();
+  const id = await organizacaoAtual();
   const { nutri_id, id: _i, paciente, plano, ...limpo } = dados;
   const { data, error } = await sb
     .from('comercial_assinaturas')
@@ -159,7 +156,7 @@ export async function salvarAssinatura(assinaturaId, dados) {
 /** O histórico de uma assinatura: toda cobrança, paga ou não, mais nova
  *  primeiro. É daqui que saem recorrência, inadimplência e ticket médio. */
 export async function cobrancasDaAssinatura(assinaturaId) {
-  const id = await nutriId();
+  const id = await organizacaoAtual();
   const { data, error } = await sb
     .from('financeiro_lancamentos')
     .select('*')
@@ -172,7 +169,7 @@ export async function cobrancasDaAssinatura(assinaturaId) {
 
 /** As receitas de clientes do período — alimenta os indicadores da visão geral. */
 export async function receitasDeClientes({ de, ate } = {}) {
-  const id = await nutriId();
+  const id = await organizacaoAtual();
   let q = sb
     .from('financeiro_lancamentos')
     .select('id, tipo, valor, valor_pago, status, vencimento, pago_em, competencia, paciente_id, assinatura_id')
@@ -204,13 +201,12 @@ export async function receitasDeClientes({ de, ate } = {}) {
  * escolhe o que ela cobre.
  */
 export async function criarCobranca({ assinatura, vencimento, valor, descricao, categoriaId = null }) {
-  const id = await nutriId();
   const periodoInicio = assinatura?.inicio_periodo || null;
   const periodoFim = assinatura?.fim_periodo || null;
   const { data, error } = await sb
     .from('financeiro_lancamentos')
     .insert({
-      nutri_id: id,
+      // Sem `nutri_id`: o dono sai do default da coluna, como em criarAssinatura.
       tipo: 'receita',
       status: 'pendente',
       data: vencimento,
@@ -353,7 +349,7 @@ export async function cancelarCobrancaDetalhado(cobrancaId) {
  * @returns {object|null} a cobrança atualizada, ou null se não estava pendente.
  */
 export async function editarCobranca(cobrancaId, { valor, vencimento, observacoes } = {}) {
-  const id = await nutriId();
+  const id = await organizacaoAtual();
   const patch = {};
   if (valor !== undefined) patch.valor = valor;
   if (vencimento !== undefined) {
@@ -433,7 +429,7 @@ export async function registrarPagamento({
 /** Pacientes que ainda não têm vínculo comercial — os candidatos a virar
  *  cliente. Sem isto, cadastrar uma assinatura exigiria decorar quem falta. */
 export async function pacientesSemAssinatura() {
-  const id = await nutriId();
+  const id = await organizacaoAtual();
   const [{ data: pacientes, error: e1 }, { data: assinaturas, error: e2 }] = await Promise.all([
     sb.from('pacientes').select('id, nome, telefone').eq('nutri_id', id).order('nome'),
     sb.from('comercial_assinaturas').select('paciente_id').eq('nutri_id', id)
@@ -452,7 +448,7 @@ export async function pacientesSemAssinatura() {
  * pagamento quita qual cobrança". Duas consultas, não uma por cliente.
  */
 export async function assinaturasComCobrancaAberta() {
-  const id = await nutriId();
+  const id = await organizacaoAtual();
   const [{ data: assinaturas, error: e1 }, { data: abertas, error: e2 }] = await Promise.all([
     sb.from('comercial_assinaturas')
       .select('*, paciente:pacientes(id, nome), plano:comercial_planos!plano_id(*)')
@@ -485,7 +481,7 @@ export async function assinaturasComCobrancaAberta() {
 /** Categorias de receita — o "Pacote" da planilha já virou categoria no
  *  import de vendas, então elas provavelmente já existem. */
 export async function categoriasDeReceita() {
-  const id = await nutriId();
+  const id = await organizacaoAtual();
   const { data, error } = await sb
     .from('financeiro_categorias')
     .select('id, nome, ativo')

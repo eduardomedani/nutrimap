@@ -120,20 +120,24 @@ grupo('etapa 4a · o frontend do piloto', () => {
   });
 
   teste('nenhuma função de plano usa nutriId()', () => {
-    // nutriId() continua no arquivo, e deve continuar: as outras onze funções
-    // tocam tabelas ainda não migradas. Mas nenhuma das três de plano.
     for (const f of PLANOS) {
       ok(!/nutriId\(\)/.test(funcao(f)), `${f} ainda usa nutriId()`);
     }
   });
 
-  teste('nutriId() sobrevive para o que ainda não migrou', () => {
-    // Apagá-lo faria as onze funções restantes pedirem a organização contra
-    // policies que exigem a pessoa — quebra invisível para o proprietário.
-    contem(DADOS_JS, 'async function nutriId()');
-    for (const f of ['listarAssinaturas', 'criarCobranca', 'pacientesSemAssinatura']) {
-      contem(funcao(f), 'await nutriId()');
-    }
+  teste('nutriId() já não existe — a Fase 1 da 4B levou o módulo inteiro', () => {
+    // Este teste AFIRMAVA O CONTRÁRIO até a Etapa 4B. Na 4A, apagar nutriId()
+    // faria as outras onze funções pedirem a organização contra policies que
+    // exigiam a pessoa — quebra invisível para o proprietário, porque para ele
+    // os dois uuid coincidem.
+    //
+    // A Fase 1 da 4B migrou as onze, então o helper virou código morto. Deixá-lo
+    // vivo seria deixar à mão a suposição que a etapa inteira existe para
+    // remover: a próxima função nasceria com ela.
+    ok(!/async function nutriId\(\)/.test(DADOS_JS),
+       'nutriId() voltou — o dono do dado é a organização, não a pessoa');
+    ok(!/nutriId\(\)/.test(DADOS_JS),
+       'sobrou chamada a nutriId() em comercial-data.js');
   });
 
   teste('o INSERT não manda nutri_id', () => {

@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import { sb } from './supabase.js';
+import { organizacaoAtual } from './organizacao.js';
 import { registrarEvento, camposAlterados } from './timeline.js';
 
 // Campos cuja mudança é digna de virar evento. Ajuste de endereço, Instagram
@@ -55,9 +56,20 @@ export async function buscarPacientePorId(id) {
  * Gera código único via função SQL
  */
 export async function criarPaciente({ nome, email, telefone }) {
-  // Pegar usuário logado
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) throw new Error('Usuário não autenticado');
+  // O DONO É A ORGANIZAÇÃO, NÃO QUEM CLICOU — Etapa 4B, Fase 1.
+  //
+  // `nutri_id` CONTINUA SENDO ENVIADO, e isso é uma limitação de hoje, não uma
+  // escolha: `public.pacientes.nutri_id` é `not null` SEM DEFAULT
+  // (db/pacientes_legacy_baseline.sql). Parar de mandar agora quebraria o
+  // cadastro de cliente na hora, com violação de not-null. O campo sai quando a
+  // Fase 2 puser `default public.organizacao_do_auth()` na coluna — e só lá.
+  //
+  // Mandar a organização em vez de `user.id` já é ganho, e não depende do
+  // banco. Para o proprietário os dois uuid coincidem e nada muda. Para quem
+  // não é, o insert passa a ser RECUSADO pela policy (`auth.uid() = nutri_id`)
+  // em vez de criar, em silêncio, um paciente pendurado no uuid da pessoa —
+  // que ninguém mais da organização enxergaria.
+  const org = await organizacaoAtual();
 
   // Gerar código único
   const { data: codigo, error: errCod } = await sb.rpc('gerar_codigo_paciente');
@@ -68,7 +80,7 @@ export async function criarPaciente({ nome, email, telefone }) {
     .from('pacientes')
     .insert({
       codigo,
-      nutri_id: user.id,
+      nutri_id: org,
       nome: nome || null,
       email: email || null,
       telefone: telefone || null,
