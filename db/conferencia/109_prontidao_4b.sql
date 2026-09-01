@@ -24,6 +24,13 @@
 -- efeito: se ainda existir lancamento nascendo com o uuid da pessoa em vez do
 -- da organizacao, o frontend antigo ainda esta no ar em algum lugar.
 --
+-- LINHA DE OUTRO INQUILINO NAO E BLOQUEIO, e a primeira versao deste script
+-- errou nisso: ela contava como "orfa" qualquer linha cujo dono nao fosse esta
+-- organizacao, e barrou a Etapa 4B por um paciente que pertence a outra
+-- organizacao viva — dado que a RLS de HOJE ja nao nos mostra. O que bloqueia e
+-- linha SEM DONO: nutri_id que nao e organizacao nenhuma. Essa, sim, hoje
+-- alguem alcanca e depois ninguem alcanca.
+--
 -- Rodar no SQL Editor do Supabase.
 -- Para colar, use db/conferencia/109_prontidao_4b_LIMPO.sql
 -- ===========================================================================
@@ -76,14 +83,60 @@ begin
   insert into conf109 values (11, 'FASE 1', 'pacientes recentes fora da organizacao', v_n::text,
     case when v_n = 0 then 'OK' else 'criarPaciente ainda manda o uuid da pessoa' end);
 
-  -- Dado orfao de qualquer epoca: linha cujo dono nao e a organizacao. Depois
-  -- da migracao ela fica INVISIVEL para todo mundo, inclusive o proprietario.
+  -- Dado cujo dono nao e esta organizacao. Sao DOIS casos, e so um e problema —
+  -- a primeira versao deste script contava os dois juntos e barrou a migracao
+  -- por uma linha que estava certa.
+  --
+  --   DE OUTRA ORGANIZACAO: o nutri_id e o id de outra organizacao viva. E
+  --      outro inquilino, e a linha ja e invisivel para nos HOJE, porque a RLS
+  --      atual (`nutri_id = auth.uid()`) tambem nao casa. A 4B nao muda nada
+  --      para ela. Informativo, nao bloqueio.
+  --
+  --   SEM DONO: o nutri_id nao e organizacao nenhuma — conta apagada, resto de
+  --      migracao, fixture. Hoje alguem com aquele uuid ainda alcanca a linha;
+  --      depois da 4B ela nao pertence a organizacao alguma e some para todos,
+  --      sem aparecer em lugar nenhum. Isso sim resolve-se ANTES.
   foreach v_txt in array ALVOS loop
-    execute format('select count(*) from public.%I where nutri_id <> $1', v_txt)
-      into v_n using v_org;
-    insert into conf109 values (12, 'FASE 1', 'linhas orfas em ' || v_txt, v_n::text,
+    execute format($q$
+      select count(*) from public.%I t
+       where t.nutri_id <> $1
+         and not exists (select 1 from public.organizacoes o where o.id = t.nutri_id)
+    $q$, v_txt) into v_n using v_org;
+    insert into conf109 values (12, 'FASE 1', 'linhas SEM DONO em ' || v_txt, v_n::text,
       case when v_n = 0 then 'OK'
-           else 'estas somem da tela apos migrar — resolva ANTES' end);
+           else 'nao pertencem a organizacao nenhuma — resolva ANTES' end);
+  end loop;
+
+  foreach v_txt in array ALVOS loop
+    execute format($q$
+      select count(*) from public.%I t
+       where t.nutri_id <> $1
+         and exists (select 1 from public.organizacoes o where o.id = t.nutri_id)
+    $q$, v_txt) into v_n using v_org;
+    if v_n > 0 then
+      insert into conf109 values (13, 'OUTROS INQUILINOS', 'linhas em ' || v_txt, v_n::text,
+        'de outra organizacao — ja invisiveis hoje, nao bloqueiam');
+    end if;
+  end loop;
+
+  -- O INQUILINO VIZINHO CONSEGUE USAR O PROPRIO DADO?
+  --
+  -- Depois da 4B, `organizacao_do_auth()` e quem resolve o dono, e ela exige
+  -- vinculo ATIVO em `organizacao_usuarios`. Uma organizacao que exista sem
+  -- esse vinculo deixa de alcancar as proprias linhas — nao e problema NOSSO,
+  -- mas e o mesmo banco, e a conta e de gente de verdade.
+  for r in
+    select o.id, o.ativo,
+           (select count(*) from public.organizacao_usuarios ou
+             where ou.organizacao_id = o.id and ou.status = 'ativo') as vinculos
+      from public.organizacoes o
+     where o.id <> v_org
+  loop
+    insert into conf109 values (14, 'OUTROS INQUILINOS', 'organizacao ' || r.id,
+      'ativa: ' || r.ativo || ' | vinculos ativos: ' || r.vinculos,
+      case when r.vinculos = 0
+           then 'apos a 4B esta conta nao alcanca o proprio dado — avise antes'
+           else 'OK' end);
   end loop;
 
   -- ═══════════ FASE 2 — as policies ═══════════
