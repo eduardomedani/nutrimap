@@ -15,13 +15,13 @@ import {
 import { cobrancasDoForm, drawerHtml } from '../js/financeiro-lancamento-form.js';
 
 const COBRANCA = {
-  id: 'c1', descricao: 'Mensal - 3x — Claudia', valor: 330,
+  id: 'c1', descricao: 'Mensal - 3x — Cliente', valor: 330,
   vencimento: '2026-09-02', competencia: '2026-09-01', categoria_id: 'cat1', status: 'pendente',
 };
 
 const ASSINATURA = {
   id: 'a1',
-  paciente: { id: 'p1', nome: 'Claudia Marcia' },
+  paciente: { id: 'p1', nome: 'Cliente Exemplo' },
   plano: { nome: 'Mensal - 3x' },
   cobrancas: [COBRANCA],
 };
@@ -128,7 +128,7 @@ grupo('financeiro · a cobrança dita os campos', () => {
     // Redigitar é convite a divergir: o valor da tela e o da cobrança
     // precisam ser o mesmo número.
     const r = preencherDaCobranca(COBRANCA, ASSINATURA);
-    igual(r.descricao, 'Mensal - 3x — Claudia');
+    igual(r.descricao, 'Mensal - 3x — Cliente');
     igual(r.valor, '330,00');
     igual(r.categoria_id, 'cat1');
     igual(r.vencimento, '2026-09-02');
@@ -138,7 +138,7 @@ grupo('financeiro · a cobrança dita os campos', () => {
   teste('cobrança sem descrição ganha uma montada do plano e do cliente', () => {
     const r = preencherDaCobranca({ ...COBRANCA, descricao: null }, ASSINATURA);
     contem(r.descricao, 'Mensal - 3x');
-    contem(r.descricao, 'Claudia Marcia');
+    contem(r.descricao, 'Cliente Exemplo');
   });
 
   teste('sem cobrança, não preenche nada', () => {

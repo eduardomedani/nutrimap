@@ -30,10 +30,15 @@
 -- automatico de existencia. O script 73 tinha lido quatro contas como
 -- "nutricionistas fora da organizacao"; o script 82 mostrou o que elas sao:
 --
---   phablo.cabral@gbj-es.com.br    -> PACIENTE "Phablo Correa Cabral"
---   treinadordanielalves@gmail.com -> PACIENTE "Daniel Alves"
---   eduardomedani+teste1@gmail.com -> nada, so a linha automatica
---   caio.eduardo88@hotmail.com     -> unico nutricionista de verdade
+--   conta A -> PACIENTE, criou login no PWA do aluno
+--   conta B -> PACIENTE, criou login no PWA do aluno
+--   conta C -> conta de teste do proprio proprietario, so a linha automatica
+--   conta D -> unico nutricionista de verdade fora da organizacao
+--
+-- Os e-mails saem daqui de proposito: o repositorio e publico e a conclusao
+-- nao depende de quem sao. Para ver as quatro com nome, rode
+-- db/conferencia/82_quem_sao_as_seis_contas.sql, que consulta o banco em vez
+-- de guardar a resposta.
 --
 -- Dois pacientes do PWA viraram "nutricionistas" no banco por causa deste
 -- gatilho. Nao ha bug de vinculo nem conta invasora: ha um carimbo.

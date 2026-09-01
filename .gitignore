@@ -91,3 +91,11 @@ db/comercial_pagamentos_da_planilha_desfazer.sql
 # planilha "Vendas". O conserto que NAO tem nome
 # (db/comercial_pagamentos_observacao_corrigir.sql) vai versionado.
 db/comercial_pagamentos_observacao_restaurar.sql
+
+# Bootstrap da organizacao de um profissional convidado: o e-mail dele e
+# PREDICADO no script (`where lower(u.email) = v_email`), pareado com o uuid
+# como checagem de seguranca deliberada — sanear quebraria a trava. Mesma regra
+# de db/ficha_eduardo_*.sql: o dado de pessoa real fica na maquina e no
+# Supabase, nao num repositorio publico.
+db/organizacao_caio_bootstrap.sql
+db/organizacao_caio_bootstrap_desfazer.sql

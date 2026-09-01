@@ -63,10 +63,10 @@ grupo('gerador · normalização', () => {
   });
 
   teste('telefone vira só dígitos com 55 na frente', () => {
-    igual(telefone('5527992264711'), '5527992264711');
-    igual(telefone('(27) 9 9631-7009'), '5527996317009');
-    igual(telefone('27 999883543'), '5527999883543');
-    igual(telefone('+55 27 99226 4711'), '5527992264711');
+    igual(telefone('5527900000011'), '5527900000011');
+    igual(telefone('(27) 9 0000-0022'), '5527900000022');
+    igual(telefone('27 900000033'), '5527900000033');
+    igual(telefone('+55 27 90000 0011'), '5527900000011');
   });
 
   teste('telefone curto demais é descartado, não completado', () => {
@@ -102,8 +102,8 @@ grupo('gerador · o que a planilha diz vira o que o modelo entende', () => {
 grupo('gerador · mapeamento das linhas', () => {
   const csv = [
     CAB,
-    linha(['03/08/2026', 'Claudia Marcia', 'Ativo', 'Noturno', '-27', 'Mensal - 3x', 'Concluído', 'R$ 330,00', '02/09/2026', '9', '2026', '30/08/2026', '', '5527992264711', '+55 27 99226 4711', '', 'OK03']),
-    linha(['01/06/2026', 'Fatima Correia', 'Ativo', 'Noturno', '-24', 'Trimestral - 3x', 'Concluído', 'R$ 961,00', '30/08/2026', '8', '2026', '27/08/2026', '', '(27) 9 9631-7009', '', '', '']),
+    linha(['03/08/2026', 'Cliente Mensal', 'Ativo', 'Noturno', '-27', 'Mensal - 3x', 'Concluído', 'R$ 330,00', '02/09/2026', '9', '2026', '30/08/2026', '', '5527900000011', '+55 27 90000 0011', '', 'OK03']),
+    linha(['01/06/2026', 'Cliente Trimestral', 'Ativo', 'Noturno', '-24', 'Trimestral - 3x', 'Concluído', 'R$ 961,00', '30/08/2026', '8', '2026', '27/08/2026', '', '(27) 9 0000-0022', '', '', '']),
   ].join('\n');
 
   const { dentro, fora } = mapear(lerCsv(csv));
@@ -125,8 +125,8 @@ grupo('gerador · mapeamento das linhas', () => {
   });
 
   teste('telefone e preço saem normalizados', () => {
-    igual(dentro[0].telefone, '5527992264711');
-    igual(dentro[1].telefone, '5527996317009');
+    igual(dentro[0].telefone, '5527900000011');
+    igual(dentro[1].telefone, '5527900000022');
     igual(dentro[1].preco, 961);
   });
 
@@ -165,14 +165,14 @@ grupo('gerador · mapeamento das linhas', () => {
 grupo('gerador · o SQL que sai', () => {
   const csv = [
     CAB,
-    linha(["03/08/2026", "Luana Sant'Ana", 'Ativo', 'Noturno', '', 'Mensal - 3x', '', 'R$ 330,00', '02/09/2026', '', '', '', '', '5527992264711', '', 'prefere Pix', '']),
+    linha(["03/08/2026", "Fulana D'Avila", 'Ativo', 'Noturno', '', 'Mensal - 3x', '', 'R$ 330,00', '02/09/2026', '', '', '', '', '5527900000011', '', 'prefere Pix', '']),
     linha(['01/03/2026', 'Ex Cliente', 'Cancelado', 'Diurno', '', 'Mensal - 5x', '', 'R$ 385,00', '31/03/2026', '', '', '', '', '', '', '', '']),
   ].join('\n');
   const { dentro, fora } = mapear(lerCsv(csv));
   const sql = montarSql(dentro, fora);
 
   teste('apóstrofo no nome é escapado — um só quebraria o script inteiro', () => {
-    contem(sql, "'Luana Sant''Ana'");
+    contem(sql, "'Fulana D''Avila'");
   });
 
   teste('cancelado fica de fora por padrão', () => {
