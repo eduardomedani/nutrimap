@@ -268,14 +268,19 @@ grupo('4B fase 2 · o rollback devolve o estado anterior', () => {
       'o rollback tem que voltar para auth.uid()');
   });
 
-  teste('pacientes.nutri_id volta a NÃO ter default', () => {
-    // Nunca teve. Repor auth.uid() ali seria "consertar" para um estado que não
-    // existiu, e mascararia por que a Fase 1 ainda manda o campo à mão.
-    contem(RLS_UNDO, 'alter table public.pacientes\n  alter column nutri_id drop default;');
+  teste('o rollback NÃO deixa pacientes.nutri_id sem default', () => {
+    // Antes da 4B a coluna não tinha default, e restaurar o estado pristino
+    // seria o mais fiel. Mas `criarPaciente` parou de mandar o campo depois da
+    // Fase 2: sem default, o cadastro de cliente quebraria com violação de
+    // not-null na hora seguinte ao rollback, e a tela só diria "erro ao gerar
+    // código". Um rollback que derruba uma função que estava funcionando não é
+    // rollback, é um segundo incidente.
+    naoContem(RLS_UNDO, 'alter column nutri_id drop default');
+    contem(RLS_UNDO, 'alter table public.pacientes\n  alter column nutri_id set default auth.uid();');
   });
 
-  teste('as outras quatro voltam para auth.uid()', () => {
-    for (const t of ALVOS.filter(t => t !== 'pacientes')) {
+  teste('as cinco voltam para auth.uid()', () => {
+    for (const t of ALVOS) {
       contem(RLS_UNDO, `alter table public.${t}\n  alter column nutri_id set default auth.uid();`);
     }
   });

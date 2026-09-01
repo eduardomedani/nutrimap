@@ -58,7 +58,6 @@ const SECOES = [
 ];
 
 const MIOLO = 'finConteudo';
-let _nutriId = null;
 let _secao = null;
 let _aoAbrirEquipe = null;
 
@@ -73,8 +72,7 @@ const _filtro = { ano: '', categoria: '', busca: '' };
 
 export { SECOES };
 
-export async function initFinanceiroUI(nutriId, secao = 'visao-geral', opcoes = {}) {
-  _nutriId = nutriId;
+export async function initFinanceiroUI(secao = 'visao-geral', opcoes = {}) {
   _aoAbrirEquipe = opcoes.aoAbrirEquipe || null;
   _cache = null;
 
@@ -620,7 +618,7 @@ async function montarDespesas(miolo, modo) {
 
   if (_filtroDespesa) { definirFiltro(_filtroDespesa); _filtroDespesa = null; }
 
-  await initDespesasUI(_nutriId, 'dspRaiz', {
+  await initDespesasUI('dspRaiz', {
     modo,
     // Editar uma despesa muda os totais da Visão geral. Recarregar a página
     // inteira faria perder o scroll e a aba; recarregar o cache basta.
@@ -643,7 +641,6 @@ async function editarLancamento(id) {
   if (!l) return;
   const { abrirLancamento } = await import('./financeiro-lancamento-form.js');
   await abrirLancamento({
-    nutriId: _nutriId,
     tipo: l.tipo === 'receita' ? 'receita' : 'despesa',
     lancamento: l,
     aoSalvar: async () => {
@@ -658,7 +655,6 @@ async function editarLancamento(id) {
 async function novoLancamento(tipo = 'despesa') {
   const { abrirLancamento } = await import('./financeiro-lancamento-form.js');
   await abrirLancamento({
-    nutriId: _nutriId,
     tipo,
     aoSalvar: async () => {
       await dados({ recarregar: true });

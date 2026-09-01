@@ -31,7 +31,6 @@ const FILTRO_VAZIO = {
   busca: '', ano: '', status: '', centro: '', pendencia: '',
 };
 
-let _nutriId = null;
 let _dados = null;
 let _modo = 'despesas';          // 'despesas' | 'contas-pagar'
 let _aoMudar = null;             // avisa a Visão geral que os números mudaram
@@ -48,8 +47,7 @@ export function definirFiltro(parcial = {}) {
   _pagina = 0;
 }
 
-export async function initDespesasUI(nutriId, containerId, opcoes = {}) {
-  _nutriId = nutriId;
+export async function initDespesasUI(containerId, opcoes = {}) {
   _modo = opcoes.modo || 'despesas';
   _aoMudar = opcoes.aoMudar || null;
 
@@ -352,13 +350,13 @@ async function recarregar() {
 }
 
 function nova() {
-  abrirLancamento({ nutriId: _nutriId, tipo: 'despesa', aoSalvar: recarregar });
+  abrirLancamento({ tipo: 'despesa', aoSalvar: recarregar });
 }
 
 function editar(id) {
   const l = _dados.lancamentos.find(x => x.id === id);
   if (!l) return;
-  abrirLancamento({ nutriId: _nutriId, tipo: 'despesa', lancamento: l, aoSalvar: recarregar });
+  abrirLancamento({ tipo: 'despesa', lancamento: l, aoSalvar: recarregar });
 }
 
 function abrirMenu(botao, id, hoje) {
@@ -410,7 +408,7 @@ async function acao(qual, l) {
       // Sem id, sem pagamento, sem auditoria: a cópia nasce pendente. Copiar o
       // status de pagamento criaria uma despesa que já nasce dizendo que saiu
       // dinheiro que não saiu.
-      abrirLancamento({ nutriId: _nutriId, tipo: 'despesa', inicial: duplicarLancamento(l), aoSalvar: recarregar });
+      abrirLancamento({ tipo: 'despesa', inicial: duplicarLancamento(l), aoSalvar: recarregar });
       return;
     }
 

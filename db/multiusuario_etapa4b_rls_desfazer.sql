@@ -13,14 +13,22 @@
 -- RLS primeiro deixaria, por um instante, funcoes SECURITY DEFINER mais
 -- permissivas que as policies em volta.
 --
--- O QUE ELE NAO DESFAZ, de proposito:
+-- ===========================================================================
+-- `pacientes.nutri_id` NAO VOLTA A FICAR SEM DEFAULT, E ISSO E DELIBERADO
+-- ---------------------------------------------------------------------------
+-- Antes da 4B a coluna era `not null` SEM DEFAULT, e o frontend mandava o
+-- campo a mao. Depois da 4B a coluna ganhou default e `criarPaciente` em
+-- js/pacientes.js PAROU de mandar — que e o padrao da Etapa 4: quem determina
+-- o tenant e o banco.
 --
---   os defaults de `comercial_assinaturas`, `financeiro_lancamentos`,
---   `financeiro_categorias` e `financeiro_centros_custo` VOLTAM para
---   `auth.uid()`, que e de onde vieram. Mas `pacientes.nutri_id` volta a NAO
---   TER DEFAULT — porque nunca teve. Repor `auth.uid()` ali seria "consertar"
---   para um estado que nunca existiu, e mascararia a razao pela qual a Fase 1
---   ainda manda o campo a mao.
+-- Restaurar o estado pristino (sem default) quebraria o cadastro de cliente na
+-- hora seguinte ao rollback, com violacao de not-null, e a tela so diria
+-- "erro ao gerar codigo". Um rollback que derruba uma funcao que estava
+-- funcionando nao e rollback, e um segundo incidente.
+--
+-- Entao ela volta com `auth.uid()`, que e o default das outras quatro e o que
+-- a coluna TERIA tido se existisse na epoca. Para o proprietario o valor e o
+-- mesmo. Fidelidade historica aqui custaria cadastro de cliente.
 -- ===========================================================================
 
 
@@ -28,7 +36,7 @@
 -- 1) OS DEFAULTS VOLTAM
 -- ---------------------------------------------------------------------------
 alter table public.pacientes
-  alter column nutri_id drop default;
+  alter column nutri_id set default auth.uid();
 alter table public.comercial_assinaturas
   alter column nutri_id set default auth.uid();
 alter table public.financeiro_lancamentos
@@ -162,7 +170,7 @@ create policy financeiro_centros_custo_delete on public.financeiro_centros_custo
 -- ===========================================================================
 -- Conferencia. Esperado depois do rollback:
 --   com_organizacao = 0 · policies de pacientes = 2 ("Nutri ve..." + self_read)
---   defaults_migrados = 0 · default de pacientes.nutri_id = null (nunca teve)
+--   defaults_migrados = 0 · default de pacientes.nutri_id = auth.uid()
 -- ===========================================================================
 with alvo as (
   select unnest(array['pacientes','comercial_assinaturas','financeiro_lancamentos',

@@ -180,17 +180,26 @@ grupo('4B fase 1 · os INSERTs não escolhem o dono', () => {
     }
   });
 
-  teste('criarPaciente manda a ORGANIZAÇÃO, nunca o uuid da pessoa', async () => {
-    // Aqui o campo AINDA é enviado, e de propósito: `pacientes.nutri_id` é
-    // `not null` SEM DEFAULT (db/pacientes_legacy_baseline.sql). Parar de mandar
-    // antes da Fase 2 quebraria o cadastro na hora. O que a Fase 1 corrige é
-    // QUAL uuid vai.
+  teste('criarPaciente não injeta nutri_id', async () => {
+    // ESTE TESTE MUDOU DUAS VEZES, e a história é a explicação.
+    //
+    // Antes da 4B, `criarPaciente` mandava `user.id` — o uuid da PESSOA. Um
+    // insert de quem não fosse o dono criava, em silêncio, um paciente que o
+    // resto da organização não enxergava.
+    //
+    // Na Fase 1 ele passou a mandar a ORGANIZAÇÃO, e o campo continuou sendo
+    // enviado porque `pacientes.nutri_id` era `not null` SEM DEFAULT: parar de
+    // mandar teria quebrado o cadastro na hora.
+    //
+    // Depois da Fase 2 a coluna ganhou `default organizacao_do_auth()`, e agora
+    // o campo não vai — quem determina o tenant é o banco, que é o padrão da
+    // Etapa 4 desde o piloto em `criarPlano`.
     preparar();
     await criarPaciente({ nome: 'Fulano' });
     const payload = ultima('pacientes')?.payload || {};
-    igual(payload.nutri_id, ORGANIZACAO);
-    ok(payload.nutri_id !== USUARIO,
-       'paciente criado com o uuid da pessoa fica invisível para o resto da organização');
+    ok(!('nutri_id' in payload),
+       `criarPaciente mandou nutri_id: ${JSON.stringify(payload)}`);
+    igual(payload.codigo, 'ABC123', 'o resto do payload continua indo');
   });
 });
 
@@ -351,12 +360,17 @@ grupo('4B fase 1 · o que a Fase 1 não faz', () => {
     }
   });
 
-  teste('pacientes.nutri_id continua sem default, e por isso o campo é enviado', () => {
+  teste('o default de pacientes.nutri_id vem da 4B, não do baseline', () => {
+    // O baseline continua descrevendo a coluna SEM default — ele é o retrato do
+    // que existia antes, e não se reescreve história. Quem põe o default é a
+    // Fase 2, e é dela que `criarPaciente` depende para poder omitir o campo.
     const baseline = readFileSync(new URL('../db/pacientes_legacy_baseline.sql', import.meta.url), 'utf8');
     const coluna = /nutri_id\s+uuid\s+not null([^,]*)/.exec(baseline);
     ok(coluna, 'não achei a coluna nutri_id no baseline de pacientes');
-    ok(!/default/i.test(coluna[1]),
-       'a coluna ganhou default — então criarPaciente já pode parar de mandar nutri_id');
-    contem(PACIENTES_JS, 'nutri_id: org');
+    ok(!/default/i.test(coluna[1]), 'o baseline não deve ganhar default retroativo');
+
+    const rls = readFileSync(new URL('../db/multiusuario_etapa4b_rls.sql', import.meta.url), 'utf8');
+    contem(rls, 'alter table public.pacientes\n  alter column nutri_id set default public.organizacao_do_auth();');
+    naoContem(PACIENTES_JS, 'nutri_id:');
   });
 });

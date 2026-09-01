@@ -2361,9 +2361,8 @@
   // abas mora em financeiro-ui.js. O card de custo da equipe leva para o outro
   // módulo — indicador, não cópia da folha.
   async function abrirFinanceiro(secao) {
-    const sessao = await obterSessao();
     const { initFinanceiroUI } = await import('./js/financeiro-ui.js');
-    await initFinanceiroUI(sessao?.user?.id, secao || 'visao-geral', {
+    await initFinanceiroUI(secao || 'visao-geral', {
       aoAbrirEquipe: (aba) => navegar('equipe', aba || 'resumo'),
     });
   }
