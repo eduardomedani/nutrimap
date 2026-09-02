@@ -31,7 +31,6 @@ import {
   copiarParaClipboard,
 } from './utils.js';
 
-let _nutriId = null;
 let _container = null;
 let _folha = null;      // a competência aberta
 let _itens = [];        // linhas da folha, com adicionais aninhados
@@ -71,8 +70,7 @@ const trava = () => _folha?.status === 'fechada';
 // ───────────────────────────────────────────────────────────
 // ENTRADA
 // ───────────────────────────────────────────────────────────
-export async function initFolhaUI(nutriId, containerId, opcoes = {}) {
-  _nutriId = nutriId;
+export async function initFolhaUI(containerId, opcoes = {}) {
   _container = containerId;
   const cont = document.getElementById(containerId);
   if (!cont) return;
@@ -138,7 +136,7 @@ async function abrirCompetencia(competencia, { criar = true } = {}) {
 
   try {
     if (criar) {
-      const r = await abrirFolha(_nutriId, competencia, _equipe);
+      const r = await abrirFolha(competencia, _equipe, { criar: true });
       _folha = r.folha;
       _itens = r.itens;
       _folhas = await listarFolhas();
@@ -427,7 +425,7 @@ function ligar() {
     if (!id) return;
     const func = _equipe.find(f => f.id === id);
     await comErro(async () => {
-      await adicionarItem(_nutriId, _folha.id, func);
+      await adicionarItem(_folha.id, func);
       _itens = await carregarFolha(_folha.id);
       render();
     });
@@ -632,7 +630,7 @@ function abrirFormAdicional(itemId) {
 
     fechar();
     await comErro(async () => {
-      await adicionarAdicional(_nutriId, itemId, {
+      await adicionarAdicional(itemId, {
         descricao, valor, ordem: (item.adicionais?.length || 0),
       });
       _itens = await carregarFolha(_folha.id);
@@ -946,7 +944,6 @@ async function importarPontos(arquivos) {
     // Perder o arquivo é ruim; perder a digitação do mês por causa dele, pior.
     try {
       await guardarPonto(ficheiro, {
-        nutriId: _nutriId,
         funcionarioId: item.funcionario_id,
         competencia: _folha.competencia,
         periodo: ponto.periodo,
@@ -1046,7 +1043,6 @@ async function guardarOrfaos(orfaos) {
   for (const o of orfaos) {
     try {
       const { duplicado } = await guardarPendente({
-        nutriId: _nutriId,
         competencia: _folha.competencia,
         conteudo: o.ficheiro,
         nomeArquivo: o.arquivo,
@@ -1208,7 +1204,7 @@ async function publicarContracheques(itens, folha) {
   for (const item of itens) {
     try {
       await publicarContracheque(item, folha, {
-        nutriId: _nutriId, css, nomeCompetencia, formatarData, folhaId: _folha?.id,
+        css, nomeCompetencia, formatarData, folhaId: _folha?.id,
       });
       publicados++;
     } catch (e) {

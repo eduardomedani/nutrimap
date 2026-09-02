@@ -264,8 +264,16 @@ grupo('4B fase 1 · o clínico não abre junto', () => {
   // `clientes.visualizar` dá o CADASTRO. Prontuário, anamnese, avaliação, plano
   // alimentar e documento são outras chaves — é o §25 da Etapa 1. Nenhum módulo
   // clínico pode passar a se autorizar pela chave de cadastro.
+  // `documentos.js` NÃO entra nesta lista, apesar do nome. Ele é o repositório
+  // de documentos do COLABORADOR — folha de ponto, contracheque, bucket
+  // 'colaborador-documentos'. O clínico é `paciente-documentos.js`.
+  //
+  // A primeira versão desta lista confundiu os dois, e o erro só apareceu na
+  // Etapa 4C, quando `documentos.js` legitimamente passou a resolver pelo
+  // tenant e o teste acusou "módulo clínico migrado". O teste estava certo em
+  // disparar; a lista é que estava errada.
   const CLINICOS = [
-    'avaliacoes.js', 'dieta.js', 'treinos.js', 'documentos.js',
+    'avaliacoes.js', 'dieta.js', 'treinos.js',
     'paciente-documentos.js', 'ficha.js',
   ];
 

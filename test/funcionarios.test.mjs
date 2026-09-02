@@ -248,7 +248,7 @@ grupo('funcionarios · fiação da tela', () => {
     // Ela divide a página com a folha: se voltar a escrever direto em
     // #page-equipe, apaga as abas ao renderizar.
     const ui = readFileSync(new URL('../js/funcionarios-ui.js', import.meta.url), 'utf8');
-    ok(/initFuncionariosUI\(nutriId, containerId/.test(ui), 'a entrada tem que aceitar o container');
+    ok(/initFuncionariosUI\(containerId/.test(ui), 'a entrada tem que aceitar o container');
     ok(!ui.includes("page.innerHTML = `\n    <div class=\"page-header\">"), 'o cabeçalho agora é da casca');
   });
 

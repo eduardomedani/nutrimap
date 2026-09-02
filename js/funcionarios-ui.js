@@ -22,7 +22,6 @@ import {
 } from './utils.js';
 import { QUESTIONARIO_URL } from './supabase.js';
 
-let _nutriId = null;
 let _lista = [];
 let _termo = '';
 let _incluirInativos = false;
@@ -40,8 +39,7 @@ function debounce(fn, ms) {
 // ───────────────────────────────────────────────────────────
 // ENTRADA
 // ───────────────────────────────────────────────────────────
-export async function initFuncionariosUI(nutriId, containerId = 'page-equipe') {
-  _nutriId = nutriId;
+export async function initFuncionariosUI(containerId = 'page-equipe') {
   _termo = '';
   _incluirInativos = false;
   _editandoId = null;
@@ -211,7 +209,7 @@ async function abrirDocumentos(id) {
   await abrirDocumentosDoColaborador({
     container: _container,
     colaborador: f,
-    aoVoltar: () => initFuncionariosUI(_nutriId, _container),
+    aoVoltar: () => initFuncionariosUI(_container),
   });
 }
 
@@ -454,7 +452,7 @@ async function salvar() {
   btn.disabled = true; btn.textContent = 'Salvando...';
   try {
     if (_editandoId) await atualizarFuncionario(_editandoId, dados);
-    else await criarFuncionario(_nutriId, dados);
+    else await criarFuncionario(dados);
     mostrarToast(_editandoId ? '✓ Funcionário atualizado' : '✓ Funcionário cadastrado');
     fecharForm();
     await carregar();

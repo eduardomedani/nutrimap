@@ -437,7 +437,7 @@ grupo('arquitetura · Ponto leva à Folha sem perder o mês', () => {
 
   teste('a casca repassa o pedido até a folha', () => {
     contem(equipeCasca, "abrirSecao('folha', o || {})");
-    contem(equipeCasca, 'initFolhaUI(_nutriId, MIOLO, opcoes)');
+    contem(equipeCasca, 'initFolhaUI(MIOLO, opcoes)');
     ok(/abrirSecao\(id, opcoes = \{\}\)/.test(equipeCasca), 'abrirSecao tem que aceitar o pedido');
   });
 

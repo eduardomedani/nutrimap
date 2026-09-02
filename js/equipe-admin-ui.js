@@ -44,13 +44,11 @@ const SECOES = [
 ];
 
 const MIOLO = 'eqConteudo';
-let _nutriId = null;
 let _secao = null;
 
 export { SECOES, TITULO, SUBTITULO };
 
-export async function initEquipeUI(nutriId, secao = 'resumo') {
-  _nutriId = nutriId;
+export async function initEquipeUI(secao = 'resumo') {
   const page = document.getElementById('page-equipe');
   if (!page) return;
 
@@ -123,26 +121,26 @@ async function montarSecao(id, opcoes = {}) {
 
   if (id === 'resumo') {
     const { initResumoUI } = await import('./resumo-ui.js');
-    await initResumoUI(_nutriId, MIOLO);
+    await initResumoUI(MIOLO);
     return;
   }
   if (id === 'ponto') {
     const { initPontoUI } = await import('./ponto-ui.js');
-    await initPontoUI(_nutriId, MIOLO, {
+    await initPontoUI(MIOLO, {
       irParaFolha: (o) => abrirSecao('folha', o || {}),
     });
     return;
   }
   if (id === 'folha') {
     const { initFolhaUI } = await import('./folha-ui.js');
-    await initFolhaUI(_nutriId, MIOLO, opcoes);
+    await initFolhaUI(MIOLO, opcoes);
     return;
   }
   if (id === 'documentos') {
     const { initDocumentosCentralUI } = await import('./documentos-central.js');
-    await initDocumentosCentralUI(_nutriId, MIOLO);
+    await initDocumentosCentralUI(MIOLO);
     return;
   }
   const { initFuncionariosUI } = await import('./funcionarios-ui.js');
-  await initFuncionariosUI(_nutriId, MIOLO);
+  await initFuncionariosUI(MIOLO);
 }

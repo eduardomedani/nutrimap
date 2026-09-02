@@ -97,13 +97,12 @@ ${miolo}
  * @returns {{documento: object, duplicado: boolean}}
  */
 export async function publicarContracheque(item, folha, opcoes = {}) {
-  const { nutriId, css = '', folhaId = null } = opcoes;
+  const { css = '', folhaId = null } = opcoes;
   const miolo = htmlContracheque(item, folha, opcoes);
   const nome = item.funcionario?.nome || '';
   const html = documentoHtml(miolo, { titulo: `Contracheque · ${nome}`.trim(), css });
 
   return guardarDocumento({
-    nutriId,
     colaboradorId: item.funcionario_id,
     competencia: folha?.competencia,
     tipo: 'contracheque',

@@ -75,10 +75,10 @@ export async function buscarFuncionario(id) {
 
 // ── Escrita ────────────────────────────────────────────────
 
-export async function criarFuncionario(nutriId, dados) {
+export async function criarFuncionario(dados) {
   const { data, error } = await sb
     .from('funcionarios')
-    .insert({ ...normalizarFuncionario(dados), nutri_id: nutriId })
+    .insert({ ...normalizarFuncionario(dados) })
     .select().single();
   if (error) throw error;
   return data;

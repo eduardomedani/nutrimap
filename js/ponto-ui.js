@@ -20,7 +20,6 @@ import { listarFuncionarios } from './funcionarios.js';
 import { competenciaAtiva, definirCompetencia } from './competencia.js';
 import { formatarData, mostrarErro } from './utils.js';
 
-let _nutriId = null;
 let _container = null;
 let _irParaFolha = null;
 
@@ -32,8 +31,7 @@ let _pendentes = 0;
 let _equipe = [];
 
 // ───────────────────────────────────────────────────────────
-export async function initPontoUI(nutriId, containerId, opcoes = {}) {
-  _nutriId = nutriId;
+export async function initPontoUI(containerId, opcoes = {}) {
   _container = containerId;
   _irParaFolha = opcoes.irParaFolha || null;
 

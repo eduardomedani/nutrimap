@@ -36,9 +36,8 @@ export function caminhoDoPonto({ nutriId, funcionarioId, competencia, arquivo })
  * Reimportar o mesmo arquivo não duplica — o hash é igual e o repositório
  * devolve o que já existe.
  */
-export async function guardarPonto(arquivo, { nutriId, funcionarioId, competencia, periodo = null }) {
+export async function guardarPonto(arquivo, { funcionarioId, competencia, periodo = null }) {
   return guardarDocumento({
-    nutriId,
     colaboradorId: funcionarioId,
     competencia,
     tipo: 'folha_ponto',

@@ -27,7 +27,6 @@ import { formatarData, mostrarToast, mostrarErro, confirmar } from './utils.js';
 // de onze opções.
 const TIPOS_PRINCIPAIS = ['contracheque', 'folha_ponto'];
 
-let _nutriId = null;
 let _container = null;
 
 let _equipe = [];
@@ -51,8 +50,7 @@ let _filtro = {
 };
 
 // ───────────────────────────────────────────────────────────
-export async function initDocumentosCentralUI(nutriId, containerId) {
-  _nutriId = nutriId;
+export async function initDocumentosCentralUI(containerId) {
   _container = containerId;
 
   const cont = document.getElementById(containerId);

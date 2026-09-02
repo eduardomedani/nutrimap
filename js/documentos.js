@@ -17,6 +17,11 @@
 // o ponto é PDF; quando um deles virar outro formato, nenhuma tela muda.
 
 import { sb } from './supabase.js';
+// O DONO DO CAMINHO E DA LINHA E A ORGANIZACAO — Etapa 4C, Fase 1.
+// `caminhoDoDocumento` e `caminhoPendente` continuam PUROS e recebendo o dono:
+// sao funcoes de string, testadas como tal, e async-ificar as duas so para
+// buscar a organizacao tornaria o teste sobre rede. Quem resolve e quem GRAVA.
+import { organizacaoAtual } from './organizacao.js';
 
 export const BUCKET = 'colaborador-documentos';
 
@@ -195,12 +200,14 @@ export async function urlAssinada(caminho, segundos = 3600) {
  *   . conteúdo diferente → nova versão, a anterior fica atual = false.
  */
 export async function guardarDocumento({
-  nutriId, colaboradorId, competencia, tipo,
+  colaboradorId, competencia, tipo,
   conteudo, nomeArquivo, mimeType,
   titulo = null, descricao = null,
   origem = 'gerado_sistema', metadata = {},
 }) {
   if (!MIMES_ACEITOS.includes(mimeType)) throw new Error('documento_tipo_nao_aceito');
+
+  const nutriId = await organizacaoAtual();
 
   const blob = conteudo instanceof Blob
     ? conteudo
@@ -331,13 +338,14 @@ export function caminhoPendente({ nutriId, competencia, arquivo }) {
 
 /** Guarda o arquivo órfão e registra a pendência. */
 export async function guardarPendente({
-  nutriId, competencia, conteudo, nomeArquivo, mimeType = 'application/pdf',
+  competencia, conteudo, nomeArquivo, mimeType = 'application/pdf',
   tipo = 'folha_ponto', cpfLido = null, nomeLido = null, motivo = null,
   sugestaoId = null, metadata = {},
 }) {
   const blob = conteudo instanceof Blob ? conteudo : new Blob([conteudo], { type: mimeType });
   if (blob.size > TAMANHO_MAXIMO) throw new Error('documento_grande_demais');
 
+  const nutriId = await organizacaoAtual();
   const hash = await hashDoConteudo(blob);
   const caminho = caminhoPendente({ nutriId, competencia, arquivo: nomeArquivo });
 

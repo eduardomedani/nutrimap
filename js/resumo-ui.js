@@ -35,7 +35,7 @@ const PERIODOS = [
 ];
 
 // ───────────────────────────────────────────────────────────
-export async function initResumoUI(nutriId, containerId) {
+export async function initResumoUI(containerId) {
   _container = containerId;
   _periodo = periodoDoResumo(_periodo);
   const cont = document.getElementById(containerId);

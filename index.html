@@ -2371,9 +2371,8 @@
   // seção (resumo, funcionários, ponto, folha, documentos) é um módulo próprio
   // carregado sob demanda.
   async function abrirEquipe(secao) {
-    const sessao = await obterSessao();
     const { initEquipeUI } = await import('./js/equipe-admin-ui.js');
-    await initEquipeUI(sessao?.user?.id, secao || 'resumo');
+    await initEquipeUI(secao || 'resumo');
   }
 
   // Central de documentos. O clique no nome do paciente abre a ficha já na aba

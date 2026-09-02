@@ -12,6 +12,14 @@
 // planilha. Somar valores já arredondados e arredondar de novo produziria
 // centavos de diferença em relação ao histórico importado.
 
+// O DONO SAI DO BANCO — Etapa 4C, Fase 1. Nenhuma escrita deste arquivo manda
+// `nutri_id`: quem determina o tenant é o default da coluna. Antes, as quatro
+// funções de criação recebiam o dono como PARÂMETRO, encanado desde
+// `initEquipeUI(sessao.user.id)` no index.html — e era isso que fazia a folha
+// de um membro nascer no nome dele em vez de no da organização.
+//
+// As LEITURAS continuam sem filtro de `nutri_id`: aqui é o RLS que isola, e a
+// Fase 2 troca a policy sem tocar nesta camada.
 import { sb } from './supabase.js';
 import { formatarBRL, valorDeTexto } from './utils.js';
 
@@ -187,10 +195,12 @@ export async function historicoDoFuncionario(funcionarioId, { limite = 24 } = {}
 // ESCRITA
 // ───────────────────────────────────────────────────────────
 
-export async function criarFolha(nutriId, competencia) {
+/** O INSERT NÃO MANDA `nutri_id`: quem determina o tenant é o default da
+ *  coluna. Ver o bloco "O DONO SAI DO BANCO" no topo deste arquivo. */
+export async function criarFolha(competencia) {
   const { data, error } = await sb
     .from('folhas')
-    .insert({ nutri_id: nutriId, competencia })
+    .insert({ competencia })
     .select().single();
   if (error) throw error;
   return data;
@@ -200,10 +210,25 @@ export async function criarFolha(nutriId, competencia) {
  * Abre a folha da competência, criando se ainda não existe, e já lança uma
  * linha para cada funcionário ativo — com o valor/hora do cadastro.
  * Quem entrou depois aparece na próxima vez que a folha for aberta.
+ *
+ * `criar` EXISTE POR CAUSA DE UM INCIDENTE, em 02/09/2026. Esta função lia
+ * "zero linhas" como "a folha do mês ainda não existe" e criava. Só que zero
+ * linhas também é o que o RLS devolve quando a folha existe e você não pode
+ * vê-la — e foi isso que aconteceu quando um membro sem tenancy migrada abriu
+ * a tela: ele não viu a folha do mês e o sistema criou uma segunda, vazia, no
+ * nome dele. Invisível para os dois lados.
+ *
+ * Ausência e invisibilidade são coisas diferentes, e o código não tinha como
+ * distingui-las. Agora quem chama declara a intenção: a tela de folha abre com
+ * `criar: false` para LER, e só o botão de abrir o mês passa `true`. Sem folha
+ * e sem permissão de criar, estoura `folha_nao_encontrada` em vez de duplicar.
  */
-export async function abrirFolha(nutriId, competencia, funcionariosAtivos = []) {
+export async function abrirFolha(competencia, funcionariosAtivos = [], { criar = false } = {}) {
   let folha = await buscarFolhaPorCompetencia(competencia);
-  if (!folha) folha = await criarFolha(nutriId, competencia);
+  if (!folha) {
+    if (!criar) throw new Error('folha_nao_encontrada');
+    folha = await criarFolha(competencia);
+  }
 
   const itens = await carregarFolha(folha.id);
   const jaTem = new Set(itens.map(i => i.funcionario_id));
@@ -211,7 +236,6 @@ export async function abrirFolha(nutriId, competencia, funcionariosAtivos = []) 
 
   if (faltando.length && folha.status !== 'fechada') {
     const novos = faltando.map(f => ({
-      nutri_id: nutriId,
       folha_id: folha.id,
       funcionario_id: f.id,
       modo: f.salario_fixo ? 'fixo' : 'horas',
@@ -254,11 +278,10 @@ export async function excluirItem(id) {
   return true;
 }
 
-export async function adicionarItem(nutriId, folhaId, funcionario) {
+export async function adicionarItem(folhaId, funcionario) {
   const { data, error } = await sb
     .from('folha_itens')
     .insert({
-      nutri_id: nutriId,
       folha_id: folhaId,
       funcionario_id: funcionario.id,
       modo: funcionario.salario_fixo ? 'fixo' : 'horas',
@@ -270,10 +293,10 @@ export async function adicionarItem(nutriId, folhaId, funcionario) {
   return data;
 }
 
-export async function adicionarAdicional(nutriId, itemId, { descricao, valor, ordem = 0 }) {
+export async function adicionarAdicional(itemId, { descricao, valor, ordem = 0 }) {
   const { data, error } = await sb
     .from('folha_adicionais')
-    .insert({ nutri_id: nutriId, item_id: itemId, descricao, valor, ordem })
+    .insert({ item_id: itemId, descricao, valor, ordem })
     .select().single();
   if (error) throw error;
   return data;
