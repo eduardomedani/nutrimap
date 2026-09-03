@@ -255,12 +255,22 @@
   box-shadow: var(--shadow-xs);
 }
 
-.fp-turnos-topo { display: flex; align-items: center; gap: 7px; margin-bottom: 12px; }
+.fp-turnos-topo { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
 .fp-turnos-topo svg { width: 15px; height: 15px; color: var(--text-muted); }
 .fp-turnos-t {
   margin: 0;
   font-size: 11px; font-weight: 700; letter-spacing: var(--tracking-wide);
   text-transform: uppercase; color: var(--text-muted);
+}
+
+/* De qual folha estes numeros sao. Fica ao lado do titulo e nao embaixo:
+   "alunos ativos em 31/08" e "bonus de setembro" sao a mesma frase partida em
+   duas, e separa-las em linhas faria parecer dois assuntos. */
+.fp-turnos-mes {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  padding: 2px 8px; border-radius: 100px;
+  background: var(--bg-warm, transparent);
+  border: 1px solid var(--border);
 }
 
 /* Duas colunas iguais. `auto-fit` com mínimo faz a quebra acontecer pela

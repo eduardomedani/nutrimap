@@ -2,8 +2,8 @@
 // FOLHA — o bônus por número de alunos
 // ═══════════════════════════════════════════════════════════
 // O fechamento passa a mostrar quantos alunos ativos cada turno tinha no
-// ÚLTIMO DIA da competência, e a escolher um dos dois bônus já preenche o
-// valor: alunos × R$ 10.
+// ÚLTIMO DIA DO MÊS QUE A FOLHA PAGA — para a folha de Setembro, 31/08 —, e
+// escolher um dos dois bônus já preenche o valor: alunos × R$ 10.
 //
 // Isto vira dinheiro no contracheque, então o que estes testes protegem é a
 // diferença entre "contei e deu zero" e "não consegui contar". As duas coisas
@@ -13,7 +13,7 @@ import { grupo, teste, ok, igual, contem, naoContem } from './runner.mjs';
 import { readFileSync } from 'node:fs';
 import {
   BONUS_POR_ALUNO, TURNOS_COM_BONUS, ADICIONAIS_SUGERIDOS,
-  rotuloDoBonus, turnoDoBonus, valorDoBonus, ultimoDiaDoMes,
+  rotuloDoBonus, turnoDoBonus, valorDoBonus, diaDaContagem, mesTrabalhado,
 } from '../js/folha.js';
 
 const UI = readFileSync(new URL('../js/folha-ui.js', import.meta.url), 'utf8');
@@ -86,14 +86,33 @@ grupo('bônus por turno · o rótulo é derivado do turno', () => {
 
 // ───────────────────────────────────────────────────────────
 grupo('bônus por turno · a data da contagem', () => {
-  teste('a competência vira o último dia do mês', () => {
-    igual(ultimoDiaDoMes('2026-08-01'), '2026-08-31');
-    igual(ultimoDiaDoMes('2026-09-01'), '2026-09-30');
+  teste('a contagem é do último dia do mês ANTERIOR à competência', () => {
+    // A casa nomeia a folha pelo mês em que PAGA, e paga o mês trabalhado
+    // antes: as 24 folhas com data foram pagas entre os dias 1 e 4 da própria
+    // competência, em quase dois anos, sem exceção. Ninguém paga em 03/08 o
+    // trabalho de agosto.
+    igual(diaDaContagem('2026-09-01'), '2026-08-31');
+    igual(diaDaContagem('2026-08-01'), '2026-07-31');
+  });
+
+  teste('a primeira versão contava no mês errado', () => {
+    // Ela devolvia 30/09 para a folha de setembro — data que ainda nem chegou
+    // quando a folha é paga, e que mede o mês seguinte ao trabalhado.
+    ok(diaDaContagem('2026-09-01') !== '2026-09-30');
+  });
+
+  teste('vira o ano sem tropeçar', () => {
+    igual(diaDaContagem('2026-01-01'), '2025-12-31');
   });
 
   teste('fevereiro e ano bissexto saem certos', () => {
-    igual(ultimoDiaDoMes('2026-02-01'), '2026-02-28');
-    igual(ultimoDiaDoMes('2028-02-01'), '2028-02-29');
+    igual(diaDaContagem('2026-03-01'), '2026-02-28');
+    igual(diaDaContagem('2028-03-01'), '2028-02-29');
+  });
+
+  teste('o mês trabalhado sai por extenso, para a tela dizer a convenção', () => {
+    igual(mesTrabalhado('2026-09-01'), 'Agosto de 2026');
+    igual(mesTrabalhado('2026-01-01'), 'Dezembro de 2025');
   });
 
   teste('a virada não depende do fuso de quem olha', () => {
@@ -103,8 +122,8 @@ grupo('bônus por turno · a data da contagem', () => {
   });
 
   teste('competência inválida não inventa data', () => {
-    igual(ultimoDiaDoMes(''), '');
-    igual(ultimoDiaDoMes('abacaxi'), 'abacaxi');
+    igual(diaDaContagem(''), '');
+    igual(diaDaContagem('abacaxi'), 'abacaxi');
   });
 });
 
@@ -133,7 +152,7 @@ grupo('bônus por turno · a tela', () => {
     // A contagem é DAQUELE dia, não de hoje. Sem dizer isso, um número visto em
     // outubro pareceria desatualizado quando está certo e congelado.
     contem(UI, 'Alunos ativos em ${esc(dia)}');
-    contem(UI, 'ultimoDiaDoMes(_folha.competencia)');
+    contem(UI, 'diaDaContagem(_folha.competencia)');
   });
 
   teste('escolher o bônus preenche o valor, e só quando há contagem', () => {
@@ -151,6 +170,16 @@ grupo('bônus por turno · a tela', () => {
 
   teste('o resumo aparece no cabeçalho da folha', () => {
     contem(UI, '${resumoTurnosHtml()}');
+  });
+
+  teste('a tela DIZ que a folha paga o mês anterior', () => {
+    // Foi essa confusão que fez a folha de agosto parecer erro de cadastro
+    // quando era a convenção da casa. O painel agora explica em vez de deixar
+    // a data solta.
+    contem(UI, 'paga <b>${esc(mes)}</b>');
+    contem(UI, 'mesTrabalhado(_folha.competencia)');
+    contem(UI, 'fp-turnos-mes');
+    contem(CSS, '.fp-turnos-mes');
   });
 
   teste('a conta aparece inteira, e não só o resultado', () => {

@@ -417,7 +417,7 @@ export function traduzirErroFolha(msg) {
  */
 export async function alunosPorTurno(competencia) {
   const { data, error } = await sb.rpc('comercial_alunos_por_turno', {
-    p_ref: ultimoDiaDoMes(competencia),
+    p_ref: diaDaContagem(competencia),
   });
   if (error) throw error;
   const fora = {};
@@ -426,17 +426,38 @@ export async function alunosPorTurno(competencia) {
 }
 
 /**
- * '2026-08-01' → '2026-08-31'.
+ * O dia em que os alunos são contados para a folha de uma competência:
+ * o ÚLTIMO DIA DO MÊS ANTERIOR a ela.
  *
- * O dia 0 do mês SEGUINTE é o último do atual, e resolve fevereiro e ano
- * bissexto sem tabela. `Date.UTC` para a virada não depender do fuso de quem
- * está olhando: em UTC-3, o dia 1 às 00:00 local é ainda o mês anterior em UTC,
- * e a folha de agosto contaria julho.
+ *   folha de Setembro  →  contagem em 31/08
+ *   folha de Agosto    →  contagem em 31/07
+ *
+ * POR QUE O MÊS ANTERIOR. A casa nomeia a folha pelo mês em que PAGA, e o que
+ * ela paga é o mês trabalhado antes. O histórico não deixa dúvida: as 24 folhas
+ * com data de pagamento foram pagas entre os dias 1 e 4 da própria competência,
+ * em quase dois anos, sem uma exceção — e ninguém paga em 03/08 o trabalho de
+ * agosto.
+ *
+ * A primeira versão contava no último dia da PRÓPRIA competência, o que dava
+ * 30/09 para a folha de setembro: uma data que ainda nem chegou quando a folha
+ * é paga, e que mediria o mês errado.
+ *
+ * `Date.UTC(ano, mes - 1, 0)` é o dia 0 do mês da competência, que é o último
+ * do anterior — e resolve fevereiro e ano bissexto sem tabela. UTC para a
+ * virada não depender do fuso de quem está olhando: em UTC-3, o dia 1 às 00:00
+ * local ainda é o mês anterior em UTC.
  */
-export function ultimoDiaDoMes(competencia) {
+export function diaDaContagem(competencia) {
   const m = /^(\d{4})-(\d{2})/.exec(String(competencia || ''));
   if (!m) return String(competencia || '');
-  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]), 0));
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, 0));
   const p = x => String(x).padStart(2, '0');
   return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
+}
+
+/** O mês que a folha de uma competência realmente paga. '2026-09-01' →
+ *  'Agosto de 2026'. É o que a tela mostra para a convenção ficar visível. */
+export function mesTrabalhado(competencia) {
+  const dia = diaDaContagem(competencia);
+  return /^\d{4}-\d{2}/.test(dia) ? nomeCompetencia(dia.slice(0, 7) + '-01') : '—';
 }

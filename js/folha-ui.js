@@ -19,7 +19,7 @@ import {
   listarFolhas, abrirFolha, carregarFolha, salvarItem, excluirItem, adicionarItem,
   adicionarAdicional, excluirAdicional, fecharFolha, reabrirFolha, excluirFolha,
   traduzirErroFolha,
-  alunosPorTurno, ultimoDiaDoMes, TURNOS_COM_BONUS, rotuloDoBonus, turnoDoBonus, valorDoBonus,
+  alunosPorTurno, diaDaContagem, mesTrabalhado, TURNOS_COM_BONUS, rotuloDoBonus, turnoDoBonus, valorDoBonus,
   BONUS_POR_ALUNO,
 } from './folha.js';
 import { listarFuncionarios } from './funcionarios.js';
@@ -232,13 +232,15 @@ function resumoTurnosHtml() {
       </div>`;
   }
 
-  const dia = formatarData(ultimoDiaDoMes(_folha.competencia));
+  const dia = formatarData(diaDaContagem(_folha.competencia));
+  const mes = mesTrabalhado(_folha.competencia);
 
   return `
     <section class="fp-turnos" aria-label="Alunos ativos por turno">
       <header class="fp-turnos-topo">
         <i data-lucide="users-round"></i>
         <h3 class="fp-turnos-t">Alunos ativos em ${esc(dia)}</h3>
+        <span class="fp-turnos-mes">base do bônus de ${esc(nomeCompetencia(_folha.competencia))}</span>
       </header>
 
       <div class="fp-turnos-grade">
@@ -261,6 +263,8 @@ function resumoTurnosHtml() {
       </div>
 
       <p class="fp-turnos-regra">
+        A folha de ${esc(nomeCompetencia(_folha.competencia))} paga <b>${esc(mes)}</b>,
+        então a contagem é do último dia daquele mês.
         Não entram quem tem <b>mais de 20% de desconto</b> nem quem estava com a
         <b>mensalidade vencida</b> em ${esc(dia)}.
       </p>
