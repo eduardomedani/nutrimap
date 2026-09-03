@@ -244,57 +244,97 @@
    RESUMO POR TURNO — a base do bônus por aluno
    ───────────────────────────────────────────────────────────
    Fica entre a barra e a folha: é contexto do fechamento, não um card de ação.
-   Por isso não tem botão nem borda forte — quem lança o bônus faz isso na
-   linha do colaborador, e este bloco só informa de onde vem o número. */
+   Sem botão e sem borda forte — quem lança o bônus faz isso na linha do
+   colaborador, e este bloco só explica de onde vem o número. */
 .fp-turnos {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 14px 18px;
+  padding: 16px 18px;
   margin-bottom: 16px;
   box-shadow: var(--shadow-xs);
 }
-.fp-turnos-topo { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+
+.fp-turnos-topo { display: flex; align-items: center; gap: 7px; margin-bottom: 12px; }
+.fp-turnos-topo svg { width: 15px; height: 15px; color: var(--text-muted); }
 .fp-turnos-t {
+  margin: 0;
   font-size: 11px; font-weight: 700; letter-spacing: var(--tracking-wide);
   text-transform: uppercase; color: var(--text-muted);
 }
-/* A explicação das exclusões mora no `title`: quem já sabe não precisa dela
-   toda vez, e quem não sabe encontra passando o mouse. Uma frase fixa aqui
-   competiria com os números, que são o assunto. */
-.fp-turnos-ajuda { display: inline-flex; color: var(--text-muted); cursor: help; }
-.fp-turnos-ajuda svg { width: 14px; height: 14px; }
 
-.fp-turnos-linha { display: flex; flex-wrap: wrap; gap: 10px; }
+/* Duas colunas iguais. `auto-fit` com mínimo faz a quebra acontecer pela
+   largura disponível, e não por breakpoint escolhido a dedo — o painel divide
+   a linha com a folha e nem sempre ocupa a tela toda. */
+.fp-turnos-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
 .fp-turno {
-  flex: 1 1 120px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md, 10px);
-  padding: 10px 14px;
+  padding: 12px 14px;
   background: var(--bg-warm, transparent);
 }
-.fp-turno-n {
-  font-size: 22px; font-weight: 700;
-  letter-spacing: var(--tracking-tight); color: var(--text-primary);
-  line-height: 1.1;
-}
-.fp-turno-rot { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
-/* O valor em reais é a segunda informação, não a primeira: o número de alunos
-   é o fato, e o dinheiro é a consequência dele. */
-.fp-turno-vl { margin-top: 4px; font-size: 12.5px; font-weight: 700; color: var(--text-muted); }
 
-.fp-turno-total { background: transparent; border-style: dashed; }
+.fp-turno-cab {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: var(--tracking-wide);
+}
+.fp-turno-cab svg { width: 14px; height: 14px; }
+
+/* O NÚMERO É O ASSUNTO: ele é o fato apurado, e o dinheiro é consequência
+   dele. Por isso ele domina, e o "alunos" fica pequeno ao lado — não numa
+   linha própria, que empurraria a conta para longe. */
+.fp-turno-n {
+  display: flex; align-items: baseline; gap: 6px;
+  margin: 6px 0 8px;
+  font-size: 30px; font-weight: 700; line-height: 1;
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-primary);
+}
+.fp-turno-n small {
+  font-size: 12px; font-weight: 600; letter-spacing: 0;
+  text-transform: none; color: var(--text-muted);
+}
+
+/* A CONTA INTEIRA, visível: "27 × R$ 10,00   R$ 270,00". Sem ela a tela
+   mostrava dois números sem dizer o que liga um ao outro, e uma taxa errada só
+   apareceria no contracheque. */
+.fp-turno-conta {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  font-size: 12.5px; color: var(--text-muted);
+}
+.fp-turno-conta b {
+  font-size: 14px; font-weight: 700; color: var(--text-primary);
+  white-space: nowrap;
+}
+
+/* A regra que explica o número fica VISÍVEL, e não num `title`: no celular
+   tooltip não existe, e é ela que responde "por que 27 e não 94". */
+.fp-turnos-regra {
+  margin: 12px 0 0;
+  font-size: 12px; line-height: 1.5;
+  color: var(--text-secondary);
+}
+.fp-turnos-regra b { font-weight: 700; color: var(--text-primary); }
 
 /* Sem contagem, o bloco DIZ que não contou. Mostrar zero aqui passaria por
    resposta, e o bônus sairia errado sem ninguém desconfiar. */
 .fp-turnos-vazio {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 13px; color: var(--text-secondary);
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 13px; line-height: 1.5; color: var(--text-secondary);
 }
-.fp-turnos-vazio svg { width: 16px; height: 16px; color: var(--warning, var(--text-muted)); }
-
-@media (max-width: 560px) {
-  .fp-turno { flex: 1 1 100%; }
+.fp-turnos-vazio b { display: block; color: var(--text-primary); }
+.fp-turnos-vazio svg {
+  flex: 0 0 auto; width: 17px; height: 17px; margin-top: 1px;
+  color: var(--warning, var(--text-muted));
 }
 
 .fp-total-caixa {

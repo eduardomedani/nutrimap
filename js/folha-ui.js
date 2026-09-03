@@ -187,14 +187,36 @@ async function carregarTurnos() {
 }
 
 /**
+ * O ícone de cada turno. Sol e lua se leem antes do texto — num painel que se
+ * consulta de relance, isso vale mais que a palavra.
+ */
+const ICONE_DO_TURNO = { Diurno: 'sun', Noturno: 'moon' };
+
+/**
  * O resumo por turno, no cabeçalho da folha.
  *
  * Ele aparece SEMPRE que a folha existe, e não só quando alguém vai lançar o
  * bônus: o número de alunos ativos do mês é informação de fechamento por si só.
  *
- * A data aparece por extenso porque a contagem é DAQUELE DIA, não de hoje. Sem
- * dizer isso, um número visto em outubro pareceria desatualizado — quando na
- * verdade ele está certo e congelado de propósito.
+ * TRÊS DECISÕES DE LAYOUT, e as três vieram de defeitos da primeira versão:
+ *
+ *   A CONTA APARECE INTEIRA — "27 × R$ 10,00 = R$ 270,00". Antes a tela
+ *   mostrava só o 27 e o R$ 270, e quem conferia precisava saber a taxa de
+ *   cabeça. Mostrar a multiplicação faz o painel se explicar sozinho, e faz
+ *   uma taxa errada aparecer na hora em vez de no contracheque.
+ *
+ *   NÃO HÁ TOTAL DOS DOIS TURNOS. Ele existia e foi removido: os dois bônus vão
+ *   para PESSOAS DIFERENTES, então a soma não corresponde a pagamento nenhum.
+ *   Um número que ninguém paga, na mesma linha de dois que alguém paga, convida
+ *   a lançar o valor errado.
+ *
+ *   A REGRA DE EXCLUSÃO É TEXTO VISÍVEL, não `title`. É ela que torna o número
+ *   confiável, e no celular tooltip não existe — quem lê o painel no telefone
+ *   ficava sem a única informação que explica por que 27 e não 94.
+ *
+ * A DATA VEM POR EXTENSO porque a contagem é DAQUELE dia, não de hoje. Sem
+ * dizer isso, um número visto em outubro pareceria desatualizado quando está
+ * certo e congelado de propósito.
  */
 function resumoTurnosHtml() {
   if (!_folha) return '';
@@ -203,35 +225,46 @@ function resumoTurnosHtml() {
     return `
       <div class="fp-turnos fp-turnos-vazio">
         <i data-lucide="alert-circle"></i>
-        Não consegui contar os alunos por turno. O bônus pode ser lançado à mão.
+        <div>
+          <b>Não consegui contar os alunos por turno.</b>
+          O bônus pode ser lançado à mão.
+        </div>
       </div>`;
   }
 
   const dia = formatarData(ultimoDiaDoMes(_folha.competencia));
-  const total = TURNOS_COM_BONUS.reduce((s, t) => s + (Number(_turnos[t]) || 0), 0);
 
   return `
-    <div class="fp-turnos">
-      <div class="fp-turnos-topo">
-        <span class="fp-turnos-t">Alunos ativos em ${esc(dia)}</span>
-        <span class="fp-turnos-ajuda" title="Não entram quem tem mais de 20% de desconto nem quem estava com a mensalidade vencida no dia.">
-          <i data-lucide="info"></i>
-        </span>
-      </div>
-      <div class="fp-turnos-linha">
-        ${TURNOS_COM_BONUS.map(t => `
+    <section class="fp-turnos" aria-label="Alunos ativos por turno">
+      <header class="fp-turnos-topo">
+        <i data-lucide="users-round"></i>
+        <h3 class="fp-turnos-t">Alunos ativos em ${esc(dia)}</h3>
+      </header>
+
+      <div class="fp-turnos-grade">
+        ${TURNOS_COM_BONUS.map(t => {
+          const n = Number(_turnos[t]) || 0;
+          const valor = valorDoBonus(_turnos, t) ?? 0;
+          return `
           <div class="fp-turno">
-            <div class="fp-turno-n">${Number(_turnos[t]) || 0}</div>
-            <div class="fp-turno-rot">${esc(t)}</div>
-            <div class="fp-turno-vl">${esc(formatarBRL(valorDoBonus(_turnos, t) ?? 0))}</div>
-          </div>`).join('')}
-        <div class="fp-turno fp-turno-total">
-          <div class="fp-turno-n">${total}</div>
-          <div class="fp-turno-rot">no total</div>
-          <div class="fp-turno-vl">${esc(formatarBRL(total * BONUS_POR_ALUNO))}</div>
-        </div>
+            <div class="fp-turno-cab">
+              <i data-lucide="${esc(ICONE_DO_TURNO[t] || 'users')}"></i>
+              <span>${esc(t)}</span>
+            </div>
+            <div class="fp-turno-n">${n}<small>${n === 1 ? 'aluno' : 'alunos'}</small></div>
+            <div class="fp-turno-conta">
+              ${n} × ${esc(formatarBRL(BONUS_POR_ALUNO))}
+              <b>${esc(formatarBRL(valor))}</b>
+            </div>
+          </div>`;
+        }).join('')}
       </div>
-    </div>`;
+
+      <p class="fp-turnos-regra">
+        Não entram quem tem <b>mais de 20% de desconto</b> nem quem estava com a
+        <b>mensalidade vencida</b> em ${esc(dia)}.
+      </p>
+    </section>`;
 }
 
 // ───────────────────────────────────────────────────────────

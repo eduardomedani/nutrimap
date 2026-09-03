@@ -153,10 +153,50 @@ grupo('bônus por turno · a tela', () => {
     contem(UI, '${resumoTurnosHtml()}');
   });
 
-  teste('o CSS do painel existe e some no celular estreito', () => {
+  teste('a conta aparece inteira, e não só o resultado', () => {
+    // A primeira versão mostrava "27" e "R$ 270,00" sem dizer o que liga um ao
+    // outro. Quem conferia precisava saber a taxa de cabeça, e uma taxa errada
+    // só apareceria no contracheque.
+    contem(UI, '${n} × ${esc(formatarBRL(BONUS_POR_ALUNO))}');
+    contem(CSS, '.fp-turno-conta');
+  });
+
+  teste('NÃO existe total somando os dois turnos', () => {
+    // Ele existia e foi removido: os dois bônus vão para PESSOAS DIFERENTES,
+    // então a soma não corresponde a pagamento nenhum. Um número que ninguém
+    // paga, ao lado de dois que alguém paga, convida a lançar o valor errado.
+    naoContem(UI, 'no total');
+    naoContem(UI, 'total * BONUS_POR_ALUNO');
+    naoContem(CSS, '.fp-turno-total');
+  });
+
+  teste('a regra de exclusão é texto visível, não tooltip', () => {
+    // É ela que responde "por que 27 e não 94". No celular tooltip não existe,
+    // e quem lê o painel no telefone ficava sem a única informação que explica
+    // o número.
+    contem(UI, 'fp-turnos-regra');
+    contem(UI, 'mais de 20% de desconto');
+    contem(UI, 'mensalidade vencida');
+    naoContem(UI, 'fp-turnos-ajuda');
+    naoContem(UI, 'title="Não entram');
+  });
+
+  teste('cada turno tem ícone próprio', () => {
+    // Sol e lua se leem antes do texto, e o painel é consultado de relance.
+    contem(UI, "ICONE_DO_TURNO = { Diurno: 'sun', Noturno: 'moon' }");
+    contem(UI, "ICONE_DO_TURNO[t] || 'users'");
+  });
+
+  teste('a grade quebra pela largura, não por breakpoint escolhido a dedo', () => {
+    // O painel divide a linha com a folha e nem sempre ocupa a tela toda —
+    // `auto-fit` acerta nos dois casos sem media query.
     contem(CSS, '.fp-turnos');
     contem(CSS, '.fp-turnos-vazio');
-    contem(CSS, '@media (max-width: 560px)');
+    contem(CSS, 'repeat(auto-fit, minmax(190px, 1fr))');
+  });
+
+  teste('singular e plural do rótulo', () => {
+    contem(UI, "n === 1 ? 'aluno' : 'alunos'");
   });
 });
 
