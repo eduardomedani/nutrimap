@@ -50,15 +50,24 @@
 -- ===========================================================================
 -- O QUE ESTE ARQUIVO NAO TOCA, E POR QUE
 -- ---------------------------------------------------------------------------
--- As policies do COLABORADOR ficam como estao:
+-- As policies do COLABORADOR ficam como estao, e sao SEIS — cinco em `public`
+-- mais uma no Storage:
 --
---   funcionarios_self_read · folhas_funcionario_read · folha_itens_funcionario_read
---   folha_adicionais_funcionario_read · cd_colaborador_select · cd_storage_colaborador
+--   funcionarios_self_read             auth_user_id = auth.uid()
+--   folhas_funcionario_read            folha_tem_linha_minha(id)
+--   folha_itens_funcionario_read       funcionario_do_auth()
+--   folha_adicionais_funcionario_read  item_e_meu(item_id)
+--   cd_colaborador_select              funcionario_do_auth()
+--   cd_storage_colaborador             funcionario_do_auth() + documento_e_meu()
 --
--- Elas nao falam de tenancy: resolvem por `funcionario_do_auth()`, que e o
--- vinculo da pessoa com o proprio cadastro. Migra-las nao faria sentido — o
--- colaborador nao pertence a organizacao no sentido de dono, ele e o assunto do
--- dado. Policies sao OR'd, entao as duas familias convivem.
+-- Repare que sao TRES mecanismos, nao um. Nenhum deles fala de tenancy: todos
+-- resolvem o vinculo da pessoa com o proprio dado. Migra-las nao faria sentido
+-- — o colaborador nao pertence a organizacao no sentido de dono, ele e o
+-- assunto do dado. Policies sao OR'd, entao as duas familias convivem.
+--
+-- A conferencia 112 verifica as cinco de `public` PELO NOME. A primeira versao
+-- dela procurava `funcionario_do_auth` e acusou "ALGUMA SUMIU" porque so duas
+-- usam essa funcao — alarme falso, corrigido antes de migrar.
 --
 -- A TRAVA DA FOLHA FECHADA tambem fica. `folha_itens` e `folha_adicionais`
 -- recusam insert, update e delete quando `folhas.status = 'fechada'`, e isso
@@ -90,9 +99,9 @@ alter table public.documentos_pendentes
 -- ---------------------------------------------------------------------------
 -- 2) funcionarios
 -- ---------------------------------------------------------------------------
--- `funcionarios_self_read` NAO aparece aqui: e o acesso do colaborador ao
--- proprio cadastro, por `funcionario_do_auth()`. Derruba-la tiraria o
--- contracheque dele do ar.
+-- `funcionarios_self_read` NAO aparece nos drops: e o acesso do colaborador ao
+-- proprio cadastro, e ela resolve por `auth_user_id = auth.uid()` — a coluna
+-- que liga o funcionario a conta dele. Derruba-la tiraria o contracheque do ar.
 drop policy if exists funcionarios_select on public.funcionarios;
 drop policy if exists funcionarios_insert on public.funcionarios;
 drop policy if exists funcionarios_update on public.funcionarios;
@@ -390,7 +399,9 @@ create policy cd_storage_nutri on storage.objects
 --   sem_permissao     = 0    nenhuma migrada sem `tem_permissao`
 --   defaults          = 6
 --   storage_migrada   = 1
---   colaborador_intactas = 6  as policies do proprio funcionario, nao tocadas
+--   colaborador_intactas = 2  SO as que usam funcionario_do_auth(); as outras
+--                             tres do colaborador usam outros mecanismos e a
+--                             conferencia 112 as verifica pelo nome
 --   linhas = as mesmas de antes (nenhum dado e escrito por este arquivo)
 -- ===========================================================================
 with alvo as (

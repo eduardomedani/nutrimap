@@ -117,24 +117,49 @@ begin
     case when v_n = 1 then 'OK' else 'SUMIU — o colaborador perdeu o proprio arquivo' end);
 
   -- ═══════════ COLABORADOR — o que NAO pode mudar ═══════════
-  -- Estas resolvem por `funcionario_do_auth()`, que e o vinculo da pessoa com o
-  -- proprio cadastro, e nao tenancy. Migra-las nao faria sentido e derrubaria o
-  -- acesso dele ao contracheque.
+  -- Cinco policies em `public` dao ao colaborador acesso ao PROPRIO dado. Elas
+  -- nao falam de tenancy, e por isso a 4C nao as toca — derrubar uma tiraria o
+  -- contracheque dele do ar.
+  --
+  -- A CONFERENCIA E NOMINAL, e a primeira versao deste script errou nisso: ela
+  -- procurava `funcionario_do_auth` e concluiu "ALGUMA SUMIU" porque so duas
+  -- usam essa funcao. As cinco resolvem por TRES mecanismos diferentes:
+  --
+  --   funcionarios_self_read           auth_user_id = auth.uid()
+  --   folhas_funcionario_read          folha_tem_linha_minha(id)
+  --   folha_itens_funcionario_read     funcionario_do_auth()
+  --   folha_adicionais_funcionario_read item_e_meu(item_id)
+  --   cd_colaborador_select            funcionario_do_auth()
+  --
+  -- Procurar UM mecanismo e concluir sobre CINCO policies foi o erro. Alarme que
+  -- grita sem motivo treina a ignorar alarme.
   for r in
-    select policyname, tablename
-      from pg_policies
-     where schemaname = 'public'
-       and coalesce(qual,'') like '%funcionario_do_auth%'
-     order by tablename, policyname
+    select x.tabela, x.policy,
+           (select count(*) from pg_policies p
+             where p.schemaname = 'public'
+               and p.tablename = x.tabela and p.policyname = x.policy) as existe
+      from (values
+        ('funcionarios',           'funcionarios_self_read'),
+        ('folhas',                 'folhas_funcionario_read'),
+        ('folha_itens',            'folha_itens_funcionario_read'),
+        ('folha_adicionais',       'folha_adicionais_funcionario_read'),
+        ('colaborador_documentos', 'cd_colaborador_select')
+      ) as x(tabela, policy)
   loop
-    insert into conf112 values (40, 'COLABORADOR', r.tablename || ' · ' || r.policyname,
-      'por funcionario_do_auth()', 'intacta');
+    insert into conf112 values (40, 'COLABORADOR', r.tabela || ' · ' || r.policy,
+      case when r.existe = 1 then 'existe' else 'AUSENTE' end,
+      case when r.existe = 1 then 'intacta'
+           else 'SUMIU — o app do colaborador quebra' end);
   end loop;
 
-  select count(*) into v_n from pg_policies
-   where schemaname = 'public' and coalesce(qual,'') like '%funcionario_do_auth%';
-  insert into conf112 values (41, 'COLABORADOR', 'total de policies do proprio funcionario', v_n::text,
-    case when v_n >= 5 then 'OK' else 'ALGUMA SUMIU — o app do colaborador quebra' end);
+  select count(*) into v_n
+    from pg_policies p
+   where p.schemaname = 'public'
+     and p.policyname in ('funcionarios_self_read','folhas_funcionario_read',
+                          'folha_itens_funcionario_read','folha_adicionais_funcionario_read',
+                          'cd_colaborador_select');
+  insert into conf112 values (41, 'COLABORADOR', 'as cinco do proprio funcionario', v_n || ' de 5',
+    case when v_n = 5 then 'OK' else 'ALGUMA SUMIU — o app do colaborador quebra' end);
 
   -- ═══════════ A TRAVA DA FOLHA FECHADA ═══════════
   -- Ela e anterior a qualquer discussao de tenancy: folha fechada nao aceita

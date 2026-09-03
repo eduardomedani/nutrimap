@@ -220,7 +220,7 @@ create policy cd_storage_nutri on storage.objects
 -- ===========================================================================
 -- Conferencia. Esperado depois do rollback:
 --   com_organizacao = 0 · storage_migrada = 0 · defaults_migrados = 0
---   colaborador_intactas = 6 · linhas iguais as de antes
+--   colaborador_intactas = 2 (so as de funcionario_do_auth) · linhas iguais
 -- ===========================================================================
 with alvo as (
   select unnest(array['folhas','folha_itens','folha_adicionais','funcionarios',
