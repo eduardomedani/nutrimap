@@ -56,7 +56,7 @@
 --   . assinatura ATIVA e com turno preenchido;
 --   . o cliente ja existia na data (`data_inicio_original <= a data`);
 --   . o periodo NAO estava vencido na data;
---   . o desconto sobre o preco do plano nao passa do teto (20% por padrao).
+--   . o desconto sobre o preco do plano nao passa do teto (10% por padrao).
 --
 -- O TETO E PARAMETRO, e nao numero escrito no meio da consulta: mudar a regra
 -- comercial nao pode exigir migracao. O padrao vem do combinado de 03/09/2026.
@@ -80,7 +80,7 @@
 
 create or replace function public.comercial_alunos_por_turno(
   p_ref              date    default current_date,
-  p_desconto_maximo  numeric default 0.20
+  p_desconto_maximo  numeric default 0.10
 )
 returns table (turno text, alunos integer)
 language plpgsql

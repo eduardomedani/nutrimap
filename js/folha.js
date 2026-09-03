@@ -38,6 +38,19 @@ export const STATUS_FOLHA = { rascunho: 'Rascunho', fechada: 'Fechada' };
 export const BONUS_POR_ALUNO = 10;
 
 /**
+ * Ate quanto de desconto o aluno ainda conta para o bonus. 10% desde
+ * 03/09/2026 — antes eram 20%.
+ *
+ * O NUMERO MORA AQUI E A TELA O LE, em vez de a prosa repetir "mais de 10%"
+ * escrito a mao. Repetido, ele vira duas fontes que discordam no dia em que uma
+ * mudar — e a que a pessoa le seria justamente a que nao decide nada.
+ *
+ * Vai como PARAMETRO para a funcao do banco. O default de la existe para quem
+ * a chama sem argumento (a conferencia 113), e os dois sao mantidos iguais.
+ */
+export const DESCONTO_MAXIMO = 0.10;
+
+/**
  * Os turnos que geram bônus, e o rótulo de cada um.
  *
  * O RÓTULO É DERIVADO DO TURNO, e isso é de propósito. Se alguém renomear o
@@ -418,6 +431,7 @@ export function traduzirErroFolha(msg) {
 export async function alunosPorTurno(competencia) {
   const { data, error } = await sb.rpc('comercial_alunos_por_turno', {
     p_ref: diaDaContagem(competencia),
+    p_desconto_maximo: DESCONTO_MAXIMO,
   });
   if (error) throw error;
   const fora = {};

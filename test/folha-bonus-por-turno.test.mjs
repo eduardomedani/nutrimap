@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs';
 import {
   BONUS_POR_ALUNO, TURNOS_COM_BONUS, ADICIONAIS_SUGERIDOS,
   rotuloDoBonus, turnoDoBonus, valorDoBonus, diaDaContagem, mesTrabalhado,
+  DESCONTO_MAXIMO,
 } from '../js/folha.js';
 
 const UI = readFileSync(new URL('../js/folha-ui.js', import.meta.url), 'utf8');
@@ -29,6 +30,15 @@ grupo('bônus por turno · a conta', () => {
 
   teste('o valor por aluno é R$ 10', () => {
     igual(BONUS_POR_ALUNO, 10);
+  });
+
+  teste('o teto de desconto é 10%, e mora num lugar só', () => {
+    // Antes eram 20%. O numero governa a chamada da RPC E o texto da tela —
+    // repetido em prosa, viraria duas fontes que discordam no dia em que uma
+    // mudar, e a que a pessoa le seria justamente a que nao decide nada.
+    igual(DESCONTO_MAXIMO, 0.10);
+    contem(readFileSync(new URL('../js/folha.js', import.meta.url), 'utf8'),
+           'p_desconto_maximo: DESCONTO_MAXIMO');
   });
 
   teste('zero alunos vale zero — é resposta', () => {
@@ -204,7 +214,7 @@ grupo('bônus por turno · a tela', () => {
     // e quem lê o painel no telefone ficava sem a única informação que explica
     // o número.
     contem(UI, 'fp-turnos-regra');
-    contem(UI, 'mais de 20% de desconto');
+    contem(UI, 'mais de ${Math.round(DESCONTO_MAXIMO * 100)}% de desconto');
     contem(UI, 'mensalidade vencida');
     naoContem(UI, 'fp-turnos-ajuda');
     naoContem(UI, 'title="Não entram');
@@ -259,7 +269,7 @@ grupo('bônus por turno · a função no banco', () => {
 
   teste('o teto do desconto é parâmetro, não número solto', () => {
     // Mudar a regra comercial não pode exigir migração.
-    contem(SQL, 'p_desconto_maximo  numeric default 0.20');
+    contem(SQL, 'p_desconto_maximo  numeric default 0.10');
   });
 
   teste('desconto negativo conta', () => {

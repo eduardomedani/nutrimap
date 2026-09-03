@@ -209,10 +209,36 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: stretch;
 }
-.fp-competencia-linha .np-input { padding: 9px 14px; font-size: 14px; }
-.fp-mes { max-width: 170px; }
+
+/* O SELECT E O CAMPO DE MÊS TÊM QUE PARECER O MESMO CONTROLE.
+   Eles fazem a mesma coisa — escolher um mês —, um entre os que já existem e o
+   outro entre os que ainda não. Tamanhos diferentes faziam parecer que um é a
+   ação principal e o outro um acessório.
+   `min-height` explícito porque `input[type="month"]` traz altura intrínseca
+   própria no Chrome, com o seu ícone de calendário: só igualar o padding
+   deixava os dois com alturas diferentes. `box-sizing` para o padding não somar
+   por fora e desfazer a igualdade. */
+.fp-competencia-linha .np-input,
+.fp-competencia-linha .btn {
+  box-sizing: border-box;
+  min-height: 40px;
+  padding: 9px 14px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+/* Mesma base de largura e mesma folga para crescer: os dois dividem a linha em
+   partes iguais, e quebram juntos quando ela aperta. */
+.fp-competencia-linha .np-input { flex: 1 1 190px; min-width: 0; }
+/* O botão é ação, não campo: acompanha a altura e não estica. */
+.fp-competencia-linha .btn { flex: 0 0 auto; }
+
+@media (max-width: 520px) {
+  /* Empilhados, ocupar a largura toda é o que dá alvo de toque decente. */
+  .fp-competencia-linha .np-input,
+  .fp-competencia-linha .btn { flex: 1 1 100%; }
+}
 
 .fp-resumo {
   display: flex;

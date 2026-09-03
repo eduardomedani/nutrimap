@@ -12,7 +12,7 @@
 -- AS REGRAS, como foram entendidas:
 --
 --   . conta aluno com assinatura ATIVA na data de referencia;
---   . NAO conta quem tem mais de 20% de desconto sobre o preco do plano;
+--   . NAO conta quem tem mais de 10% de desconto sobre o preco do plano;
 --   . NAO conta quem estava com a mensalidade VENCIDA na data de referencia.
 --
 -- ===========================================================================
@@ -52,7 +52,7 @@ declare
   -- A data em que a pergunta e feita: o ultimo dia da competencia.
   v_ref  constant date := date '2026-08-31';
   -- Acima disto o aluno nao entra na contagem.
-  v_teto constant numeric := 0.20;
+  v_teto constant numeric := 0.10;
 begin
   select o.id into v_org
     from public.organizacoes o
@@ -146,6 +146,59 @@ begin
     insert into conf113 values (40, 'CONTAGEM', r.turno, r.contam::text,
       'x R$ 10 = R$ ' || (r.contam * 10));
   end loop;
+
+  -- ═══════════ 4b) ONDE O TETO CORTA ═══════════
+  -- O teto passou de 20% para 10% em 03/09/2026. A pergunta que decide se a
+  -- mudanca mexeu em alguem e simples: ha aluno na faixa ENTRE os dois?
+  --
+  -- A distribuicao inteira aparece para o teto ser escolhido olhando o dado, e
+  -- nao no chute. Se houver um vale claro entre o desconto comum e a bolsa, o
+  -- teto certo mora dentro dele — e qualquer valor ali dentro da o mesmo
+  -- resultado, o que torna a regra estavel.
+  for r in
+    select case
+             when d <= 0        then 'sem desconto'
+             when d <= 0.05     then 'ate 5%'
+             when d <= 0.10     then '5% a 10%'
+             when d <= 0.20     then '10% a 20%   <- a faixa que mudou'
+             when d <= 0.50     then '20% a 50%'
+             else 'mais de 50%'
+           end as faixa,
+           count(*) as quantos,
+           min(round(d * 100)) as menor,
+           max(round(d * 100)) as maior
+      from (
+        select (1 - coalesce(a.valor_contratado, p.preco_padrao) / p.preco_padrao) as d
+          from public.comercial_assinaturas a
+          join public.comercial_planos p on p.id = a.plano_id
+         where a.nutri_id = v_org and a.status = 'ativa'
+           and p.preco_padrao > 0
+           and coalesce(trim(a.horario), '') <> ''
+           and a.fim_periodo >= v_ref
+      ) x
+     group by 1
+     order by min(d)
+  loop
+    insert into conf113 values (35, 'FAIXAS DE DESCONTO', r.faixa,
+      r.quantos || ' aluno(s) | de ' || r.menor || '% a ' || r.maior || '%',
+      case when r.faixa like '10%%' then 'sairam quando o teto virou 10%'
+           when r.menor > 10 then 'ja estavam fora com 20%'
+           else 'contam' end);
+  end loop;
+
+  -- O numero que responde a pergunta sozinho.
+  select count(*) into v_n
+    from public.comercial_assinaturas a
+    join public.comercial_planos p on p.id = a.plano_id
+   where a.nutri_id = v_org and a.status = 'ativa'
+     and p.preco_padrao > 0
+     and coalesce(trim(a.horario), '') <> ''
+     and a.fim_periodo >= v_ref
+     and (1 - coalesce(a.valor_contratado, p.preco_padrao) / p.preco_padrao) > 0.10
+     and (1 - coalesce(a.valor_contratado, p.preco_padrao) / p.preco_padrao) <= 0.20;
+  insert into conf113 values (36, 'FAIXAS DE DESCONTO', 'afetados pela mudanca de 20% para 10%', v_n::text,
+    case when v_n = 0 then 'NINGUEM — a regra ficou mais estrita e o numero nao mudou'
+         else 'estes contavam com 20% e deixam de contar com 10%' end);
 
   -- ═══════════ 5) QUEM FICOU DE FORA, E POR QUE ═══════════
   -- E a secao que permite conferir contra a realidade. Sem ela o numero e um

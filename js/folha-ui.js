@@ -20,6 +20,7 @@ import {
   adicionarAdicional, excluirAdicional, fecharFolha, reabrirFolha, excluirFolha,
   traduzirErroFolha,
   alunosPorTurno, diaDaContagem, mesTrabalhado, TURNOS_COM_BONUS, rotuloDoBonus, turnoDoBonus, valorDoBonus,
+  DESCONTO_MAXIMO,
   BONUS_POR_ALUNO,
 } from './folha.js';
 import { listarFuncionarios } from './funcionarios.js';
@@ -265,7 +266,7 @@ function resumoTurnosHtml() {
       <p class="fp-turnos-regra">
         A folha de ${esc(nomeCompetencia(_folha.competencia))} paga <b>${esc(mes)}</b>,
         então a contagem é do último dia daquele mês.
-        Não entram quem tem <b>mais de 20% de desconto</b> nem quem estava com a
+        Não entram quem tem <b>mais de ${Math.round(DESCONTO_MAXIMO * 100)}% de desconto</b> nem quem estava com a
         <b>mensalidade vencida</b> em ${esc(dia)}.
       </p>
     </section>`;
