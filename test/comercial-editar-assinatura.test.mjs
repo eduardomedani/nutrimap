@@ -17,6 +17,7 @@ import { readFileSync } from 'node:fs';
 import {
   edicaoAssinaturaVazia, validarEdicaoAssinatura,
   edicaoAssinaturaParaBanco, formEdicaoAssinaturaHtml,
+  chipsHorarioHtml, HORARIOS,
 } from '../js/comercial-formularios.js';
 
 const FONTE = readFileSync(new URL('../js/comercial-formularios.js', import.meta.url), 'utf8');
@@ -183,12 +184,15 @@ grupo('editar assinatura · a tela segue o design system', () => {
     contem(html, 'Criar cobrança do período');
   });
 
-  teste('o campo de horário oferece as duas grafias conhecidas', () => {
-    // Texto livre com datalist: a sugestão evita "noturno", "Noite", "NOTURNO"
-    // virarem três turnos diferentes na contagem da folha.
-    contem(html, 'list="cmEaHorarios"');
-    contem(html, '<option value="Diurno">');
-    contem(html, '<option value="Noturno">');
+  teste('o horário é escolha, não digitação', () => {
+    // Era texto livre com datalist. No celular abria teclado para escolher
+    // entre duas opções, e o datalist é sugestão e não trava: "noturno",
+    // "Noturno " e "NOTURNO" viravam três turnos na contagem do bônus, cada um
+    // com um número menor e todos parecendo certos.
+    contem(html, 'role="radiogroup"');
+    contem(html, 'cm-chips');
+    naoContem(html, 'datalist');
+    naoContem(html, 'type="text" list=');
   });
 
   teste('o valor mostra o preço do plano como placeholder', () => {
@@ -261,5 +265,83 @@ grupo('editar assinatura · o CSS não estica o botão do cabeçalho', () => {
     // esticava atravessando o drawer, sem nada explicando por quê.
     ok(CSS.indexOf('.cm-dw-secao-topo .cm-btn') > CSS.indexOf('.cm-dw-secao .cm-btn'),
        'a regra do cabeçalho precisa vir depois para ganhar da geral');
+  });
+});
+
+// ───────────────────────────────────────────────────────────
+grupo('editar assinatura · o seletor de horário', () => {
+  teste('as duas opções da operação aparecem, mais "Sem horário"', () => {
+    const h = chipsHorarioHtml('Noturno');
+    contem(h, 'value="Diurno"');
+    contem(h, 'value="Noturno"');
+    contem(h, 'Sem horário');
+    // "Sem horário" precisa existir: sem ela, quem marcasse por engano não
+    // teria como desmarcar — e há cliente que legitimamente não tem turno,
+    // como quem só faz diária.
+    contem(h, 'value=""');
+  });
+
+  teste('o turno gravado vem marcado', () => {
+    const h = chipsHorarioHtml('Noturno');
+    ok(/value="Noturno" checked/.test(h), 'o turno atual tem que abrir marcado');
+    ok(!/value="Diurno" checked/.test(h));
+  });
+
+  teste('sem turno gravado, "Sem horário" é que vem marcado', () => {
+    const h = chipsHorarioHtml(null);
+    ok(/value="" checked/.test(h));
+    ok(!/value="Diurno" checked/.test(h));
+  });
+
+  teste('a marcação ignora caixa — "noturno" acha "Noturno"', () => {
+    // Texto livre antigo deixou grafias variadas. Abrir a tela com o chip
+    // errado marcado faria a pessoa "corrigir" o que já estava certo.
+    const h = chipsHorarioHtml('noturno');
+    ok(/value="Noturno" checked/.test(h));
+    // e não cria um chip extra para a mesma coisa
+    igual((h.match(/type="radio"/g) || []).length, 3);
+  });
+
+  teste('turno FORA da lista vira chip próprio, marcado', () => {
+    // Abrir a tela não pode apagar em silêncio um dado que ninguém pediu para
+    // mudar. Sem isto, salvar sem tocar no campo trocaria "Tarde" por vazio.
+    const h = chipsHorarioHtml('Tarde');
+    contem(h, 'value="Tarde"');
+    ok(/value="Tarde" checked/.test(h));
+    igual((h.match(/type="radio"/g) || []).length, 4);
+  });
+
+  teste('são rádios de verdade, num grupo rotulado', () => {
+    // `<button aria-checked>` exigiria reimplementar seta do teclado,
+    // agrupamento e anúncio do leitor de tela.
+    const h = chipsHorarioHtml('Diurno');
+    contem(h, 'type="radio"');
+    contem(h, 'name="cmEaHorario"');
+    contem(h, 'role="radiogroup"');
+    contem(h, 'aria-labelledby="cmEaHorarioRot"');
+  });
+
+  teste('o valor é escapado', () => {
+    const h = chipsHorarioHtml('<script>x</script>');
+    naoContem(h, '<script>');
+  });
+
+  teste('a lista de turnos é fechada e compartilhada', () => {
+    igual(HORARIOS.join(','), 'Diurno,Noturno');
+  });
+
+  teste('o CSS mantém o rádio focável, e não escondido', () => {
+    // `display:none` tiraria o input da navegação por teclado, que é
+    // justamente o que ele veio resolver.
+    contem(CSS, '.cm-chip-op input');
+    contem(CSS, '.cm-chip-op input:checked + .cm-chip');
+    contem(CSS, '.cm-chip-op input:focus-visible + .cm-chip');
+    const bloco = CSS.slice(CSS.indexOf('.cm-chip-op input {'), CSS.indexOf('.cm-chip-op input:checked'));
+    naoContem(bloco, 'display: none');
+    contem(bloco, 'opacity: 0');
+  });
+
+  teste('o coletar lê o rádio marcado, não um campo de texto', () => {
+    contem(FONTE, 'input[name="cmEaHorario"]:checked');
   });
 });

@@ -933,6 +933,58 @@ export function edicaoAssinaturaParaBanco(form = {}) {
   };
 }
 
+/**
+ * Os turnos que a operação usa. Lista fechada, e é isso que importa.
+ *
+ * O campo era texto livre com `datalist`. Três problemas, e o terceiro é o que
+ * dói:
+ *
+ *   . no celular ele abre teclado para escolher entre duas opções;
+ *   . o `datalist` é sugestão, não trava — aceita qualquer coisa;
+ *   . "noturno", "Noturno " e "NOTURNO" viram TRÊS turnos diferentes na
+ *     contagem do bônus da folha, e ninguém percebe: a tela mostra três linhas
+ *     com números menores, todas parecendo certas.
+ *
+ * O terceiro é o motivo de a lista ser fechada e não só sugerida.
+ */
+export const HORARIOS = ['Diurno', 'Noturno'];
+
+/**
+ * O seletor de horário: rádios nativos vestidos com os chips do módulo.
+ *
+ * RÁDIO DE VERDADE, e não `<button>` com `aria-checked`. Botão exigiria
+ * reimplementar seta do teclado, agrupamento e anúncio do leitor de tela — e
+ * meia implementação disso é pior que nenhuma. Com `<input type="radio">` tudo
+ * isso vem de graça e o CSS faz o resto.
+ *
+ * "SEM HORÁRIO" É UMA OPÇÃO EXPLÍCITA. Sem ela, quem marcasse por engano não
+ * teria como desmarcar — e há cliente que legitimamente não tem turno, como
+ * quem só faz diária.
+ *
+ * VALOR DESCONHECIDO VIRA CHIP PRÓPRIO. Se o banco tiver um turno fora da
+ * lista — texto livre antigo —, ele aparece marcado em vez de sumir. Abrir a
+ * tela não pode apagar em silêncio um dado que ninguém pediu para mudar.
+ */
+export function chipsHorarioHtml(valor) {
+  const atual = String(valor || '').trim();
+  const conhecidos = HORARIOS.slice();
+  if (atual && !conhecidos.some(h => h.toLowerCase() === atual.toLowerCase())) {
+    conhecidos.push(atual);
+  }
+
+  const chip = (v, rotulo, marcado) => `
+    <label class="cm-chip-op">
+      <input type="radio" name="cmEaHorario" value="${esc(v)}"${marcado ? ' checked' : ''}>
+      <span class="cm-chip">${esc(rotulo)}</span>
+    </label>`;
+
+  return `
+    <div class="cm-chips" role="radiogroup" aria-labelledby="cmEaHorarioRot">
+      ${conhecidos.map(h => chip(h, h, h.toLowerCase() === atual.toLowerCase())).join('')}
+      ${chip('', 'Sem horário', !atual)}
+    </div>`;
+}
+
 export function formEdicaoAssinaturaHtml({ assinatura = {}, form = {}, erros = {} } = {}) {
   const plano = assinatura.plano || null;
   const periodo = assinatura.inicio_periodo && assinatura.fim_periodo
@@ -967,10 +1019,8 @@ export function formEdicaoAssinaturaHtml({ assinatura = {}, form = {}, erros = {
             ${msg(erros, 'valor_contratado')}
           </div>
           <div class="cm-campo">
-            <label for="cmEaHorario">Horário</label>
-            <input id="cmEaHorario" type="text" list="cmEaHorarios" value="${esc(form.horario)}"
-                   placeholder="Noturno" autocomplete="off">
-            <datalist id="cmEaHorarios"><option value="Diurno"><option value="Noturno"></datalist>
+            <span class="cm-rot" id="cmEaHorarioRot">Horário</span>
+            ${chipsHorarioHtml(form.horario)}
           </div>
         </div>
         <p class="cm-ajuda-campo">
@@ -1026,7 +1076,7 @@ export function abrirEdicaoAssinatura({ assinatura, aoSalvar, aoVoltar } = {}) {
       const g = id => fundo.querySelector('#' + id);
       return {
         valor_contratado: g('cmEaValor')?.value || '',
-        horario: g('cmEaHorario')?.value || '',
+        horario: fundo.querySelector('input[name="cmEaHorario"]:checked')?.value || '',
         data_inicio_original: g('cmEaDesde')?.value || '',
         observacoes: g('cmEaObs')?.value || '',
         renovacao_automatica: !!g('cmEaRenova')?.checked,

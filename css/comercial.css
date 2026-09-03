@@ -115,6 +115,36 @@
   color: var(--cream, #fff);
 }
 
+/* CHIP QUE ESCOLHE, e não que filtra.
+   Por baixo é `<input type="radio">` de verdade: seta do teclado, agrupamento e
+   anúncio do leitor de tela vêm de graça. Um `<button aria-checked>` exigiria
+   reimplementar os três, e meia implementação disso é pior que nenhuma.
+   O input fica invisível mas FOCÁVEL — `display:none` o tiraria da navegação
+   por teclado, que é justamente o que ele veio resolver. */
+.cm-chip-op { display: inline-flex; position: relative; cursor: pointer; }
+.cm-chip-op input {
+  position: absolute; inset: 0; opacity: 0; margin: 0;
+  width: 100%; height: 100%; cursor: pointer;
+}
+.cm-chip-op input:checked + .cm-chip {
+  background: var(--primary, var(--moss));
+  border-color: var(--primary, var(--moss));
+  color: var(--cream, #fff);
+}
+/* O foco precisa aparecer no CHIP, porque o input é transparente. */
+.cm-chip-op input:focus-visible + .cm-chip {
+  outline: 2px solid var(--primary, var(--moss));
+  outline-offset: 2px;
+}
+
+/* Rótulo de grupo. `<label for>` não serve aqui: o campo não é um elemento só,
+   são vários rádios — daí `<span>` + `aria-labelledby` no `role="radiogroup"`. */
+.cm-rot {
+  display: block; margin-bottom: 6px;
+  font-size: 12.5px; font-weight: 600;
+  color: var(--text-secondary, var(--ink-mute));
+}
+
 .cm-ordem { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--text-secondary, var(--ink-mute)); }
 .cm-ordem select {
   padding: 8px 11px;
