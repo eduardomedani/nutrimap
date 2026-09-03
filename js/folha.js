@@ -29,13 +29,66 @@ export { formatarBRL, valorDeTexto };
 export const STATUS_FOLHA = { rascunho: 'Rascunho', fechada: 'Fechada' };
 
 /**
+ * O bônus por aluno ativo, em reais. Combinado de 03/09/2026.
+ *
+ * Mora aqui, e não no meio da tela, porque é regra de negócio: quando o valor
+ * mudar, muda num lugar só e o histórico já lançado não se mexe — o adicional
+ * grava o VALOR, não a fórmula.
+ */
+export const BONUS_POR_ALUNO = 10;
+
+/**
+ * Os turnos que geram bônus, e o rótulo de cada um.
+ *
+ * O RÓTULO É DERIVADO DO TURNO, e isso é de propósito. Se alguém renomear o
+ * turno no cadastro e o rótulo do bônus ficar escrito à mão, os dois passam a
+ * discordar — e a discordância aparece como bônus que não calcula, sem nada
+ * dizendo por quê. Aqui, renomear o turno renomeia o bônus junto.
+ *
+ * "Diurno" e não "matutino": é a palavra que está no cadastro e nos chips da
+ * assinatura. Duas palavras para a mesma coisa obrigaria quem fecha a folha a
+ * lembrar que uma é a outra.
+ */
+export const TURNOS_COM_BONUS = ['Diurno', 'Noturno'];
+
+export const rotuloDoBonus = turno => `Bônus por número de alunos ${String(turno).toLowerCase()}s`;
+
+/** O turno de um adicional, ou null se ele não é um bônus por aluno. */
+export function turnoDoBonus(descricao) {
+  const d = String(descricao || '').trim().toLowerCase();
+  return TURNOS_COM_BONUS.find(t => rotuloDoBonus(t).toLowerCase() === d) || null;
+}
+
+/**
+ * Quantos alunos × quanto por aluno.
+ *
+ * Devolve null — e não zero — quando não há contagem para o turno. Zero é um
+ * valor legítimo ("nenhum aluno contou este mês") e preencher o campo com ele
+ * esconderia o caso em que a contagem simplesmente não chegou.
+ */
+export function valorDoBonus(contagem, turno, porAluno = BONUS_POR_ALUNO) {
+  const n = contagem?.[turno];
+  if (!Number.isFinite(Number(n))) return null;
+  return arredondar(Number(n) * porAluno);
+}
+
+/**
  * Sugestões para a descrição do adicional. São SUGESTÃO, não lista fechada:
  * o histórico tem "10% de bônus", "FERIADO", "Hora extra", "PAGAMENTO DE
  * FÉRIAS" — travar em quatro opções obrigaria a mentir na descrição no mês em
  * que aparecesse a quinta, e a descrição é o que explica o valor depois.
+ *
+ * As duas primeiras CALCULAM sozinhas ao serem escolhidas; as outras não. Ver
+ * `valorDoBonus`.
  */
 export const ADICIONAIS_SUGERIDOS = [
-  'Bônus por número de alunos',
+  ...TURNOS_COM_BONUS.map(rotuloDoBonus),
+  // "Bônus por número de alunos", genérico, SAIU da lista quando os dois por
+  // turno entraram. Ele não some do histórico — adicional já lançado guarda a
+  // própria descrição —, mas oferecê-lo ao lado dos dois seria um convite ao
+  // erro: escolher o genérico não calcula nada, e a pessoa concluiria que a
+  // conta automática está quebrada em vez de que escolheu a opção errada.
+  // O campo continua livre para quem quiser escrever a frase antiga.
   'Bônus por presença do aluno',
   'Auxílio faculdade',
   'Premiação',
@@ -346,4 +399,44 @@ export function traduzirErroFolha(msg) {
     return 'As tabelas da folha ainda não existem no banco — rode db/folha_schema.sql.';
   }
   return msg || 'Algo deu errado.';
+}
+
+/**
+ * Quantos alunos ativos cada turno tinha NA DATA — a base do bônus por aluno.
+ *
+ * A conta mora no banco (`comercial_alunos_por_turno`) e não aqui, por dois
+ * motivos. Ela precisa REBOBINAR o estado de cada assinatura até a data pedida,
+ * lendo a auditoria de renovações; fazer isso no navegador exigiria baixar a
+ * carteira inteira mais o histórico para devolver dois números. E a função
+ * devolve só a contagem, então quem fecha a folha não precisa de acesso à
+ * carteira — a permissão exigida é `equipe.folha`, não `comercial.visualizar`.
+ *
+ * @param competencia  '2026-08-01' — a contagem é feita no ÚLTIMO dia do mês,
+ *                     que é quando a folha fecha
+ * @returns {{Diurno?: number, Noturno?: number}} turno → quantidade
+ */
+export async function alunosPorTurno(competencia) {
+  const { data, error } = await sb.rpc('comercial_alunos_por_turno', {
+    p_ref: ultimoDiaDoMes(competencia),
+  });
+  if (error) throw error;
+  const fora = {};
+  for (const linha of data || []) fora[linha.turno] = Number(linha.alunos) || 0;
+  return fora;
+}
+
+/**
+ * '2026-08-01' → '2026-08-31'.
+ *
+ * O dia 0 do mês SEGUINTE é o último do atual, e resolve fevereiro e ano
+ * bissexto sem tabela. `Date.UTC` para a virada não depender do fuso de quem
+ * está olhando: em UTC-3, o dia 1 às 00:00 local é ainda o mês anterior em UTC,
+ * e a folha de agosto contaria julho.
+ */
+export function ultimoDiaDoMes(competencia) {
+  const m = /^(\d{4})-(\d{2})/.exec(String(competencia || ''));
+  if (!m) return String(competencia || '');
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]), 0));
+  const p = x => String(x).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
 }

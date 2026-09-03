@@ -238,10 +238,16 @@ grupo('folha · fiação da tela', () => {
 
   teste('os lançamentos recorrentes estão na lista', async () => {
     const { ADICIONAIS_SUGERIDOS } = await import('../js/folha.js');
-    for (const s of ['Bônus por número de alunos', 'Bônus por presença do aluno',
+    for (const s of ['Bônus por número de alunos diurnos',
+      'Bônus por número de alunos noturnos', 'Bônus por presença do aluno',
       'Auxílio faculdade', 'Premiação']) {
       ok(ADICIONAIS_SUGERIDOS.includes(s), `faltou "${s}" nas sugestões`);
     }
+    // O genérico "Bônus por número de alunos" SAIU quando os dois por turno
+    // entraram: escolher o genérico não calcularia nada, e a pessoa concluiria
+    // que a conta automática quebrou em vez de que escolheu a opção errada.
+    ok(!ADICIONAIS_SUGERIDOS.includes('Bônus por número de alunos'),
+       'o genérico não pode conviver com os dois por turno');
     ok(ui.includes('montarCombo'), 'a lista tem que virar combobox');
   });
 
@@ -309,7 +315,17 @@ grupo('folha · fiação da tela', () => {
 
   teste('escolher a sugestão joga o cursor no valor', () => {
     // De um mês para o outro muda o valor, não o nome do lançamento.
-    ok(/montarCombo\([\s\S]{0,90}\(\) => val\.focus\(\)\)/.test(ui));
+    // O callback deixou de ser `() => val.focus()` quando o bônus por turno
+    // passou a preencher o campo antes de focar; o que importa continua sendo
+    // que o foco vai para o valor.
+    ok(/montarCombo\([\s\S]{0,400}val\.focus\(\)/.test(ui));
+  });
+
+  teste('escolher o bônus por turno já preenche o valor', () => {
+    ok(/turnoDoBonus\(escolhido\)/.test(ui), 'a escolha precisa reconhecer o bônus');
+    ok(/valorDoBonus\(_turnos, turno\)/.test(ui), 'e calcular alunos × valor por aluno');
+    // Sem contagem, NÃO preenche: um campo com zero passaria por resposta.
+    ok(/calculado !== null/.test(ui), 'só preenche quando há contagem de verdade');
   });
 
   teste('a tela diz que valor negativo é desconto', () => {

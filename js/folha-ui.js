@@ -19,6 +19,8 @@ import {
   listarFolhas, abrirFolha, carregarFolha, salvarItem, excluirItem, adicionarItem,
   adicionarAdicional, excluirAdicional, fecharFolha, reabrirFolha, excluirFolha,
   traduzirErroFolha,
+  alunosPorTurno, ultimoDiaDoMes, TURNOS_COM_BONUS, rotuloDoBonus, turnoDoBonus, valorDoBonus,
+  BONUS_POR_ALUNO,
 } from './folha.js';
 import { listarFuncionarios } from './funcionarios.js';
 // `normalizar` já é o nome da limpeza de acento deste arquivo (linha ~1096);
@@ -37,6 +39,10 @@ let _itens = [];        // linhas da folha, com adicionais aninhados
 let _folhas = [];       // competências existentes, para o seletor
 let _equipe = [];       // funcionários ativos
 let _docs = new Map();  // colaborador_id -> { contracheque, folha_ponto }
+// Alunos ativos por turno no ÚLTIMO DIA da competência — a base do bônus.
+// Fica `null` enquanto não carregou e também quando a contagem falha; as duas
+// são diferentes de `{}`, que significaria "contei e não achei ninguém".
+let _turnos = null;
 
 /** Documentos já guardados nesta competência. Falha em silêncio: sem o
  *  repositório instalado, a folha continua funcionando sem os indicadores. */
@@ -145,6 +151,7 @@ async function abrirCompetencia(competencia, { criar = true } = {}) {
       _itens = _folha ? await carregarFolha(_folha.id) : [];
     }
     await carregarDocumentos();
+    await carregarTurnos();
     await contarPendentesDaFila();
     render();
   } catch (e) {
@@ -155,6 +162,76 @@ async function abrirCompetencia(competencia, { criar = true } = {}) {
 function erroHtml(e) {
   return `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>
     ${esc(traduzirErroFolha(e.message))}</div>`;
+}
+
+
+/**
+ * Conta os alunos ativos por turno na data em que a competência fecha.
+ *
+ * FALHA EM SILÊNCIO, como `carregarDocumentos`. A contagem alimenta um bônus
+ * opcional: se ela não vier, a folha inteira continua funcionando e quem quiser
+ * o bônus digita o valor à mão. Derrubar o fechamento do mês porque um resumo
+ * não carregou seria trocar um incômodo por um bloqueio.
+ *
+ * `_turnos` fica `null` no erro, e é isso que faz o painel dizer que não
+ * conseguiu contar — em vez de mostrar zero, que passaria por resposta.
+ */
+async function carregarTurnos() {
+  if (!_folha?.competencia) { _turnos = null; return; }
+  try {
+    _turnos = await alunosPorTurno(_folha.competencia);
+  } catch (e) {
+    console.error('Folha · contagem por turno:', e);
+    _turnos = null;
+  }
+}
+
+/**
+ * O resumo por turno, no cabeçalho da folha.
+ *
+ * Ele aparece SEMPRE que a folha existe, e não só quando alguém vai lançar o
+ * bônus: o número de alunos ativos do mês é informação de fechamento por si só.
+ *
+ * A data aparece por extenso porque a contagem é DAQUELE DIA, não de hoje. Sem
+ * dizer isso, um número visto em outubro pareceria desatualizado — quando na
+ * verdade ele está certo e congelado de propósito.
+ */
+function resumoTurnosHtml() {
+  if (!_folha) return '';
+
+  if (_turnos === null) {
+    return `
+      <div class="fp-turnos fp-turnos-vazio">
+        <i data-lucide="alert-circle"></i>
+        Não consegui contar os alunos por turno. O bônus pode ser lançado à mão.
+      </div>`;
+  }
+
+  const dia = formatarData(ultimoDiaDoMes(_folha.competencia));
+  const total = TURNOS_COM_BONUS.reduce((s, t) => s + (Number(_turnos[t]) || 0), 0);
+
+  return `
+    <div class="fp-turnos">
+      <div class="fp-turnos-topo">
+        <span class="fp-turnos-t">Alunos ativos em ${esc(dia)}</span>
+        <span class="fp-turnos-ajuda" title="Não entram quem tem mais de 20% de desconto nem quem estava com a mensalidade vencida no dia.">
+          <i data-lucide="info"></i>
+        </span>
+      </div>
+      <div class="fp-turnos-linha">
+        ${TURNOS_COM_BONUS.map(t => `
+          <div class="fp-turno">
+            <div class="fp-turno-n">${Number(_turnos[t]) || 0}</div>
+            <div class="fp-turno-rot">${esc(t)}</div>
+            <div class="fp-turno-vl">${esc(formatarBRL(valorDoBonus(_turnos, t) ?? 0))}</div>
+          </div>`).join('')}
+        <div class="fp-turno fp-turno-total">
+          <div class="fp-turno-n">${total}</div>
+          <div class="fp-turno-rot">no total</div>
+          <div class="fp-turno-vl">${esc(formatarBRL(total * BONUS_POR_ALUNO))}</div>
+        </div>
+      </div>
+    </div>`;
 }
 
 // ───────────────────────────────────────────────────────────
@@ -192,6 +269,8 @@ function render() {
         </div>
       </div>
     </div>
+
+    ${resumoTurnosHtml()}
 
     ${fechada && _folha?.data_pagamento
       ? `<div class="fp-aviso"><i data-lucide="check-circle-2"></i>
@@ -640,7 +719,22 @@ function abrirFormAdicional(itemId) {
 
   // Escolher na lista já joga o cursor no valor: de um mês para o outro o que
   // muda é o valor, não o nome do lançamento.
-  const combo = montarCombo(fundo.querySelector('.fp-combo'), ADICIONAIS_SUGERIDOS, () => val.focus());
+  // ESCOLHER O BÔNUS JÁ PREENCHE O VALOR: alunos do turno × R$ 10.
+  //
+  // O campo continua EDITÁVEL depois. O número é o que a contagem apurou, e a
+  // conferência 113 mostra caso a caso quem entrou — mas quem fecha a folha
+  // pode ter um motivo que o banco não sabe. Travar o campo transformaria uma
+  // sugestão muito boa numa imposição.
+  //
+  // Sem contagem (`_turnos` nulo), só o foco vai para o valor, como antes: um
+  // campo preenchido com zero passaria por resposta.
+  const combo = montarCombo(fundo.querySelector('.fp-combo'), ADICIONAIS_SUGERIDOS, (escolhido) => {
+    const turno = turnoDoBonus(escolhido);
+    const calculado = turno ? valorDoBonus(_turnos, turno) : null;
+    if (calculado !== null) val.value = formatarBRL(calculado);
+    val.focus();
+    val.select?.();
+  });
 
   fundo.querySelectorAll('[data-fp-fechar]').forEach(b => b.addEventListener('click', fechar));
   fundo.querySelector('#fpAddOk').addEventListener('click', salvar);

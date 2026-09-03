@@ -220,9 +220,19 @@ grupo('4C fase 1 · as leituras continuam a cargo do RLS', () => {
   teste('o módulo não passou a se autorizar por permissão nenhuma', () => {
     // Quem decide é a policy, na Fase 2. Frontend checando permissão daria uma
     // falsa sensação de trava e divergiria do banco no primeiro ajuste.
+    //
+    // A verificação ignora COMENTÁRIO. A primeira versão lia o arquivo inteiro
+    // e acusou `folha.js` quando um comentário passou a explicar que a função
+    // `comercial_alunos_por_turno` exige `equipe.folha` — o texto citava a
+    // chave, o código não a checava. Grep em arquivo inteiro não distingue as
+    // duas coisas, e um teste que confunde as duas ensina a ignorá-lo.
+    const semComentario = t => t
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split('\n').filter(l => !l.trim().startsWith('//')).join('\n');
     for (const f of ['folha.js', 'funcionarios.js', 'documentos.js']) {
-      naoContem(ler(f), 'tem_permissao');
-      naoContem(ler(f), 'equipe.folha');
+      const codigo = semComentario(ler(f));
+      naoContem(codigo, 'tem_permissao');
+      naoContem(codigo, "'equipe.folha'");
     }
   });
 });
