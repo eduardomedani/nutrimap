@@ -846,3 +846,216 @@ export function abrirFormularioAssinatura({ pacientes = [], planos = [], aoSalva
     desenhar();
   });
 }
+
+// ───────────────────────────────────────────────────────────
+// EDITAR ASSINATURA
+// ───────────────────────────────────────────────────────────
+// ESTA TELA NÃO EXISTIA, e a falta dela apareceu de um jeito torto: seis
+// assinaturas estavam sem horário e não havia como preencher. `salvarAssinatura`
+// existia em js/comercial-data.js desde a Etapa 2, testada, e nenhuma linha do
+// frontend a chamava — depois de criada, uma assinatura só mudava de período, e
+// só por pagamento.
+//
+// O QUE SE EDITA AQUI É CADASTRO, E SÓ. Horário, valor contratado, "cliente
+// desde", observações e renovação automática. Nada que mova dinheiro ou tempo.
+//
+// O QUE FICA DE FORA, E POR QUÊ:
+//
+//   plano      trocar de plano no meio do período é o que a RENOVAÇÃO
+//              PROGRAMADA já resolve — ela grava a intenção e o banco aplica no
+//              próximo pagamento, com auditoria. Um `update` aqui trocaria o
+//              plano sem tocar no período nem na cobrança em aberto, e as três
+//              coisas passariam a discordar entre si.
+//
+//   período    ele anda por `comercial_registrar_pagamento`, e só. É essa
+//              tomada única que garante "um pagamento = uma renovação".
+//              Editá-lo à mão criaria a segunda porta.
+//
+//   cliente    mudar de quem é o contrato não é correção, é outro contrato.
+//
+// O contexto que não se edita aparece como LEITURA, e não como campo cinza —
+// campo desabilitado convida a tentar clicar. Mesma decisão de
+// `formEdicaoHtml` em js/comercial-drawer.js.
+
+/** O formulário nasce do que está gravado, não vazio. */
+export function edicaoAssinaturaVazia(assinatura = {}) {
+  return {
+    valor_contratado: paraCampoValor(assinatura.valor_contratado),
+    horario: assinatura.horario || '',
+    data_inicio_original: assinatura.data_inicio_original || '',
+    observacoes: assinatura.observacoes || '',
+    renovacao_automatica: assinatura.renovacao_automatica !== false,
+  };
+}
+
+/**
+ * Valida só o que esta tela deixa mexer.
+ *
+ * `inicio_periodo` entra como REFERÊNCIA para checar "cliente desde": é o mesmo
+ * CHECK que a tabela tem (`inicio_periodo >= data_inicio_original`), e errar
+ * aqui devolveria um erro cru do Postgres em vez de uma frase.
+ */
+export function validarEdicaoAssinatura(form = {}, { inicio_periodo = null } = {}) {
+  const erros = {};
+
+  if (String(form.valor_contratado || '').trim()) {
+    const v = moedaParaNumero(form.valor_contratado);
+    if (v == null || v < 0) erros.valor_contratado = 'Valor inválido.';
+  }
+
+  if (form.data_inicio_original && inicio_periodo &&
+      String(inicio_periodo) < String(form.data_inicio_original)) {
+    erros.data_inicio_original =
+      'O cliente não pode ter começado depois do período que já está em curso.';
+  }
+
+  return erros;
+}
+
+/**
+ * O que vai para o banco. Só as cinco chaves — mandar o objeto inteiro faria um
+ * `update` reescrever período e plano com o que a tela tinha em memória.
+ *
+ * VALOR EM BRANCO VIRA NULL, e não o preço do plano. Na criação, branco copia o
+ * preço vigente; aqui, apagar o campo é dizer "volte a seguir o plano". Copiar
+ * o preço de novo congelaria o valor de hoje, que é o oposto do que a pessoa
+ * pediu ao apagar.
+ */
+export function edicaoAssinaturaParaBanco(form = {}) {
+  return {
+    valor_contratado: String(form.valor_contratado || '').trim()
+      ? moedaParaNumero(form.valor_contratado)
+      : null,
+    horario: String(form.horario || '').trim() || null,
+    data_inicio_original: form.data_inicio_original || null,
+    observacoes: String(form.observacoes || '').trim() || null,
+    renovacao_automatica: form.renovacao_automatica !== false,
+  };
+}
+
+export function formEdicaoAssinaturaHtml({ assinatura = {}, form = {}, erros = {} } = {}) {
+  const plano = assinatura.plano || null;
+  const periodo = assinatura.inicio_periodo && assinatura.fim_periodo
+    ? `${dataBR(assinatura.inicio_periodo)} a ${dataBR(assinatura.fim_periodo)}`
+    : '—';
+
+  return `
+    <div class="cm-drawer" role="dialog" aria-modal="true" aria-labelledby="cmEaTit">
+      <header class="cm-drawer-topo">
+        <h2 id="cmEaTit">Editar assinatura</h2>
+        <button class="cm-drawer-x" type="button" data-fechar aria-label="Fechar"><i data-lucide="x"></i></button>
+      </header>
+
+      <div class="cm-drawer-corpo">
+        <div class="cm-dw-leitura">
+          <div class="cm-dw-linha"><span>Cliente</span><b>${esc(assinatura.paciente?.nome || '—')}</b></div>
+          <div class="cm-dw-linha"><span>Plano</span><b>${esc(plano?.nome || '—')}</b></div>
+          <div class="cm-dw-linha"><span>Período atual</span><b>${esc(periodo)}</b></div>
+        </div>
+
+        <p class="cm-dw-aviso-sutil">
+          Plano e período não mudam aqui. Para trocar de plano, use
+          <b>Criar cobrança do período</b> — a troca entra na próxima renovação,
+          com registro de quem decidiu e quando.
+        </p>
+
+        <div class="cm-linha-campos">
+          <div class="cm-campo${cls(erros, 'valor_contratado')}">
+            <label for="cmEaValor">Valor contratado</label>
+            <input id="cmEaValor" type="text" inputmode="decimal" value="${esc(form.valor_contratado)}"
+                   placeholder="${plano?.preco_padrao != null ? paraCampoValor(plano.preco_padrao) : '330,00'}">
+            ${msg(erros, 'valor_contratado')}
+          </div>
+          <div class="cm-campo">
+            <label for="cmEaHorario">Horário</label>
+            <input id="cmEaHorario" type="text" list="cmEaHorarios" value="${esc(form.horario)}"
+                   placeholder="Noturno" autocomplete="off">
+            <datalist id="cmEaHorarios"><option value="Diurno"><option value="Noturno"></datalist>
+          </div>
+        </div>
+        <p class="cm-ajuda-campo">
+          Em branco, o valor volta a seguir o preço padrão do plano.
+          O horário é o que separa os turnos no fechamento da folha.
+        </p>
+
+        <div class="cm-campo${cls(erros, 'data_inicio_original')}">
+          <label for="cmEaDesde">Cliente desde</label>
+          <input id="cmEaDesde" type="date" value="${esc(form.data_inicio_original)}">
+          ${msg(erros, 'data_inicio_original')}
+        </div>
+
+        <div class="cm-campo">
+          <label for="cmEaObs">Observações comerciais</label>
+          <textarea id="cmEaObs" rows="2">${esc(form.observacoes)}</textarea>
+        </div>
+        <p class="cm-ajuda-campo">Separado do prontuário. Nada clínico aqui.</p>
+
+        <label class="cm-check">
+          <input id="cmEaRenova" type="checkbox"${form.renovacao_automatica !== false ? ' checked' : ''}>
+          <span>Gerar a próxima cobrança automaticamente a cada pagamento</span>
+        </label>
+      </div>
+
+      <footer class="cm-drawer-pe">
+        <button class="cm-btn" type="button" data-fechar>Voltar</button>
+        <button class="cm-btn cm-btn-forte" type="button" data-salvar>
+          <i data-lucide="check"></i> Salvar
+        </button>
+      </footer>
+    </div>`;
+}
+
+/**
+ * @param assinatura  a linha vigente, com `paciente` e `plano` embutidos
+ * @param aoSalvar    recebe o patch já pronto para o banco
+ * @param aoVoltar    devolve ao cliente — sair da edição não é sair do cliente
+ */
+export function abrirEdicaoAssinatura({ assinatura, aoSalvar, aoVoltar } = {}) {
+  let form = edicaoAssinaturaVazia(assinatura);
+  let salvando = false;
+
+  return abrirDrawer((fundo, fechar) => {
+    const desenhar = (erros = {}) => {
+      fundo.innerHTML = formEdicaoAssinaturaHtml({ assinatura, form, erros });
+      window.renderIcons?.();
+      ligar();
+      fundo.querySelector('.cm-erro-campo input')?.focus();
+    };
+
+    const coletar = () => {
+      const g = id => fundo.querySelector('#' + id);
+      return {
+        valor_contratado: g('cmEaValor')?.value || '',
+        horario: g('cmEaHorario')?.value || '',
+        data_inicio_original: g('cmEaDesde')?.value || '',
+        observacoes: g('cmEaObs')?.value || '',
+        renovacao_automatica: !!g('cmEaRenova')?.checked,
+      };
+    };
+
+    function voltar() { fechar(); aoVoltar?.(); }
+
+    function ligar() {
+      fundo.querySelectorAll('[data-fechar]').forEach(b => b.addEventListener('click', voltar));
+
+      fundo.querySelector('[data-salvar]')?.addEventListener('click', async () => {
+        if (salvando) return;
+        form = coletar();
+        const erros = validarEdicaoAssinatura(form, assinatura);
+        if (Object.keys(erros).length) { desenhar(erros); return; }
+
+        salvando = true;
+        try {
+          await aoSalvar(edicaoAssinaturaParaBanco(form));
+          voltar();
+        } catch (e) {
+          salvando = false;
+          console.error('Comercial · editar assinatura:', e);
+          desenhar({ valor_contratado: 'Não consegui salvar: ' + (e?.message || e) });
+        }
+      });
+    }
+
+    desenhar();
+  });
+}

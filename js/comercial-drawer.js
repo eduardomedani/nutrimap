@@ -34,6 +34,9 @@ export const MSG = {
   removidaComRenovacao: 'Cobrança removida. A renovação programada foi cancelada junto.',
   atualizada:  'Cobrança atualizada.',
   removida:    'Cobrança removida.',
+  // "Assinatura", e não "Cobrança": as duas edições convivem no mesmo drawer, e
+  // um toast genérico deixaria a pessoa sem saber qual das duas salvou.
+  assinaturaSalva: 'Assinatura atualizada.',
   naoPendente: 'Esta cobrança não está mais pendente. Atualize os dados e tente novamente.',
   duplicada:   'Já existe uma cobrança ativa para este vencimento.',
   falhou:      'Não foi possível concluir. Tente novamente.',
@@ -69,10 +72,16 @@ export const FORMAS = [
 // MARCAÇÃO DO DRAWER
 // ───────────────────────────────────────────────────────────
 
-function secao(titulo, conteudo) {
+function secao(titulo, conteudo, acao = '') {
+  // `acao` e opcional e entra ao LADO do titulo, nao no meio do conteudo: a
+  // acao pertence a secao inteira, e no meio dos dados ela pareceria mais um
+  // campo. As chamadas antigas seguem valendo sem tocar em nada.
   return `
     <section class="cm-dw-secao">
-      <h3 class="cm-dw-t">${esc(titulo)}</h3>
+      <div class="cm-dw-secao-topo">
+        <h3 class="cm-dw-t">${esc(titulo)}</h3>
+        ${acao}
+      </div>
       ${conteudo}
     </section>`;
 }
@@ -171,7 +180,7 @@ export function assinaturaHtml(a, hoje) {
     ${linha('Plano', esc(a.plano?.nome || '—'))}
     ${linha('Valor contratado', esc(moeda(a.valor_contratado)))}
     ${a.renovacao_automatica ? '' : '<p class="cm-dw-nota">Renovação automática desligada: a próxima cobrança não nasce sozinha.</p>'}
-  `);
+  `, `<button class="cm-btn cm-btn-mini" type="button" data-editar-assinatura aria-label="Editar assinatura"><i data-lucide="pencil"></i> Editar</button>`);
 }
 
 /**
@@ -754,6 +763,33 @@ export async function abrirDrawerCliente({ assinatura, aoMudar }) {
           fechar();
           abrirRegistroPagamento({ assinatura, cobranca: cob, aoMudar, planos });
         }));
+
+      // EDITAR A ASSINATURA. Fecha antes porque `raiz()` só permite um drawer
+      // por vez, e `aoVoltar` devolve ao cliente — sair da edição não pode
+      // significar sair de quem se estava olhando.
+      //
+      // Reabre com o que o BANCO confirmou (`{ ...assinatura, ...r }`), e não
+      // com o que o formulário tinha em memória. É a mesma decisão de "criar
+      // cobrança" logo abaixo, pelo mesmo motivo: se o banco recusar uma parte
+      // do patch, a tela precisa mostrar o que ficou gravado, não o que se
+      // tentou gravar.
+      fundo.querySelector('[data-editar-assinatura]')?.addEventListener('click', async () => {
+        const { abrirEdicaoAssinatura } = await import('./comercial-formularios.js');
+        fechar();
+        abrirEdicaoAssinatura({
+          assinatura,
+          aoVoltar: () => abrirDrawerCliente({ assinatura, aoMudar }),
+          aoSalvar: async (patch) => {
+            const r = await dados.salvarAssinatura(assinatura.id, patch);
+            mostrarToast(MSG.assinaturaSalva);
+            aoMudar?.();
+            abrirDrawerCliente({
+              assinatura: r ? { ...assinatura, ...r } : assinatura,
+              aoMudar,
+            });
+          },
+        });
+      });
 
       // ABRE O FORMULÁRIO, não cria. O clique único assumia que o cliente
       // seguiria no mesmo plano — e na renovação ele pode trocar de plano, de

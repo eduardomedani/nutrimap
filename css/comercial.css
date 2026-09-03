@@ -477,6 +477,14 @@ body.cm-travado { overflow: hidden; }
   letter-spacing: 0.07em; color: var(--text-secondary, var(--ink-mute));
 }
 
+/* Título e ação da seção na mesma linha. A ação pertence à seção inteira — no
+   meio dos dados ela pareceria mais um campo. */
+.cm-dw-secao-topo {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 12px;
+}
+.cm-dw-secao-topo .cm-dw-t { margin-bottom: 0; }
+
 /* A grade de dado. Duas colunas fixas em proporção, não `space-between`: com
    flex o rótulo curto e o rótulo longo alinhavam o valor em posições
    diferentes, e a coluna da direita ficava serrilhada de cima a baixo. */
@@ -532,6 +540,16 @@ body.cm-travado { overflow: hidden; }
 .cm-dw-obs { margin: 0; font-size: 13.5px; line-height: 1.55; white-space: pre-wrap; }
 
 .cm-dw-secao .cm-btn { margin-top: 12px; width: 100%; justify-content: center; }
+
+/* O botão do CABEÇALHO da seção não estica.
+   A regra acima dá 100% de largura, e isso é certo para "Registrar pagamento"
+   — a ação principal da seção — e errado para um "Editar" ao lado do título,
+   que viraria uma barra atravessando o drawer.
+   ELA PRECISA VIR DEPOIS, e não é detalhe: as duas têm a MESMA
+   especificidade (0,2,0), então quem ganha é quem vem por último. Escrita
+   junto de `.cm-dw-secao-topo`, lá em cima, ela perdia — e o botão esticava
+   sem nada explicar por quê. */
+.cm-dw-secao-topo .cm-btn { margin-top: 0; width: auto; flex: 0 0 auto; }
 
 /* As ações ficam num bloco só, colado na informação que explicam — soltas no
    fim da seção elas pareciam pertencer ao drawer, não à cobrança. */
