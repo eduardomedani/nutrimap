@@ -78,6 +78,7 @@ begin
     coalesce(trim(a.horario), '')             as turno,
     coalesce((h.antes ->> 'fim_periodo')::date, a.fim_periodo)              as fim_periodo,
     a.fim_periodo                                                          as fim_hoje,
+    a.inicio_periodo                                                       as inicio_hoje,
     coalesce((h.antes ->> 'valor_contratado')::numeric, a.valor_contratado) as valor_contratado,
     pl.nome                                   as plano,
     pl.preco_padrao,
@@ -219,6 +220,48 @@ begin
   insert into conf113 values (41, 'REBOBINAGEM', 'assinaturas reconstruidas pela auditoria', v_n::text,
     case when v_n = 0 then 'nenhuma renovou depois da data'
          else 'estas voltaram ao estado de ' || v_ref end);
+
+  -- ═══════ 4b) O ALUNO QUE PAGOU DEPOIS — MAS PAGOU AQUELE DIA ═══════
+  -- Aqui mora a pergunta que decide o bonus, e ela nao e tecnica.
+  --
+  -- A rebobinagem tira da contagem quem estava com a mensalidade vencida em
+  -- v_ref. Muitos desses pagaram poucos dias depois. A questao e o que a
+  -- renovacao COBRIU: se o periodo novo comeca onde o antigo terminou, o dia
+  -- 31/08 ficou pago — com atraso, mas pago, e a pessoa nunca deixou de ser
+  -- aluna. Se o periodo novo comeca na data do pagamento, houve um buraco de
+  -- verdade e o dia 31/08 nao estava coberto por ninguem.
+  --
+  -- As duas leituras sao defensaveis. O que nao da e escolher sem olhar: sao
+  -- R$ 10 por aluno, e a diferenca entre elas aparece na secao REBOBINAGEM.
+  for r in
+    select b.aluno, b.turno, b.fim_periodo as fim_em_ref, b.inicio_hoje, b.fim_hoje,
+           (b.inicio_hoje <= v_ref and b.fim_hoje >= v_ref) as cobre_a_data
+      from reb113 b
+     where b.turno <> ''
+       and not b.comecou_depois
+       and b.preco_padrao > 0
+       and b.desconto <= v_teto
+       and b.fim_periodo < v_ref
+     order by 6 desc, b.aluno
+  loop
+    insert into conf113 values (42, 'PAGOU DEPOIS', r.aluno,
+      r.turno || ' | vencia ' || r.fim_em_ref
+      || ' | periodo de hoje ' || r.inicio_hoje || ' a ' || r.fim_hoje,
+      case when r.cobre_a_data
+           then 'o periodo NOVO cobre ' || v_ref || ' — pagou atrasado, sem buraco'
+           else 'buraco de ' || (r.inicio_hoje - r.fim_em_ref) || ' dia(s) — ' || v_ref || ' ficou descoberto' end);
+  end loop;
+
+  select count(*) into v_n
+    from reb113 b
+   where b.turno <> '' and not b.comecou_depois and b.preco_padrao > 0
+     and b.desconto <= v_teto and b.fim_periodo < v_ref
+     and b.inicio_hoje <= v_ref and b.fim_hoje >= v_ref;
+  insert into conf113 values (43, 'PAGOU DEPOIS', 'vencidos cujo periodo novo cobre ' || v_ref, v_n::text,
+    case when v_n = 0 then 'nenhum — quem estava vencido ficou mesmo descoberto'
+         else 'somando estes aos ' || (select coalesce(sum(valor::int), 0) from conf113 where secao = 'CONTAGEM')
+              || ' da contagem, seriam ' || (v_n + (select coalesce(sum(valor::int), 0) from conf113 where secao = 'CONTAGEM'))
+              || ' alunos — decisao sua, nao do script' end);
 
   -- ═══════════ 4b) ONDE O TETO CORTA ═══════════
   -- O teto passou de 20% para 10% em 03/09/2026. A pergunta que decide se a
