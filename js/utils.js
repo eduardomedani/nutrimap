@@ -224,6 +224,47 @@ export function formatarBRL(v) {
 }
 
 /**
+ * Máscara de dinheiro que se escreve DA DIREITA PARA A ESQUERDA — o dígito
+ * novo entra nos centavos e empurra os outros para cima:
+ *
+ *      1  →  R$ 0,01          1250  →  R$ 12,50
+ *     12  →  R$ 0,12         12500  →  R$ 125,00
+ *    125  →  R$ 1,25        125000  →  R$ 1.250,00
+ *
+ * POR QUE ASSIM, E NÃO VALIDANDO NO FIM. Digitar dinheiro é digitar dígito, e
+ * a vírgula é a parte que se erra: "1250" para mil duzentos e cinquenta e
+ * "12,50" para doze e cinquenta são a mesma sequência de teclas com um caractere
+ * de diferença, e o campo aceitava os dois calado. Aqui não existe estado
+ * ambíguo — o que se vê é o que vai ser gravado, a cada tecla.
+ *
+ * O BACKSPACE CAI DE GRAÇA: apagar o último caractere de "R$ 1,25" deixa
+ * "R$ 1,2", que tem os dígitos "12" e volta a ser R$ 0,12. A máscara não
+ * precisa saber que houve um apagamento.
+ *
+ * SÓ ZEROS É VAZIO, E ISSO NÃO É DETALHE — é o que deixa o campo esvaziar.
+ * Enquanto "0" virava "R$ 0,00", apagar travava: de "R$ 0,01" o backspace
+ * deixava "R$ 0,0", a máscara devolvia "R$ 0,00", o backspace seguinte deixava
+ * "R$ 0,0" de novo, e o campo nunca chegava a branco. O teste do backspace
+ * tecla a tecla é que mostrou o laço.
+ *
+ * O SINAL SOBREVIVE em qualquer posição, porque desconto se lança com valor
+ * negativo e o "-" costuma ser digitado antes dos dígitos, quando ainda não há
+ * número nenhum para ele acompanhar.
+ */
+export function mascaraDeCentavos(texto) {
+  const bruto = String(texto ?? '');
+  const negativo = bruto.includes('-');
+  // Zeros à esquerda saem antes do corte: "000000000000125" tem quinze dígitos
+  // e viraria outro número se o corte viesse primeiro.
+  // E saem TODOS os zeros à esquerda, sem lookahead: é o que faz "0" cair no
+  // vazio logo abaixo em vez de virar "R$ 0,00" e prender o campo.
+  const digitos = bruto.replace(/\D/g, '').replace(/^0+/, '').slice(0, 12);
+  if (!digitos) return negativo ? '-' : '';
+  const n = Number(digitos) / 100;
+  return formatarBRL(negativo ? -n : n);
+}
+
+/**
  * "R$ 1.234,56", "1234,56" ou "1234.56" → 1234.56. Aceita negativo (desconto).
  * Devolve null quando não dá para ler um número.
  */

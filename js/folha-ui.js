@@ -30,8 +30,8 @@ import {
   competenciaAtiva, definirCompetencia, normalizar as normalizarCompetencia,
 } from './competencia.js';
 import {
-  mostrarToast, mostrarErro, confirmar, formatarBRL, valorDeTexto, formatarData,
-  copiarParaClipboard,
+  mostrarToast, mostrarErro, confirmar, formatarBRL, valorDeTexto, mascaraDeCentavos,
+  formatarData, copiarParaClipboard,
 } from './utils.js';
 
 let _container = null;
@@ -479,12 +479,12 @@ function linhaHtml(item) {
       <td class="fp-num">
         ${fixo
           ? `<span class="fp-vazio">—</span>`
-          : `<input type="text" class="fp-in fp-vh" value="${numeroBR(item.valor_hora)}" placeholder="17,00" inputmode="decimal" ${ro}>`}
+          : `<input type="text" class="fp-in fp-vh" value="${formatarBRL(item.valor_hora)}" placeholder="R$ 17,00" inputmode="decimal" ${ro}>`}
       </td>
 
       <td class="fp-num">
         ${fixo
-          ? `<input type="text" class="fp-in fp-base-in" value="${numeroBR(item.valor_base)}" placeholder="2.000,00" inputmode="decimal" ${ro}>`
+          ? `<input type="text" class="fp-in fp-base-in" value="${formatarBRL(item.valor_base)}" placeholder="R$ 2.000,00" inputmode="decimal" ${ro}>`
           : `<span class="fp-base">${formatarBRL(item.valor_base)}</span>`}
       </td>
 
@@ -576,6 +576,15 @@ function ligar() {
   }
 
   // Recalcula ao digitar; grava ao sair do campo.
+  // A MÁSCARA É REGISTRADA ANTES DO RECÁLCULO, e a ordem é o ponto. Listeners
+  // do mesmo evento correm na ordem em que foram postos: se o recálculo viesse
+  // primeiro, ele leria "1250" como mil duzentos e cinquenta e o total da linha
+  // piscaria esse número antes de o campo virar R$ 12,50.
+  //
+  // `.fp-horas` fica de fora: "48:41" é tempo, não dinheiro.
+  cont.querySelectorAll('.fp-vh, .fp-base-in').forEach(el =>
+    el.addEventListener('input', () => mascararDinheiro(el)));
+
   cont.querySelectorAll('.fp-horas, .fp-vh, .fp-base-in').forEach(el => {
     el.addEventListener('input', () => recalcularLinha(el.closest('tr')));
     el.addEventListener('change', () => gravarLinha(el.closest('tr')));
@@ -680,6 +689,21 @@ async function gravarLinha(tr) {
   });
 }
 
+/**
+ * Aplica a máscara de centavos no campo e devolve o cursor para o FIM.
+ *
+ * O fim é o lugar certo, não uma simplificação: o número cresce da direita, e
+ * cada tecla reescreve a linha inteira — separador de milhar aparece, vírgula
+ * anda. Preservar a posição original deixaria o cursor no meio de uma pontuação
+ * que mudou de lugar, e a tecla seguinte cairia onde ninguém pediu.
+ */
+function mascararDinheiro(campo) {
+  const depois = mascaraDeCentavos(campo.value);
+  if (depois === campo.value) return;
+  campo.value = depois;
+  campo.setSelectionRange?.(depois.length, depois.length);
+}
+
 /** O lançamento e a linha que o contém, a partir do id do lançamento. */
 function acharAdicional(id) {
   for (const item of _itens) {
@@ -739,7 +763,7 @@ function abrirFormAdicional(itemId, adicionalId = null) {
           </div>
           <div class="fp-campo">
             <label for="fpAddVal">Valor</label>
-            <input type="text" id="fpAddVal" class="np-input fp-add-val" placeholder="580,00" inputmode="decimal">
+            <input type="text" id="fpAddVal" class="np-input fp-add-val" placeholder="R$ 580,00" inputmode="decimal">
           </div>
         </div>
 
@@ -758,6 +782,7 @@ function abrirFormAdicional(itemId, adicionalId = null) {
 
   const desc = fundo.querySelector('.fp-add-desc');
   const val = fundo.querySelector('.fp-add-val');
+  val.addEventListener('input', () => mascararDinheiro(val));
 
   // Corrigindo, os dois campos já nascem preenchidos. O foco vem lá embaixo,
   // depois de a combobox existir — ver o comentário antes de `desc.focus()`.
@@ -1443,12 +1468,6 @@ async function apagarCompetencia() {
 async function comErro(fn) {
   try { await fn(); }
   catch (e) { mostrarErro(traduzirErroFolha(e.message)); }
-}
-
-function numeroBR(v) {
-  if (v === null || v === undefined || v === '') return '';
-  const n = Number(v);
-  return Number.isFinite(n) ? n.toFixed(2).replace('.', ',') : '';
 }
 
 /** '31/07/2026' → '2026-07-31'. O banco guarda date, o PDF fala em pt-BR. */
