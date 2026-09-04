@@ -12,7 +12,7 @@
 import {
   situacaoDoCliente, situacaoDaCobranca, SITUACAO_ROTULO, COBRANCA_ROTULO,
   textoDoVencimento, pesoDaUrgencia, telefoneBonito, telefoneDigitos,
-  saldoDaCobranca, diasAteVencer,
+  saldoDaCobranca, diasAteVencer, agruparPorAtencao,
 } from './comercial.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -368,13 +368,113 @@ export function planosHtml(planos = []) {
 }
 
 // ───────────────────────────────────────────────────────────
+// RELATÓRIO DE ATENÇÃO
+// ───────────────────────────────────────────────────────────
+// Uma folha para levar para a sala. A lista de Clientes responde "como está
+// cada um"; esta responde "quem eu procuro hoje, e por quê" — e por isso o
+// motivo vem escrito, não codificado numa cor de badge que não sobrevive à
+// impressora preto e branco.
+//
+// AGRUPADO PELO MOTIVO MAIS GRAVE, com o cliente aparecendo UMA VEZ SÓ. Repetir
+// o nome em cada grupo faria a mesma pessoa ser ligada duas vezes, ou pior:
+// riscada num bloco e esquecida no outro.
+
+/** Cabeçalho da folha: o que ela é, de quando, e o tamanho do trabalho. */
+export function relatorioCabecalhoHtml(total, hoje, semMotivo = 0) {
+  return `
+    <header class="cm-rel-cab">
+      <div>
+        <h2 class="cm-rel-tit">Clientes que precisam de atenção</h2>
+        <p class="cm-rel-sub">
+          Posição de <b>${esc(dataBR(hoje))}</b> ·
+          ${total} ${total === 1 ? 'cliente' : 'clientes'} na lista${
+            semMotivo ? ` · ${semMotivo} em ordem, fora dela` : ''}
+        </p>
+      </div>
+      <button class="cm-btn" type="button" data-imprimir-relatorio>
+        <i data-lucide="printer"></i> Imprimir
+      </button>
+    </header>`;
+}
+
+/**
+ * Uma linha do relatório.
+ *
+ * O TELEFONE ENTRA EM TEXTO, não como link de WhatsApp. A folha é para ser
+ * impressa e riscada a caneta enquanto se liga — um link não ajuda no papel, e
+ * na tela o nome já abre o cliente.
+ *
+ * Os motivos secundários vão na mesma linha porque quem liga precisa saber de
+ * tudo numa passada: dizer "sua mensalidade venceu" e descobrir depois que
+ * também falta o turno é ligar duas vezes.
+ */
+export function linhaAtencaoHtml({ assinatura, motivos }, hoje) {
+  const a = assinatura;
+  const outros = motivos.slice(1);
+  return `
+    <tr>
+      <td class="cm-rel-nome">
+        <span>${esc(a.paciente?.nome || '(sem nome)')}</span>
+        ${outros.length ? `<span class="cm-rel-tambem">também: ${
+          outros.map(m => esc(m.rotulo.toLowerCase())).join(' · ')}</span>` : ''}
+      </td>
+      <td class="cm-rel-tel">${esc(telefoneBonito(a.paciente?.telefone) || '—')}</td>
+      <td class="cm-rel-plano">${esc(a.plano?.nome || '—')}</td>
+      <td class="cm-rel-venc">${esc(dataBR(a.fim_periodo) || '—')}</td>
+      <td class="cm-rel-motivo">${esc(motivos[0].detalhe)}</td>
+      <td class="cm-rel-ok" aria-hidden="true"></td>
+    </tr>`;
+}
+
+/** Um bloco por motivo. A contagem no título é o que se lê de longe. */
+export function grupoAtencaoHtml(grupo, hoje) {
+  return `
+    <section class="cm-rel-grupo">
+      <h3 class="cm-rel-grupo-t">
+        ${esc(grupo.rotulo)}
+        <span class="cm-rel-conta">${grupo.clientes.length}</span>
+      </h3>
+      <div class="cm-rel-wrap">
+        <table class="cm-rel-tab">
+          <thead>
+            <tr>
+              <th>Cliente</th><th>Telefone</th><th>Plano</th>
+              <th>Vencimento</th><th>Situação</th><th class="cm-rel-ok">Falei</th>
+            </tr>
+          </thead>
+          <tbody>${grupo.clientes.map(c => linhaAtencaoHtml(c, hoje)).join('')}</tbody>
+        </table>
+      </div>
+    </section>`;
+}
+
+export function relatorioHtml(assinaturas = [], hoje) {
+  const { grupos, total, semMotivo } = agruparPorAtencao(assinaturas, hoje);
+
+  if (!total) {
+    return `
+      ${relatorioCabecalhoHtml(0, hoje, semMotivo)}
+      <div class="cm-rel-limpo">
+        <i data-lucide="check-circle-2"></i>
+        <p><b>Ninguém precisa de atenção agora.</b></p>
+        <p>Nenhum vencimento atrasado, nenhuma cobrança em aberto e nenhum cadastro incompleto.</p>
+      </div>`;
+  }
+
+  return `
+    ${relatorioCabecalhoHtml(total, hoje, semMotivo)}
+    <div class="cm-rel">${grupos.map(g => grupoAtencaoHtml(g, hoje)).join('')}</div>`;
+}
+
+// ───────────────────────────────────────────────────────────
 // A TELA
 // ───────────────────────────────────────────────────────────
 
 export const ABAS = [
-  { id: 'visao',    rotulo: 'Visão geral' },
-  { id: 'clientes', rotulo: 'Clientes' },
-  { id: 'planos',   rotulo: 'Planos' },
+  { id: 'visao',     rotulo: 'Visão geral' },
+  { id: 'clientes',  rotulo: 'Clientes' },
+  { id: 'planos',    rotulo: 'Planos' },
+  { id: 'relatorio', rotulo: 'Relatório' },
 ];
 
 export function abasHtml(ativa = 'visao') {
@@ -395,6 +495,8 @@ export function telaHtml({ aba = 'visao', indicadores = {}, assinaturas = [], pl
       ${quebrasHtml(assinaturas, hoje)}`;
   } else if (aba === 'planos') {
     corpo = planosHtml(planos);
+  } else if (aba === 'relatorio') {
+    corpo = relatorioHtml(assinaturas, hoje);
   } else {
     const lista = ordenar(aplicarFiltro(assinaturas, { filtro, busca, hoje }), ordem, hoje);
     corpo = `
@@ -499,6 +601,12 @@ function ligar(cx) {
       pintar(cx);
       try { history.replaceState(null, '', '#comercial/' + _estado.aba); } catch (e) {}
     }));
+
+  // A impressão é do RELATÓRIO, não da tela. `@media print` esconde abas,
+  // botões e o resto do painel — e o mesmo CSS vale para o Ctrl+P do navegador,
+  // que é como metade das pessoas imprime.
+  cx.querySelector('[data-imprimir-relatorio]')
+    ?.addEventListener('click', () => window.print());
 
   cx.querySelectorAll('[data-filtro]').forEach(b =>
     b.addEventListener('click', () => { _estado.filtro = b.dataset.filtro; pintar(cx); }));

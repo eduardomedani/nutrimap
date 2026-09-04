@@ -348,3 +348,160 @@ export function indicadores({ assinaturas = [], lancamentos = [], hoje, avisoDia
     receitaRecorrente: Math.round(recorrente * 100) / 100,
   };
 }
+
+// ───────────────────────────────────────────────────────────
+// QUEM PRECISA DE ATENÇÃO
+// ───────────────────────────────────────────────────────────
+// A lista de clientes responde "como está cada um". Esta responde outra
+// pergunta: "quem eu procuro hoje, e por quê". São coisas diferentes — a
+// primeira é consulta, a segunda é trabalho a fazer, e por isso o motivo vem
+// junto em vez de ficar implícito numa cor de badge.
+//
+// UM CLIENTE PODE TER VÁRIOS MOTIVOS ao mesmo tempo: vencido HÁ 20 dias, com
+// cobrança em aberto, e sem turno. A função devolve todos, ordenados por
+// gravidade — o relatório agrupa pelo primeiro e lista o resto ao lado, porque
+// quem liga para o cliente precisa saber de tudo numa passada só.
+//
+// O QUE AINDA NÃO ESTÁ AQUI: os sinais de frequência (aluno que sumiu, aluno
+// que caiu de uma quinzena para a outra). Eles dependem das presenças estarem
+// no banco, o que ainda não aconteceu. `MOTIVOS` foi escrita para receber os
+// novos sem mexer no resto — a chave entra na lista, o peso a posiciona.
+
+/**
+ * Cada motivo é um objeto com `chave`, `peso` (menor = mais grave), `rotulo`
+ * curto para o agrupamento, e uma função que devolve o detalhe da linha — ou
+ * `null` quando o motivo não se aplica àquele cliente.
+ *
+ * O DETALHE NÃO É DECORAÇÃO. "Vencido" manda ligar; "vencido há 27 dias" manda
+ * ligar hoje. É a diferença entre uma lista que se lê e uma que se usa.
+ */
+// Data curta para o detalhe do motivo. `dataBR` mora em comercial-ui.js, e este
+// arquivo é a camada de REGRA — importar da tela inverteria a dependência para
+// ganhar oito caracteres.
+const ddmm = iso => {
+  const m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}` : '';
+};
+
+export const MOTIVOS = [
+  {
+    chave: 'vencido',
+    peso: 1,
+    rotulo: 'Mensalidade vencida',
+    detalhe: (a, hoje) => {
+      const d = diasAteVencer(a.fim_periodo, hoje);
+      return d !== null && d < 0 && situacaoDoCliente(a, hoje) === 'vencido'
+        ? `há ${-d} ${-d === 1 ? 'dia' : 'dias'}` : null;
+    },
+  },
+  {
+    chave: 'cobranca_vencida',
+    peso: 2,
+    rotulo: 'Cobrança vencida',
+    detalhe: (a, hoje) => {
+      const c = a.cobrancaAberta;
+      if (!c || situacaoDaCobranca(c, hoje) !== 'vencida') return null;
+      const d = diasEntre(hoje, c.vencimento);
+      return `venceu ${ddmm(c.vencimento)}, há ${-d} ${-d === 1 ? 'dia' : 'dias'}`;
+    },
+  },
+  {
+    chave: 'pausado',
+    peso: 3,
+    rotulo: 'Pausado',
+    detalhe: a => (a.status === 'pausada' ? 'parou de treinar e não voltou' : null),
+  },
+  {
+    chave: 'aguardando',
+    peso: 4,
+    rotulo: 'Aguardando início',
+    detalhe: (a, hoje) => {
+      if (a.status !== 'aguardando_inicio') return null;
+      const d = diasEntre(a.data_inicio_original || a.inicio_periodo, hoje);
+      return d !== null && d > 0 ? `cadastrado há ${d} dias e ainda não começou` : 'ainda não começou';
+    },
+  },
+  {
+    chave: 'vence_em_breve',
+    peso: 5,
+    rotulo: 'Vence esta semana',
+    detalhe: (a, hoje) => {
+      const d = diasAteVencer(a.fim_periodo, hoje);
+      return situacaoDoCliente(a, hoje) === 'vence_em_breve'
+        ? (d === 0 ? 'vence hoje' : d === 1 ? 'vence amanhã' : `vence em ${d} dias`) : null;
+    },
+  },
+  {
+    chave: 'cobranca_aberta',
+    peso: 6,
+    rotulo: 'Cobrança em aberto',
+    detalhe: (a, hoje) => {
+      const c = a.cobrancaAberta;
+      if (!c || situacaoDaCobranca(c, hoje) !== 'pendente') return null;
+      return `vence ${ddmm(c.vencimento)}`;
+    },
+  },
+  {
+    chave: 'sem_turno',
+    peso: 7,
+    rotulo: 'Sem turno definido',
+    // Não é urgência de cobrança, é buraco de cadastro — e um buraco que custa
+    // dinheiro: sem turno o aluno não entra na contagem de nenhum bônus.
+    detalhe: a => (String(a.horario || '').trim() === '' ? 'não entra em nenhuma contagem por turno' : null),
+  },
+];
+
+/**
+ * Os motivos de um cliente, do mais grave para o menos. Vazio = está em ordem.
+ *
+ * Cancelado não aparece: quem cancelou não é trabalho pendente, é histórico.
+ * Se um dia virar campanha de reativação, é outra lista com outro nome.
+ */
+export function motivosDeAtencao(assinatura, hojeISO) {
+  if (!assinatura || assinatura.status === 'cancelada') return [];
+  const saida = [];
+  for (const m of MOTIVOS) {
+    const detalhe = m.detalhe(assinatura, hojeISO);
+    if (detalhe) saida.push({ chave: m.chave, rotulo: m.rotulo, peso: m.peso, detalhe });
+  }
+  return saida.sort((a, b) => a.peso - b.peso);
+}
+
+/**
+ * A lista inteira, já agrupada pelo motivo MAIS GRAVE de cada cliente.
+ *
+ * Agrupar pelo mais grave, e não repetir o cliente em cada grupo, é o que faz
+ * a folha impressa ser percorrível: um nome aparece uma vez só, no bloco que
+ * diz o que fazer com ele. Os outros motivos vão na mesma linha, à direita.
+ */
+export function agruparPorAtencao(assinaturas = [], hojeISO) {
+  const grupos = new Map(MOTIVOS.map(m => [m.chave, { ...m, clientes: [] }]));
+  let semMotivo = 0;
+
+  for (const a of assinaturas) {
+    // Cancelado nao entra em nenhuma das duas contas. Ele nao tem motivo, mas
+    // tambem nao esta "em ordem" — some da folha inteira, que e sobre quem
+    // ainda esta no estudio. Contá-lo como em ordem inflaria o numero que
+    // existe justamente para dar tamanho ao trabalho.
+    if (a?.status === 'cancelada') continue;
+    const motivos = motivosDeAtencao(a, hojeISO);
+    if (!motivos.length) { semMotivo++; continue; }
+    grupos.get(motivos[0].chave).clientes.push({ assinatura: a, motivos });
+  }
+
+  for (const g of grupos.values()) {
+    // Dentro do grupo, o mais urgente primeiro; empate resolve por nome, para
+    // a ordem não mudar sozinha entre duas impressões do mesmo dia.
+    g.clientes.sort((x, y) => {
+      const px = pesoDaUrgencia(x.assinatura, hojeISO), py = pesoDaUrgencia(y.assinatura, hojeISO);
+      return px[0] - py[0] || px[1] - py[1]
+        || String(x.assinatura.paciente?.nome || '').localeCompare(String(y.assinatura.paciente?.nome || ''), 'pt-BR');
+    });
+  }
+
+  return {
+    grupos: [...grupos.values()].filter(g => g.clientes.length).sort((a, b) => a.peso - b.peso),
+    total: [...grupos.values()].reduce((s, g) => s + g.clientes.length, 0),
+    semMotivo,
+  };
+}

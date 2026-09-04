@@ -277,8 +277,8 @@ grupo('comercial · a tela inteira', () => {
     hoje: HOJE,
   };
 
-  teste('as três abas do briefing existem', () => {
-    igual(ABAS.map(a => a.id), ['visao', 'clientes', 'planos']);
+  teste('as abas existem, e Relatório entra depois de Planos', () => {
+    igual(ABAS.map(a => a.id), ['visao', 'clientes', 'planos', 'relatorio']);
     contem(abasHtml('clientes'), 'data-aba="clientes"');
   });
 
@@ -336,7 +336,12 @@ grupo('comercial · a página está ligada ao painel', () => {
   teste('o CSS não tem cor literal fora dos fallbacks de token', () => {
     // As cores de estado (danger, warning, info) ainda não existem em
     // tokens.css; entram como fallback de var() e não soltas.
-    const soltas = (css.match(/:\s*#[0-9a-f]{3,8}\b/gi) || []);
+    //
+    // O BLOCO DE IMPRESSÃO É EXCEÇÃO, e deliberada: no papel não existe tema, e
+    // um `var(--ink)` do tema claro sairia cinza-claro na impressora. Preto de
+    // tinta é #000 e não é cor de tema — `contracheque.css` já faz o mesmo.
+    const semPrint = css.slice(0, css.lastIndexOf('@media print'));
+    const soltas = (semPrint.match(/:\s*#[0-9a-f]{3,8}\b/gi) || []);
     igual(soltas, [], `cor literal solta: ${soltas.join(', ')}`);
   });
 

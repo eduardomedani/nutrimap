@@ -764,3 +764,120 @@ body.cm-travado { overflow: hidden; }
   .cm-aba, .cm-chip, .cm-linha { transition: none; }
   .cm-drawer, .cm-drawer-raiz { animation: none; }
 }
+
+/* ── Relatório de atenção ─────────────────────────────────────────────────
+   Uma folha para levar para a sala. Tudo aqui é pensado em dois estados: na
+   tela, dentro do painel; no papel, sozinha e em preto e branco. */
+
+.cm-rel-cab {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 22px;
+}
+.cm-rel-tit {
+  margin: 0 0 4px; font-size: 19px; font-weight: 800;
+  letter-spacing: -0.01em; color: var(--text-primary, var(--ink));
+}
+.cm-rel-sub {
+  margin: 0; font-size: 13px;
+  color: var(--text-secondary, var(--ink-mute));
+}
+.cm-rel-sub b { color: var(--text-primary, var(--ink)); font-weight: 700; }
+
+.cm-rel { display: grid; gap: 26px; }
+
+.cm-rel-grupo-t {
+  display: flex; align-items: center; gap: 9px;
+  margin: 0 0 10px; font-size: 11px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-secondary, var(--ink-mute));
+}
+/* A contagem é o que se lê de longe ao decidir por onde começar. */
+.cm-rel-conta {
+  font-size: 11px; font-weight: 800; letter-spacing: 0;
+  padding: 2px 8px; border-radius: 999px;
+  background: var(--surface-subtle, var(--bg-warm));
+  border: 1px solid var(--border, var(--hair));
+  color: var(--text-primary, var(--ink));
+}
+
+.cm-rel-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border, var(--hair));
+  border-radius: 14px;
+  background: var(--surface, var(--bg-card));
+}
+.cm-rel-tab { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.cm-rel-tab th {
+  padding: 10px 14px; text-align: left; white-space: nowrap;
+  background: var(--surface-subtle, var(--bg-warm));
+  border-bottom: 1px solid var(--border, var(--hair));
+  font-size: 10.5px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text-secondary, var(--ink-mute));
+}
+.cm-rel-tab td {
+  padding: 11px 14px;
+  border-top: 1px solid var(--hair, var(--line));
+  vertical-align: top;
+}
+.cm-rel-nome span { display: block; font-weight: 700; }
+/* Os motivos secundários: quem liga precisa saber de tudo numa passada só. */
+.cm-rel-tambem {
+  font-weight: 400 !important; font-size: 11.5px; margin-top: 2px;
+  color: var(--text-secondary, var(--ink-mute));
+}
+.cm-rel-tel, .cm-rel-venc { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cm-rel-plano, .cm-rel-motivo { color: var(--text-secondary, var(--ink-mute)); }
+.cm-rel-motivo { font-weight: 600; color: var(--text-primary, var(--ink)); }
+
+/* A caixa de riscar. Existe só no papel — na tela ela seria um controle que
+   não controla nada, e um checkbox falso ensina a desconfiar dos de verdade. */
+.cm-rel-ok { display: none; }
+
+.cm-rel-limpo {
+  text-align: center; padding: 48px 20px;
+  border: 1px dashed var(--border-strong, var(--border));
+  border-radius: 14px;
+  color: var(--text-secondary, var(--ink-mute));
+}
+.cm-rel-limpo svg.lucide { width: 30px; height: 30px; color: var(--primary, var(--moss)); }
+.cm-rel-limpo p { margin: 8px 0 0; font-size: 13.5px; }
+.cm-rel-limpo p b { color: var(--text-primary, var(--ink)); }
+
+@media print {
+  @page { size: A4 portrait; margin: 14mm 15mm; }
+
+  /* Some tudo o que é navegação: no papel não se clica. */
+  .cm-abas, .cm-rel-cab button, .np-topo, .np-nav, .np-menu,
+  header:not(.cm-rel-cab), nav, .np-rodape { display: none !important; }
+
+  .cm, .cm-corpo { padding: 0 !important; margin: 0 !important; }
+
+  .cm-rel-tab, .cm-rel-wrap, .cm-rel-limpo {
+    border: none; border-radius: 0; background: transparent;
+  }
+  .cm-rel { gap: 18px; }
+
+  /* Em preto e branco o que separa é o filete, nunca o fundo. */
+  .cm-rel-tab th {
+    background: transparent;
+    border-top: 1px solid #000; border-bottom: 1px solid #000;
+    color: #000;
+  }
+  .cm-rel-conta { background: transparent; border: 1px solid #000; color: #000; }
+  .cm-rel-tit, .cm-rel-sub, .cm-rel-sub b, .cm-rel-nome span,
+  .cm-rel-motivo, .cm-rel-plano, .cm-rel-tambem { color: #000 !important; }
+  .cm-rel-grupo-t { color: #000; }
+
+  /* Um grupo não pode começar no rodapé da página e continuar na seguinte
+     sem repetir o título — quem lê a página 2 não saberia o motivo. */
+  .cm-rel-grupo { break-inside: avoid; page-break-inside: avoid; }
+  .cm-rel-tab tr { break-inside: avoid; page-break-inside: avoid; }
+  .cm-rel-tab thead { display: table-header-group; }
+
+  /* A caixa de riscar aparece só aqui, e é o motivo de a folha existir. */
+  .cm-rel-ok { display: table-cell; width: 34px; }
+  td.cm-rel-ok::after {
+    content: ''; display: block; width: 13px; height: 13px;
+    border: 1px solid #000; margin-top: 2px;
+  }
+}
