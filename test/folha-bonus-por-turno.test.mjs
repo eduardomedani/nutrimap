@@ -215,7 +215,11 @@ grupo('bônus por turno · a tela', () => {
     // o número.
     contem(UI, 'fp-turnos-regra');
     contem(UI, 'mais de ${Math.round(DESCONTO_MAXIMO * 100)}% de desconto');
-    contem(UI, 'mensalidade vencida');
+    // "vencida" saiu em 04/09/2026: quem pagou atrasado conta se o período pago
+    // inclui o dia. A tela precisa dizer isso, senão o número parece errado
+    // justamente para quem conhece os alunos pelo nome.
+    contem(UI, 'não tinha mensalidade cobrindo');
+    contem(UI, 'pagou atrasado conta');
     naoContem(UI, 'fp-turnos-ajuda');
     naoContem(UI, 'title="Não entram');
   });
@@ -241,30 +245,50 @@ grupo('bônus por turno · a tela', () => {
 
 // ───────────────────────────────────────────────────────────
 grupo('bônus por turno · a função no banco', () => {
-  teste('rebobina o estado pela auditoria', () => {
-    // `fim_periodo` é o período VIGENTE e anda a cada pagamento. Perguntar hoje
-    // "quem estava vencido em 31/08" com o dado de hoje erra para quem renovou
-    // depois — eram 10 das 94 assinaturas em 03/09/2026.
+  teste('monta a vida inteira da assinatura, não só o período de hoje', () => {
+    // `fim_periodo` é o período VIGENTE e anda a cada pagamento; os períodos
+    // antigos só existem na auditoria. É a união dos dois que permite perguntar
+    // se uma data qualquer estava coberta.
     contem(SQL, 'comercial_assinatura_auditoria');
     contem(SQL, "ad.acao = 'renovada'");
-    contem(SQL, 'ad.criado_em::date > p_ref');
+    contem(SQL, 'union all');
+    contem(SQL, "antes ->> 'inicio_periodo'");
     contem(SQL, "antes ->> 'fim_periodo'");
     contem(SQL, "antes ->> 'valor_contratado'");
     contem(SQL, "antes ->> 'plano_id'");
   });
 
-  teste('pega a renovação mais ANTIGA depois da data', () => {
-    // É o `antes` dela que descreve o estado naquele dia. A mais recente
-    // descreveria o estado de ontem.
-    contem(SQL, 'order by ad.criado_em');
-    contem(SQL, 'limit 1');
+  teste('conta quem tem a data DENTRO de um período', () => {
+    // A regra de 04/09/2026. Não é "estava em dia naquele dia" — é "aquele dia
+    // caiu num período pago", ainda que o pagamento tenha entrado depois. Em
+    // 31/08/2026 isso valia para dez alunos, R$ 100 de bônus.
+    // As duas linhas JUNTAS, com a quebra de linha no meio e no fim. Soltas,
+    // cada uma é um PREFIXO: `<= p_ref` continua casando se alguém escrever
+    // `<= p_ref + 1`, e o teste passaria com a data deslocada em um dia.
+    // Uma mutação provou isso — a asserção por substring não pega termo
+    // acrescentado no fim, só termo removido.
+    contem(SQL, 'where pe.inicio_periodo <= p_ref\n       and pe.fim_periodo    >= p_ref\n');
   });
 
-  teste('as quatro regras de exclusão estão lá', () => {
+  teste('um período por assinatura, mesmo com sobreposição', () => {
+    // Correção manual pode deixar dois períodos cobrindo o mesmo dia. Sem o
+    // `distinct on` a pessoa contaria duas vezes e o bônus sairia inflado.
+    contem(SQL, 'distinct on (pe.id)');
+    contem(SQL, 'order by pe.id, pe.fim_periodo desc');
+  });
+
+  teste('as regras de exclusão estão lá', () => {
     contem(SQL, "coalesce(trim(a.horario), '') <> ''");
-    contem(SQL, 'r.fim_periodo >= p_ref');
+    contem(SQL, 'and pe.fim_periodo    >= p_ref\n');
     contem(SQL, 'p.preco_padrao > 0');
     contem(SQL, 'p_desconto_maximo');
+  });
+
+  teste('auditoria sem intervalo não é adivinhada', () => {
+    // Registro antigo pode não ter o período. Sem ele não dá para dizer se
+    // cobre a data, e chutar seria pior que faltar.
+    contem(SQL, "ad.antes ->> 'inicio_periodo' is not null");
+    contem(SQL, "ad.antes ->> 'fim_periodo'    is not null");
   });
 
   teste('o teto do desconto é parâmetro, não número solto', () => {
@@ -280,7 +304,11 @@ grupo('bônus por turno · a função no banco', () => {
   });
 
   teste('quem começou depois da data não conta', () => {
-    contem(SQL, 'a.data_inicio_original <= p_ref');
+    // Sem filtro próprio: quem começou depois não tem período que contenha a
+    // data. A condição de cobertura já diz isso, e a regra repetida seria mais
+    // uma para manter em dia com a outra.
+    const codigo = SQL.split('\n').filter(l => !l.trim().startsWith('--')).join('\n');
+    naoContem(codigo, 'data_inicio_original');
   });
 
   teste('exige equipe.folha e NÃO exige comercial.visualizar', () => {
@@ -308,7 +336,7 @@ grupo('bônus por turno · a função no banco', () => {
     naoContem(codigo, 'delete from');
   });
 
-  teste('os limites da rebobinagem estão escritos', () => {
+  teste('os limites da reconstrução estão escritos', () => {
     // A auditoria começou em 13/08/2026 e cancelamento não é auditado. Quem for
     // fechar julho precisa saber que o número é aproximado.
     contem(SQL, 'AUDITORIA COMECOU EM 13/08/2026');

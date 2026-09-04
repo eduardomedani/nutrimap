@@ -418,9 +418,10 @@ export function traduzirErroFolha(msg) {
  * Quantos alunos ativos cada turno tinha NA DATA — a base do bônus por aluno.
  *
  * A conta mora no banco (`comercial_alunos_por_turno`) e não aqui, por dois
- * motivos. Ela precisa REBOBINAR o estado de cada assinatura até a data pedida,
- * lendo a auditoria de renovações; fazer isso no navegador exigiria baixar a
- * carteira inteira mais o histórico para devolver dois números. E a função
+ * motivos. Ela precisa varrer TODO período que cada assinatura já teve — o de
+ * hoje mais os que a auditoria de renovações guardou — para achar o que contém
+ * a data; fazer isso no navegador exigiria baixar a carteira inteira mais o
+ * histórico para devolver dois números. E a função
  * devolve só a contagem, então quem fecha a folha não precisa de acesso à
  * carteira — a permissão exigida é `equipe.folha`, não `comercial.visualizar`.
  *

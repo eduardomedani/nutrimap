@@ -266,8 +266,9 @@ function resumoTurnosHtml() {
       <p class="fp-turnos-regra">
         A folha de ${esc(nomeCompetencia(_folha.competencia))} paga <b>${esc(mes)}</b>,
         então a contagem é do último dia daquele mês.
-        Não entram quem tem <b>mais de ${Math.round(DESCONTO_MAXIMO * 100)}% de desconto</b> nem quem estava com a
-        <b>mensalidade vencida</b> em ${esc(dia)}.
+        Não entram quem tem <b>mais de ${Math.round(DESCONTO_MAXIMO * 100)}% de desconto</b>
+        nem quem <b>não tinha mensalidade cobrindo</b> ${esc(dia)}.
+        Quem pagou atrasado conta, desde que o período pago inclua o dia.
       </p>
     </section>`;
 }

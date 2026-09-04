@@ -20,26 +20,51 @@
 --
 -- Perguntar hoje "quem estava vencido em 31/08" usando o `fim_periodo` de hoje
 -- da a resposta errada para quem renovou depois: a pessoa aparece em dia. Em
--- 03/09/2026 isso valia para 10 das 94 assinaturas — mais de 10% da base, num
+-- 03/09/2026 isso valia para 11 das 95 assinaturas — mais de 10% da base, num
 -- numero que vira dinheiro.
 --
--- Entao a funcao REBOBINA. Para cada assinatura ela procura a renovacao mais
--- ANTIGA registrada DEPOIS da data de referencia e usa o `antes` dela:
+-- ===========================================================================
+-- A PERGUNTA CERTA NAO E "ESTAVA EM DIA", E "O DIA ESTAVA PAGO"
+-- ---------------------------------------------------------------------------
+-- Ate 04/09/2026 esta funcao rebobinava: procurava a renovacao mais ANTIGA
+-- depois da data e usava o `antes` dela para reconstruir como a assinatura
+-- estava NAQUELE dia. O numero saia certo para a pergunta "quem estava com a
+-- mensalidade em dia em 31/08" — e essa era a pergunta errada.
+--
+-- A conferencia 113 mostrou por que. Dos que a rebobinagem tirava, dez tinham
+-- renovado poucos dias depois com o periodo novo COMECANDO onde o antigo
+-- terminou: Charlene vencia 26/08 e passou a ter 26/08 a 25/09. O dia 31/08
+-- esta dentro de um periodo pago. Ela pagou atrasado, nao deixou de ser aluna
+-- — e o bonus conta ALUNOS, nao pontualidade deles.
+--
+-- Entao a regra virou COBERTURA: a assinatura conta se a data de referencia cai
+-- dentro de algum periodo que ela ja teve. E os periodos que ela ja teve estao
+-- todos ali, porque toda `renovada` grava o intervalo dos dois lados:
 --
 --   comercial_assinatura_auditoria.antes = { plano_id, valor_contratado,
 --                                            inicio_periodo, fim_periodo }
 --
--- Sem renovacao posterior, o estado de hoje ja era o daquele dia. E o mesmo
--- mecanismo que a Migration C usou para achar o periodo historico das
--- cobrancas.
+-- A uniao dos `antes` com o periodo de hoje e a vida inteira da assinatura. A
+-- consulta procura nela o periodo que contem a data e usa o plano e o valor
+-- DAQUELE periodo para medir o desconto — nao os de hoje.
+--
+-- ISSO SUBSTITUI TRES REGRAS POR UMA. Nao ha mais "rebobinar", nem
+-- "`fim_periodo` >= a data", nem "`data_inicio_original` <= a data": quem nao
+-- existia na data nao tem periodo que a contenha, e quem estava vencido
+-- tambem nao. Uma condicao no lugar de tres, e as tres eram a mesma pergunta
+-- feita torto.
+--
+-- QUEM TEM BURACO CONTINUA FORA, e e o teste de que a regra discrimina: em
+-- 31/08/2026, Flavio renovou com periodo comecando em 02/09 e nao conta. Nao e
+-- "todo mundo que pagou algum dia" — e "o dia estava coberto".
 --
 -- ===========================================================================
 -- O QUE A REBOBINAGEM NAO ALCANCA
 -- ---------------------------------------------------------------------------
---   A AUDITORIA COMECOU EM 13/08/2026 (Migration A). Para data anterior a essa
---   nao ha o que rebobinar, e a funcao devolve a foto de hoje. Fechar julho de
---   2026 com ela da um numero aproximado — e a aproximacao nao aparece
---   sozinha, entao quem for fazer isso precisa saber.
+--   A AUDITORIA COMECOU EM 13/08/2026 (Migration A). Antes disso nao ha
+--   periodo historico guardado, e so o periodo de hoje sobra para consultar.
+--   Fechar julho de 2026 com ela da um numero aproximado — e a aproximacao nao
+--   aparece sozinha, entao quem for fazer isso precisa saber.
 --
 --   CANCELAMENTO NAO E AUDITADO. `acao` so registra renovacao. Assinatura
 --   cancelada em setembro conta como cancelada em agosto tambem. O erro e
@@ -54,9 +79,10 @@
 -- AS REGRAS DE QUEM CONTA
 -- ---------------------------------------------------------------------------
 --   . assinatura ATIVA e com turno preenchido;
---   . o cliente ja existia na data (`data_inicio_original <= a data`);
---   . o periodo NAO estava vencido na data;
---   . o desconto sobre o preco do plano nao passa do teto (10% por padrao).
+--   . a data cai dentro de algum periodo da assinatura — o de hoje ou um que a
+--     auditoria guardou (isto ja diz que o cliente existia e que o dia estava
+--     pago, ainda que o pagamento tenha entrado depois);
+--   . o desconto do periodo QUE COBRE A DATA nao passa do teto (10% por padrao).
 --
 -- O TETO E PARAMETRO, e nao numero escrito no meio da consulta: mudar a regra
 -- comercial nao pode exigir migracao. O padrao vem do combinado de 03/09/2026.
@@ -105,40 +131,52 @@ begin
   end if;
 
   return query
-  with rebobinada as (
-    select
-      a.id,
-      trim(a.horario) as turno,
-      -- `distinct on` pega a renovacao mais ANTIGA depois da data: e o `antes`
-      -- dela que descreve como a assinatura estava naquele dia.
-      coalesce((h.antes ->> 'fim_periodo')::date,      a.fim_periodo)      as fim_periodo,
-      coalesce((h.antes ->> 'valor_contratado')::numeric, a.valor_contratado) as valor_contratado,
-      coalesce((h.antes ->> 'plano_id')::uuid,         a.plano_id)         as plano_id
-    from public.comercial_assinaturas a
-    left join lateral (
-      select ad.antes
-        from public.comercial_assinatura_auditoria ad
-       where ad.assinatura_id = a.id
-         and ad.acao = 'renovada'
-         and ad.criado_em::date > p_ref
-       order by ad.criado_em
-       limit 1
-    ) h on true
-    where a.nutri_id = v_org
-      and a.status = 'ativa'
-      and coalesce(trim(a.horario), '') <> ''
-      -- Cliente que comecou depois da data nao existia nela.
-      and (a.data_inicio_original is null or a.data_inicio_original <= p_ref)
+  -- Todo periodo que cada assinatura ativa ja teve: o de hoje, mais os que a
+  -- auditoria guardou. `union all` e nao `union` de proposito — periodo
+  -- repetido nao muda o resultado, e o `distinct on` abaixo escolhe um so.
+  with periodos as (
+    select a.id, trim(a.horario) as turno,
+           a.inicio_periodo, a.fim_periodo, a.valor_contratado, a.plano_id
+      from public.comercial_assinaturas a
+     where a.nutri_id = v_org
+       and a.status = 'ativa'
+       and coalesce(trim(a.horario), '') <> ''
+    union all
+    select a.id, trim(a.horario) as turno,
+           (ad.antes ->> 'inicio_periodo')::date,
+           (ad.antes ->> 'fim_periodo')::date,
+           (ad.antes ->> 'valor_contratado')::numeric,
+           (ad.antes ->> 'plano_id')::uuid
+      from public.comercial_assinaturas a
+      join public.comercial_assinatura_auditoria ad
+        on ad.assinatura_id = a.id
+       and ad.acao = 'renovada'
+       -- Auditoria antiga pode nao ter o intervalo. Sem ele nao da para dizer
+       -- se cobre a data, e chutar seria pior que faltar.
+       and ad.antes ->> 'inicio_periodo' is not null
+       and ad.antes ->> 'fim_periodo'    is not null
+     where a.nutri_id = v_org
+       and a.status = 'ativa'
+       and coalesce(trim(a.horario), '') <> ''
+  ),
+  -- Um periodo por assinatura: o que contem a data. Se mais de um contiver —
+  -- correcao manual que gerou sobreposicao — vale o que termina depois, que e
+  -- o mais recente e reflete a ultima decisao tomada sobre aquele cliente.
+  cobrindo as (
+    select distinct on (pe.id) pe.*
+      from periodos pe
+     where pe.inicio_periodo <= p_ref
+       and pe.fim_periodo    >= p_ref
+     order by pe.id, pe.fim_periodo desc
   )
-  select r.turno, count(*)::integer
-    from rebobinada r
-    join public.comercial_planos p on p.id = r.plano_id
-   where r.fim_periodo >= p_ref
-     and p.preco_padrao > 0
+  select c.turno, count(*)::integer
+    from cobrindo c
+    join public.comercial_planos p on p.id = c.plano_id
+   where p.preco_padrao > 0
      -- Sem valor contratado, vale o preco do plano: desconto zero.
-     and (1 - coalesce(r.valor_contratado, p.preco_padrao) / p.preco_padrao) <= p_desconto_maximo
-   group by r.turno
-   order by r.turno;
+     and (1 - coalesce(c.valor_contratado, p.preco_padrao) / p.preco_padrao) <= p_desconto_maximo
+   group by c.turno
+   order by c.turno;
 end;
 $fn$;
 
@@ -151,9 +189,9 @@ grant execute on function public.comercial_alunos_por_turno(date, numeric) to au
 -- ===========================================================================
 -- Conferencia. Esperado:
 --   definer = true · stable = true · search_path fixo
---   e a contagem de 31/08/2026 batendo com db/conferencia/113, que desde
---   03/09/2026 rebobina do mesmo jeito. Os dois numeros tem de ser iguais:
---   se discordarem, um dos dois esta lendo o dia errado.
+--   e a contagem de 31/08/2026 dando Diurno 28 e Noturno 25 — os mesmos
+--   numeros da secao COBERTURA de db/conferencia/113. Se discordarem, um dos
+--   dois esta lendo o dia errado.
 -- ===========================================================================
 select
   p.prosecdef                                                   as definer,
