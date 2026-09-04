@@ -132,6 +132,13 @@ export function traduzirErroContracheque(msg) {
   if (m.includes('estilo_indisponivel')) {
     return 'Não consegui ler o estilo do documento. Recarregue a página e tente de novo.';
   }
+  // O contracheque é HTML. Quando a lista de tipos do bucket é reescrita à mão
+  // para aceitar um formato novo, é este que costuma ficar de fora — e o erro
+  // só aparece no fechamento da folha, meses depois da mexida.
+  if (/mime type .* is not supported/.test(m)) {
+    return 'O repositório de documentos não aceita mais o contracheque (text/html). '
+      + 'Rode db/documentos_mime_do_app.sql no Supabase e feche a folha de novo.';
+  }
   if (m.includes('row-level security') || m.includes('unauthorized')) {
     return 'Sem permissão para publicar este contracheque.';
   }

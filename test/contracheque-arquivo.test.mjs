@@ -104,6 +104,32 @@ grupo('contracheque publicado · estilo de origem única', () => {
   teste('erro de bucket ausente manda rodar o schema', () => {
     ok(traduzirErroContracheque('Bucket not found').includes('contracheque_publicado.sql'));
   });
+
+  // O erro cru do Storage não diz o que fazer, e chegava assim ao usuário no
+  // meio do fechamento da folha.
+  teste('erro de MIME manda rodar a migration da lista de tipos', () => {
+    const t = traduzirErroContracheque('mime type text/html is not supported');
+    ok(t.includes('documentos_mime_do_app.sql'), 'faltou dizer qual arquivo rodar');
+    ok(t.includes('text/html'), 'faltou dizer qual tipo foi recusado');
+  });
+
+  teste('a migration dos tipos cobre o que o app grava', () => {
+    const sql = readFileSync(
+      new URL('../db/documentos_mime_do_app.sql', import.meta.url), 'utf8');
+    for (const mime of [
+      'application/pdf',
+      'text/html',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+    ]) {
+      ok(sql.includes(`'${mime}'`), `faltou ${mime} na lista canônica`);
+    }
+    // Acrescenta à lista existente: substituir apagaria em silêncio um tipo
+    // que a migration não conhece — foi assim que text/html se perdeu.
+    ok(sql.includes('allowed_mime_types ||'), 'a lista precisa ser acrescentada, não trocada');
+    ok(sql.includes('allowed_mime_types is not null'),
+      'bucket sem restrição nenhuma não pode ganhar uma');
+  });
 });
 
 grupo('contracheque publicado · quando fechar a folha', () => {
