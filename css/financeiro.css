@@ -594,7 +594,29 @@
   margin: 2px 4px 2px 0;
 }
 .fp-add-chip strong { font-variant-numeric: tabular-nums; }
-.fp-add-chip button {
+
+/* O rótulo é botão, mas não pode PARECER um: dentro da pílula ele continua
+   sendo o texto do lançamento. Herda fonte e cor, e só o sublinhado no hover
+   avisa que responde ao clique. */
+.fp-add-rot {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--radius-pill);
+}
+.fp-add-rot:hover { text-decoration: underline; }
+.fp-add-rot:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+
+/* SÓ O ✕ FICA VERMELHO NO HOVER. A regra era `.fp-add-chip button`, que agora
+   pegaria os dois — e o rótulo inteiro virar vermelho ao passar o mouse diria
+   "isto apaga" bem no botão que corrige. */
+.fp-add-x {
   border: none;
   background: transparent;
   color: var(--text-muted);
@@ -604,7 +626,7 @@
   padding: 2px 4px;
   border-radius: 50%;
 }
-.fp-add-chip button:hover { background: var(--error-soft); color: var(--error); }
+.fp-add-x:hover { background: var(--error-soft); color: var(--error); }
 .fp-add-neg {
   background: var(--error-soft);
   border-color: color-mix(in srgb, var(--error) 25%, transparent);

@@ -17,7 +17,7 @@ import {
   minutosDeTexto, textoDeMinutos, valorBase, totalItem, totalFolha, totalMinutos,
   nomeCompetencia, competenciaAtual, proximaCompetencia,
   listarFolhas, abrirFolha, carregarFolha, salvarItem, excluirItem, adicionarItem,
-  adicionarAdicional, excluirAdicional, fecharFolha, reabrirFolha, excluirFolha,
+  adicionarAdicional, atualizarAdicional, excluirAdicional, fecharFolha, reabrirFolha, excluirFolha,
   traduzirErroFolha,
   alunosPorTurno, diaDaContagem, mesTrabalhado, TURNOS_COM_BONUS, rotuloDoBonus, turnoDoBonus, valorDoBonus,
   DESCONTO_MAXIMO,
@@ -441,10 +441,18 @@ function linhaHtml(item) {
   const fechada = trava();
   const ro = fechada ? 'disabled' : '';
 
+  // O RÓTULO DO CHIP É O BOTÃO DE EDITAR. Um terceiro ícone dentro de uma
+  // pílula de 12px viraria alvo pequeno demais no celular, e a coluna já é
+  // estreita. Clicar no que se quer corrigir é o gesto que a pessoa tentaria
+  // antes de procurar um botão — só faltava ele responder.
   const adicionais = (item.adicionais || []).map(a => `
     <span class="fp-add-chip${Number(a.valor) < 0 ? ' fp-add-neg' : ''}">
-      ${esc(a.descricao)} <strong>${formatarBRL(a.valor)}</strong>
-      ${fechada ? '' : `<button data-fp-del-add="${a.id}" title="Remover">✕</button>`}
+      ${fechada
+        ? `${esc(a.descricao)} <strong>${formatarBRL(a.valor)}</strong>`
+        : `<button class="fp-add-rot" data-fp-edit-add="${a.id}" title="Corrigir este lançamento">
+             ${esc(a.descricao)} <strong>${formatarBRL(a.valor)}</strong>
+           </button>`}
+      ${fechada ? '' : `<button class="fp-add-x" data-fp-del-add="${a.id}" title="Remover">✕</button>`}
     </span>`).join('');
 
   return `
@@ -575,6 +583,8 @@ function ligar() {
 
   cont.querySelectorAll('[data-fp-add]').forEach(b =>
     b.addEventListener('click', () => abrirFormAdicional(b.dataset.fpAdd)));
+  cont.querySelectorAll('[data-fp-edit-add]').forEach(b =>
+    b.addEventListener('click', () => abrirFormAdicional(null, b.dataset.fpEditAdd)));
   cont.querySelectorAll('[data-fp-del-add]').forEach(b =>
     b.addEventListener('click', () => removerAdicional(b.dataset.fpDelAdd)));
   cont.querySelectorAll('[data-fp-modo]').forEach(b =>
@@ -670,6 +680,15 @@ async function gravarLinha(tr) {
   });
 }
 
+/** O lançamento e a linha que o contém, a partir do id do lançamento. */
+function acharAdicional(id) {
+  for (const item of _itens) {
+    const adicional = (item.adicionais || []).find(a => a.id === id);
+    if (adicional) return { item, adicional };
+  }
+  return null;
+}
+
 /**
  * Caixa de cadastro do lançamento, sobre a própria tela.
  *
@@ -678,10 +697,17 @@ async function gravarLinha(tr) {
  * Numa caixa centrada os campos cabem lado a lado, a folha continua visível
  * atrás e o foco fica onde deveria.
  */
-function abrirFormAdicional(itemId) {
+function abrirFormAdicional(itemId, adicionalId = null) {
   if (document.querySelector('.fp-modal')) return;      // uma caixa por vez
-  const item = _itens.find(i => i.id === itemId);
+
+  // Editando, o chip sabe só o próprio id — o item vem de quem o contém. Um
+  // `data-item` a mais no HTML seria a mesma informação escrita duas vezes,
+  // e as duas poderiam discordar depois de um render.
+  const achado = adicionalId ? acharAdicional(adicionalId) : null;
+  if (adicionalId && !achado) return;
+  const item = achado ? achado.item : _itens.find(i => i.id === itemId);
   if (!item) return;
+  const editando = achado?.adicional || null;
 
   const fundo = document.createElement('div');
   fundo.className = 'fp-modal';
@@ -689,7 +715,7 @@ function abrirFormAdicional(itemId) {
     <div class="fp-modal-caixa" role="dialog" aria-modal="true" aria-labelledby="fpModalTit">
       <div class="fp-modal-topo">
         <div>
-          <div class="fp-modal-tit" id="fpModalTit">Novo lançamento</div>
+          <div class="fp-modal-tit" id="fpModalTit">${editando ? 'Corrigir lançamento' : 'Novo lançamento'}</div>
           <div class="fp-modal-sub">${esc(item.funcionario?.nome || '')} · ${esc(nomeCompetencia(_folha?.competencia))}</div>
         </div>
         <button class="fp-modal-x" data-fp-fechar aria-label="Fechar"><i data-lucide="x"></i></button>
@@ -721,7 +747,9 @@ function abrirFormAdicional(itemId) {
 
       <div class="fp-modal-acoes">
         <button class="btn" data-fp-fechar>Cancelar</button>
-        <button class="btn primary" id="fpAddOk"><i data-lucide="plus"></i> Adicionar</button>
+        <button class="btn primary" id="fpAddOk">
+          <i data-lucide="${editando ? 'check' : 'plus'}"></i> ${editando ? 'Salvar' : 'Adicionar'}
+        </button>
       </div>
     </div>
   `;
@@ -729,7 +757,18 @@ function abrirFormAdicional(itemId) {
 
   const desc = fundo.querySelector('.fp-add-desc');
   const val = fundo.querySelector('.fp-add-val');
-  desc.focus();
+
+  // CORRIGINDO, O FOCO VAI PARA O VALOR, e selecionado. A descrição vem da
+  // lista de sugestões e quase nunca é o que está errado; o valor é. Abrir na
+  // descrição obrigaria um Tab antes de cada correção.
+  if (editando) {
+    desc.value = editando.descricao || '';
+    val.value = formatarBRL(editando.valor);
+    val.focus();
+    val.select?.();
+  } else {
+    desc.focus();
+  }
 
   const fechar = () => {
     document.removeEventListener('keydown', aoTeclado);
@@ -748,9 +787,13 @@ function abrirFormAdicional(itemId) {
 
     fechar();
     await comErro(async () => {
-      await adicionarAdicional(itemId, {
-        descricao, valor, ordem: (item.adicionais?.length || 0),
-      });
+      if (editando) {
+        await atualizarAdicional(editando.id, { descricao, valor });
+      } else {
+        await adicionarAdicional(item.id, {
+          descricao, valor, ordem: (item.adicionais?.length || 0),
+        });
+      }
       _itens = await carregarFolha(_folha.id);
       render();
     });

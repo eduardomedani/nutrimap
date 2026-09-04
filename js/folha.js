@@ -368,6 +368,27 @@ export async function adicionarAdicional(itemId, { descricao, valor, ordem = 0 }
   return data;
 }
 
+/**
+ * Corrigir um lançamento sem apagá-lo e redigitar.
+ *
+ * `ordem` NÃO entra: ela é a posição do lançamento no contracheque, e quem
+ * corrige um valor não está pedindo para o lançamento mudar de lugar. Deixá-la
+ * de fora é o que garante que a linha permaneça onde estava.
+ *
+ * A folha fechada recusa no BANCO, não aqui: a policy `folha_adicionais_update`
+ * exige `folhas.status <> 'fechada'`. A tela esconde o botão porque esconder é
+ * mais gentil que deixar tentar — mas quem contorna a tela esbarra na policy.
+ */
+export async function atualizarAdicional(id, { descricao, valor }) {
+  const { data, error } = await sb
+    .from('folha_adicionais')
+    .update({ descricao, valor })
+    .eq('id', id)
+    .select().single();
+  if (error) throw error;
+  return data;
+}
+
 export async function excluirAdicional(id) {
   const { error } = await sb.from('folha_adicionais').delete().eq('id', id);
   if (error) throw error;
