@@ -14,6 +14,11 @@ import { sb } from './supabase.js';
 import { organizacaoAtual } from './organizacao.js';
 import { BUCKET, nomeSeguro, hashDoConteudo } from './documentos.js';
 
+/** O MIME do .xlsx. Ele precisa estar em `allowed_mime_types` do bucket — ver
+ *  db/folha_arquivos_mime.sql, que o acrescentou sem apagar os que ja estavam. */
+export const MIME_XLSX =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
 /**
  * O erro do Supabase chega repartido — `message`, `details`, `hint`, `code` — e
  * a parte que diz o que houve costuma estar em `details`, não em `message`.
@@ -83,8 +88,13 @@ export async function guardarArquivoDoMes({ competencia, tipo, arquivo, resumo =
     nutriId, competencia, tipo, arquivo: arquivo.name,
   });
 
+  // O BUCKET TEM LISTA DE MIME PERMITIDOS, e `application/octet-stream` não
+  // está nela — nem deveria: é o tipo que aceita qualquer coisa, e a lista
+  // existe justamente para o repositório de documentos não virar hospedagem
+  // geral. Quando o navegador não reconhece a extensão, o tipo declarado é o
+  // de .xlsx, que é o único formato que esta zona aceita.
   const { error: erroUpload } = await sb.storage.from(BUCKET).upload(caminho, arquivo, {
-    contentType: arquivo.type || 'application/octet-stream',
+    contentType: arquivo.type || MIME_XLSX,
     upsert: false,
   });
   if (erroUpload) throw detalhar(erroUpload, 'upload');
@@ -188,5 +198,9 @@ export function traduzirErroArquivo(msg = '') {
       + 'Rode db/folha_arquivos.sql no Supabase.';
   }
   if (/Bucket not found/i.test(m)) return 'O repositório de arquivos não está configurado.';
+  if (/mime type .* is not supported/i.test(m)) {
+    return 'O repositório ainda não aceita planilhas. '
+      + 'Rode db/folha_arquivos_mime.sql no Supabase.';
+  }
   return m ? `Não consegui guardar o arquivo: ${m}` : 'Não consegui guardar o arquivo.';
 }

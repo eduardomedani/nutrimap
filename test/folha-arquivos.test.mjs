@@ -102,6 +102,26 @@ grupo('arquivos da competência · guardar', () => {
     ok(!('nutri_id' in ultima('folha_arquivos', 'insert').payload));
   });
 
+  teste('sem tipo, a chave mime_type nem é enviada', async () => {
+    // `mime_type` é `not null` COM DEFAULT, e as duas juntas são uma armadilha:
+    // mandar `null` explicitamente NÃO cai no default — viola a restrição. E
+    // `arquivo.type` vem vazio quando o navegador não reconhece a extensão.
+    preparar();
+    tabela('folha_arquivos', [{ id: 'fa1' }]);
+    const semTipo = { ...arquivoFake(), type: '' };
+    await guardarArquivoDoMes({ competencia: '2026-09-01', tipo: 'ponto', arquivo: semTipo });
+    const payload = ultima('folha_arquivos', 'insert').payload;
+    ok(!('mime_type' in payload),
+      'a chave tem que ser OMITIDA, não mandada como null: ' + JSON.stringify(payload));
+  });
+
+  teste('com tipo, ele vai como veio', async () => {
+    preparar();
+    tabela('folha_arquivos', [{ id: 'fa1' }]);
+    await guardarArquivoDoMes({ competencia: '2026-09-01', tipo: 'ponto', arquivo: arquivoFake() });
+    igual(ultima('folha_arquivos', 'insert').payload.mime_type, 'application/vnd.ms-excel');
+  });
+
   teste('o resumo vai junto com a linha', async () => {
     // Sem ele, mostrar "1.063 presenças" exigiria baixar e reprocessar o xlsx
     // a cada abertura da folha.
@@ -176,6 +196,51 @@ grupo('arquivos da competência · guardar', () => {
     const c = ultima('folha_arquivos', 'select');
     ok(c.filtros.some(f => f.coluna === 'atual' && f.valor === true), JSON.stringify(c.filtros));
     ok(c.filtros.some(f => f.coluna === 'competencia' && f.valor === '2026-09-01'));
+  });
+});
+
+grupo('arquivos da competência · o bucket aceita planilha', () => {
+  const MIME = readFileSync(new URL('../db/folha_arquivos_mime.sql', import.meta.url), 'utf8');
+  const FA = readFileSync(new URL('../js/folha-arquivos.js', import.meta.url), 'utf8');
+
+  teste('acrescenta à lista, não substitui', () => {
+    // Escrever a lista inteira significaria adivinhar o que já está lá. Se o
+    // bucket aceitar um tipo que este arquivo não conhece — uma imagem de
+    // assinatura, um XML de eSocial —, sobrescrever apagaria em silêncio, e o
+    // erro apareceria semanas depois num upload que sempre funcionou.
+    contem(MIME, 'allowed_mime_types || array[');
+    contem(MIME, 'select distinct t');
+  });
+
+  teste('bucket que aceita tudo continua aceitando tudo', () => {
+    // `null` em `allowed_mime_types` significa "sem restrição". Transformá-lo
+    // numa lista de três itens seria apertar a regra sem ninguém ter pedido.
+    contem(MIME, 'and allowed_mime_types is not null');
+  });
+
+  teste('o upload não declara octet-stream', () => {
+    // É o tipo que aceita qualquer coisa, e a lista do bucket existe para o
+    // repositório de documentos não virar hospedagem geral.
+    // Sem os comentários: o texto que EXPLICA por que não usamos octet-stream
+    // cita o tipo, e é o próprio comentário que faria este teste falhar.
+    const codigo = FA.split('\n')
+      .filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+    naoContem(codigo, 'application/octet-stream');
+    contem(codigo, 'contentType: arquivo.type || MIME_XLSX');
+  });
+
+  teste('o erro do MIME diz o que rodar', () => {
+    // Ele apareceu no primeiro uso real, e a mensagem tem que levar direto à
+    // migração — não a "tente de novo", que era o que dizia antes.
+    igual(
+      traduzirErroArquivo('mime type application/vnd.openxmlformats-officedocument.spreadsheetml.sheet is not supported'),
+      'O repositório ainda não aceita planilhas. Rode db/folha_arquivos_mime.sql no Supabase.');
+  });
+
+  teste('o desfazer avisa que os arquivos já enviados ficam', () => {
+    // `allowed_mime_types` vale no upload, não na leitura.
+    const undo = readFileSync(new URL('../db/folha_arquivos_mime_desfazer.sql', import.meta.url), 'utf8');
+    contem(undo, 'vale no upload, nao na leitura');
   });
 });
 
