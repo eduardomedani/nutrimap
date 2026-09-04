@@ -63,6 +63,7 @@ function cadeia(tabelaNome, operacao, payload) {
     for (const f of registro.filtros) {
       if (f.tipo === 'in')  linhas = linhas.filter(l => f.valores.includes(l[f.coluna]));
       if (f.tipo === 'eq')  linhas = linhas.filter(l => String(l[f.coluna]) === String(f.valor));
+      if (f.tipo === 'neq') linhas = linhas.filter(l => String(l[f.coluna]) !== String(f.valor));
       if (f.tipo === 'not-null') linhas = linhas.filter(l => l[f.coluna] != null);
       if (f.tipo === 'null') linhas = linhas.filter(l => l[f.coluna] == null);
     }
@@ -73,6 +74,10 @@ function cadeia(tabelaNome, operacao, payload) {
   const api = {
     select(colunas) { registro.colunas = colunas; return api; },
     eq(coluna, valor) { registro.filtros.push({ tipo: 'eq', coluna, valor }); return api; },
+    // `neq` entrou com o update que aposenta a versão anterior do arquivo do
+    // mês: sem ele o update pegaria também a linha recém-criada, e a
+    // competência ficaria sem nenhum arquivo corrente.
+    neq(coluna, valor) { registro.filtros.push({ tipo: 'neq', coluna, valor }); return api; },
     in(coluna, valores) { registro.filtros.push({ tipo: 'in', coluna, valores }); return api; },
     not(coluna, op, valor) {
       if (op === 'is' && valor === null) registro.filtros.push({ tipo: 'not-null', coluna });

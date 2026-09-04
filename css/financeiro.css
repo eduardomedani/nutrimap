@@ -2273,3 +2273,93 @@ tbody tr.dsp-linha:focus-visible { outline: 2px solid var(--primary); outline-of
   .fx-c .fp-select,
   .fx-c .fx-in-valor { margin: 0 0 0 auto; }
 }
+
+/* ── Planilhas do bônus por presença ──────────────────────────────────────
+   Segunda zona de arraste, abaixo da de PDF. Ela é visualmente MAIS DISCRETA
+   que a primeira de propósito: a de PDF é o trabalho de todo mês, esta é uma
+   vez por fechamento. Duas zonas com o mesmo peso fariam a tela parecer ter
+   duas ações principais. */
+.fp-importar-xlsx {
+  border-style: dashed;
+  border-color: var(--border);
+  background: var(--surface-subtle);
+}
+.fp-importar-xlsx .fp-importar-txt span b { color: var(--text-primary); font-weight: 600; }
+
+/* Os arquivos já guardados: um cartão por tipo, com o que ele apurou. */
+.fp-arquivos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.fp-arquivo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: 12px 14px;
+}
+.fp-arquivo > svg.lucide { width: 18px; height: 18px; color: var(--primary); flex: 0 0 auto; }
+.fp-arquivo-txt { flex: 1; min-width: 0; }
+.fp-arquivo-txt strong { display: block; font-size: 13px; }
+/* O RESUMO É O QUE SE OLHA para saber se o arquivo certo foi importado — só o
+   nome não basta, porque exportação do mês errado tem nome parecido. */
+.fp-arquivo-txt span {
+  display: block; font-size: 11.5px; color: var(--text-secondary);
+  margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── O bônus apurado, antes de virar lançamento ───────────────────────── */
+.fp-bp {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+.fp-bp-topo {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.fp-bp-topo h3 { margin: 0 0 4px; font-size: 15px; font-weight: 700; }
+.fp-bp-topo p { margin: 0; font-size: 12.5px; color: var(--text-secondary); max-width: 60ch; }
+
+.fp-bp-tab { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.fp-bp-tab th {
+  text-align: left; padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text-secondary);
+}
+.fp-bp-tab td { padding: 9px 10px; border-bottom: 1px solid var(--border-subtle, var(--border)); }
+.fp-bp-tab th.fp-num, .fp-bp-tab td.fp-num { text-align: right; font-variant-numeric: tabular-nums; }
+.fp-bp-tab tfoot td {
+  border-bottom: none; border-top: 2px solid var(--border-strong);
+  font-weight: 700; padding-top: 11px;
+}
+
+/* Quem o cálculo achou mas a folha não tem. Não some da lista: a pessoa
+   precisa saber que existe bônus apurado para alguém que ela ainda não
+   adicionou — some, o valor sumiria com ele. */
+.fp-bp-sem-linha td { color: var(--text-secondary); }
+.fp-bp-aviso {
+  display: inline-block; margin-left: 8px; padding: 1px 7px;
+  border-radius: var(--radius-pill); background: var(--warning-soft, var(--surface-subtle));
+  color: var(--warning, var(--text-secondary));
+  font-size: 10.5px; font-weight: 600;
+}
+
+/* A batida ímpar faz o colaborador receber MENOS. É aviso, não erro: o cálculo
+   está certo para o dado que existe — o dado é que está incompleto. */
+.fp-bp-impares {
+  display: flex; gap: 8px; align-items: flex-start;
+  margin: 14px 0 0; padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--warning-soft, var(--surface-subtle));
+  font-size: 12.5px; color: var(--text-secondary); line-height: 1.5;
+}
+.fp-bp-impares svg.lucide { width: 15px; height: 15px; flex: 0 0 auto; margin-top: 2px; color: var(--warning); }
+.fp-bp-impares b { color: var(--text-primary); }

@@ -44,6 +44,36 @@ let _docs = new Map();  // colaborador_id -> { contracheque, folha_ponto }
 // Fica `null` enquanto não carregou e também quando a contagem falha; as duas
 // são diferentes de `{}`, que significaria "contei e não achei ninguém".
 let _turnos = null;
+// As planilhas do bônus por presença já guardadas neste mês, e o que a última
+// importação apurou. `_bonus` é o cálculo pronto esperando confirmação — ele
+// não vira lançamento sozinho, do mesmo jeito que a contagem por turno sugere
+// e não lança.
+let _arquivos = [];
+let _bonus = null;
+
+/** As planilhas do bônus guardadas neste mês, e o cálculo que elas permitem.
+ *  Falha em silêncio pelo mesmo motivo dos documentos: sem a tabela instalada,
+ *  a folha continua servindo para lançar horas e fechar o mês. */
+async function carregarArquivosDoMes() {
+  _arquivos = []; _bonus = null;
+  if (!_folha?.competencia) return;
+  try {
+    const { arquivosDoMes } = await import('./folha-arquivos.js');
+    _arquivos = await arquivosDoMes(_folha.competencia);
+    await recalcularBonusDePresenca();
+  } catch (e) { _arquivos = []; _bonus = null; }
+}
+
+/** Abre o arquivo guardado numa aba nova, por link temporário. */
+async function baixarArquivoDoMes(id) {
+  const registro = _arquivos.find(a => a.id === id);
+  if (!registro) return;
+  await comErro(async () => {
+    const { urlDoArquivoDoMes } = await import('./folha-arquivos.js');
+    const url = await urlDoArquivoDoMes(registro.caminho_storage);
+    if (url) window.open(url, '_blank', 'noopener');
+  });
+}
 
 /** Documentos já guardados nesta competência. Falha em silêncio: sem o
  *  repositório instalado, a folha continua funcionando sem os indicadores. */
@@ -153,6 +183,7 @@ async function abrirCompetencia(competencia, { criar = true } = {}) {
     }
     await carregarDocumentos();
     await carregarTurnos();
+    await carregarArquivosDoMes();
     await contarPendentesDaFila();
     render();
   } catch (e) {
@@ -310,6 +341,7 @@ function render() {
     </div>
 
     ${resumoTurnosHtml()}
+    ${bonusPresencaHtml(_bonus, _itens)}
 
     ${fechada && _folha?.data_pagamento
       ? `<div class="fp-aviso"><i data-lucide="check-circle-2"></i>
@@ -336,7 +368,26 @@ function render() {
         </div>
         <button class="btn" id="fpEscolher">Escolher arquivos</button>
         <input type="file" id="fpArquivos" accept="application/pdf,.pdf" multiple hidden>
-      </div>`}
+      </div>
+
+      <!-- A SEGUNDA ZONA, e não um segundo botão na primeira. São entradas de
+           naturezas diferentes: o PDF preenche HORAS de uma pessoa; estas duas
+           planilhas alimentam o BÔNUS de todas. Uma zona só que aceitasse tudo
+           faria a pessoa descobrir o que aconteceu depois de soltar. -->
+      <div class="fp-importar fp-importar-xlsx" id="fpZonaXlsx">
+        <i data-lucide="table-2"></i>
+        <div class="fp-importar-txt">
+          <strong>Arraste as planilhas do bônus (.xlsx) aqui</strong>
+          <span>
+            O <b>relatório de presenças</b> dos alunos e o <b>espelho de ponto</b> em planilha.
+            Os dois ficam guardados, e é deles que sai o bônus por presença.
+          </span>
+        </div>
+        <button class="btn" id="fpEscolherXlsx">Escolher planilhas</button>
+        <input type="file" id="fpArquivosXlsx" accept=".xlsx" multiple hidden>
+      </div>
+
+      ${arquivosDoMesHtml()}`}
 
     <div class="fp-tabela-wrap">
       <table class="fp-tabela">
@@ -574,6 +625,30 @@ function ligar() {
       importarPontos([...(e.dataTransfer?.files || [])]);
     });
   }
+
+  // As planilhas do bônus. Zona própria, pelo mesmo caminho.
+  const zonaX = document.getElementById('fpZonaXlsx');
+  if (zonaX) {
+    const inputX = document.getElementById('fpArquivosXlsx');
+    document.getElementById('fpEscolherXlsx')?.addEventListener('click', () => inputX.click());
+    inputX?.addEventListener('change', () => {
+      importarPlanilhasDoBonus([...inputX.files]);
+      inputX.value = '';
+    });
+    zonaX.addEventListener('dragover', (e) => { e.preventDefault(); zonaX.classList.add('on'); });
+    zonaX.addEventListener('dragleave', () => zonaX.classList.remove('on'));
+    zonaX.addEventListener('drop', (e) => {
+      e.preventDefault();
+      zonaX.classList.remove('on');
+      importarPlanilhasDoBonus([...(e.dataTransfer?.files || [])]);
+    });
+  }
+
+  cont.querySelector('[data-fp-lancar-bonus]')
+    ?.addEventListener('click', () => lancarBonusDePresenca());
+
+  cont.querySelectorAll('[data-fp-baixar-arquivo]').forEach(b =>
+    b.addEventListener('click', () => baixarArquivoDoMes(b.dataset.fpBaixarArquivo)));
 
   // Recalcula ao digitar; grava ao sair do campo.
   // A MÁSCARA É REGISTRADA ANTES DO RECÁLCULO, e a ordem é o ponto. Listeners
@@ -1120,6 +1195,171 @@ function removerA4() {
 // escreve direto obriga a conferir seis linhas depois do fato; assim a
 // conferência acontece antes, com o arquivo de origem ao lado do valor.
 
+/**
+ * As planilhas do bônus: guarda os arquivos e recalcula.
+ *
+ * OS DOIS SÃO ACEITOS NA MESMA SOLTADA, e o tipo é descoberto lendo — não pelo
+ * nome. Nome de exportação muda quando o outro sistema atualiza, e obrigar a
+ * pessoa a soltar um de cada vez para dizer qual é qual seria pedir que ela
+ * fizesse o trabalho que o conteúdo já faz.
+ *
+ * O ARQUIVO É GUARDADO MESMO QUANDO O CÁLCULO NÃO FECHA. Ter as presenças sem
+ * o ponto é um estado normal — chegou uma planilha, falta a outra —, e o
+ * arquivo que já veio não pode se perder por causa disso.
+ */
+async function importarPlanilhasDoBonus(arquivos) {
+  const xlsx = arquivos.filter(a => /\.xlsx$/i.test(a.name || ''));
+  if (!xlsx.length) return;
+  if (!_folha?.competencia) { mostrarErro('Abra uma competência antes de importar.'); return; }
+  if (trava()) { mostrarErro('Esta folha está fechada. Reabra antes de importar.'); return; }
+
+  const zona = document.getElementById('fpZonaXlsx');
+  if (zona) zona.classList.add('lendo');
+
+  const [{ lerPrimeiraAba }, { lerPresencas }, { lerEspelhoDePonto },
+         { guardarArquivoDoMes, arquivosDoMes, traduzirErroArquivo }] = await Promise.all([
+    import('./planilha.js'), import('./frequencia.js'),
+    import('./ponto-planilha.js'), import('./folha-arquivos.js'),
+  ]);
+
+  const erros = [];
+  let guardou = 0;
+
+  for (const arquivo of xlsx) {
+    // Tenta como espelho de ponto primeiro: ele é o mais específico — exige
+    // abas com "Colaborador:". O de presenças aceita quase qualquer planilha
+    // com Cliente e Data, e testado primeiro engoliria o outro.
+    try {
+      const pessoas = await lerEspelhoDePonto(arquivo);
+      await guardarArquivoDoMes({
+        competencia: _folha.competencia, tipo: 'ponto', arquivo,
+        resumo: {
+          colaboradores: pessoas.length,
+          turnos: pessoas.reduce((s, p) => s + p.turnos.length, 0),
+          impares: pessoas.reduce((s, p) => s + p.impares.length, 0),
+        },
+      });
+      guardou++;
+      continue;
+    } catch (e) {
+      if (!/espelho_sem_colaborador/.test(String(e?.message))) {
+        erros.push(`${arquivo.name}: ${traduzirErroArquivo(e?.message)}`);
+        continue;
+      }
+    }
+
+    try {
+      const presencas = lerPresencas(await lerPrimeiraAba(arquivo));
+      if (!presencas.length) throw new Error('planilha_sem_presencas');
+      const dias = [...new Set(presencas.map(p => p.dia))].sort();
+      await guardarArquivoDoMes({
+        competencia: _folha.competencia, tipo: 'presencas', arquivo,
+        resumo: {
+          linhas: presencas.length,
+          alunos: new Set(presencas.map(p => p.cliente)).size,
+          visitas: new Set(presencas.map(p => p.cliente + '|' + p.dia)).size,
+          de: dias[0], ate: dias[dias.length - 1],
+        },
+      });
+      guardou++;
+    } catch (e) {
+      erros.push(`${arquivo.name}: ${traduzirErroArquivo(e?.message)}`);
+    }
+  }
+
+  if (zona) zona.classList.remove('lendo');
+
+  _arquivos = await arquivosDoMes(_folha.competencia).catch(() => _arquivos);
+  await recalcularBonusDePresenca();
+  render();
+
+  if (erros.length) mostrarErro(erros.join('\n'));
+  else if (guardou) mostrarToast(`✓ ${guardou} ${guardou === 1 ? 'planilha guardada' : 'planilhas guardadas'}`);
+}
+
+/**
+ * Refaz a conta a partir dos arquivos guardados.
+ *
+ * BAIXA DO STORAGE em vez de guardar o resultado. O bônus depende dos DOIS
+ * arquivos, e eles chegam em momentos diferentes; guardar um resultado parcial
+ * significaria decidir o que fazer quando o segundo chega — reprocessar ou
+ * confiar no que está gravado. Reler os dois é uma requisição a mais e uma
+ * dúvida a menos.
+ */
+async function recalcularBonusDePresenca() {
+  _bonus = null;
+  const presencas = _arquivos.find(a => a.tipo === 'presencas');
+  const ponto = _arquivos.find(a => a.tipo === 'ponto');
+  if (!presencas || !ponto) return;
+
+  try {
+    const [{ urlDoArquivoDoMes }, { lerPrimeiraAba }, { lerPresencas },
+           { lerEspelhoDePonto }, { calcularBonus }] = await Promise.all([
+      import('./folha-arquivos.js'), import('./planilha.js'), import('./frequencia.js'),
+      import('./ponto-planilha.js'), import('./bonus-presenca.js'),
+    ]);
+    const baixar = async (registro) => {
+      const url = await urlDoArquivoDoMes(registro.caminho_storage);
+      const resp = await fetch(url);
+      return new File([await resp.blob()], registro.nome_arquivo);
+    };
+    const [fPres, fPonto] = await Promise.all([baixar(presencas), baixar(ponto)]);
+    _bonus = calcularBonus(
+      lerPresencas(await lerPrimeiraAba(fPres)),
+      await lerEspelhoDePonto(fPonto),
+      { ate: diaDaContagem(_folha.competencia) },
+    );
+  } catch (e) {
+    // Falhar aqui não pode derrubar a folha: sem o bônus a tela continua
+    // servindo para lançar horas e fechar o mês.
+    _bonus = null;
+  }
+}
+
+/** Lança o bônus apurado como adicional na linha de cada pessoa. */
+async function lancarBonusDePresenca() {
+  if (!_bonus || trava()) return;
+  const { descricaoDoBonus } = await import('./bonus-presenca.js');
+  const descricao = descricaoDoBonus(_folha.competencia);
+
+  const casar = l => _itens.find(i =>
+    String(i.funcionario?.cpf || '').replace(/\D/g, '') === String(l.cpf || '').replace(/\D/g, ''));
+
+  const aplicaveis = _bonus.linhas
+    .map(l => ({ linha: l, item: casar(l) }))
+    .filter(x => x.item && x.linha.valor > 0);
+
+  if (!aplicaveis.length) { mostrarErro('Nenhum colaborador do cálculo está nesta folha.'); return; }
+
+  // JÁ LANÇADO NÃO ENTRA DE NOVO. Reimportar a planilha para conferir é normal,
+  // e sem esta checagem cada conferência somaria outro bônus na mesma linha.
+  const repetidos = aplicaveis.filter(({ item }) =>
+    (item.adicionais || []).some(a => a.descricao === descricao));
+
+  const texto = aplicaveis.map(({ linha }) =>
+    `${linha.nome} — ${linha.presencas} presenças — ${formatarBRL(linha.valor)}`).join('\n');
+
+  if (!(await confirmar({
+    titulo: `Lançar ${aplicaveis.length} ${aplicaveis.length === 1 ? 'bônus' : 'bônus'}`,
+    mensagem: repetidos.length
+      ? `${texto}\n\nATENÇÃO: ${repetidos.length} ${repetidos.length === 1 ? 'pessoa já tem' : 'pessoas já têm'} `
+        + `"${descricao}" nesta folha. Lançar de novo soma ao que já está lá.`
+      : texto,
+    textoOk: 'Lançar',
+  }))) return;
+
+  await comErro(async () => {
+    for (const { linha, item } of aplicaveis) {
+      await adicionarAdicional(item.id, {
+        descricao, valor: linha.valor, ordem: (item.adicionais?.length || 0),
+      });
+    }
+    _itens = await carregarFolha(_folha.id);
+    render();
+    mostrarToast(`✓ ${aplicaveis.length} ${aplicaveis.length === 1 ? 'bônus lançado' : 'bônus lançados'}`);
+  });
+}
+
 async function importarPontos(arquivos) {
   const pdfs = arquivos.filter(a => /\.pdf$/i.test(a.name || ''));
   if (!pdfs.length) return;
@@ -1263,6 +1503,117 @@ async function abrirDocumentoDaLinha(itemId, tipo) {
  * Guarda os PDFs que não casaram com ninguém, com a razão e a melhor sugestão.
  * Devolve quantos foram para a fila.
  */
+// ───────────────────────────────────────────────────────────
+// AS PLANILHAS DO BÔNUS POR PRESENÇA
+// ───────────────────────────────────────────────────────────
+
+/** O que já está guardado neste mês. Um cartão por tipo, com o que ele apurou. */
+export function arquivosDoMesHtml(arquivos = _arquivos) {
+  if (!arquivos?.length) return '';
+  const TIPO = {
+    presencas: { rotulo: 'Relatório de presenças', icone: 'users' },
+    ponto: { rotulo: 'Espelho de ponto', icone: 'clock' },
+  };
+  return `
+    <div class="fp-arquivos">
+      ${arquivos.map(a => {
+        const t = TIPO[a.tipo] || { rotulo: 'Arquivo', icone: 'file' };
+        const r = a.resumo || {};
+        // O RESUMO É O QUE SE OLHA para saber se o arquivo certo foi importado.
+        // Só o nome do arquivo não basta: exportações do mês errado costumam
+        // ter nome parecido, e o número de presenças denuncia na hora.
+        const detalhe = a.tipo === 'presencas'
+          ? [r.visitas && `${r.visitas} presenças`, r.alunos && `${r.alunos} alunos`,
+             r.de && r.ate && `${esc(formatarData(r.de))} a ${esc(formatarData(r.ate))}`]
+          : [r.colaboradores && `${r.colaboradores} colaboradores`,
+             r.turnos && `${r.turnos} turnos`,
+             r.impares ? `${r.impares} batida(s) ímpar(es)` : null];
+        return `
+          <div class="fp-arquivo">
+            <i data-lucide="${t.icone}"></i>
+            <div class="fp-arquivo-txt">
+              <strong>${esc(t.rotulo)}</strong>
+              <span>${detalhe.filter(Boolean).map(esc).join(' · ') || esc(a.nome_arquivo)}</span>
+            </div>
+            <button class="fp-acao" data-fp-baixar-arquivo="${esc(a.id)}" title="Baixar ${esc(a.nome_arquivo)}">
+              <i data-lucide="download"></i>
+            </button>
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+/**
+ * A caixa que mostra o bônus apurado, antes de virar lançamento.
+ *
+ * SUGERE, NÃO LANÇA. É o mesmo desenho do bônus por turno, e pelo mesmo
+ * motivo: o número sai de duas planilhas exportadas de outro sistema, e quem
+ * fecha a folha pode ter um motivo que os arquivos não sabem. Lançar sozinho
+ * transformaria uma sugestão muito boa numa imposição difícil de desfazer.
+ */
+export function bonusPresencaHtml(bonus, itens = []) {
+  if (!bonus) return '';
+  const achar = l => itens.find(i =>
+    String(i.funcionario?.cpf || '').replace(/\D/g, '') === String(l.cpf || '').replace(/\D/g, ''));
+
+  const linhas = bonus.linhas.map(l => {
+    const item = achar(l);
+    return `
+      <tr${item ? '' : ' class="fp-bp-sem-linha"'}>
+        <td>
+          ${esc(l.nome)}
+          ${item ? '' : '<span class="fp-bp-aviso">não está nesta folha</span>'}
+        </td>
+        <td class="fp-num">${l.presencas}</td>
+        <td class="fp-num">${l.divididas || '—'}</td>
+        <td class="fp-num"><strong>${esc(formatarBRL(l.valor))}</strong></td>
+      </tr>`;
+  }).join('');
+
+  const aplicaveis = bonus.linhas.filter(l => achar(l) && l.valor > 0).length;
+
+  return `
+    <section class="fp-bp">
+      <div class="fp-bp-topo">
+        <div>
+          <h3>Bônus por presença</h3>
+          <p>
+            ${bonus.comDono} de ${bonus.visitas} presenças tiveram estagiário na sala.
+            ${bonus.semDono ? `${bonus.semDono} aconteceram sem ninguém no ponto.` : ''}
+            ${bonus.semPlano ? `${bonus.semPlano} são de aluno sem plano legível.` : ''}
+          </p>
+        </div>
+        <button class="btn primary" data-fp-lancar-bonus ${aplicaveis ? '' : 'disabled'}>
+          <i data-lucide="plus"></i>
+          Lançar ${aplicaveis} ${aplicaveis === 1 ? 'bônus' : 'bônus'}
+        </button>
+      </div>
+
+      <table class="fp-bp-tab">
+        <thead>
+          <tr><th>Colaborador</th><th class="fp-num">Presenças</th>
+              <th class="fp-num">Divididas</th><th class="fp-num">Valor</th></tr>
+        </thead>
+        <tbody>${linhas}</tbody>
+        <tfoot>
+          <tr><td>Total</td><td class="fp-num">${bonus.comDono}</td>
+              <td class="fp-num">${bonus.divididas || '—'}</td>
+              <td class="fp-num"><strong>${esc(formatarBRL(bonus.total))}</strong></td></tr>
+        </tfoot>
+      </table>
+
+      ${bonus.impares?.length ? `
+        <p class="fp-bp-impares">
+          <i data-lucide="triangle-alert"></i>
+          <span>
+            <b>Batidas sem saída não entraram no cálculo.</b>
+            ${bonus.impares.map(i => `${esc(i.nome)} (${i.dias.map(esc).join(', ')})`).join(' · ')}.
+            Quem esqueceu de bater está recebendo menos — corrija o ponto e importe de novo.
+          </span>
+        </p>` : ''}
+    </section>`;
+}
+
 async function guardarOrfaos(orfaos) {
   if (!orfaos.length) return 0;
   const { guardarPendente } = await import('./documentos.js');
