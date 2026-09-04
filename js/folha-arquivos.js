@@ -14,6 +14,21 @@ import { sb } from './supabase.js';
 import { organizacaoAtual } from './organizacao.js';
 import { BUCKET, nomeSeguro, hashDoConteudo } from './documentos.js';
 
+/**
+ * O erro do Supabase chega repartido — `message`, `details`, `hint`, `code` — e
+ * a parte que diz o que houve costuma estar em `details`, não em `message`.
+ * Propagar só a primeira é o que transforma "coluna X não aceita nulo" em
+ * "algo deu errado". O passo também entra: falhar no upload e falhar na linha
+ * pedem ações diferentes de quem for consertar.
+ */
+function detalhar(erro, passo) {
+  const partes = [erro?.message, erro?.details, erro?.hint].filter(Boolean);
+  const e = new Error(partes.join(' · ') || `falha no ${passo}`);
+  e.passo = passo;
+  e.original = erro;
+  return e;
+}
+
 export const TIPOS = {
   presencas: { rotulo: 'Relatório de presenças', icone: 'users' },
   ponto:     { rotulo: 'Espelho de ponto (planilha)', icone: 'clock' },
@@ -72,26 +87,33 @@ export async function guardarArquivoDoMes({ competencia, tipo, arquivo, resumo =
     contentType: arquivo.type || 'application/octet-stream',
     upsert: false,
   });
-  if (erroUpload) throw erroUpload;
+  if (erroUpload) throw detalhar(erroUpload, 'upload');
+
+  // `mime_type` É `not null` COM DEFAULT, e as duas coisas juntas são uma
+  // armadilha: mandar `null` explicitamente NÃO cai no default — viola a
+  // restrição. E `arquivo.type` vem vazio quando o navegador não reconhece a
+  // extensão, o que acontece com .xlsx gerado por ferramenta menos comum.
+  // Omitir a chave é o que deixa o default valer.
+  const linha = {
+    competencia, tipo,
+    nome_arquivo: arquivo.name,
+    caminho_storage: caminho,
+    tamanho_bytes: arquivo.size ?? null,
+    hash: await hashDoConteudo(arquivo),
+    resumo,
+  };
+  if (arquivo.type) linha.mime_type = arquivo.type;
 
   const { data, error } = await sb
     .from('folha_arquivos')
-    .insert({
-      competencia, tipo,
-      nome_arquivo: arquivo.name,
-      caminho_storage: caminho,
-      mime_type: arquivo.type || null,
-      tamanho_bytes: arquivo.size ?? null,
-      hash: await hashDoConteudo(arquivo),
-      resumo,
-    })
+    .insert(linha)
     .select().single();
 
   if (error) {
     // O objeto já subiu e a linha não entrou: sem esta limpeza o próximo envio
     // com o mesmo nome esbarraria num arquivo órfão que ninguém consegue ver.
     await sb.storage.from(BUCKET).remove([caminho]).catch(() => {});
-    throw error;
+    throw detalhar(error, 'insert');
   }
 
   // Agora sim a anterior sai de cena. O índice único é parcial (`where atual`),
@@ -130,6 +152,15 @@ export async function versoesDoArquivo(competencia, tipo) {
   return data || [];
 }
 
+/**
+ * A mensagem para a pessoa — e, quando não há tradução, O MOTIVO REAL.
+ *
+ * A primeira versão terminava num "Não consegui guardar o arquivo. Tente de
+ * novo." para tudo o que não reconhecia. Ficou bonito e cego: o erro apareceu
+ * na tela sem dizer se era permissão, coluna obrigatória ou storage, e não
+ * havia como agir sobre ele. Frase genérica em fim de cadeia esconde
+ * exatamente o caso que ninguém previu — que é o único que importa ali.
+ */
 export function traduzirErroArquivo(msg = '') {
   const m = String(msg);
   if (/arquivo_sem_competencia/.test(m)) return 'Escolha a competência antes de importar.';
@@ -148,5 +179,14 @@ export function traduzirErroArquivo(msg = '') {
   }
   if (/row-level security/i.test(m)) return 'Sem permissão para guardar arquivos da folha.';
   if (/duplicate|already exists/i.test(m)) return 'Este arquivo já foi importado neste minuto.';
-  return 'Não consegui guardar o arquivo. Tente de novo.';
+  if (/violates not-null|null value in column/i.test(m)) {
+    const coluna = (m.match(/column "([^"]+)"/) || [])[1];
+    return `Faltou preencher ${coluna ? `"${coluna}"` : 'um campo obrigatório'} ao guardar o arquivo.`;
+  }
+  if (/relation .* does not exist|schema cache/i.test(m)) {
+    return 'A tabela de arquivos da folha ainda não existe no banco. '
+      + 'Rode db/folha_arquivos.sql no Supabase.';
+  }
+  if (/Bucket not found/i.test(m)) return 'O repositório de arquivos não está configurado.';
+  return m ? `Não consegui guardar o arquivo: ${m}` : 'Não consegui guardar o arquivo.';
 }

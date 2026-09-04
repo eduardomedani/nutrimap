@@ -1243,7 +1243,10 @@ async function importarPlanilhasDoBonus(arquivos) {
       continue;
     } catch (e) {
       if (!/espelho_sem_colaborador/.test(String(e?.message))) {
-        erros.push(`${arquivo.name}: ${traduzirErroArquivo(e?.message)}`);
+        // O erro completo vai para o console: a mensagem da tela é resumida de
+      // propósito, e quem estiver diagnosticando precisa do original.
+      console.error('[folha] planilha do bônus:', arquivo.name, e?.original || e);
+      erros.push(`${arquivo.name}: ${traduzirErroArquivo(e?.message)}`);
         continue;
       }
     }
@@ -1263,6 +1266,9 @@ async function importarPlanilhasDoBonus(arquivos) {
       });
       guardou++;
     } catch (e) {
+      // O erro completo vai para o console: a mensagem da tela é resumida de
+      // propósito, e quem estiver diagnosticando precisa do original.
+      console.error('[folha] planilha do bônus:', arquivo.name, e?.original || e);
       erros.push(`${arquivo.name}: ${traduzirErroArquivo(e?.message)}`);
     }
   }
