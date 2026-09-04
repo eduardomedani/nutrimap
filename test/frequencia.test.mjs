@@ -207,9 +207,55 @@ grupo('frequência · os motivos', () => {
 grupo('frequência · a folha', () => {
   const r = relatorioDeFrequencia(mesDeTeste(), { ate: '2026-08-31' });
 
-  teste('o aluno aparece uma vez, no grupo do motivo mais grave', () => {
-    const nomes = r.grupos.flatMap(g => g.alunos.map(a => a.cliente));
+  teste('é uma lista só, do mais crítico ao menos', () => {
+    // A primeira versão agrupava por motivo. Lia bem, mas escondia a
+    // comparação: para saber se o aluno de 38% do bloco de cima estava pior
+    // que o de 45% do de baixo era preciso vasculhar as duas listas.
+    const pcts = r.alunos.filter(a => a.pct !== null).map(a => a.pct);
+    igual(pcts.join(','), [...pcts].sort((a, b) => a - b).join(','),
+      'a lista tem que subir do menor percentual para o maior');
+    const nomes = r.alunos.map(a => a.cliente);
     igual(nomes.length, new Set(nomes).size, 'nome repetido faz ligar duas vezes');
+  });
+
+  teste('sem plano legível vai para o FIM, não para o topo', () => {
+    // Percentual nulo não é "zero por cento": é "não dá para saber". No topo,
+    // esses alunos diriam ser os mais críticos quando o problema é de cadastro.
+    const semPct = r.alunos.filter(a => a.pct === null);
+    ok(semPct.length, 'o mês de teste tem um aluno sem plano legível');
+    igual(r.alunos[r.alunos.length - 1].pct, null);
+  });
+
+  teste('empate de percentual desempata por quem sumiu há mais tempo', () => {
+    // 60% treinando ontem e 60% tendo parado no dia 6 são situações
+    // diferentes, e a segunda tem menos tempo de conserto.
+    const iguais = r.alunos.filter((a, i, l) => i > 0 && a.pct !== null && a.pct === l[i - 1].pct);
+    for (const a of iguais) {
+      const anterior = r.alunos[r.alunos.indexOf(a) - 1];
+      ok((anterior.diasSemVir ?? 0) >= (a.diasSemVir ?? 0),
+        `${anterior.cliente} deveria vir depois de ${a.cliente}`);
+    }
+  });
+
+  teste('o corte marca onde a atenção deixa de ser necessária', () => {
+    // Um filete, não duas tabelas: partida, a folha perderia o que a ordenação
+    // trouxe — ver que o primeiro "em dia" está a poucos pontos do último que
+    // precisa de ligação.
+    ok(r.corte > 0, 'tem que haver alguém precisando de atenção antes do corte');
+    ok(r.alunos.slice(0, r.corte).every(a => a.motivos.length), 'antes do corte, todos têm motivo');
+    igual(r.alunos[r.corte].motivos.length, 0, 'no corte começa quem está em dia');
+  });
+
+  teste('os motivos de frequência não vão para a coluna Situação', () => {
+    // "5 de 13 treinos · 38%" repetiria as colunas Treinos e Frequência, que
+    // ficam logo ao lado. Uma coluna que repete a vizinha ensina a não ler
+    // nenhuma das duas.
+    const critico = r.alunos.find(a => a.motivos.some(m => m.chave === 'critico'));
+    ok(critico, 'o mês de teste tem um aluno crítico');
+    igual(critico.motivos.find(m => m.chave === 'critico').naLinha, false);
+    const sumido = r.alunos.find(a => a.motivos.some(m => m.chave === 'sumiu'));
+    igual(sumido.motivos.find(m => m.chave === 'sumiu').naLinha, true,
+      'sumiço não está em nenhuma outra coluna — esse tem que aparecer');
   });
 
   teste('quem está em dia é contado, não listado', () => {

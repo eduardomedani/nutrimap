@@ -201,10 +201,16 @@ export const MOTIVOS_FREQUENCIA = [
     detalhe: a => (a.queda >= 40 && a.segundaMetade > 0
       ? `${a.primeiraMetade} treinos na 1ª quinzena, ${a.segundaMetade} na 2ª` : null),
   },
+  // OS DOIS DE FREQUÊNCIA NÃO VÃO PARA A LINHA (`naLinha: false`). Eles contam
+  // para "precisa de atenção" e definem a ordem, mas escrever "5 de 13 treinos
+  // · 38%" na coluna Situação repetiria as colunas Treinos e Frequência, que
+  // estão logo ao lado. A coluna Situação existe para dizer o que os números
+  // NÃO dizem — e uma coluna que repete a vizinha ensina a não ler nenhuma.
   {
     chave: 'critico',
     peso: 3,
     rotulo: 'Frequência crítica',
+    naLinha: false,
     detalhe: a => (a.pct !== null && a.pct <= 50
       ? `${a.feitos} de ${a.teto} treinos · ${a.pct}%` : null),
   },
@@ -212,6 +218,7 @@ export const MOTIVOS_FREQUENCIA = [
     chave: 'baixo',
     peso: 4,
     rotulo: 'Frequência baixa',
+    naLinha: false,
     detalhe: a => (a.pct !== null && a.pct > 50 && a.pct <= 70
       ? `${a.feitos} de ${a.teto} treinos · ${a.pct}%` : null),
   },
@@ -221,7 +228,8 @@ export const MOTIVOS_FREQUENCIA = [
     rotulo: 'Plano não identificado',
     // Não dá para dizer se faltou: sem o contrato na planilha não há teto. É
     // buraco de cadastro, e some da conta sem dar erro nenhum.
-    detalhe: a => (a.pct === null ? `${a.feitos} treinos, sem contrato na planilha` : null),
+    detalhe: a => (a.pct === null
+      ? `${a.feitos} ${a.feitos === 1 ? 'treino' : 'treinos'}, sem contrato na planilha` : null),
   },
 ];
 
@@ -229,41 +237,57 @@ export function motivosDoAluno(aluno) {
   const saida = [];
   for (const m of MOTIVOS_FREQUENCIA) {
     const detalhe = m.detalhe(aluno);
-    if (detalhe) saida.push({ chave: m.chave, rotulo: m.rotulo, peso: m.peso, detalhe });
+    if (detalhe) saida.push({
+      chave: m.chave, rotulo: m.rotulo, peso: m.peso, detalhe,
+      naLinha: m.naLinha !== false,
+    });
   }
   return saida.sort((a, b) => a.peso - b.peso);
 }
 
-/** A folha inteira: grupos por motivo mais grave, e o resumo do mês. */
+/**
+ * A folha inteira: TODOS os alunos numa lista só, do mais crítico ao menos.
+ *
+ * A primeira versão agrupava por motivo — um bloco de "parou de vir", outro de
+ * "caiu na segunda quinzena". Lia bem, mas escondia a comparação: para saber se
+ * o aluno de 38% do bloco de cima estava pior que o de 45% do de baixo era
+ * preciso vasculhar as duas listas. Ordenado por frequência, o pior está sempre
+ * na primeira linha, e o olho desce até onde a atenção deixa de ser necessária.
+ *
+ * OS MOTIVOS NÃO SUMIRAM, mudaram de lugar: viram a coluna Situação, na mesma
+ * linha do aluno. Quem parou de vir há 25 dias continua dizendo isso — só não
+ * ocupa mais um bloco separado que impedia a comparação.
+ */
 export function relatorioDeFrequencia(presencas = [], { ate } = {}) {
-  const alunos = retratoDosAlunos(presencas, { ate });
-  const grupos = new Map(MOTIVOS_FREQUENCIA.map(m => [m.chave, { ...m, alunos: [] }]));
-  let emDia = 0;
+  const brutos = retratoDosAlunos(presencas, { ate });
+  const alunos = brutos.map(a => ({ ...a, motivos: motivosDoAluno(a) }));
 
-  for (const a of alunos) {
-    const motivos = motivosDoAluno(a);
-    if (!motivos.length) { emDia++; continue; }
-    grupos.get(motivos[0].chave).alunos.push({ ...a, motivos });
-  }
-
-  for (const g of grupos.values()) {
-    // Mais grave primeiro dentro do grupo: quem sumiu há mais tempo, quem tem
-    // percentual menor. Empate por nome, para a ordem não mudar entre duas
-    // impressões do mesmo dia.
-    g.alunos.sort((x, y) =>
-      (y.diasSemVir ?? 0) - (x.diasSemVir ?? 0)
-      || (x.pct ?? 999) - (y.pct ?? 999)
-      || x.cliente.localeCompare(y.cliente, 'pt-BR'));
-  }
+  // SEM PLANO LEGÍVEL VAI PARA O FIM, e não para o topo. Percentual nulo não é
+  // "zero por cento": é "não dá para saber", e pôr esses alunos na frente diria
+  // que são os mais críticos quando o problema deles é de cadastro.
+  const ordenados = [...alunos].sort((x, y) => {
+    if ((x.pct === null) !== (y.pct === null)) return x.pct === null ? 1 : -1;
+    return (x.pct ?? 0) - (y.pct ?? 0)
+      // Empate de percentual: quem está há mais tempo sem aparecer primeiro —
+      // 60% treinando ontem e 60% tendo parado no dia 6 são situações
+      // diferentes, e a segunda tem menos tempo de conserto.
+      || (y.diasSemVir ?? 0) - (x.diasSemVir ?? 0)
+      // E nome por último, para a ordem não mudar entre duas impressões do
+      // mesmo dia.
+      || x.cliente.localeCompare(y.cliente, 'pt-BR');
+  });
 
   const comPct = alunos.filter(a => a.pct !== null);
   const dias = [...new Set(visitas(presencas).map(v => v.dia))].sort();
+  const precisam = alunos.filter(a => a.motivos.length).length;
 
   return {
-    grupos: [...grupos.values()].filter(g => g.alunos.length).sort((a, b) => a.peso - b.peso),
-    total: alunos.length - emDia,
-    emDia,
-    alunos,
+    alunos: ordenados,
+    total: precisam,
+    emDia: alunos.length - precisam,
+    // O índice onde a atenção deixa de ser necessária: a folha marca essa
+    // fronteira com um filete, em vez de partir a tabela em duas.
+    corte: ordenados.findIndex(a => a.motivos.length === 0),
     resumo: {
       alunos: alunos.length,
       visitas: visitas(presencas).length,

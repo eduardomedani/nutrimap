@@ -14,7 +14,7 @@
 import { grupo, teste, ok, igual, contem, naoContem } from './runner.mjs';
 import { readFileSync } from 'node:fs';
 import { motivosDeAtencao, agruparPorAtencao, MOTIVOS } from '../js/comercial.js';
-import { relatorioHtml, ABAS, telaHtml } from '../js/comercial-ui.js';
+import { relatorioHtml, ABAS, telaHtml, linhaFrequenciaHtml, tabelaFrequenciaHtml } from '../js/comercial-ui.js';
 
 const CSS = readFileSync(new URL('../css/comercial.css', import.meta.url), 'utf8');
 const UI = readFileSync(new URL('../js/comercial-ui.js', import.meta.url), 'utf8');
@@ -211,6 +211,70 @@ grupo('comercial · a folha', () => {
     const perigo = relatorioHtml([cliente('<script>x</script>', { fim_periodo: '2026-08-15' })], HOJE);
     naoContem(perigo, '<script>x</script>');
     contem(perigo, '&lt;script&gt;');
+  });
+});
+
+grupo('comercial · a tabela de frequência', () => {
+  const aluno = (cliente, pct, motivos) => ({
+    cliente, contrato: 'Mensal [5 dias]', feitos: 8, teto: 21, pct,
+    faixa: { chave: pct <= 50 ? 'critico' : 'bom' }, motivos,
+  });
+  const M = {
+    sumiu: { chave: 'sumiu', rotulo: 'Parou de vir', detalhe: 'sem treinar há 25 dias', naLinha: true },
+    critico: { chave: 'critico', rotulo: 'Frequência crítica', detalhe: '8 de 21 treinos · 38%', naLinha: false },
+  };
+
+  teste('a coluna Situação não repete Treinos nem Frequência', () => {
+    // "8 de 21 treinos · 38%" está inteiro nas duas colunas ao lado. Uma coluna
+    // que repete a vizinha ensina a não ler nenhuma das duas.
+    const html = linhaFrequenciaHtml(aluno('Fulano', 38, [M.critico]));
+    naoContem(html, '8 de 21 treinos');
+    contem(html, '8 / 21', 'a coluna Treinos continua lá');
+    contem(html, '38%');
+  });
+
+  teste('o que as colunas NÃO dizem aparece', () => {
+    const html = linhaFrequenciaHtml(aluno('Fulano', 38, [M.sumiu, M.critico]));
+    contem(html, 'sem treinar há 25 dias');
+    naoContem(html, '8 de 21 treinos');
+  });
+
+  teste('quem não tem motivo nenhum é marcado como em dia', () => {
+    contem(linhaFrequenciaHtml(aluno('Fulano', 90, [])), 'em dia');
+    // E quem tem só o motivo redundante fica com a célula vazia: a cor e o
+    // número já contaram a história, e escrever "em dia" ali seria mentira.
+    naoContem(linhaFrequenciaHtml(aluno('Fulano', 38, [M.critico])), 'em dia');
+  });
+
+  teste('o filete marca a fronteira, e só nela', () => {
+    const r = {
+      corte: 1,
+      alunos: [aluno('Critico', 38, [M.critico]), aluno('EmDia', 90, []), aluno('Outro', 95, [])],
+    };
+    const html = tabelaFrequenciaHtml(r);
+    igual((html.match(/cm-freq-corte/g) || []).length, 1, 'um filete, não um por linha');
+    // Do <tbody> para a frente: o <tr> do cabeçalho também casaria e deslocaria
+    // o índice em um.
+    const corpo = html.slice(html.indexOf('<tbody>'));
+    const linhas = corpo.split('<tr').slice(1);
+    ok(linhas[1].includes('cm-freq-corte'),
+      'o filete tem que cair no primeiro em dia, não no último que precisa de atenção');
+    ok(!linhas[0].includes('cm-freq-corte'));
+  });
+
+  teste('sem corte, sem filete', () => {
+    // `corte` é -1 quando todo mundo precisa de atenção, e 0 quando ninguém
+    // precisa. Nos dois casos não há fronteira para marcar.
+    const todos = tabelaFrequenciaHtml({ corte: -1, alunos: [aluno('A', 38, [M.critico])] });
+    naoContem(todos, 'cm-freq-corte');
+    const nenhum = tabelaFrequenciaHtml({ corte: 0, alunos: [aluno('A', 90, [])] });
+    naoContem(nenhum, 'cm-freq-corte');
+  });
+
+  teste('o filete existe no CSS, e no papel também', () => {
+    contem(CSS, '.cm-freq-corte td { border-top: 2px solid var(--border-strong, var(--border)); }');
+    const bloco = CSS.slice(CSS.lastIndexOf('@media print'));
+    contem(bloco, '.cm-freq-corte td { border-top: 2px solid #000; }');
   });
 });
 

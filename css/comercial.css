@@ -841,6 +841,13 @@ body.cm-travado { overflow: hidden; }
 .cm-rel-tab th:not(:first-child),
 .cm-rel-tab td:not(.cm-rel-nome) { text-align: center; }
 
+/* O FILETE DA FRONTEIRA. Marca onde a atencao deixa de ser necessaria sem
+   partir a folha em duas tabelas — partida, ela perderia o que a ordenacao
+   trouxe: ver que o primeiro "em dia" esta a tres pontos do ultimo que precisa
+   de ligacao. */
+.cm-freq-corte td { border-top: 2px solid var(--border-strong, var(--border)); }
+.cm-freq-ok { font-weight: 400; color: var(--text-secondary, var(--ink-mute)); }
+
 /* A caixa de riscar. Existe só no papel — na tela ela seria um controle que
    não controla nada, e um checkbox falso ensina a desconfiar dos de verdade. */
 .cm-rel-ok { display: none; }
@@ -941,6 +948,8 @@ body.cm-travado { overflow: hidden; }
   /* A cor da faixa vira cinza na impressora e some no papel — o percentual
      sozinho ja diz tudo, e negrito basta para destacar. */
   .cm-freq-pct { color: #000 !important; }
+  .cm-freq-corte td { border-top: 2px solid #000; }
+  .cm-freq-ok { color: #000 !important; }
   .cm-freq-resumo { break-inside: avoid; page-break-inside: avoid; }
   .cm-rel-tit, .cm-rel-sub, .cm-rel-sub b, .cm-rel-nome span,
   .cm-rel-motivo, .cm-rel-plano, .cm-rel-tambem { color: #000 !important; }

@@ -422,44 +422,56 @@ export function escolhaDoArquivoHtml(erro = '') {
     </div>`;
 }
 
-/** Uma linha do relatório de frequência. */
-export function linhaFrequenciaHtml(aluno) {
-  const outros = aluno.motivos.slice(1);
+/**
+ * Uma linha do relatório de frequência.
+ *
+ * A SITUAÇÃO É A COLUNA MAIS LARGA porque é a que muda a conversa. "5 de 13
+ * treinos" diz o tamanho; "parou de vir há 25 dias" diz o que fazer, e os dois
+ * precisam caber lado a lado — quem liga sem o segundo cobra assiduidade de
+ * alguém que já foi embora.
+ */
+export function linhaFrequenciaHtml(aluno, { primeiroEmDia = false } = {}) {
   const pct = aluno.pct === null ? '—' : `${aluno.pct}%`;
+  // Só o que as colunas Treinos e Frequência não dizem. Um aluno de 38% que
+  // treinou até ontem não tem nada a acrescentar aqui, e a célula fica vazia
+  // de propósito: a cor e o número já contaram a história.
+  const dizeres = aluno.motivos.filter(m => m.naLinha).map(m => esc(m.detalhe));
+  const situacao = dizeres.length
+    ? dizeres.join(' · ')
+    : (aluno.motivos.length ? '' : '<span class="cm-freq-ok">em dia</span>');
   return `
-    <tr>
-      <td class="cm-rel-nome">
-        <span>${esc(aluno.cliente)}</span>
-        ${outros.length ? `<span class="cm-rel-tambem">também: ${
-          outros.map(m => esc(m.rotulo.toLowerCase())).join(' · ')}</span>` : ''}
-      </td>
+    <tr class="${primeiroEmDia ? 'cm-freq-corte' : ''}">
+      <td class="cm-rel-nome"><span>${esc(aluno.cliente)}</span></td>
       <td class="cm-rel-plano">${esc(aluno.contrato || '—')}</td>
       <td class="cm-freq-num">${aluno.teto ? `${aluno.feitos} / ${aluno.teto}` : aluno.feitos}</td>
       <td class="cm-freq-pct${aluno.faixa ? ' faixa-' + aluno.faixa.chave : ''}">${esc(pct)}</td>
-      <td class="cm-rel-motivo">${esc(aluno.motivos[0].detalhe)}</td>
+      <td class="cm-rel-motivo">${situacao}</td>
       <td class="cm-rel-ok" aria-hidden="true"></td>
     </tr>`;
 }
 
-export function grupoFrequenciaHtml(grupo) {
+/**
+ * A tabela única, do mais crítico ao menos.
+ *
+ * UM FILETE MARCA ONDE A ATENÇÃO ACABA, em vez de partir a folha em duas
+ * tabelas. Partida, ela perderia justamente o que a ordenação trouxe: dá para
+ * ver que o primeiro "em dia" está a três pontos do último que precisa de
+ * ligação, e essa vizinhança é informação.
+ */
+export function tabelaFrequenciaHtml(r) {
   return `
-    <section class="cm-rel-grupo">
-      <h3 class="cm-rel-grupo-t">
-        ${esc(grupo.rotulo)}
-        <span class="cm-rel-conta">${grupo.alunos.length}</span>
-      </h3>
-      <div class="cm-rel-wrap">
-        <table class="cm-rel-tab">
-          <thead>
-            <tr>
-              <th>Aluno</th><th>Plano</th><th>Treinos</th>
-              <th>Frequência</th><th>Motivo</th><th class="cm-rel-ok">Falei</th>
-            </tr>
-          </thead>
-          <tbody>${grupo.alunos.map(linhaFrequenciaHtml).join('')}</tbody>
-        </table>
-      </div>
-    </section>`;
+    <div class="cm-rel-wrap">
+      <table class="cm-rel-tab">
+        <thead>
+          <tr>
+            <th>Aluno</th><th>Plano</th><th>Treinos</th>
+            <th>Frequência</th><th>Situação</th><th class="cm-rel-ok">Falei</th>
+          </tr>
+        </thead>
+        <tbody>${r.alunos.map((a, i) =>
+          linhaFrequenciaHtml(a, { primeiroEmDia: i === r.corte && r.corte > 0 })).join('')}</tbody>
+      </table>
+    </div>`;
 }
 
 /**
@@ -511,12 +523,12 @@ export function relatorioFrequenciaHtml(r, hoje = '') {
       </div>
     </header>
     ${resumoFrequenciaHtml(r)}
-    ${r.grupos.length
-      ? `<div class="cm-rel">${r.grupos.map(grupoFrequenciaHtml).join('')}</div>`
+    ${r.alunos.length
+      ? tabelaFrequenciaHtml(r)
       : `<div class="cm-rel-limpo">
            <i data-lucide="check-circle-2"></i>
-           <p><b>Ninguém ficou para trás neste mês.</b></p>
-           <p>Todos treinaram acima de 70% do plano, e ninguém sumiu.</p>
+           <p><b>Nenhum treino no período.</b></p>
+           <p>A planilha abriu, mas nenhuma linha virou presença.</p>
          </div>`}`;
 }
 
