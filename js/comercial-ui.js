@@ -14,6 +14,7 @@ import {
   textoDoVencimento, pesoDaUrgencia, telefoneBonito, telefoneDigitos,
   saldoDaCobranca, diasAteVencer, agruparPorAtencao,
 } from './comercial.js';
+import { relatorioDeFrequencia } from './frequencia.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -379,6 +380,145 @@ export function planosHtml(planos = []) {
 // o nome em cada grupo faria a mesma pessoa ser ligada duas vezes, ou pior:
 // riscada num bloco e esquecida no outro.
 
+// ── FREQUÊNCIA DO MÊS ──────────────────────────────────────────────────────
+// O relatório que a academia pediu: quem faltou no mês, e por quê.
+//
+// O ARQUIVO ENTRA PELA TELA, sem passar pelo banco. As presenças ainda não têm
+// tabela, e esperar por ela adiaria a folha que alguém quer levar para a sala
+// hoje. O leitor é o mesmo que a importação vai usar quando existir — o que se
+// perde por enquanto é o histórico, não o relatório.
+
+const MES_NOME = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+/** '2026-08-03' e '2026-08-31' → 'agosto de 2026'. */
+export function periodoTexto(de, ate) {
+  const a = String(de || '').match(/^(\d{4})-(\d{2})/);
+  const b = String(ate || '').match(/^(\d{4})-(\d{2})/);
+  if (!a) return '';
+  const um = `${MES_NOME[+a[2] - 1]} de ${a[1]}`;
+  if (!b || (a[1] === b[1] && a[2] === b[2])) return um;
+  return `${MES_NOME[+a[2] - 1]} a ${MES_NOME[+b[2] - 1]} de ${b[1]}`;
+}
+
+/** A caixa que pede o arquivo. Some assim que ele é lido. */
+export function escolhaDoArquivoHtml(erro = '') {
+  return `
+    <div class="cm-freq-abrir">
+      <i data-lucide="file-spreadsheet"></i>
+      <h3>Relatório de faltas do mês</h3>
+      <p>
+        Escolha o arquivo de presenças exportado do controle de acesso — o
+        <b>.xlsx</b> com as colunas Cliente, Contrato, Tipo e Data.
+      </p>
+      <label class="cm-btn cm-btn-forte" for="cmFreqArquivo">
+        <i data-lucide="upload"></i> Escolher arquivo
+      </label>
+      <input type="file" id="cmFreqArquivo" accept=".xlsx" hidden>
+      ${erro ? `<p class="cm-freq-erro">${esc(erro)}</p>` : ''}
+      <p class="cm-freq-nota">
+        O arquivo é lido aqui no navegador e não é enviado para lugar nenhum.
+      </p>
+    </div>`;
+}
+
+/** Uma linha do relatório de frequência. */
+export function linhaFrequenciaHtml(aluno) {
+  const outros = aluno.motivos.slice(1);
+  const pct = aluno.pct === null ? '—' : `${aluno.pct}%`;
+  return `
+    <tr>
+      <td class="cm-rel-nome">
+        <span>${esc(aluno.cliente)}</span>
+        ${outros.length ? `<span class="cm-rel-tambem">também: ${
+          outros.map(m => esc(m.rotulo.toLowerCase())).join(' · ')}</span>` : ''}
+      </td>
+      <td class="cm-rel-plano">${esc(aluno.contrato || '—')}</td>
+      <td class="cm-freq-num">${aluno.teto ? `${aluno.feitos} / ${aluno.teto}` : aluno.feitos}</td>
+      <td class="cm-freq-pct${aluno.faixa ? ' faixa-' + aluno.faixa.chave : ''}">${esc(pct)}</td>
+      <td class="cm-rel-motivo">${esc(aluno.motivos[0].detalhe)}</td>
+      <td class="cm-rel-ok" aria-hidden="true"></td>
+    </tr>`;
+}
+
+export function grupoFrequenciaHtml(grupo) {
+  return `
+    <section class="cm-rel-grupo">
+      <h3 class="cm-rel-grupo-t">
+        ${esc(grupo.rotulo)}
+        <span class="cm-rel-conta">${grupo.alunos.length}</span>
+      </h3>
+      <div class="cm-rel-wrap">
+        <table class="cm-rel-tab">
+          <thead>
+            <tr>
+              <th>Aluno</th><th>Plano</th><th>Treinos</th>
+              <th>Frequência</th><th>Motivo</th><th class="cm-rel-ok">Falei</th>
+            </tr>
+          </thead>
+          <tbody>${grupo.alunos.map(linhaFrequenciaHtml).join('')}</tbody>
+        </table>
+      </div>
+    </section>`;
+}
+
+/**
+ * O resumo do mês, em quatro números.
+ *
+ * "Contratados" é a soma dos tetos de cada plano — não `alunos × 4 × vezes`.
+ * Agosto de 2026 terminou com o dia 31 sozinho numa segunda, e o plano 3x
+ * rendeu 13 treinos, não 15: contar 15 acusaria de faltoso quem fez tudo o que
+ * dava para fazer.
+ */
+export function resumoFrequenciaHtml(r) {
+  const { resumo } = r;
+  const aproveitamento = resumo.esperado
+    ? Math.round((resumo.realizado / resumo.esperado) * 100) : 0;
+  const tile = (valor, rotulo, detalhe = '') => `
+    <div class="cm-freq-tile">
+      <b>${esc(valor)}</b>
+      <span>${esc(rotulo)}</span>
+      ${detalhe ? `<em>${esc(detalhe)}</em>` : ''}
+    </div>`;
+  return `
+    <div class="cm-freq-resumo">
+      ${tile(String(resumo.alunos), 'alunos treinaram', `em ${resumo.diasAbertos} dias abertos`)}
+      ${tile(String(resumo.realizado), 'treinos feitos', `de ${resumo.esperado} contratados`)}
+      ${tile(aproveitamento + '%', 'aproveitamento', `faltaram ${resumo.esperado - resumo.realizado}`)}
+      ${tile(String(r.total), 'precisam de atenção', `${r.emDia} em dia`)}
+    </div>`;
+}
+
+export function relatorioFrequenciaHtml(r) {
+  return `
+    <header class="cm-rel-cab">
+      <div>
+        <h2 class="cm-rel-tit">Alunos que precisam de atenção</h2>
+        <p class="cm-rel-sub">
+          Frequência de <b>${esc(periodoTexto(r.resumo.de, r.resumo.ate))}</b> ·
+          ${r.resumo.visitas} presenças de ${r.resumo.alunos} alunos
+        </p>
+      </div>
+      <div class="cm-rel-acoes">
+        <label class="cm-btn" for="cmFreqArquivo">
+          <i data-lucide="refresh-cw"></i> Trocar arquivo
+        </label>
+        <input type="file" id="cmFreqArquivo" accept=".xlsx" hidden>
+        <button class="cm-btn cm-btn-forte" type="button" data-imprimir-relatorio>
+          <i data-lucide="printer"></i> Imprimir
+        </button>
+      </div>
+    </header>
+    ${resumoFrequenciaHtml(r)}
+    ${r.grupos.length
+      ? `<div class="cm-rel">${r.grupos.map(grupoFrequenciaHtml).join('')}</div>`
+      : `<div class="cm-rel-limpo">
+           <i data-lucide="check-circle-2"></i>
+           <p><b>Ninguém ficou para trás neste mês.</b></p>
+           <p>Todos treinaram acima de 70% do plano, e ninguém sumiu.</p>
+         </div>`}`;
+}
+
 /** Cabeçalho da folha: o que ela é, de quando, e o tamanho do trabalho. */
 export function relatorioCabecalhoHtml(total, hoje, semMotivo = 0) {
   return `
@@ -486,7 +626,7 @@ export function abasHtml(ativa = 'visao') {
     </div>`;
 }
 
-export function telaHtml({ aba = 'visao', indicadores = {}, assinaturas = [], planos = [], hoje, filtro = 'todos', busca = '', ordem = 'urgencia' } = {}) {
+export function telaHtml({ aba = 'visao', indicadores = {}, assinaturas = [], planos = [], hoje, filtro = 'todos', busca = '', ordem = 'urgencia', frequencia = null, erroArquivo = '' } = {}) {
   let corpo = '';
 
   if (aba === 'visao') {
@@ -496,7 +636,7 @@ export function telaHtml({ aba = 'visao', indicadores = {}, assinaturas = [], pl
   } else if (aba === 'planos') {
     corpo = planosHtml(planos);
   } else if (aba === 'relatorio') {
-    corpo = relatorioHtml(assinaturas, hoje);
+    corpo = frequencia ? relatorioFrequenciaHtml(frequencia) : escolhaDoArquivoHtml(erroArquivo);
   } else {
     const lista = ordenar(aplicarFiltro(assinaturas, { filtro, busca, hoje }), ordem, hoje);
     corpo = `
@@ -526,7 +666,7 @@ export function telaHtml({ aba = 'visao', indicadores = {}, assinaturas = [], pl
 
 // O estado da tela vive aqui e não no DOM: reler filtro e ordem de dentro do
 // HTML a cada clique é como o módulo antigo perdia a seleção ao redesenhar.
-const _estado = { aba: 'visao', filtro: 'todos', busca: '', ordem: 'urgencia' };
+const _estado = { aba: 'visao', filtro: 'todos', busca: '', ordem: 'urgencia', frequencia: null, erroArquivo: '' };
 let _dados = { assinaturas: [], planos: [], indicadores: {} };
 
 const hojeISO = () => {
@@ -607,6 +747,32 @@ function ligar(cx) {
   // que é como metade das pessoas imprime.
   cx.querySelector('[data-imprimir-relatorio]')
     ?.addEventListener('click', () => window.print());
+
+  // O ARQUIVO DE PRESENÇAS. A leitura é assíncrona (o descompactador do zip é
+  // um stream), então a tela avisa que está trabalhando — 1.200 linhas levam um
+  // instante, e sem aviso o clique parece não ter funcionado.
+  cx.querySelector('#cmFreqArquivo')?.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    _estado.erroArquivo = '';
+    _estado.frequencia = null;
+    cx.querySelector('.cm-corpo').innerHTML =
+      '<div class="loading"><div class="spinner"></div>Lendo a planilha...</div>';
+    try {
+      const { lerPrimeiraAba } = await import('./planilha.js');
+      const { lerPresencas } = await import('./frequencia.js');
+      const presencas = lerPresencas(await lerPrimeiraAba(file));
+      if (!presencas.length) throw new Error('planilha_sem_presencas');
+      _estado.frequencia = relatorioDeFrequencia(presencas);
+    } catch (err) {
+      // A mensagem diz o que fazer, não o que quebrou: quem escolheu o arquivo
+      // errado precisa saber qual é o certo, não o nome da exceção.
+      _estado.erroArquivo = err?.message === 'planilha_sem_presencas'
+        ? 'A planilha abriu, mas nenhuma linha tem Cliente e Data. Confira se é o relatório de presenças.'
+        : 'Não consegui ler este arquivo. Ele precisa ser o .xlsx exportado do controle de acesso.';
+    }
+    pintar(cx);
+  });
 
   cx.querySelectorAll('[data-filtro]').forEach(b =>
     b.addEventListener('click', () => { _estado.filtro = b.dataset.filtro; pintar(cx); }));

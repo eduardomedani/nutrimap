@@ -165,9 +165,13 @@ grupo('comercial · a folha', () => {
     igual(ids.join(','), 'visao,clientes,planos,relatorio');
   });
 
-  teste('telaHtml conhece a aba', () => {
-    const t = telaHtml({ aba: 'relatorio', assinaturas: [cliente('X', { fim_periodo: '2026-08-15' })], hoje: HOJE });
-    contem(t, 'cm-rel-grupo');
+  teste('sem arquivo, a aba pede o arquivo em vez de mostrar nada', () => {
+    // A aba passou a ser o relatório de FREQUÊNCIA do mês, que depende da
+    // planilha de presenças. Sem ela não há relatório — e uma tela vazia
+    // faria a aba parecer quebrada.
+    const t = telaHtml({ aba: 'relatorio', assinaturas: [cliente('X')], hoje: HOJE });
+    contem(t, 'cm-freq-abrir');
+    contem(t, 'Escolher arquivo');
     naoContem(t, 'cm-tabela-caixa');
   });
 
