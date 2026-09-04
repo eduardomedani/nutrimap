@@ -758,16 +758,11 @@ function abrirFormAdicional(itemId, adicionalId = null) {
   const desc = fundo.querySelector('.fp-add-desc');
   const val = fundo.querySelector('.fp-add-val');
 
-  // CORRIGINDO, O FOCO VAI PARA O VALOR, e selecionado. A descrição vem da
-  // lista de sugestões e quase nunca é o que está errado; o valor é. Abrir na
-  // descrição obrigaria um Tab antes de cada correção.
+  // Corrigindo, os dois campos já nascem preenchidos. O foco vem lá embaixo,
+  // depois de a combobox existir — ver o comentário antes de `desc.focus()`.
   if (editando) {
     desc.value = editando.descricao || '';
     val.value = formatarBRL(editando.valor);
-    val.focus();
-    val.select?.();
-  } else {
-    desc.focus();
   }
 
   const fechar = () => {
@@ -817,6 +812,21 @@ function abrirFormAdicional(itemId, adicionalId = null) {
     val.focus();
     val.select?.();
   });
+
+  // O FOCO VEM DEPOIS DE `montarCombo`, E ISSO É A CORREÇÃO DE UM BUG.
+  //
+  // O `desc.focus()` estava lá em cima, antes de a combobox ser montada. Focar
+  // um campo cujo listener de `focus` ainda não existe não dispara nada: o
+  // cursor piscava e NENHUMA sugestão aparecia. Quem clicava em "+ adicional"
+  // via um formulário mudo e só descobria a lista clicando na setinha.
+  //
+  // Um `abrir()` exposto pela combobox resolveria o sintoma; mover o foco
+  // resolve a causa, que é a ordem. Wiring antes, foco depois — sempre.
+  //
+  // Corrigindo, o foco vai para o VALOR e selecionado, e a lista fica fechada:
+  // a descrição vem da lista e quase nunca é o que está errado.
+  if (editando) { val.focus(); val.select?.(); }
+  else desc.focus();
 
   fundo.querySelectorAll('[data-fp-fechar]').forEach(b => b.addEventListener('click', fechar));
   fundo.querySelector('#fpAddOk').addEventListener('click', salvar);

@@ -122,6 +122,37 @@ grupo('folha · corrigir lançamento · a tela', () => {
   });
 });
 
+grupo('folha · a caixa abre com as sugestões à vista', () => {
+  // O BUG: `desc.focus()` corria ANTES de `montarCombo`, que é quem registra o
+  // listener de `focus` do campo. Focar um campo cujo listener ainda não existe
+  // não dispara nada — o cursor piscava e nenhuma sugestão aparecia. Quem
+  // clicava em "+ adicional" via um formulário mudo e só descobria a lista
+  // clicando na setinha.
+  //
+  // O teste é de ORDEM, não de comportamento, porque a causa é a ordem. Expor
+  // um `abrir()` na combobox faria o sintoma sumir e deixaria a armadilha de
+  // pé para o próximo campo que alguém focar cedo demais.
+  const semComentario = UI.split('\n').filter(l => !l.trim().startsWith('//'));
+  const linhaDe = (re) => semComentario.findIndex(l => re.test(l));
+
+  teste('o foco vem depois de a combobox ser montada', () => {
+    const combo = linhaDe(/const combo = montarCombo\(/);
+    const foco = linhaDe(/^\s*else desc\.focus\(\);/);
+    ok(combo > 0, 'não achei a montagem da combobox');
+    ok(foco > 0, 'não achei o foco de abertura');
+    ok(foco > combo,
+       `o foco (linha ${foco}) precisa vir DEPOIS do montarCombo (linha ${combo}) — ` +
+       'senão o evento de focus não encontra listener e a lista não abre');
+  });
+
+  teste('a combobox continua sendo quem abre a lista', () => {
+    // Se um dia alguém chamar `combo.abrir()` aqui, é sinal de que a ordem
+    // voltou a estar errada e o sintoma foi remendado por cima.
+    naoContem(UI, 'combo.abrir()');
+    contem(UI, "campo.addEventListener('focus', abrir)");
+  });
+});
+
 grupo('folha · corrigir lançamento · o estilo', () => {
   teste('só o ✕ fica vermelho no hover', () => {
     // A regra era `.fp-add-chip button`, que agora pegaria os dois botões — e o
