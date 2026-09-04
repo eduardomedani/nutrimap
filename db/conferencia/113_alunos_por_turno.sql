@@ -42,6 +42,7 @@
 -- ===========================================================================
 
 drop table if exists conf113;
+drop table if exists reb113;
 create temp table conf113 (ordem int, secao text, item text, valor text, resultado text);
 
 do $$
@@ -57,6 +58,51 @@ begin
   select o.id into v_org
     from public.organizacoes o
     join public.admins a on a.user_id = o.proprietario_user_id;
+
+  -- ═══════ 0) A FOTO DE v_ref, RECONSTRUIDA ═══════
+  -- Ate 03/09/2026 este script lia o estado de HOJE e o chamava de foto do dia
+  -- 31/08. Nao e a mesma coisa: quem renovou em setembro tem fim_periodo novo e
+  -- passa no filtro ">= 31/08" mesmo se naquele dia estivesse vencido. A secao
+  -- RETROATIVO ja avisava disso — mas avisar nao e conferir, e o script
+  -- terminava discordando da tela que ele deveria estar conferindo.
+  --
+  -- Agora reb113 rebobina, do mesmo jeito que comercial_alunos_por_turno: a
+  -- renovacao mais ANTIGA registrada depois de v_ref guarda no seu "antes" como
+  -- a assinatura estava naquele dia. Com ela os numeros daqui batem com o
+  -- painel — e a secao REBOBINAGEM mostra o tamanho da diferenca em vez de
+  -- deixa-la escondida.
+  create temp table reb113 as
+  select
+    a.id                                      as assinatura_id,
+    pa.nome                                   as aluno,
+    coalesce(trim(a.horario), '')             as turno,
+    coalesce((h.antes ->> 'fim_periodo')::date, a.fim_periodo)              as fim_periodo,
+    a.fim_periodo                                                          as fim_hoje,
+    coalesce((h.antes ->> 'valor_contratado')::numeric, a.valor_contratado) as valor_contratado,
+    pl.nome                                   as plano,
+    pl.preco_padrao,
+    case when pl.preco_padrao > 0
+         then 1 - coalesce(
+                    coalesce((h.antes ->> 'valor_contratado')::numeric, a.valor_contratado),
+                    pl.preco_padrao) / pl.preco_padrao
+    end                                       as desconto,
+    (h.antes is not null)                     as rebobinada,
+    (a.data_inicio_original is not null and a.data_inicio_original > v_ref) as comecou_depois
+  from public.comercial_assinaturas a
+  join public.pacientes pa on pa.id = a.paciente_id
+  left join lateral (
+    select ad.antes
+      from public.comercial_assinatura_auditoria ad
+     where ad.assinatura_id = a.id
+       and ad.acao = 'renovada'
+       and ad.criado_em::date > v_ref
+     order by ad.criado_em
+     limit 1
+  ) h on true
+  left join public.comercial_planos pl
+         on pl.id = coalesce((h.antes ->> 'plano_id')::uuid, a.plano_id)
+  where a.nutri_id = v_org
+    and a.status = 'ativa';
 
   insert into conf113 values (0, 'PARAMETROS', 'data de referencia', v_ref::text, '');
   insert into conf113 values (0, 'PARAMETROS', 'desconto maximo aceito',
@@ -130,22 +176,49 @@ begin
 
   -- ═══════════ 4) A CONTAGEM ═══════════
   for r in
-    select coalesce(nullif(trim(a.horario), ''), '(em branco)') as turno,
-           count(*) as contam
-      from public.comercial_assinaturas a
-      join public.comercial_planos p on p.id = a.plano_id
-     where a.nutri_id = v_org
-       and a.status = 'ativa'
-       and a.fim_periodo >= v_ref
-       and p.preco_padrao > 0
-       and (1 - coalesce(a.valor_contratado, p.preco_padrao) / p.preco_padrao) <= v_teto
-       and coalesce(trim(a.horario), '') <> ''
+    select b.turno, count(*) as contam
+      from reb113 b
+     where b.turno <> ''
+       and not b.comecou_depois
+       and b.fim_periodo >= v_ref
+       and b.preco_padrao > 0
+       and b.desconto <= v_teto
      group by 1
      order by 1
   loop
     insert into conf113 values (40, 'CONTAGEM', r.turno, r.contam::text,
       'x R$ 10 = R$ ' || (r.contam * 10));
   end loop;
+
+  -- ═══════ 4a) O QUE A REBOBINAGEM MUDOU ═══════
+  -- A conta ingenua — a foto de hoje — ao lado da reconstruida. Se as duas
+  -- baterem, a rebobinagem nao custou nada nesta data e tanto faz. Se
+  -- diferirem, vale a reconstruida: e ela que o painel mostra.
+  for r in
+    select b.turno,
+           count(*) filter (
+             where b.fim_hoje >= v_ref and b.preco_padrao > 0 and b.desconto <= v_teto
+           ) as ingenua,
+           count(*) filter (
+             where b.fim_periodo >= v_ref and not b.comecou_depois
+               and b.preco_padrao > 0 and b.desconto <= v_teto
+           ) as reconstruida
+      from reb113 b
+     where b.turno <> ''
+     group by 1
+     order by 1
+  loop
+    insert into conf113 values (41, 'REBOBINAGEM', r.turno,
+      'foto de hoje ' || r.ingenua || ' | reconstruida ' || r.reconstruida,
+      case when r.ingenua = r.reconstruida then 'iguais — a data nao pesou aqui'
+           else 'diferenca de ' || abs(r.ingenua - r.reconstruida)
+                || ' — vale a RECONSTRUIDA, que e a do painel' end);
+  end loop;
+
+  select count(*) into v_n from reb113 where rebobinada;
+  insert into conf113 values (41, 'REBOBINAGEM', 'assinaturas reconstruidas pela auditoria', v_n::text,
+    case when v_n = 0 then 'nenhuma renovou depois da data'
+         else 'estas voltaram ao estado de ' || v_ref end);
 
   -- ═══════════ 4b) ONDE O TETO CORTA ═══════════
   -- O teto passou de 20% para 10% em 03/09/2026. A pergunta que decide se a
@@ -168,13 +241,12 @@ begin
            min(round(d * 100)) as menor,
            max(round(d * 100)) as maior
       from (
-        select (1 - coalesce(a.valor_contratado, p.preco_padrao) / p.preco_padrao) as d
-          from public.comercial_assinaturas a
-          join public.comercial_planos p on p.id = a.plano_id
-         where a.nutri_id = v_org and a.status = 'ativa'
-           and p.preco_padrao > 0
-           and coalesce(trim(a.horario), '') <> ''
-           and a.fim_periodo >= v_ref
+        select b.desconto as d
+          from reb113 b
+         where b.turno <> ''
+           and not b.comecou_depois
+           and b.preco_padrao > 0
+           and b.fim_periodo >= v_ref
       ) x
      group by 1
      order by min(d)
@@ -188,14 +260,13 @@ begin
 
   -- O numero que responde a pergunta sozinho.
   select count(*) into v_n
-    from public.comercial_assinaturas a
-    join public.comercial_planos p on p.id = a.plano_id
-   where a.nutri_id = v_org and a.status = 'ativa'
-     and p.preco_padrao > 0
-     and coalesce(trim(a.horario), '') <> ''
-     and a.fim_periodo >= v_ref
-     and (1 - coalesce(a.valor_contratado, p.preco_padrao) / p.preco_padrao) > 0.10
-     and (1 - coalesce(a.valor_contratado, p.preco_padrao) / p.preco_padrao) <= 0.20;
+    from reb113 b
+   where b.turno <> ''
+     and not b.comecou_depois
+     and b.preco_padrao > 0
+     and b.fim_periodo >= v_ref
+     and b.desconto > 0.10
+     and b.desconto <= 0.20;
   insert into conf113 values (36, 'FAIXAS DE DESCONTO', 'afetados pela mudanca de 20% para 10%', v_n::text,
     case when v_n = 0 then 'NINGUEM — a regra ficou mais estrita e o numero nao mudou'
          else 'estes contavam com 20% e deixam de contar com 10%' end);
@@ -204,24 +275,22 @@ begin
   -- E a secao que permite conferir contra a realidade. Sem ela o numero e um
   -- palpite com cara de verdade.
   for r in
-    select p2.nome as aluno,
-           coalesce(nullif(trim(a.horario), ''), '(em branco)') as turno,
-           a.fim_periodo,
-           a.valor_contratado,
-           pl.preco_padrao,
+    select b.aluno,
+           coalesce(nullif(b.turno, ''), '(em branco)') as turno,
+           b.fim_periodo,
+           b.valor_contratado,
+           b.preco_padrao,
            case
-             when coalesce(trim(a.horario), '') = ''      then 'sem turno'
-             when pl.preco_padrao is null or pl.preco_padrao = 0 then 'plano sem preco padrao'
-             when a.fim_periodo < v_ref                   then 'vencida em ' || v_ref
-             when (1 - coalesce(a.valor_contratado, pl.preco_padrao) / pl.preco_padrao) > v_teto
-                  then 'desconto de ' || round((1 - coalesce(a.valor_contratado, pl.preco_padrao) / pl.preco_padrao) * 100) || '%'
+             when b.turno = ''                           then 'sem turno'
+             when b.comecou_depois                       then 'comecou depois de ' || v_ref
+             when b.preco_padrao is null or b.preco_padrao = 0 then 'plano sem preco padrao'
+             when b.fim_periodo < v_ref                  then 'vencida em ' || v_ref
+             when b.desconto > v_teto
+                  then 'desconto de ' || round(b.desconto * 100) || '%'
              else null
            end as motivo
-      from public.comercial_assinaturas a
-      join public.pacientes p2 on p2.id = a.paciente_id
-      left join public.comercial_planos pl on pl.id = a.plano_id
-     where a.nutri_id = v_org and a.status = 'ativa'
-     order by 6, p2.nome
+      from reb113 b
+     order by 6, b.aluno
   loop
     if r.motivo is not null then
       insert into conf113 values (50, 'FORA DA CONTAGEM', r.aluno,

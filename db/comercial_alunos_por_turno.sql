@@ -151,8 +151,9 @@ grant execute on function public.comercial_alunos_por_turno(date, numeric) to au
 -- ===========================================================================
 -- Conferencia. Esperado:
 --   definer = true · stable = true · search_path fixo
---   e a contagem de 31/08/2026 batendo com db/conferencia/113 — com a
---   diferenca da rebobinagem, que o 113 nao faz.
+--   e a contagem de 31/08/2026 batendo com db/conferencia/113, que desde
+--   03/09/2026 rebobina do mesmo jeito. Os dois numeros tem de ser iguais:
+--   se discordarem, um dos dois esta lendo o dia errado.
 -- ===========================================================================
 select
   p.prosecdef                                                   as definer,
