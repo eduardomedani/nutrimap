@@ -782,6 +782,10 @@ body.cm-travado { overflow: hidden; }
   color: var(--text-secondary, var(--ink-mute));
 }
 .cm-rel-sub b { color: var(--text-primary, var(--ink)); font-weight: 700; }
+/* Na TELA a data de emissao e ruido: quem esta olhando sabe que dia e hoje.
+   No papel ela e o que impede a folha de virar folha de qualquer dia — alguem
+   liga para quem ja voltou a treinar na semana passada. */
+.cm-rel-emissao { display: none; }
 
 .cm-rel { display: grid; gap: 26px; }
 
@@ -828,6 +832,14 @@ body.cm-travado { overflow: hidden; }
 .cm-rel-tel, .cm-rel-venc { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .cm-rel-plano, .cm-rel-motivo { color: var(--text-secondary, var(--ink-mute)); }
 .cm-rel-motivo { font-weight: 600; color: var(--text-primary, var(--ink)); }
+
+/* SÓ O NOME FICA À ESQUERDA. As outras quatro colunas são valores curtos, e
+   centralizados eles ficam sob o próprio cabeçalho em vez de encostados na
+   borda de uma coluna larga — no papel, onde não há hover nem linha zebrada
+   para guiar o olho, é o que mantém a linha legível de ponta a ponta.
+   O cabeçalho acompanha, senão o título fica torto sobre a coluna. */
+.cm-rel-tab th:not(:first-child),
+.cm-rel-tab td:not(.cm-rel-nome) { text-align: center; }
 
 /* A caixa de riscar. Existe só no papel — na tela ela seria um controle que
    não controla nada, e um checkbox falso ensina a desconfiar dos de verdade. */
@@ -891,7 +903,10 @@ body.cm-travado { overflow: hidden; }
   color: var(--text-secondary, var(--ink-mute)); opacity: .8;
 }
 
-.cm-freq-num, .cm-freq-pct { white-space: nowrap; font-variant-numeric: tabular-nums; text-align: right; }
+/* O alinhamento é da tabela, não desta regra — ver `.cm-rel-tab td:not(...)`.
+   Deixá-lo aqui também seria uma segunda fonte para a mesma decisão, e as duas
+   discordariam na primeira mudança. */
+.cm-freq-num, .cm-freq-pct { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .cm-freq-pct { font-weight: 800; }
 /* A cor da faixa e a MESMA regua do bonus por presenca. Ela reforca o numero,
    nunca o substitui — no papel a cor some e o percentual continua la. */
@@ -941,6 +956,52 @@ body.cm-travado { overflow: hidden; }
   .cm-rel-ok { display: table-cell; width: 34px; }
   td.cm-rel-ok::after {
     content: ''; display: block; width: 13px; height: 13px;
-    border: 1px solid #000; margin-top: 2px;
+    border: 1px solid #000; margin: 2px auto 0;
   }
+
+  /* ── A folha, apertada para caber ──────────────────────────────────────
+     Na tela sobra espaço lateral; no A4 não. Cada linha economizada aqui é
+     uma pessoa a mais por página, e uma página a menos para virar enquanto se
+     liga com o telefone no ombro. */
+  .cm-rel-tab { font-size: 9.5pt; }
+  .cm-rel-tab th { padding: 5px 6px; font-size: 7.5pt; letter-spacing: 0.04em; }
+  .cm-rel-tab td { padding: 5px 6px; }
+  .cm-rel-nome span { font-size: 10pt; }
+  .cm-rel-tambem { font-size: 8pt; }
+
+  /* LARGURAS FIXAS. Sem elas o motivo, que é o texto mais longo, espreme o
+     nome até quebrar em três linhas — e nome quebrado é o que mais atrapalha
+     quem procura uma pessoa na folha. */
+  .cm-rel-tab th:nth-child(1) { width: 34%; }
+  .cm-rel-tab th:nth-child(2) { width: 15%; }
+  .cm-rel-tab th:nth-child(3) { width: 9%; }
+  .cm-rel-tab th:nth-child(4) { width: 9%; }
+  .cm-rel-tab th:nth-child(5) { width: auto; }
+
+  /* O título do grupo com filete embaixo: no papel ele precisa se separar da
+     tabela sem depender de fundo cinza, que a impressora entrega chapado. */
+  .cm-rel-grupo-t {
+    font-size: 9pt; padding-bottom: 3px; margin-bottom: 6px;
+    border-bottom: 1.5px solid #000;
+  }
+  .cm-rel-conta { padding: 0 6px; font-size: 8.5pt; }
+
+  /* O resumo vira uma faixa de quatro números, não quatro caixas altas. */
+  .cm-freq-resumo { grid-template-columns: repeat(4, 1fr); gap: 0; margin-bottom: 16px; }
+  .cm-freq-tile { padding: 6px 10px; border-right: none; }
+  .cm-freq-tile:last-child { border-right: 1px solid #000; }
+  .cm-freq-tile b { font-size: 15pt; }
+  .cm-freq-tile span { font-size: 8pt; }
+  .cm-freq-tile em { font-size: 7.5pt; }
+
+  /* O cabeçalho da folha, com respiro embaixo e um filete que o fecha. */
+  .cm-rel-cab {
+    display: block; margin-bottom: 14px;
+    padding-bottom: 8px; border-bottom: 2px solid #000;
+  }
+  .cm-rel-tit { font-size: 15pt; }
+  .cm-rel-emissao {
+    display: block; margin: 4px 0 0; font-size: 8.5pt; color: #000;
+  }
+  .cm-rel-sub { font-size: 9pt; }
 }

@@ -489,7 +489,7 @@ export function resumoFrequenciaHtml(r) {
     </div>`;
 }
 
-export function relatorioFrequenciaHtml(r) {
+export function relatorioFrequenciaHtml(r, hoje = '') {
   return `
     <header class="cm-rel-cab">
       <div>
@@ -498,6 +498,7 @@ export function relatorioFrequenciaHtml(r) {
           Frequência de <b>${esc(periodoTexto(r.resumo.de, r.resumo.ate))}</b> ·
           ${r.resumo.visitas} presenças de ${r.resumo.alunos} alunos
         </p>
+        ${hoje ? `<p class="cm-rel-emissao">Impresso em ${esc(dataBR(hoje))}</p>` : ''}
       </div>
       <div class="cm-rel-acoes">
         <label class="cm-btn" for="cmFreqArquivo">
@@ -636,7 +637,7 @@ export function telaHtml({ aba = 'visao', indicadores = {}, assinaturas = [], pl
   } else if (aba === 'planos') {
     corpo = planosHtml(planos);
   } else if (aba === 'relatorio') {
-    corpo = frequencia ? relatorioFrequenciaHtml(frequencia) : escolhaDoArquivoHtml(erroArquivo);
+    corpo = frequencia ? relatorioFrequenciaHtml(frequencia, hoje) : escolhaDoArquivoHtml(erroArquivo);
   } else {
     const lista = ordenar(aplicarFiltro(assinaturas, { filtro, busca, hoje }), ordem, hoje);
     corpo = `

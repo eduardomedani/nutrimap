@@ -236,6 +236,44 @@ grupo('comercial · a impressão', () => {
     contem(bloco, 'display: table-header-group');
   });
 
+  teste('só o nome fica à esquerda; o resto centraliza', () => {
+    // Plano, treinos, frequência e motivo são valores curtos. Centralizados
+    // eles ficam sob o próprio cabeçalho em vez de encostados na borda de uma
+    // coluna larga — no papel, sem hover nem zebra para guiar o olho, é o que
+    // mantém a linha legível de ponta a ponta.
+    contem(CSS, '.cm-rel-tab th:not(:first-child),');
+    contem(CSS, '.cm-rel-tab td:not(.cm-rel-nome) { text-align: center; }');
+    // E o alinhamento mora num lugar só: uma segunda regra por coluna seria
+    // outra fonte para a mesma decisão, e as duas discordariam na primeira
+    // mudança.
+    ok(!/\.cm-freq-num[^{]*\{[^}]*text-align/.test(CSS),
+      'o alinhamento voltou a ser declarado na coluna');
+  });
+
+  teste('a folha impressa cabe: fonte, padding e larguras', () => {
+    // Cada linha economizada é uma pessoa a mais por página, e uma página a
+    // menos para virar com o telefone no ombro.
+    const bloco = CSS.slice(CSS.lastIndexOf('@media print'));
+    contem(bloco, '.cm-rel-tab { font-size: 9.5pt; }');
+    // Sem largura fixa, o motivo (o texto mais longo) espreme o nome até
+    // quebrar em três linhas — e nome quebrado é o que mais atrapalha quem
+    // procura uma pessoa na folha.
+    contem(bloco, '.cm-rel-tab th:nth-child(1) { width: 34%; }');
+    contem(bloco, '.cm-rel-tab th:nth-child(5) { width: auto; }');
+  });
+
+  teste('a data de emissão aparece só no papel', () => {
+    // Na tela é ruído: quem está olhando sabe que dia é hoje. No papel é o que
+    // impede a folha de virar folha de qualquer dia, e alguém ligar para quem
+    // já voltou a treinar na semana passada.
+    contem(CSS, '.cm-rel-emissao { display: none; }');
+    const bloco = CSS.slice(CSS.lastIndexOf('@media print'));
+    contem(bloco, '.cm-rel-emissao {');
+    contem(bloco, 'display: block');
+    contem(UI, 'Impresso em ${esc(dataBR(hoje))}');
+    contem(UI, 'relatorioFrequenciaHtml(frequencia, hoje)');
+  });
+
   teste('a caixa de riscar existe só no papel', () => {
     // Na tela seria um controle que não controla nada, e um checkbox falso
     // ensina a desconfiar dos de verdade.
