@@ -288,9 +288,50 @@ grupo('folha · fiação da tela', () => {
     ok(/normalizar\(o\)\.includes\(termo\)/.test(ui), 'e a opção também');
   });
 
-  teste('Enter na lista escolhe; fora dela, salva', () => {
-    ok(/e\.key === 'Enter' && !combo\.aberta\(\)/.test(ui),
-      'com a lista aberta o Enter escolhe a opção, não fecha o formulário');
+  teste('o Enter na descrição tem três casos, e nenhum é "nada acontece"', () => {
+    // Era `e.key === 'Enter' && !combo.aberta()`, e faltava o caso do meio:
+    // lista aberta SEM item destacado, que é o estado de quem está escrevendo
+    // uma descrição própria. A combobox ignorava o Enter (nada destacado) e
+    // esta condição também (lista aberta). A tecla morria justamente para
+    // quem mais precisava dela.
+    ok(/if \(e\.key !== 'Enter' \|\| e\.defaultPrevented\) return;/.test(ui),
+      'o Enter já resolvido pela combobox tem que ser deixado em paz');
+    ok(/if \(combo\.aberta\(\)\) \{ combo\.fechar\(\); val\.focus\(\)/.test(ui),
+      'lista aberta e nada destacado: o texto digitado é a descrição, e falta o valor');
+    ok(/\n    salvar\(\);\n  \}\);/.test(ui),
+      'lista fechada: aí sim o Enter confirma o formulário');
+  });
+
+  teste('a combobox entrega tudo o que a caixa chama nela', () => {
+    // `combo.fechar()` num objeto que só devolve `{ aberta }` é TypeError na
+    // hora do Enter, e nenhum teste de texto pegaria — uma mutação provou.
+    // Então a checagem é a relação: todo `combo.X` usado tem que estar no
+    // `return` da combobox.
+    const usados = [...new Set([...ui.matchAll(/\bcombo\.(\w+)\b/g)].map(m => m[1]))];
+    // A partir de `function montarCombo`, senão o `return { ... }` de outra
+    // função do arquivo casa primeiro e o teste falha dizendo bobagem.
+    const corpo = ui.slice(ui.indexOf('function montarCombo('));
+    const devolvidos = (corpo.match(/\n  return \{ ([^}]+) \};/) || [, ''])[1]
+      .split(',').map(s => s.trim());
+    ok(usados.length > 0, 'não achei nenhum uso da combobox');
+    for (const nome of usados) {
+      ok(devolvidos.includes(nome),
+        `a caixa chama combo.${nome}(), mas a combobox devolve só {${devolvidos.join(', ')}}`);
+    }
+  });
+
+  teste('escolher pela lista não salva sozinho', () => {
+    // A combobox chama `preventDefault` ao escolher. Sem consultar isso, o
+    // handler de baixo veria a lista já fechada e salvaria na mesma tecla — o
+    // lançamento entraria antes de a pessoa conferir o valor sugerido.
+    ok(/e\.defaultPrevented/.test(ui), 'faltou a checagem que separa os dois Enters');
+  });
+
+  teste('a combobox diz que aceita texto de fora', () => {
+    // A pergunta "e se o que eu quero não está na lista?" nasce olhando a
+    // lista aberta. A resposta precisa estar ao lado do campo, não no rodapé.
+    ok(/A lista é sugestão — pode escrever a sua\./.test(ui), 'faltou a dica junto ao campo');
+    ok(/Nenhuma sugestão — pode escrever a sua/.test(ui), 'e a mesma resposta quando o filtro não acha nada');
   });
 
   teste('adicionar abre uma caixa sobre a tela, não dentro da célula', () => {

@@ -793,6 +793,16 @@
   color: var(--text-muted);
 }
 
+/* Dica presa ao campo, e nao ao rodape da caixa. A do valor negativo fala do
+   formulario inteiro; esta responde uma pergunta que so nasce olhando a lista
+   de sugestoes aberta — "e se o que eu quero nao esta aqui?". Longe do campo
+   ela seria lida tarde demais. */
+.fp-campo-dica {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
 .fp-add-dica {
   font-size: 11.5px;
   color: var(--text-muted);

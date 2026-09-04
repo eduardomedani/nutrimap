@@ -735,6 +735,7 @@ function abrirFormAdicional(itemId, adicionalId = null) {
               </button>
               <ul class="fp-combo-lista" id="fpAddLista" role="listbox" hidden></ul>
             </div>
+            <div class="fp-campo-dica">A lista é sugestão — pode escrever a sua.</div>
           </div>
           <div class="fp-campo">
             <label for="fpAddVal">Valor</label>
@@ -833,8 +834,23 @@ function abrirFormAdicional(itemId, adicionalId = null) {
   // Só o clique no fundo fecha; dentro da caixa, não.
   fundo.addEventListener('click', (e) => { if (e.target === fundo) fechar(); });
 
+  // O ENTER NA DESCRIÇÃO NUNCA PODE NÃO FAZER NADA, e era o que acontecia com
+  // descrição escrita à mão: a lista fica aberta enquanto se digita, nada está
+  // destacado nela, então a combobox ignorava o Enter — e a condição aqui
+  // (`!combo.aberta()`) também. A tecla morria, e quem escrevia uma descrição
+  // nova concluía que o campo não aceitava.
+  //
+  // `defaultPrevented` é como se sabe que a combobox já resolveu o Enter
+  // escolhendo um item destacado. Sem essa checagem, escolher pela lista
+  // fecharia a lista e cairia direto no `salvar()` da linha seguinte — o
+  // lançamento entraria antes de a pessoa conferir o valor sugerido.
   desc.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !combo.aberta()) { e.preventDefault(); salvar(); }
+    if (e.key !== 'Enter' || e.defaultPrevented) return;
+    e.preventDefault();
+    // Lista aberta e nada destacado: o texto digitado É a descrição. Fecha a
+    // lista e vai para o valor, que é o campo que falta.
+    if (combo.aberta()) { combo.fechar(); val.focus(); val.select?.(); return; }
+    salvar();
   });
   val.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); salvar(); }
@@ -854,8 +870,9 @@ function abrirFormAdicional(itemId, adicionalId = null) {
  * tem "10% de bônus", "FERIADO", "PAGAMENTO DE FÉRIAS", e a descrição é o que
  * explica o valor um ano depois.
  *
- * @returns {{aberta: () => boolean}} para o Enter saber se está escolhendo na
- *          lista ou confirmando o formulário.
+ * @returns {{aberta: () => boolean, fechar: () => void}} para o Enter saber se
+ *          está escolhendo na lista, aceitando o texto digitado ou confirmando
+ *          o formulário — três casos, e nenhum deles pode ser "nada acontece".
  */
 function montarCombo(raiz, opcoes, aoEscolher) {
   const campo = raiz.querySelector('input');
@@ -952,7 +969,7 @@ function montarCombo(raiz, opcoes, aoEscolher) {
     }
   });
 
-  return { aberta };
+  return { aberta, fechar };
 }
 
 async function removerAdicional(id) {
