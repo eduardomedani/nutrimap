@@ -233,31 +233,41 @@ begin
   --
   -- As duas leituras sao defensaveis. O que nao da e escolher sem olhar: sao
   -- R$ 10 por aluno, e a diferenca entre elas aparece na secao REBOBINAGEM.
+  -- Tres desfechos, nao dois. A primeira versao desta secao so tinha "cobre" e
+  -- "buraco", e por isso imprimiu "buraco de -30 dia(s)" em vinte e uma linhas:
+  -- quem NUNCA renovou nao foi rebobinado, entao o periodo de hoje e o mesmo de
+  -- v_ref e a subtracao da negativa. Numero negativo num campo chamado "buraco"
+  -- e o script confessando que a pergunta nao cabia naquela linha. Essas pessoas
+  -- nao pagaram atrasado — nao pagaram, e e outra conversa.
   for r in
     select b.aluno, b.turno, b.fim_periodo as fim_em_ref, b.inicio_hoje, b.fim_hoje,
-           (b.inicio_hoje <= v_ref and b.fim_hoje >= v_ref) as cobre_a_data
+           b.rebobinada,
+           (b.rebobinada and b.inicio_hoje <= v_ref and b.fim_hoje >= v_ref) as cobre_a_data
       from reb113 b
      where b.turno <> ''
        and not b.comecou_depois
        and b.preco_padrao > 0
        and b.desconto <= v_teto
        and b.fim_periodo < v_ref
-     order by 6 desc, b.aluno
+     order by 7 desc, 6 desc, b.aluno
   loop
-    insert into conf113 values (42, 'PAGOU DEPOIS', r.aluno,
+    insert into conf113 values (42, 'VENCIDOS EM ' || v_ref, r.aluno,
       r.turno || ' | vencia ' || r.fim_em_ref
       || ' | periodo de hoje ' || r.inicio_hoje || ' a ' || r.fim_hoje,
       case when r.cobre_a_data
-           then 'o periodo NOVO cobre ' || v_ref || ' — pagou atrasado, sem buraco'
-           else 'buraco de ' || (r.inicio_hoje - r.fim_em_ref) || ' dia(s) — ' || v_ref || ' ficou descoberto' end);
+             then 'PAGOU ATRASADO — o periodo novo cobre ' || v_ref
+           when not r.rebobinada
+             then 'nao renovou ate hoje — saiu mesmo'
+           else 'renovou, mas o periodo novo comeca em ' || r.inicio_hoje
+                || ' — ' || v_ref || ' ficou descoberto' end);
   end loop;
 
   select count(*) into v_n
     from reb113 b
    where b.turno <> '' and not b.comecou_depois and b.preco_padrao > 0
      and b.desconto <= v_teto and b.fim_periodo < v_ref
-     and b.inicio_hoje <= v_ref and b.fim_hoje >= v_ref;
-  insert into conf113 values (43, 'PAGOU DEPOIS', 'vencidos cujo periodo novo cobre ' || v_ref, v_n::text,
+     and b.rebobinada and b.inicio_hoje <= v_ref and b.fim_hoje >= v_ref;
+  insert into conf113 values (43, 'VENCIDOS EM ' || v_ref, 'pagaram atrasado, e o periodo novo cobre ' || v_ref, v_n::text,
     case when v_n = 0 then 'nenhum — quem estava vencido ficou mesmo descoberto'
          else 'somando estes aos ' || (select coalesce(sum(valor::int), 0) from conf113 where secao = 'CONTAGEM')
               || ' da contagem, seriam ' || (v_n + (select coalesce(sum(valor::int), 0) from conf113 where secao = 'CONTAGEM'))
