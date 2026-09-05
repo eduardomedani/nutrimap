@@ -73,8 +73,13 @@ let _aoAbrirEquipe = null;
 let _cache = null;
 let _tipo = 'despesa';
 let _anoGrafico = null;
-let _filtroDespesa = null;       // armado pelos atalhos de pendência
-const _filtro = { ano: '', categoria: '', busca: '' };
+// Armado pelos atalhos de pendência, consumido pela aba que abrir em seguida.
+// GUARDA A SEÇÃO JUNTO porque a pendência pode ser de receita ou de despesa, e
+// mandar as duas para a mesma lista foi exatamente o defeito de 05/09/2026: o
+// alerta contava "6 sem valor" (receitas da importação de vendas), o botão
+// abria Despesas, e a lista vinha vazia — o número parecia mentira.
+let _filtroPendencia = null;     // { secao, filtro }
+const _filtro = { ano: '', categoria: '', busca: '', pendencia: '' };
 
 export { SECOES };
 
@@ -412,20 +417,43 @@ function ligarHoverGrafico(barras) {
   plot.addEventListener('mouseleave', () => { tip.hidden = true; });
 }
 
+/**
+ * O que impede o total de ser lido como completo, SEPARADO POR TIPO.
+ *
+ * Cada atalho leva à lista já filtrada pelo que o número acabou de contar —
+ * mandar para a lista inteira obrigaria a refazer na mão a busca que o próprio
+ * alerta descreveu.
+ *
+ * E LEVA PARA A ABA CERTA. Enquanto os dois botões apontavam para Despesas, a
+ * pendência de RECEITA abria uma lista vazia: o alerta dizia "6 sem valor", a
+ * tela mostrava nenhuma, e o número passava por errado sem ser. As seis eram
+ * receitas da importação de vendas — existiam, só não estavam ali.
+ */
 function pendenciasHtml(pend) {
-  // Cada atalho leva à lista JÁ FILTRADA pelo que o número acabou de contar.
-  // Mandar para a lista inteira obrigaria a refazer na mão a busca que o
-  // próprio alerta descreveu.
+  const conta = (lista, tipo) => (lista || []).filter(l => l.tipo === tipo).length;
+
   const itens = [];
-  if (pend.semCategoria.length)
-    itens.push({ n: pend.semCategoria.length, txt: 'sem categoria', icone: 'tag',
-                 filtro: { pendencia: 'sem-categoria' } });
-  if (pend.semValor.length)
-    itens.push({ n: pend.semValor.length, txt: 'sem valor', icone: 'circle-dollar-sign',
-                 filtro: { pendencia: 'sem-valor' } });
-  if (pend.naoPagos.length)
-    itens.push({ n: pend.naoPagos.length, txt: 'ainda não pagos', icone: 'clock',
-                 filtro: { status: 'aberto' } });
+  const juntar = (lista, txt, icone, filtro) => {
+    for (const [tipo, secao, rotulo] of [['despesa', 'despesas', 'despesa'],
+                                         ['receita', 'receitas', 'receita']]) {
+      const n = conta(lista, tipo);
+      if (!n) continue;
+      // O tipo entra no rótulo mesmo quando só há um: "3 sem categoria" não diz
+      // onde procurar, e é a pergunta que a pessoa faz ao clicar.
+      itens.push({ n, txt: `${rotulo}${n === 1 ? '' : 's'} ${txt}`, icone, secao, filtro });
+    }
+  };
+
+  juntar(pend.semCategoria, 'sem categoria', 'tag', { pendencia: 'sem-categoria' });
+  juntar(pend.semValor, 'sem valor', 'circle-dollar-sign', { pendencia: 'sem-valor' });
+  // "Não pago" só para despesa: receita em aberto é contas a receber, que é
+  // outra pergunta e tem aba própria.
+  const naoPagosDespesa = (pend.naoPagos || []).filter(l => l.tipo === 'despesa').length;
+  if (naoPagosDespesa) {
+    itens.push({ n: naoPagosDespesa, txt: 'despesas ainda não pagas', icone: 'clock',
+                 secao: 'despesas', filtro: { status: 'aberto' } });
+  }
+
   if (!itens.length) return '';
 
   return `
@@ -433,14 +461,14 @@ function pendenciasHtml(pend) {
       <div class="fx-pend-tit"><i data-lucide="triangle-alert"></i> O total ainda não está fechado</div>
       <div class="fx-pend-itens">
         ${itens.map(i => `
-          <button class="fx-pend-item" data-fin-ir="despesas"
+          <button class="fx-pend-item" data-fin-ir="${i.secao}"
                   data-fin-filtro="${esc(JSON.stringify(i.filtro))}">
             <i data-lucide="${i.icone}"></i>
             <strong>${i.n}</strong> ${esc(i.txt)}
           </button>`).join('')}
       </div>
       <p class="fe-nota">
-        Vieram assim da planilha. Nada foi classificado por semelhança de texto:
+        Vieram assim das planilhas. Nada foi classificado por semelhança de texto:
         um centro de custo adivinhado entra no relatório como se fosse informação.
       </p>
     </div>`;
@@ -634,7 +662,10 @@ async function montarDespesas(miolo, modo) {
   miolo.innerHTML = `<div id="dspRaiz"></div>`;
   const { initDespesasUI, definirFiltro } = await import('./financeiro-despesas-ui.js');
 
-  if (_filtroDespesa) { definirFiltro(_filtroDespesa); _filtroDespesa = null; }
+  if (_filtroPendencia?.secao === 'despesas' || _filtroPendencia?.secao === 'contas-pagar') {
+    definirFiltro(_filtroPendencia.filtro);
+    _filtroPendencia = null;
+  }
 
   await initDespesasUI('dspRaiz', {
     modo,
@@ -688,6 +719,18 @@ async function novoLancamento(tipo = 'despesa') {
 // ───────────────────────────────────────────────────────────
 async function montarLista(miolo, tipo) {
   _tipo = tipo;
+
+  // O atalho da pendência chega armado. Limpo o resto do filtro junto: vindo de
+  // "6 receitas sem valor", um ano que tivesse ficado de uma visita anterior
+  // esconderia parte das seis, e o número da Visão geral pareceria errado de
+  // novo — por outro motivo.
+  if (_filtroPendencia?.secao === 'receitas' && tipo === 'receita') {
+    Object.assign(_filtro, { ano: '', categoria: '', busca: '' }, _filtroPendencia.filtro);
+    _filtroPendencia = null;
+  } else {
+    _filtro.pendencia = '';
+  }
+
   miolo.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando...</div>`;
 
   let d;
@@ -752,9 +795,21 @@ function filtrar(lancamentos) {
     if (_filtro.ano && anoDa(l.competencia) !== _filtro.ano) return false;
     if (_filtro.categoria === 'sem' && l.categoria_id) return false;
     if (_filtro.categoria && _filtro.categoria !== 'sem' && l.categoria_id !== _filtro.categoria) return false;
+    // O recorte que o atalho da Visão geral arma. Sem ele, clicar em
+    // "6 receitas sem valor" abria a lista inteira e a pessoa tinha de achar as
+    // seis no meio de duas mil.
+    if (_filtro.pendencia === 'sem-valor' && l.valor != null) return false;
+    if (_filtro.pendencia === 'sem-categoria' && l.categoria_id) return false;
     if (termo && !String(l.descricao || '').toLowerCase().includes(termo)) return false;
     return true;
   });
+}
+
+/** Tira o recorte de pendência e redesenha. Vive fora de `desenharLista`
+ *  porque os dois caminhos — lista cheia e lista vazia — desenham o botão. */
+function ligarLimparPendencia() {
+  const b = document.getElementById('fxLimparPend');
+  if (b) b.addEventListener('click', () => { _filtro.pendencia = ''; desenharLista(); });
 }
 
 function desenharLista() {
@@ -769,10 +824,19 @@ function desenharLista() {
   if (!lista.length) {
     alvo.innerHTML = `<div class="fe-vazio fe-vazio-topo">
       <div class="fe-vazio-tit">Nenhum lançamento neste filtro</div>
-      <div class="fe-vazio-sub">Ajuste o ano, a categoria ou o texto da busca.</div>
+      <div class="fe-vazio-sub">${_filtro.pendencia
+        ? 'Nada aqui está nessa situação — o que a Visão geral contou pode ser do outro lado do caixa.'
+        : 'Ajuste o ano, a categoria ou o texto da busca.'}</div>
+      ${_filtro.pendencia ? '<div class="fe-vazio-acoes"><button class="btn" id="fxLimparPend">Ver todos</button></div>' : ''}
     </div>`;
+    ligarLimparPendencia();
     return;
   }
+
+  // O RECORTE TEM QUE SER VISÍVEL E TER SAÍDA. Ano e categoria têm select; a
+  // pendência chega pelo atalho da Visão geral e não tem controle nenhum — sem
+  // este chip, a lista fica curta sem explicação e não há como voltar ao todo.
+  const rotuloPend = { 'sem-valor': 'sem valor', 'sem-categoria': 'sem categoria' };
 
   alvo.innerHTML = `
     <div class="dsp-resumo">
@@ -781,6 +845,11 @@ function desenharLista() {
       <strong>${esc(formatarBRL(total))}</strong>
       ${semValor ? `<span class="dsp-resumo-sep">·</span>
         <span class="fx-alerta">${semValor} sem valor, fora do total</span>` : ''}
+      ${_filtro.pendencia ? `<span class="dsp-resumo-sep">·</span>
+        <button class="fx-chip-filtro" id="fxLimparPend" type="button">
+          só ${esc(rotuloPend[_filtro.pendencia] || _filtro.pendencia)}
+          <i data-lucide="x"></i>
+        </button>` : ''}
     </div>
 
     <div class="fp-tabela-wrap">
@@ -797,6 +866,8 @@ function desenharLista() {
       </table>
     </div>
   `;
+
+  ligarLimparPendencia();
 
   // A LINHA INTEIRA ABRE O LANÇAMENTO — é como se dá baixa: abrir, mudar a
   // situação para Recebido e informar a data. Os controles de dentro (o select
@@ -1030,7 +1101,9 @@ function ligarAcoes(raiz) {
       // O atalho da pendência já chega com o filtro armado: mandar para a lista
       // inteira obrigaria a refazer na mão a busca que o número acabou de dizer.
       if (b.dataset.finFiltro) {
-        try { _filtroDespesa = JSON.parse(b.dataset.finFiltro); } catch (e) { _filtroDespesa = null; }
+        try {
+          _filtroPendencia = { secao: b.dataset.finIr, filtro: JSON.parse(b.dataset.finFiltro) };
+        } catch (e) { _filtroPendencia = null; }
       }
       abrirSecao(b.dataset.finIr);
     }));

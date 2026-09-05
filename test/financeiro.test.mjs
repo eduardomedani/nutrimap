@@ -597,3 +597,41 @@ grupo('importação · o centro de custo escrito de vários jeitos', () => {
     igual(linhas.map(r => r.centro), ['MANUTENÇÃO', 'MANUTENÇÃO']);
   });
 });
+
+// ───────────────────────────────────────────────────────────
+grupo('financeiro · o atalho da pendência leva onde a linha está', () => {
+  const ui = readFileSync(new URL('../js/financeiro-ui.js', import.meta.url), 'utf8');
+
+  teste('a pendência de receita abre RECEITAS, não Despesas', () => {
+    // ACONTECEU em 05/09/2026: o alerta dizia "6 sem valor" — seis receitas da
+    // importação de vendas —, o botão abria Despesas, e a lista vinha vazia.
+    // O número passava por errado sem ser, e não havia como descobrir onde as
+    // seis estavam.
+    contem(ui, "['receita', 'receitas', 'receita']", 'faltou o destino da receita');
+    contem(ui, '_filtroPendencia', 'o filtro tem que carregar a seção junto');
+    naoContem(ui, '_filtroDespesa', 'o filtro de destino único devia ter saído');
+  });
+
+  teste('a aba Receitas entende o recorte que o atalho arma', () => {
+    // Sem isso o atalho abriria a lista inteira e a pessoa teria de achar as
+    // seis no meio de duas mil.
+    contem(ui, "_filtro.pendencia === 'sem-valor'");
+    contem(ui, "_filtro.pendencia === 'sem-categoria'");
+  });
+
+  teste('o recorte é visível e tem saída', () => {
+    // Ano e categoria têm select; a pendência chega pelo atalho e não tem
+    // controle nenhum. Sem o chip, a lista fica curta sem explicação e não há
+    // como voltar ao todo.
+    contem(ui, 'fxLimparPend');
+    contem(ui, 'function ligarLimparPendencia');
+    igual((ui.match(/ligarLimparPendencia\(\);/g) || []).length, 2,
+          'os dois caminhos — lista cheia e lista vazia — desenham o botão');
+  });
+
+  teste('"não pago" continua só para despesa', () => {
+    // Receita em aberto é contas a receber, que é outra pergunta e tem aba
+    // própria — contá-la aqui mandaria a pessoa para a lista errada de novo.
+    contem(ui, 'naoPagosDespesa');
+  });
+});

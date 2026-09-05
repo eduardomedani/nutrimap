@@ -2366,3 +2366,17 @@ tbody tr.dsp-linha:focus-visible { outline: 2px solid var(--primary); outline-of
 }
 .fp-bp-impares svg.lucide { width: 15px; height: 15px; flex: 0 0 auto; margin-top: 2px; color: var(--warning); }
 .fp-bp-impares b { color: var(--text-primary); }
+
+/* O recorte que veio do atalho de pendência, dito na cara e com saída. Ano e
+   categoria têm select; a pendência não tinha controle nenhum, e a lista ficava
+   curta sem explicar por quê. */
+.fx-chip-filtro {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--primary, #2B6CB0);
+  background: var(--primary-soft, rgba(43, 108, 176, .12));
+  color: var(--primary, #2B6CB0);
+  font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.fx-chip-filtro:hover { background: var(--primary, #2B6CB0); color: #fff; }
+.fx-chip-filtro i { width: 13px; height: 13px; }
