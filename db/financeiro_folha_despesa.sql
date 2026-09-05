@@ -354,11 +354,32 @@ $$;
 -- ===========================================================================
 select
   (select count(*) from public.folhas where status = 'fechada')                  as folhas_fechadas,
-  (select count(*) from public.financeiro_lancamentos where origem = 'folha')    as espelhos,
+  -- ATIVOS, e nao todos. Espelho cancelado e o que fica quando a planilha
+  -- responde pela competencia — conta-lo aqui faria este numero dizer "32" nos
+  -- dois casos opostos, e foi exatamente o que aconteceu em 05/09/2026: a
+  -- conferencia nao distinguiu "cancelei os 29" de "nao mudou nada".
+  (select count(*) from public.financeiro_lancamentos
+    where origem = 'folha' and status <> 'cancelado')                            as espelhos_ativos,
+  (select count(*) from public.financeiro_lancamentos
+    where origem = 'folha' and status = 'cancelado')                             as espelhos_cancelados,
+  -- Sem espelho ativo E sem FOPAG da planilha: e este o numero que denuncia mes
+  -- de folha que ninguem esta contando. Com FOPAG, ficar sem espelho e o certo.
   (select count(*) from public.folhas f
     where f.status = 'fechada'
       and not exists (select 1 from public.financeiro_lancamentos l
-                       where l.folha_id = f.id))                                 as fechadas_sem_espelho,
+                       where l.folha_id = f.id and l.status <> 'cancelado')
+      and not exists (select 1 from public.financeiro_lancamentos l
+                       where l.nutri_id = f.nutri_id and l.competencia = f.competencia
+                         and l.origem = 'planilha' and l.metadata ->> 'folha' = 'true'
+                         and l.status <> 'cancelado'))                           as fechadas_sem_ninguem,
+  (select count(*) from (
+     select l.competencia
+       from public.financeiro_lancamentos l
+      where l.status <> 'cancelado'
+        and (l.origem = 'folha' or l.metadata ->> 'folha' = 'true')
+      group by l.competencia
+     having count(distinct case when l.origem = 'folha' then 'espelho' else 'planilha' end) > 1
+   ) x)                                                                          as folha_em_duplicidade,
   (select count(*) from (
      select folha_id from public.financeiro_lancamentos
       where folha_id is not null group by folha_id having count(*) > 1) x)       as folhas_com_dois,
@@ -366,4 +387,5 @@ select
      select sum(m.total) from public.folha_resumo_mensal m
       join public.folhas f2 on f2.competencia = m.competencia and f2.nutri_id = m.nutri_id
      where f2.status = 'fechada'), 0), 'FM999G999G990D00')
-     from public.financeiro_lancamentos l where l.origem = 'folha')              as diferenca;
+     from public.financeiro_lancamentos l
+    where l.origem = 'folha' and l.status <> 'cancelado')                        as diferenca;
