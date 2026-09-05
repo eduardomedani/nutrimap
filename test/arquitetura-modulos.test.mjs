@@ -215,14 +215,20 @@ grupo('arquitetura · o que mora no Financeiro da empresa', () => {
     contem(dadosFin, 'export function custoDoMes', 'faltou a soma que separa as parcelas');
   });
 
-  teste('o caixa importado não recria a folha dentro do Financeiro', () => {
-    // O seed importa 310 despesas e deixa 88 linhas de folha de fora. Se um dia
-    // o gerador parar de filtrar, o mesmo dinheiro passa a existir nos dois
-    // módulos — e é isso que este teste existe para pegar.
-    contem(gerador, 'export function ehFolha', 'faltou o filtro que separa folha de despesa');
+  teste('o caixa importado não escreve na folha, e marca o que é dela', () => {
+    // A folha da planilha DEIXOU de ser descartada: ela entra marcada em
+    // `metadata.folha`, e é a marca que faz `folhaDoPeriodo()` contar o custo
+    // de equipe uma vez só. O que continua proibido é o gerador MEXER na
+    // apuração — o caixa registra o pagamento, quem apura é o módulo Equipe.
+    contem(gerador, 'export function ehFolha', 'faltou o que distingue folha de despesa');
+    contem(gerador, "'{\"folha\": true}'::jsonb", 'a folha tem que entrar marcada');
     contem(gerador, "'despesa'", 'a importação é só de despesa');
-    naoContem(gerador, 'folha_itens', 'o gerador não escreve na folha');
-    naoContem(gerador, 'insert into public.folhas', 'o gerador não cria competência');
+    // Só as escritas: citar `folhas/folha_itens` na prosa é a explicação, e
+    // proibir a palavra proibiria explicar.
+    for (const escrita of ['insert into public.folha', 'update public.folha',
+                           'delete from public.folha']) {
+      naoContem(gerador, escrita, 'o gerador não escreve na apuração da folha');
+    }
   });
 });
 

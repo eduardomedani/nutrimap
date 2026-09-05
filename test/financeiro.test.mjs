@@ -7,12 +7,15 @@
 //
 //   1) somar como zero o lançamento que não tem valor — o total fica com cara
 //      de fechado sem estar;
-//   2) importar como despesa a linha de folha, que o módulo Equipe já apura —
-//      o mesmo dinheiro passa a existir em dois lugares.
+//   2) contar a folha duas vezes — uma pela linha importada, outra pela
+//      apuração de folhas/folha_itens.
 //
-// A segunda é a mais traiçoeira porque a planilha NÃO é consistente: há FOPAG
-// marcada como ADMINISTRATIVO e FOPAG sem centro de custo nenhum. Classificar
-// pela coluna teria duplicado R$ 53.859,25 sem nenhum aviso na tela.
+// A segunda mudou de forma, não de gravidade. A folha DEIXOU de ser descartada
+// na importação: ela entra marcada em `metadata.folha`, e é a marca que faz
+// `folhaDoPeriodo()` dar a competência a uma fonte só. O que continua valendo
+// é que a marca sai da DESCRIÇÃO, nunca da coluna: a planilha tem FOPAG em
+// ADMINISTRATIVO e FOPAG sem centro nenhum, e classificar pela coluna erraria
+// R$ 53.859,25 sem nenhum aviso na tela.
 
 import { grupo, teste, ok, igual, contem, naoContem } from './runner.mjs';
 import { readFileSync } from 'node:fs';
@@ -24,7 +27,7 @@ import {
 import {
   graficoReceitaDespesa, legendaHtml, SERIES, graficoFluxo, legendaFluxoHtml, SERIES_FLUXO,
 } from '../js/financeiro-grafico.js';
-import { lerValor, lerData, ehFolha, lerPlanilha, montarSql } from '../db/gerador_custos.mjs';
+import { lerValor, lerData, ehFolha, lerCsv, montarSql } from '../db/gerador_custos.mjs';
 
 const CATS = [
   { id: 'c1', nome: 'ADMINISTRATIVO' },
@@ -445,8 +448,8 @@ grupo('importação · a planilha de custos', () => {
 });
 
 // ───────────────────────────────────────────────────────────
-grupo('importação · o gerador separa folha de despesa', () => {
-  // Uma planilha mínima com as três armadilhas reais do arquivo do Eduardo.
+grupo('importação · o gerador marca a folha, e não a descarta', () => {
+  // Uma planilha mínima com as armadilhas reais do arquivo do Eduardo.
   const CSV = [
     'Data da Venda;Mês;Ano;Descrição;;Valor;Pago?;CENTRO DE CUSTO;Observações',
     '03/11/2025;11;2025;Energia;;R$ 1.437,79;Sim;ADMINISTRATIVO;',
@@ -454,38 +457,45 @@ grupo('importação · o gerador separa folha de despesa', () => {
     '20/05/2026;5;2026;FOPAG REF: MAIO26;;R$ 8.093,47;Sim;;',                    // folha sem centro
     '16/06/2025;6;2025;Uniformes (2/2);;R$ 1.313,25;Sim;COLABORADORES;',         // COLABORADORES sem ser folha
     '30/04/2026;4;2026;REFORMA INTERNA - CP;;;Sim;INVESTIMENTO;',                // sem valor
-    '13/05/2026;5;2026;Tomadas pretas;;R$ 417,14;Sim;;',                         // sem categoria
+    '13/05/2026;5;2026;Tomadas pretas;;R$ 417,14;Sim;;',                         // sem centro
     '15/07/2026;7;2026;REMADA CAVALINHA (2/5);;R$ 688,20;Não;;',                 // não pago
     ';;;;;;;;',
     ';;;;;;;;',
   ].join('\n');
 
-  const { dentro, fora } = lerPlanilha(CSV);
+  const linhas = lerCsv(CSV);
+  const folha = linhas.filter(r => r.folha);
 
-  teste('as duas FOPAG saem, mesmo com centro de custo diferente', () => {
-    igual(fora.map(r => r.descricao), ['FOPAG REF: JANEIRO26', 'FOPAG REF: MAIO26']);
-    igual(fora.reduce((s, r) => s + r.valor, 0), 15627.08);
+  teste('as duas FOPAG ENTRAM, e entram marcadas', () => {
+    // Antes elas eram descartadas. Agora a planilha é a fonte do histórico de
+    // folha (out/2023 a mai/2026) e a marca é o que impede a dupla contagem —
+    // ver `ehDespesaDeFolha` e `folhaDoPeriodo` em js/financeiro.js.
+    igual(folha.map(r => r.descricao), ['FOPAG REF: JANEIRO26', 'FOPAG REF: MAIO26']);
+    igual(folha.reduce((s, r) => s + r.valor, 0), 15627.08);
+    igual(linhas.length, 7, 'nenhuma linha da planilha pode ficar de fora');
   });
 
-  teste('Uniformes fica, mesmo estando em COLABORADORES', () => {
-    ok(dentro.some(r => r.descricao === 'Uniformes (2/2)'),
-       'linha de COLABORADORES que não é folha tem que entrar como despesa');
+  teste('a marca vem da descrição, mesmo com centro de custo diferente', () => {
+    // Uma das duas está em ADMINISTRATIVO e a outra sem centro nenhum.
+    ok(folha.every(r => r.folha));
+    ok(linhas.find(r => r.descricao === 'Uniformes (2/2)').folha === false,
+       'linha de COLABORADORES que não é folha não pode ser marcada');
   });
 
   teste('as linhas vazias do rodapé não viram lançamento', () => {
-    igual(dentro.length, 5);
+    igual(linhas.filter(r => !r.folha).length, 5);
   });
 
-  teste('sem valor e sem categoria entram assim mesmo, sem chute', () => {
-    const semValor = dentro.find(r => r.descricao === 'REFORMA INTERNA - CP');
+  teste('sem valor e sem centro entram assim mesmo, sem chute', () => {
+    const semValor = linhas.find(r => r.descricao === 'REFORMA INTERNA - CP');
     igual(semValor.valor, null, 'valor ausente não pode virar 0');
-    const semCat = dentro.find(r => r.descricao === 'Tomadas pretas');
-    igual(semCat.centro, '', 'centro ausente não pode ser inferido do texto');
+    const semCentro = linhas.find(r => r.descricao === 'Tomadas pretas');
+    igual(semCentro.centro, '', 'centro ausente não pode ser inferido do texto');
   });
 
   teste('"Não" na coluna Pago vira pago = false', () => {
-    igual(dentro.find(r => r.descricao.startsWith('REMADA')).pago, false);
-    igual(dentro.find(r => r.descricao === 'Energia').pago, true);
+    igual(linhas.find(r => r.descricao.startsWith('REMADA')).pago, false);
+    igual(linhas.find(r => r.descricao === 'Energia').pago, true);
   });
 });
 
@@ -498,7 +508,7 @@ grupo('importação · o SQL gerado', () => {
     '30/04/2026;4;2026;REFORMA INTERNA - CP;;;Sim;INVESTIMENTO;',
   ].join('\n');
 
-  const sql = montarSql(CSV);
+  const sql = montarSql(lerCsv(CSV));
 
   teste('apóstrofo na descrição é escapado', () => {
     // Sem isso, "Conserto d'água" fecha a string e o resto da linha vira comando.
@@ -510,13 +520,27 @@ grupo('importação · o SQL gerado', () => {
     naoContem(sql, "'REFORMA INTERNA - CP', 0.00", 'valor ausente não pode virar zero');
   });
 
-  teste('a folha não aparece no insert', () => {
-    // Só o bloco de dados: o cabeçalho do arquivo EXPLICA que a folha ficou de
-    // fora, e proibir a palavra ali proibiria a explicação.
+  teste('a folha ENTRA no insert, e entra marcada', () => {
+    // Era o contrário até a planilha virar a fonte do histórico de folha. O que
+    // impede a dupla contagem agora não é o descarte, é a marca: com ela,
+    // `folhaDoPeriodo()` deixa a apuração de folhas/folha_itens de fora daquela
+    // competência.
     const valores = sql.slice(sql.indexOf('insert into public.financeiro_lancamentos'),
                               sql.indexOf('as v(linha,'));
-    naoContem(valores, 'FOPAG', 'linha de folha não entra no financeiro');
-    naoContem(valores, 'Pagamento Professor', 'pagamento nominal é da folha');
+    contem(valores, 'FOPAG REF: JANEIRO26', 'a folha da planilha tem que entrar');
+    contem(sql, `case when v.folha then '{"folha": true}'::jsonb else '{}'::jsonb end`);
+  });
+
+  teste('o centro de custo vai para o campo de centro de custo', () => {
+    // A importação de 2026 gravou centro como CATEGORIA e precisou de uma
+    // migração para desfazer. A categoria fica nula: ela responde a natureza do
+    // gasto, que a planilha não informa.
+    contem(sql, 'insert into public.financeiro_centros_custo');
+    contem(sql, 'left join public.financeiro_centros_custo cc');
+    const colunas = sql.slice(sql.indexOf('insert into public.financeiro_lancamentos'),
+                              sql.indexOf('origem, origem_linha, metadata)'));
+    contem(colunas, 'centro_custo_id');
+    naoContem(colunas, 'categoria_id', 'a natureza do gasto não sai da coluna de alocação');
   });
 
   teste('a competência é derivada da data, como o CHECK do banco exige', () => {
@@ -537,7 +561,8 @@ grupo('importação · o SQL gerado', () => {
 
   teste('fecha com a conferência que devolve um número', () => {
     contem(sql, 'as lancamentos');
-    contem(sql, 'as sem_categoria');
+    contem(sql, 'as linhas_de_folha');
+    contem(sql, 'as sem_centro');
     contem(sql, 'as sem_valor');
   });
 });

@@ -31,7 +31,7 @@ import {
   competenciaAtiva, definirCompetencia, normalizar as normalizarCompetencia,
 } from './competencia.js';
 import {
-  mostrarToast, mostrarErro, confirmar, formatarBRL, valorDeTexto, mascaraDeCentavos,
+  mostrarToast, mostrarErro, confirmar, formatarBRL, valorDeTexto, mascararCampoDeDinheiro,
   formatarData, copiarParaClipboard,
 } from './utils.js';
 
@@ -668,7 +668,7 @@ function ligar() {
   //
   // `.fp-horas` fica de fora: "48:41" é tempo, não dinheiro.
   cont.querySelectorAll('.fp-vh, .fp-base-in').forEach(el =>
-    el.addEventListener('input', () => mascararDinheiro(el)));
+    el.addEventListener('input', () => mascararCampoDeDinheiro(el)));
 
   cont.querySelectorAll('.fp-horas, .fp-vh, .fp-base-in').forEach(el => {
     el.addEventListener('input', () => recalcularLinha(el.closest('tr')));
@@ -774,21 +774,6 @@ async function gravarLinha(tr) {
   });
 }
 
-/**
- * Aplica a máscara de centavos no campo e devolve o cursor para o FIM.
- *
- * O fim é o lugar certo, não uma simplificação: o número cresce da direita, e
- * cada tecla reescreve a linha inteira — separador de milhar aparece, vírgula
- * anda. Preservar a posição original deixaria o cursor no meio de uma pontuação
- * que mudou de lugar, e a tecla seguinte cairia onde ninguém pediu.
- */
-function mascararDinheiro(campo) {
-  const depois = mascaraDeCentavos(campo.value);
-  if (depois === campo.value) return;
-  campo.value = depois;
-  campo.setSelectionRange?.(depois.length, depois.length);
-}
-
 /** O lançamento e a linha que o contém, a partir do id do lançamento. */
 function acharAdicional(id) {
   for (const item of _itens) {
@@ -867,7 +852,7 @@ function abrirFormAdicional(itemId, adicionalId = null) {
 
   const desc = fundo.querySelector('.fp-add-desc');
   const val = fundo.querySelector('.fp-add-val');
-  val.addEventListener('input', () => mascararDinheiro(val));
+  val.addEventListener('input', () => mascararCampoDeDinheiro(val));
 
   // Corrigindo, os dois campos já nascem preenchidos. O foco vem lá embaixo,
   // depois de a combobox existir — ver o comentário antes de `desc.focus()`.
@@ -1772,8 +1757,12 @@ async function concluir() {
     _folhas = await listarFolhas();
     _itens = await carregarFolha(_folha.id);
     await carregarDocumentos();
+    // 'planilha' quer dizer que a competência já está no caixa pela planilha de
+    // despesas importada, e o espelho cedeu a vez. Dizer "lançada no
+    // Financeiro" aí seria mentira; não dizer nada faria parecer que falhou.
     mostrarToast(`✓ Folha fechada · ${publicados} ${publicados === 1 ? 'contracheque publicado' : 'contracheques publicados'}`
-      + (espelho ? ' · lançada no Financeiro' : ''));
+      + (espelho?.acao === 'planilha' ? ' · o mês já estava no Financeiro pela planilha'
+         : espelho ? ' · lançada no Financeiro' : ''));
     render();
   });
 }

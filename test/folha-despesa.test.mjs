@@ -338,3 +338,58 @@ grupo('folha no financeiro · o drawer da despesa', () => {
     contem(form, 'reabra a folha');
   });
 });
+
+// ───────────────────────────────────────────────────────────
+grupo('folha no financeiro · a planilha manda no passado', () => {
+  // As FOPAG de out/2023 a mai/2026 vieram da planilha de despesas, marcadas em
+  // `metadata.folha` (db/gerador_custos.mjs). Elas são despesa lançada E são
+  // folha: sem esse reconhecimento, o mês somaria a linha importada mais a
+  // apuração de folhas/folha_itens — a mesma dupla contagem que a importação
+  // antiga evitava jogando as FOPAG fora.
+  const FOPAG = {
+    tipo: 'despesa', origem: 'planilha', competencia: '2026-05-01',
+    descricao: 'FOPAG REF: ABRIL', valor: 8157.74, status: 'pago',
+    pago_em: '2026-05-04', metadata: { folha: true },
+  };
+
+  teste('a FOPAG importada é folha, mesmo com origem planilha', () => {
+    ok(ehDespesaDeFolha(FOPAG));
+    // E uma despesa comum da mesma importação continua sendo despesa.
+    ok(!ehDespesaDeFolha({ tipo: 'despesa', origem: 'planilha', descricao: 'Energia',
+                           metadata: {} }));
+    ok(!ehDespesaDeFolha({ origem: 'planilha', metadata: { folha: false } }));
+  });
+
+  teste('onde a planilha respondeu, a apuração não soma junto', () => {
+    const meses = folhaDoPeriodo([FOPAG], [{ competencia: '2026-05-01', total: 8157.74 }]);
+    igual(meses.length, 1, 'a competência não pode aparecer duas vezes');
+    igual(meses[0].total, 8157.74);
+    ok(meses[0].lancado);
+  });
+
+  teste('duas FOPAG no mesmo mês somam — é o que a planilha traz em 2026', () => {
+    // fev/26, mar/26, abr/26 e mai/26 têm a folha e mais R$ 2.000,00.
+    const meses = folhaDoPeriodo([
+      FOPAG,
+      { ...FOPAG, descricao: 'FOPAG REF: ABRIL', valor: 2000 },
+    ], []);
+    igual(meses[0].total, 10157.74);
+  });
+
+  teste('a FOPAG não entra como despesa de operação na série do ano', () => {
+    const serie = serieAnual([FOPAG, {
+      tipo: 'despesa', competencia: '2026-05-01', valor: 500, status: 'pago',
+      pago_em: '2026-05-06', origem: 'planilha', metadata: {},
+    }], [{ competencia: '2026-05-01', total: 8157.74 }], '2026');
+    igual(serie[4].despesa, 500);
+    igual(serie[4].folha, 8157.74);
+    igual(serie[4].custo, 8657.74, 'a folha entrou duas vezes');
+  });
+
+  teste('o espelho da folha cede a vez à planilha, no banco', () => {
+    // A trava não pode viver só na tela: rodar o backfill depois da importação
+    // criaria o segundo lançamento do mesmo mês.
+    contem(SQL, "l.metadata ->> 'folha' = 'true'");
+    contem(SQL, "'planilha'::text");
+  });
+});

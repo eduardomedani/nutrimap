@@ -77,18 +77,26 @@ export function contaNoTotal(l) {
 const somaveis = lista => (lista || []).filter(contaNoTotal);
 
 /**
- * A despesa é o espelho de uma folha fechada?
+ * A despesa é pagamento de gente?
  *
- * Reconhecida pela ORIGEM, e não pela descrição: "Folha de Pagamento - Agosto
- * de 2026" digitada à mão por alguém é uma despesa comum, e tratá-la como
- * espelho faria o Financeiro parar de somar a folha apurada daquele mês.
+ * DUAS MARCAS, DUAS PROCEDÊNCIAS, e as duas dizem a mesma coisa:
+ *
+ *   origem = 'folha'        o espelho de uma folha fechada no sistema
+ *                           (db/financeiro_folha_despesa.sql);
+ *   metadata.folha = true   a FOPAG da planilha de despesas, importada por
+ *                           db/gerador_custos.mjs — o histórico de out/2023 a
+ *                           mai/2026, anterior ao módulo.
+ *
+ * Reconhecida por marca, e nunca pela descrição: "Folha de Pagamento - Agosto
+ * de 2026" digitada à mão por alguém é uma despesa comum, e tratá-la como folha
+ * faria o Financeiro parar de somar a apuração daquele mês.
  *
  * Não olha `folha_id` porque a coluna não é lida pela tela — quem não rodou
  * db/financeiro_folha_despesa.sql não tem a coluna, e pedi-la no `select`
  * derrubaria o módulo inteiro por causa de um recurso que ele nem usa ainda.
  */
 export function ehDespesaDeFolha(l) {
-  return l?.origem === 'folha';
+  return l?.origem === 'folha' || l?.metadata?.folha === true;
 }
 
 /** Separa o que é operação do que é espelho da folha. As duas parcelas são

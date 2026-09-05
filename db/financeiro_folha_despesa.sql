@@ -33,6 +33,13 @@
 -- A folha continua sendo apurada em folhas/folha_itens. Este lancamento nao e
 -- fonte de nada: e o registro, no caixa, de um dinheiro que a folha ja sabia.
 --
+-- E HA UMA TERCEIRA FONTE, mais velha que as duas: as FOPAG da planilha de
+-- despesas (out/2023 a mai/2026), importadas com `metadata.folha` por
+-- db/gerador_custos.mjs. Onde ela existe, ela manda — a funcao abaixo nao cria
+-- espelho, e o front trata a linha importada como folha, nao como despesa de
+-- operacao. A ordem de precedencia e uma so, em todo lugar: planilha, depois
+-- lancamento, depois apuracao.
+--
 -- ===========================================================================
 -- POR QUE UMA RPC, E NAO UM INSERT DA TELA
 -- ---------------------------------------------------------------------------
@@ -148,6 +155,33 @@ begin
     return query
       select l.id, 'cancelado'::text, l.descricao, l.valor, l.status
         from public.financeiro_lancamentos l where l.id = v_id;
+    return;
+  end if;
+
+  -- ── A PLANILHA MANDA NO PASSADO ────────────────────────────────────────
+  -- As FOPAG de out/2023 a mai/2026 vieram da planilha de despesas
+  -- (db/gerador_custos.mjs), marcadas em `metadata.folha`. Onde ela ja
+  -- respondeu pela competencia, o espelho NAO entra: dois lancamentos de folha
+  -- no mesmo mes contariam o mesmo pagamento duas vezes, e a planilha e a fonte
+  -- que o dono confere.
+  --
+  -- Um espelho que porventura ja exista naquela competencia e cancelado, nao
+  -- apagado — pode ter nascido de um backfill rodado antes da importacao.
+  if exists (
+    select 1 from public.financeiro_lancamentos l
+     where l.nutri_id    = f.nutri_id
+       and l.tipo        = 'despesa'
+       and l.competencia = f.competencia
+       and l.origem      = 'planilha'
+       and l.metadata ->> 'folha' = 'true'
+       and l.status <> 'cancelado')
+  then
+    if v_id is not null then
+      update public.financeiro_lancamentos as l
+         set status = 'cancelado', atualizado_em = now()
+       where l.id = v_id and l.status <> 'cancelado';
+    end if;
+    return query select v_id, 'planilha'::text, null::text, null::numeric, null::text;
     return;
   end if;
 
