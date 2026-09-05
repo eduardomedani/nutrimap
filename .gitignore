@@ -99,3 +99,12 @@ db/comercial_pagamentos_observacao_restaurar.sql
 # Supabase, nao num repositorio publico.
 db/organizacao_caio_bootstrap.sql
 db/organizacao_caio_bootstrap_desfazer.sql
+
+# Limpeza das duplicatas da importacao de agosto/2026: os tres scripts trazem
+# NOME COMPLETO de cinco clientes, com data e valor do que cada um pagou. Mesma
+# regra de db/folha_correcao_bonus.sql — correcao pontual, ja rodada, que so faz
+# sentido nesta base. As conferencias que descobriram o problema
+# (db/conferencia/120 a 122) vao versionadas: elas nao nomeiam ninguem.
+db/financeiro_arquivar_duplicatas_vendas.sql
+db/financeiro_arquivar_duplicatas_vendas_desfazer.sql
+db/financeiro_apagar_duplicatas_vendas.sql
