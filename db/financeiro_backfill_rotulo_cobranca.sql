@@ -56,6 +56,19 @@ begin
     raise exception 'organizacao nao encontrada — nada foi tocado';
   end if;
 
+  -- ── 0) a dependencia ───────────────────────────────────────
+  -- O passo 2 chama `comercial_categoria_do_plano`, que nasce no script
+  -- anterior. Sem esta trava, o Postgres so reclama la embaixo, com
+  -- "function does not exist" e um CONTEXT de numero de linha — e quem le nao
+  -- descobre por essa mensagem que faltou rodar OUTRO arquivo.
+  --
+  -- A ordem importa e o bloco e transacional: rodar este primeiro nao suja
+  -- nada (o passo 1 volta atras junto com o erro), mas custa uma ida ao banco
+  -- para descobrir o obvio.
+  if to_regprocedure('public.comercial_categoria_do_plano(uuid,uuid)') is null then
+    raise exception 'rode db/comercial_rotulo_da_cobranca.sql ANTES deste — e ele que cria comercial_categoria_do_plano(). Nada foi tocado.';
+  end if;
+
   -- ── 1) a descricao ─────────────────────────────────────────
   with alvo as (
     select l.id,
