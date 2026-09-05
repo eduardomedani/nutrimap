@@ -237,3 +237,63 @@ grupo('bônus · a conta fecha', () => {
     igual(r.impares[0].dias[0], '2026-08-10');
   });
 });
+
+grupo('bônus · aluno com desconto demais não gera nada', () => {
+  // Regra de 05/09/2026: só gera bônus o aluno com até 7% de desconto — a
+  // mesma régua do bônus por aluno ativo. Cortesia (100% de desconto) cai aqui
+  // por consequência, sem precisar de caso próprio.
+  //
+  // Quem decide é quem CHAMA: aqui só se sabe o nome que veio na planilha, e o
+  // desconto mora na assinatura. Por isso a opção é um predicado.
+  const dias = ['03', '04', '05', '06', '07', '10', '11', '12', '13', '14',
+    '17', '18', '19', '20', '21', '24', '25', '26', '27', '28', '31'];
+  const estag = pessoa('E', 'Estagiária', dias.map(d => turno(d, 400, 600)));
+  const linhas = [CAB,
+    ...dias.map(d => pres('Paga', 'Mensal [5 dias]', d, '07:00')),
+    ...dias.map(d => pres('Cortesia', 'Mensal [5 dias]', d, '07:10')),
+  ];
+
+  teste('sem a lista, ninguém é barrado — o comportamento de antes', () => {
+    // O default tem de ser "não barre": é o que faz a falha da consulta ao
+    // banco pagar a mais, e não zerar a folha inteira em silêncio.
+    const r = calcularBonus(lerPresencas(linhas), [estag], { ate: '2026-08-31' });
+    igual(r.linhas[0].presencas, 42);
+    igual(r.comDesconto, 0);
+  });
+
+  teste('com a lista, a presença do inelegível não paga', () => {
+    const r = calcularBonus(lerPresencas(linhas), [estag], {
+      ate: '2026-08-31',
+      alunoElegivel: nome => nome === 'Paga',
+    });
+    igual(r.linhas[0].presencas, 21, 'só as do aluno elegível');
+    igual(r.comDesconto, 21);
+    perto(r.linhas[0].valor, 21 * 1.00, 0.01);
+  });
+
+  teste('o inelegível não vira "sem dono" nem "sem plano"', () => {
+    // Se caísse num desses baldes, o resumo da tela diria que faltou
+    // estagiário na sala ou que o plano estava ilegível — e mandaria alguém
+    // caçar um problema que não existe.
+    const r = calcularBonus(lerPresencas(linhas), [estag], {
+      ate: '2026-08-31',
+      alunoElegivel: nome => nome === 'Paga',
+    });
+    igual(r.semDono, 0);
+    igual(r.semPlano, 0);
+    igual(r.comDono, 21, 'comDono desconta os inelegíveis, senão o total não fecha');
+  });
+
+  teste('barrar um dos dois na sala não vira presença dividida', () => {
+    // A divisão é entre COLABORADORES na sala, não entre alunos. Um aluno
+    // barrado simplesmente não existe para a conta.
+    const a = pessoa('A', 'Estagiária', dias.map(d => turno(d, 400, 600)));
+    const b = pessoa('B', 'Estagiária', dias.map(d => turno(d, 400, 600)));
+    const r = calcularBonus(lerPresencas(linhas), [a, b], {
+      ate: '2026-08-31',
+      alunoElegivel: nome => nome === 'Paga',
+    });
+    igual(r.divididas, 21);
+    perto(r.total, 21 * 1.00, 0.01);
+  });
+});

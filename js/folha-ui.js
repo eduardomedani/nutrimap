@@ -21,6 +21,7 @@ import {
   traduzirErroFolha, traduzirErroLancamento,
   lancarFolhaNoFinanceiro, descricaoDespesaDaFolha,
   alunosPorTurno, diaDaContagem, mesTrabalhado, TURNOS_COM_BONUS, rotuloDoBonus, turnoDoBonus, valorDoBonus,
+  alunosDoBonus, nomeParaBusca,
   DESCONTO_MAXIMO,
   BONUS_POR_ALUNO,
 } from './folha.js';
@@ -1305,10 +1306,24 @@ async function recalcularBonusDePresenca() {
       return new File([await resp.blob()], registro.nome_arquivo);
     };
     const [fPres, fPonto] = await Promise.all([baixar(presencas), baixar(ponto)]);
+
+    // QUEM TEM DESCONTO DEMAIS NÃO GERA BÔNUS — a mesma régua do bônus por
+    // aluno ativo. A lista vem do banco porque o desconto mora na assinatura, e
+    // as duas planilhas não sabem nada sobre contrato.
+    //
+    // Falhar aqui devolve `null`, e `null` significa "não barre ninguém". É
+    // deliberado: sem a lista, o mês fecha pagando a mais — erro que aparece na
+    // conferência e se corrige — em vez de fechar pagando zero para todo mundo,
+    // que só se descobre quando o estagiário reclama.
+    const elegiveis = await alunosDoBonus(_folha.competencia).catch(() => null);
+
     _bonus = calcularBonus(
       lerPresencas(await lerPrimeiraAba(fPres)),
       await lerEspelhoDePonto(fPonto),
-      { ate: diaDaContagem(_folha.competencia) },
+      {
+        ate: diaDaContagem(_folha.competencia),
+        alunoElegivel: elegiveis ? (nome => elegiveis.has(nomeParaBusca(nome))) : null,
+      },
     );
   } catch (e) {
     // Falhar aqui não pode derrubar a folha: sem o bônus a tela continua
@@ -1582,6 +1597,9 @@ export function bonusPresencaHtml(bonus, itens = []) {
             ${bonus.comDono} de ${bonus.visitas} presenças tiveram estagiário na sala.
             ${bonus.semDono ? `${bonus.semDono} aconteceram sem ninguém no ponto.` : ''}
             ${bonus.semPlano ? `${bonus.semPlano} são de aluno sem plano legível.` : ''}
+            ${bonus.comDesconto
+              ? `${bonus.comDesconto} são de aluno com mais de ${Math.round(DESCONTO_MAXIMO * 100)}% de desconto, que não gera bônus.`
+              : ''}
           </p>
         </div>
         <button class="btn primary" data-fp-lancar-bonus ${aplicaveis ? '' : 'disabled'}>

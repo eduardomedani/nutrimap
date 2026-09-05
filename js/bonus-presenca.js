@@ -58,6 +58,7 @@ function presentes(pessoas, dia, minuto) {
 export function calcularBonus(presencas = [], pessoas = [], {
   ate,
   elegivel = p => /estagi/i.test(String(p.funcao || '')),
+  alunoElegivel = null,
 } = {}) {
   const alunos = retratoDosAlunos(presencas, { ate });
   const pctDoAluno = new Map(alunos.map(a => [a.cliente, a.pct]));
@@ -68,9 +69,19 @@ export function calcularBonus(presencas = [], pessoas = [], {
     presencas: 0, divididas: 0, valor: 0,
   }]));
 
-  let semDono = 0, semPlano = 0, divididas = 0;
+  let semDono = 0, semPlano = 0, divididas = 0, comDesconto = 0;
 
   for (const v of visitas(presencas)) {
+    // DESCONTO ALTO NÃO GERA BÔNUS, a mesma régua do bônus por aluno ativo
+    // (`DESCONTO_MAXIMO`, hoje 7%). Quem decide é quem chama: aqui só se sabe
+    // o nome que veio na planilha, e o desconto mora na assinatura.
+    //
+    // Sem a lista, ninguém é barrado. É de propósito: se a consulta ao banco
+    // falhar, o mês fecha pagando a mais — que se corrige — em vez de fechar
+    // pagando zero para todo mundo, que ninguém percebe até o estagiário
+    // reclamar.
+    if (alunoElegivel && !alunoElegivel(v.cliente)) { comDesconto++; continue; }
+
     const pct = pctDoAluno.get(v.cliente);
     // Sem plano legível não há aproveitamento, e sem aproveitamento não há
     // faixa. Pagar pelo piso seria inventar um dado que o arquivo não tem.
@@ -103,9 +114,12 @@ export function calcularBonus(presencas = [], pessoas = [], {
     linhas,
     total: Math.round(linhas.reduce((s, r) => s + r.valor, 0) * 100) / 100,
     visitas: V.length,
-    comDono: V.length - semDono - semPlano,
+    comDono: V.length - semDono - semPlano - comDesconto,
     semDono,
     semPlano,
+    // Sai no resumo da tela, e não só na conta: uma queda no bônus sem motivo
+    // visível é o tipo de coisa que vira desconfiança na folha.
+    comDesconto,
     divididas,
     impares: pessoas.filter(p => p.impares?.length)
       .map(p => ({ nome: p.nome, dias: p.impares.map(i => i.dia) })),

@@ -38,17 +38,24 @@ export const STATUS_FOLHA = { rascunho: 'Rascunho', fechada: 'Fechada' };
 export const BONUS_POR_ALUNO = 10;
 
 /**
- * Ate quanto de desconto o aluno ainda conta para o bonus. 10% desde
- * 03/09/2026 — antes eram 20%.
+ * Ate quanto de desconto o aluno ainda conta para o bonus. 7% desde
+ * 05/09/2026 — era 10%, e antes disso 20%.
  *
- * O NUMERO MORA AQUI E A TELA O LE, em vez de a prosa repetir "mais de 10%"
+ * O NUMERO MORA AQUI E A TELA O LE, em vez de a prosa repetir "mais de 7%"
  * escrito a mao. Repetido, ele vira duas fontes que discordam no dia em que uma
  * mudar — e a que a pessoa le seria justamente a que nao decide nada.
  *
- * Vai como PARAMETRO para a funcao do banco. O default de la existe para quem
- * a chama sem argumento (a conferencia 113), e os dois sao mantidos iguais.
+ * VALE PARA OS DOIS BONUS desde 05/09/2026. Ate entao so o bonus POR ALUNO
+ * olhava desconto; o de PRESENCA pagava por qualquer aluno que entrasse na
+ * sala, inclusive quem tinha 40% de abatimento ou era cortesia. Eram duas
+ * reguas para a mesma pergunta — "este aluno da lucro suficiente para gerar
+ * bonus?" — e so uma delas respondia.
+ *
+ * Vai como PARAMETRO para as funcoes do banco. O default de la existe para
+ * quem as chama sem argumento (a conferencia 113), e os dois sao mantidos
+ * iguais.
  */
-export const DESCONTO_MAXIMO = 0.10;
+export const DESCONTO_MAXIMO = 0.07;
 
 /**
  * Os turnos que geram bônus, e o rótulo de cada um.
@@ -520,6 +527,43 @@ export async function alunosPorTurno(competencia) {
   const fora = {};
   for (const linha of data || []) fora[linha.turno] = Number(linha.alunos) || 0;
   return fora;
+}
+
+/**
+ * Como comparar um nome da planilha com um nome do cadastro.
+ *
+ * Sem acento e sem caixa porque os dois discordam em vários nomes — o cadastro
+ * tem "Valadolide", a planilha tem "Valodolide"; um tem "Tófoli", o outro
+ * "Tofoli". Comparar cru diria "não elegível" para gente que é, e o estagiário
+ * perderia bônus por causa de um til.
+ *
+ * A MESMA regra roda no banco (`comercial_alunos_do_bonus` devolve
+ * `nome_busca` já normalizado). Duas normalizações que precisam ser mantidas
+ * iguais são duas que vão divergir; esta existe só para o lado da planilha.
+ */
+export const nomeParaBusca = nome => String(nome || '')
+  .trim().toLowerCase()
+  .normalize('NFD').replace(/\p{Diacritic}/gu, '');
+
+/**
+ * Os alunos que geram bônus na competência — os que têm até `DESCONTO_MAXIMO`
+ * de desconto.
+ *
+ * Devolve um Set de nomes normalizados, e não a lista crua, porque quem usa
+ * isso pergunta "este nome está aqui?" mil vezes por folha: uma vez por
+ * presença da planilha.
+ *
+ * A MESMA DATA de corte do bônus por aluno (`diaDaContagem`), de propósito. Os
+ * dois bônus respondem à mesma pergunta sobre o mesmo aluno; medi-la em dias
+ * diferentes faria um pagar e o outro não, sem que nada na tela explicasse.
+ */
+export async function alunosDoBonus(competencia) {
+  const { data, error } = await sb.rpc('comercial_alunos_do_bonus', {
+    p_ref: diaDaContagem(competencia),
+    p_desconto_maximo: DESCONTO_MAXIMO,
+  });
+  if (error) throw error;
+  return new Set((data || []).map(l => l.nome_busca).filter(Boolean));
 }
 
 /**
