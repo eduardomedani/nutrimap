@@ -139,6 +139,23 @@ export function traduzirErroContracheque(msg) {
     return 'O repositório de documentos não aceita mais o contracheque (text/html). '
       + 'Rode db/documentos_mime_do_app.sql no Supabase e feche a folha de novo.';
   }
+  // AS DUAS CAUSAS DE COLISÃO EM `uniq_cd_atual`, e elas pedem coisas
+  // diferentes de quem lê:
+  //
+  //   . o contracheque anterior EXISTE E NÃO É VISÍVEL para esta conta — foi
+  //     publicado antes da Etapa 4C, com o uuid da pessoa no lugar do da
+  //     organização. Nenhuma quantidade de "tente de novo" resolve: é dado a
+  //     corrigir no banco.
+  //   . o anterior é visível e alguém publicou ao mesmo tempo, de outra aba.
+  if (m.includes('documento_atual_invisivel')) {
+    return 'Existe um contracheque desta competência gravado em outro dono, invisível '
+      + 'para esta conta. Rode db/conferencia/119_documentos_fora_da_organizacao.sql '
+      + 'para ver quais são e db/documentos_trazer_para_organizacao.sql para corrigir.';
+  }
+  if (m.includes('uniq_cd_atual')) {
+    return 'Outra aba publicou este contracheque ao mesmo tempo. Recarregue a página: '
+      + 'se o documento já estiver lá, não há nada a refazer.';
+  }
   if (m.includes('row-level security') || m.includes('unauthorized')) {
     return 'Sem permissão para publicar este contracheque.';
   }

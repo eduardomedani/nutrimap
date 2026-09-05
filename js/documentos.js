@@ -198,6 +198,20 @@ export async function urlAssinada(caminho, segundos = 3600) {
  * Se já existe versão atual do mesmo tipo/competência:
  *   . conteúdo idêntico (mesmo hash) → não duplica, devolve o que existe;
  *   . conteúdo diferente → nova versão, a anterior fica atual = false.
+ *
+ * A TROCA DE VERSÃO ACONTECE ANTES DO INSERT, e isso não é preferência: o
+ * índice `uniq_cd_atual (colaborador_id, competencia, tipo_documento) where
+ * atual` permite UMA linha atual por competência. Inserir a nova como atual
+ * com a anterior ainda atual viola a chave, e o banco recusa —
+ * "duplicate key value violates unique constraint uniq_cd_atual", justamente no
+ * fechamento da folha de quem teve o valor corrigido depois da primeira
+ * publicação. Quem não mudou nada nem chega aqui: o hash igual devolve o
+ * documento existente algumas linhas acima, e foi isso que escondeu o defeito
+ * até alguém precisar republicar UM contracheque.
+ *
+ * O RISCO DA ORDEM NOVA — falhar o insert e deixar a competência sem versão
+ * atual — é desfeito na hora: o `catch` devolve `atual = true` à anterior antes
+ * de propagar o erro. Uma janela de milissegundos, e nada de permanente.
  */
 export async function guardarDocumento({
   colaboradorId, competencia, tipo,
@@ -239,6 +253,14 @@ export async function guardarDocumento({
   });
   if (erroUpload) throw erroUpload;
 
+  // A anterior deixa de ser atual ANTES de a nova entrar — ver o cabeçalho.
+  if (atual) {
+    const { error: erroTroca } = await sb.from('colaborador_documentos')
+      .update({ atual: false, atualizado_em: new Date().toISOString() })
+      .eq('id', atual.id);
+    if (erroTroca) throw erroTroca;
+  }
+
   const { data, error } = await sb
     .from('colaborador_documentos')
     .insert({
@@ -267,14 +289,30 @@ export async function guardarDocumento({
       },
     })
     .select().single();
-  if (error) throw error;
+  if (error) {
+    // Desfaz a troca: sem isto, a competência ficaria sem nenhuma versão atual
+    // e o colaborador deixaria de ver o documento que ele já tinha.
+    if (atual) {
+      await sb.from('colaborador_documentos')
+        .update({ atual: true, atualizado_em: new Date().toISOString() })
+        .eq('id', atual.id);
+    }
 
-  // Só depois de a nova existir a anterior deixa de ser atual: se a ordem
-  // fosse inversa, uma falha aqui deixaria a competência sem versão atual.
-  if (atual) {
-    await sb.from('colaborador_documentos')
-      .update({ atual: false, atualizado_em: new Date().toISOString() })
-      .eq('id', atual.id);
+    // COLIDIU COM UMA VERSÃO ATUAL QUE A LEITURA NÃO DEVOLVEU.
+    //
+    // `uniq_cd_atual` é um índice da TABELA e enxerga toda linha; o SELECT
+    // acima passa pela RLS e só enxerga as da organização. Um documento
+    // publicado antes da Etapa 4C, quando a policy era `nutri_id = auth.uid()`
+    // e o dono gravado era o uuid da PESSOA, ficou fora da organização: ele não
+    // aparece em `anteriores`, não é trocado, e trava o insert.
+    //
+    // O erro cru ("duplicate key value violates unique constraint") manda quem
+    // lê procurar no lugar errado — é o defeito da tela, quando na verdade é
+    // dado de tenancy antiga. Ver db/conferencia/119.
+    if (!atual && /uniq_cd_atual/i.test(error.message || '')) {
+      throw new Error('documento_atual_invisivel');
+    }
+    throw error;
   }
 
   return { documento: data, duplicado: false, versaoAnterior: atual || null };
@@ -486,6 +524,11 @@ export function traduzirErroDocumento(msg) {
   if (m.includes('documento_sem_tipo')) return 'Documento sem tipo definido.';
   if (m.includes('documento_tipo_nao_aceito')) return 'Formato não aceito. Envie PDF ou HTML.';
   if (m.includes('documento_grande_demais')) return 'Arquivo grande demais (máximo 15 MB).';
+  if (m.includes('documento_atual_invisivel')) {
+    return 'Já existe um documento desta competência que esta conta não enxerga — gravado '
+      + 'em outro dono, antes da migração de tenancy. Rode '
+      + 'db/conferencia/119_documentos_fora_da_organizacao.sql para ver quais são.';
+  }
   if (m.includes('uniq_cd_atual')) return 'Já existe uma versão atual deste documento.';
   if (m.includes('pendencia_nao_encontrada')) return 'Esta pendência já foi resolvida por outra aba.';
   if (m.includes('colaborador_invalido')) return 'Colaborador não encontrado na sua equipe.';

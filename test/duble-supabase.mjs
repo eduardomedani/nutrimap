@@ -29,8 +29,17 @@ export function tabela(nome, linhas) { _tabelas.set(nome, linhas || []); }
 /** Programa um rpc. `rpc('foods_buscar', p => [...])` */
 export function rpc(nome, fn) { _rpcs.set(nome, fn); }
 
-/** Faz a próxima operação nesta tabela falhar (testa o caminho de erro). */
-export function falhar(nomeTabela, mensagem) { _erros.set(nomeTabela, { message: mensagem }); }
+/**
+ * Faz a próxima operação nesta tabela falhar (testa o caminho de erro).
+ *
+ * `operacao` restringe a QUAL delas: sem isso não dá para testar um fluxo que
+ * lê, atualiza e insere na mesma tabela — o erro seria consumido pelo select e
+ * o caminho que interessa nem seria alcançado. É o caso da troca de versão de
+ * documento, onde só o insert pode falhar.
+ */
+export function falhar(nomeTabela, mensagem, operacao = null) {
+  _erros.set(nomeTabela, { erro: { message: mensagem }, operacao });
+}
 
 /** Faz a próxima operação do Storage falhar. `falharStorage('remove', '...')` */
 export function falharStorage(operacao, mensagem) { _errosStorage.set(operacao, { message: mensagem }); }
@@ -53,8 +62,11 @@ function cadeia(tabelaNome, operacao, payload) {
   chamadas.push(registro);
 
   const resolver = () => {
-    const erro = _erros.get(tabelaNome);
-    if (erro) { _erros.delete(tabelaNome); return { data: null, error: erro }; }
+    const programado = _erros.get(tabelaNome);
+    if (programado && (!programado.operacao || programado.operacao === operacao)) {
+      _erros.delete(tabelaNome);
+      return { data: null, error: programado.erro };
+    }
     if (operacao !== 'select') return { data: payload ?? null, error: null };
 
     let linhas = [..._tabelas.get(tabelaNome) || []];

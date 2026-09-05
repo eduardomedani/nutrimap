@@ -145,13 +145,21 @@ grupo('documentos · versões e duplicidade', () => {
     ok(/return \{ documento: atual, duplicado: true \}/.test(dados), 'reenvio devolve o que existe');
   });
 
-  teste('a anterior só deixa de ser atual depois da nova existir', () => {
-    // Na ordem inversa, uma falha deixaria a competência sem versão atual.
-    // Posição do .insert() logo depois do .from(): procurar o trecho com a
-    // quebra de linha embutida falharia em máquina com CRLF.
+  teste('a anterior deixa de ser atual ANTES de a nova entrar', () => {
+    // A ORDEM ERA A INVERSA, e estava errada: `uniq_cd_atual` só permite uma
+    // linha atual por (colaborador, competência, tipo), então inserir a nova
+    // como atual com a anterior ainda atual viola a chave. O fechamento da
+    // folha falhava com "duplicate key value violates unique constraint
+    // uniq_cd_atual" para quem teve o contracheque corrigido — e só para essa
+    // pessoa, porque quem não mudou nada sai antes pelo hash igual.
+    //
+    // O que a ordem antiga protegia — nunca ficar sem versão atual — passou a
+    // ser feito pela compensação no `catch`, testada em
+    // test/documentos-versao.test.mjs.
     const iInsert = dados.indexOf('.insert(', dados.indexOf("from('colaborador_documentos')"));
     const iUpdate = dados.indexOf('.update({ atual: false');
-    ok(iInsert > 0 && iUpdate > iInsert, 'o insert da nova vem antes de baixar a anterior');
+    ok(iUpdate > 0 && iUpdate < iInsert, 'a troca tem que vir antes do insert');
+    ok(dados.includes('.update({ atual: true'), 'faltou a compensação do insert que falha');
   });
 
   teste('o arquivo sobe antes do registro existir', () => {
