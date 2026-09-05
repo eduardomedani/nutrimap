@@ -1842,3 +1842,22 @@ grupo('comercial · cortesia — as RPCs', () => {
     igual((codigo.match(/from public, anon;/g) || []).length, 2);
   });
 });
+
+grupo('comercial · cortesia — a migration se basta', () => {
+  const sql = readFileSync(new URL('../db/comercial_bonificacao_rpc.sql', import.meta.url), 'utf8');
+
+  teste('A TRILHA APRENDE AS AÇÕES NO MESMO ARQUIVO DAS RPCs', () => {
+    // Sem isto, quem instalasse só as RPCs teria os dois botões na tela e as
+    // duas estourando no insert da auditoria — DEPOIS de já terem trocado o
+    // plano, porque o update vem antes. Foi o que a conferência pegou na
+    // primeira rodada (`acoes_na_trilha = false`).
+    contem(sql, 'comercial_assinatura_auditoria_acao_check');
+    contem(sql, "'bonificada', 'bonificacao_desfeita'");
+  });
+
+  teste('o CHECK vem ANTES das funções que dependem dele', () => {
+    const iCheck = sql.indexOf('comercial_assinatura_auditoria_acao_check');
+    const iRpc = sql.indexOf('function public.comercial_tornar_bonificacao');
+    ok(iCheck > 0 && iRpc > 0 && iCheck < iRpc, 'a dependência precisa ser criada primeiro');
+  });
+});

@@ -1,8 +1,7 @@
 -- ===========================================================================
 -- Evollo · BONIFICACAO PELA TELA — tornar e desfazer
 -- ---------------------------------------------------------------------------
--- Requer db/comercial_bonificar_assinatura.sql (dele vem a acao 'bonificada'
--- no CHECK da auditoria). 100% re-executavel.
+-- Nao requer nada alem do modulo comercial. 100% re-executavel.
 --
 -- POR QUE ISTO EXISTE. Ate agora virar cortesia era um script por pessoa
 -- (db/comercial_bonificar_assinatura.sql). Funciona uma vez; nao funciona como
@@ -45,6 +44,26 @@
 -- Rodar no SQL Editor do Supabase.
 -- Para colar, use db/comercial_bonificacao_rpc_LIMPO.sql
 -- ===========================================================================
+
+
+-- ===========================================================================
+-- 0) A trilha aprende as duas acoes
+-- ---------------------------------------------------------------------------
+-- O CHECK de `acao` lista so as tres da renovacao programada, e o proprio
+-- arquivo que o criou diz que quem precisar de outra amplia aqui
+-- (db/comercial_renovacao_programada.sql:144).
+--
+-- ISTO PRECISA MORAR NESTE ARQUIVO, e nao so no script por pessoa. Foi assim
+-- que a conferencia deu `acoes_na_trilha = false` na primeira rodada: quem
+-- instalasse so as RPCs teria os dois botoes na tela e as duas estourando no
+-- insert da auditoria — depois de ja terem trocado o plano, porque o update
+-- vem antes. Migration que depende de outra ter sido rodada e migration que um
+-- dia vai faltar.
+-- ===========================================================================
+alter table public.comercial_assinatura_auditoria drop constraint if exists comercial_assinatura_auditoria_acao_check;
+alter table public.comercial_assinatura_auditoria add  constraint comercial_assinatura_auditoria_acao_check
+  check (acao in ('renovacao_programada', 'renovacao_cancelada', 'renovada',
+                  'bonificada', 'bonificacao_desfeita'));
 
 
 -- ===========================================================================
