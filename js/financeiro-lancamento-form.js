@@ -39,6 +39,7 @@ import {
 import {
   secaoOrigemHtml, validarOrigem, modoDeSalvar, preencherDaCobranca, origemDoLancamento,
 } from './financeiro-origem.js';
+import { mascaraDeCentavos, mascararCampoDeDinheiro } from './utils.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -196,6 +197,13 @@ export async function abrirLancamento({
     // somem, e mantê-los escondidos no DOM faria o coletar() ler campo morto.
     const status = fundo.querySelector('#dspStatus');
     if (status) status.addEventListener('change', () => { form = coletar(); sujo = true; desenhar(); });
+
+    // O DINHEIRO SE FORMATA ENQUANTO SE DIGITA, como na folha. "125" mostra
+    // R$ 1,25 na hora, e a diferença entre 1.250 e 12,50 para de depender de
+    // quem digita lembrar da vírgula — foi o defeito corrigido em d6481fb,
+    // aqui pela segunda porta.
+    const valor = fundo.querySelector('#dspValor');
+    if (valor) valor.addEventListener('input', () => mascararCampoDeDinheiro(valor));
 
     const semValor = fundo.querySelector('#dspSemValor');
     if (semValor) semValor.addEventListener('change', () => { form = coletar(); sujo = true; desenhar(); });
@@ -418,7 +426,7 @@ export function drawerHtml(ctx = {}) {
           <div class="dsp-campo${cls(erros, 'valor')}">
             <label for="dspValor">Valor total <span class="dsp-req" aria-hidden="true">*</span></label>
             <input type="text" id="dspValor" class="np-input" placeholder="R$ 0,00" inputmode="decimal"
-                   value="${esc(f.valor)}"${f.valorIndefinido ? ' disabled' : ''}${aria(erros, 'valor')}>
+                   value="${esc(mascaraDeCentavos(f.valor))}"${f.valorIndefinido ? ' disabled' : ''}${aria(erros, 'valor')}>
             ${erroHtml(erros, 'valor')}
             <label class="dsp-check">
               <input type="checkbox" id="dspSemValor"${f.valorIndefinido ? ' checked' : ''}>

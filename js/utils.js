@@ -265,6 +265,26 @@ export function mascaraDeCentavos(texto) {
 }
 
 /**
+ * Aplica a máscara ao campo enquanto se digita, e leva o cursor para o FIM.
+ *
+ * O fim é o lugar certo, não uma simplificação: o número cresce da direita, e
+ * cada tecla reescreve a linha inteira — separador de milhar aparece, vírgula
+ * anda. Preservar a posição original deixaria o cursor no meio de uma pontuação
+ * que mudou de lugar, e a tecla seguinte cairia onde ninguém pediu.
+ *
+ * Sai daqui, e não de cada tela, porque o campo de dinheiro da folha e o do
+ * financeiro têm que se comportar igual: dois trechos iguais em dois módulos
+ * divergem no primeiro ajuste de um lado só.
+ */
+export function mascararCampoDeDinheiro(campo) {
+  if (!campo) return;
+  const depois = mascaraDeCentavos(campo.value);
+  if (depois === campo.value) return;
+  campo.value = depois;
+  campo.setSelectionRange?.(depois.length, depois.length);
+}
+
+/**
  * "R$ 1.234,56", "1234,56" ou "1234.56" → 1234.56. Aceita negativo (desconto).
  * Devolve null quando não dá para ler um número.
  */

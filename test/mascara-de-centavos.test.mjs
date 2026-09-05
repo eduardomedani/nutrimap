@@ -141,11 +141,26 @@ grupo('máscara de centavos · fecha o ciclo com o resto do sistema', () => {
 });
 
 grupo('máscara de centavos · onde ela está ligada', () => {
+  // A função que mexe no campo mora em js/utils.js desde que o Financeiro
+  // passou a usá-la também: o campo de dinheiro da folha e o do lançamento têm
+  // que se comportar igual, e dois trechos iguais em dois módulos divergem no
+  // primeiro ajuste de um lado só.
   teste('nos campos de dinheiro da folha, e no lançamento', () => {
-    ok(/querySelectorAll\('\.fp-vh, \.fp-base-in'\)[\s\S]{0,120}mascararDinheiro/.test(UI),
+    ok(/querySelectorAll\('\.fp-vh, \.fp-base-in'\)[\s\S]{0,120}mascararCampoDeDinheiro/.test(UI),
       'faltou ligar nos campos de valor/hora e valor fixo');
-    ok(/val\.addEventListener\('input', \(\) => mascararDinheiro\(val\)\)/.test(UI),
+    ok(/val\.addEventListener\('input', \(\) => mascararCampoDeDinheiro\(val\)\)/.test(UI),
       'faltou ligar no campo Valor do lançamento');
+  });
+
+  teste('e no Valor total do Financeiro', () => {
+    // Receita e despesa usam o mesmo drawer. Sem a máscara, "1250" salvava mil
+    // duzentos e cinquenta reais onde a pessoa quis doze e cinquenta — o mesmo
+    // defeito que a folha já tinha corrigido, pela outra porta.
+    const form = readFileSync(new URL('../js/financeiro-lancamento-form.js', import.meta.url), 'utf8');
+    ok(/valor\.addEventListener\('input', \(\) => mascararCampoDeDinheiro\(valor\)\)/.test(form),
+      'faltou ligar no campo Valor total');
+    ok(/value="\$\{esc\(mascaraDeCentavos\(f\.valor\)\)\}"/.test(form),
+      'o campo tem que NASCER no mesmo formato que a máscara escreve');
   });
 
   teste('NÃO nas horas — "48:41" é tempo, não dinheiro', () => {
@@ -159,7 +174,7 @@ grupo('máscara de centavos · onde ela está ligada', () => {
     // recálculo leria "1250" como mil duzentos e cinquenta e o total piscaria
     // esse número antes de o campo virar R$ 12,50.
     const semComentario = UI.split('\n').filter(l => !l.trim().startsWith('//'));
-    const mascara = semComentario.findIndex(l => l.includes('mascararDinheiro(el)'));
+    const mascara = semComentario.findIndex(l => l.includes('mascararCampoDeDinheiro(el)'));
     const recalculo = semComentario.findIndex(l => l.includes('recalcularLinha(el.closest'));
     ok(mascara > 0 && recalculo > 0, 'não achei os dois handlers');
     ok(mascara < recalculo,
@@ -170,7 +185,12 @@ grupo('máscara de centavos · onde ela está ligada', () => {
     // O número cresce da direita e a pontuação anda a cada tecla. Preservar a
     // posição original deixaria o cursor no meio de um separador que mudou de
     // lugar, e a tecla seguinte cairia onde ninguém pediu.
-    ok(/setSelectionRange\?\.\(depois\.length, depois\.length\)/.test(UI));
+    //
+    // Confere em js/utils.js, que é onde a função passou a morar quando o
+    // Financeiro começou a usá-la: procurar em folha-ui.js daria falso alarme
+    // justamente por ela ter deixado de ser duplicada.
+    const utils = readFileSync(new URL('../js/utils.js', import.meta.url), 'utf8');
+    ok(/setSelectionRange\?\.\(depois\.length, depois\.length\)/.test(utils));
   });
 
   teste('o campo mostra o mesmo formato que a máscara escreve', () => {
