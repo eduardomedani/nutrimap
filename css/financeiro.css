@@ -2469,3 +2469,9 @@ tbody tr.dsp-linha:focus-visible { outline: 2px solid var(--primary); outline-of
 .inv-selo-nao   { background: var(--error-soft, rgba(192,57,43,.10)); color: var(--error, #C0392B); }
 .inv-escolhido { background: var(--primary-soft, rgba(43,108,176,.08)); }
 .inv-escolhido td { font-weight: 600; }
+
+/* O convite ocupa o lugar do bloco da resposta, e por isso guarda a mesma
+   distância que os blocos guardam entre si (.fx-bloco). Sem ela, ele encostava
+   no formulário e parecia parte dele — quando é justamente o que vai ser
+   substituído pela resposta. */
+.inv-convite { margin-top: 26px; }

@@ -249,7 +249,7 @@ function formularioHtml() {
 
 function convite() {
   return `
-    <div class="fe-vazio">
+    <div class="fe-vazio inv-convite">
       <div class="fe-vazio-icone"><i data-lucide="calculator"></i></div>
       <div class="fe-vazio-tit">Informe o valor para simular</div>
       <div class="fe-vazio-sub">
