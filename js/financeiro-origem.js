@@ -136,8 +136,10 @@ export function validarOrigem(form = {}) {
 export function preencherDaCobranca(cobranca, assinatura) {
   if (!cobranca) return {};
   return {
-    descricao: cobranca.descricao ||
-      `${assinatura?.plano?.nome || 'Mensalidade'} — ${assinatura?.paciente?.nome || ''}`.trim(),
+    // Mesmo rótulo que `criarCobranca` grava: o nome do cliente, sem o plano
+    // na frente. Divergir aqui faria a tela sugerir uma descrição diferente da
+    // que o banco gravaria, e o operador salvaria a diferença sem perceber.
+    descricao: cobranca.descricao || (assinatura?.paciente?.nome || '').trim(),
     valor: cobranca.valor == null ? '' : Number(cobranca.valor).toFixed(2).replace('.', ','),
     categoria_id: cobranca.categoria_id || '',
     vencimento: cobranca.vencimento || '',

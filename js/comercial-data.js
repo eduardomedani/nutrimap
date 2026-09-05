@@ -203,6 +203,25 @@ export async function receitasDeClientes({ de, ate } = {}) {
 export async function criarCobranca({ assinatura, vencimento, valor, descricao, categoriaId = null }) {
   const periodoInicio = assinatura?.inicio_periodo || null;
   const periodoFim = assinatura?.fim_periodo || null;
+
+  // A CATEGORIA SAI DO PLANO, e quem resolve é o banco — a mesma
+  // `comercial_categoria_do_plano` que as duas RPCs usam. Repetir a busca aqui
+  // em JS criaria uma segunda regra para o mesmo assunto, e bastaria uma
+  // divergência de maiúscula para nascer uma "Mensal - 5x" paralela, rachando
+  // o total do relatório em duas.
+  //
+  // Falhar aqui NÃO derruba a cobrança: categoria é classificação, não
+  // dinheiro. Uma receita sem categoria se conserta na tela; uma cobrança que
+  // não nasceu deixa o cliente sem o que pagar.
+  let categoria = categoriaId;
+  if (!categoria && assinatura?.plano_id) {
+    const { data: cat } = await sb.rpc('comercial_categoria_do_plano', {
+      p_nutri: assinatura.nutri_id ?? null,
+      p_plano: assinatura.plano_id,
+    });
+    categoria = cat || null;
+  }
+
   const { data, error } = await sb
     .from('financeiro_lancamentos')
     .insert({
@@ -216,9 +235,14 @@ export async function criarCobranca({ assinatura, vencimento, valor, descricao, 
       // Do INÍCIO do período, não do vencimento nem do fim. Ver
       // competenciaDaCobranca() — a escolha saiu da conferência 103.
       competencia: competenciaDaCobranca(periodoInicio),
-      descricao: descricao || `${assinatura?.plano?.nome || 'Mensalidade'} — ${assinatura?.paciente?.nome || ''}`.trim(),
+      // O NOME DO CLIENTE, SEM O PLANO NA FRENTE. O plano agora mora na
+      // categoria; repeti-lo aqui empurrava o nome — que é o que se procura na
+      // lista — para depois de um prefixo de tamanho variável. E era esse
+      // prefixo que fazia a guarda anti-duplicata da importação errar, porque
+      // ela compara `descricao = nome`.
+      descricao: descricao || (assinatura?.paciente?.nome || '').trim() || 'Cobrança de assinatura',
       valor,
-      categoria_id: categoriaId,
+      categoria_id: categoria,
       paciente_id: assinatura.paciente_id,
       assinatura_id: assinatura.id,
     })
