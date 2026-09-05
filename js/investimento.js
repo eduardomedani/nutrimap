@@ -55,6 +55,39 @@ export const REGUA = {
   parcelasMax: 12,       // o que o cartão comporta
 };
 
+/**
+ * O QUE NÃO É CUSTO DE OPERAR — e por isso não entra na sobra.
+ *
+ * A sobra tem que responder "quanto a operação gera PARA investir", e não
+ * "quanto sobrou DEPOIS de investir". Enquanto a compra de equipamento e a obra
+ * contavam como saída, um ano de muita compra derrubava a capacidade e a
+ * calculadora recomendava não comprar — justamente por ter comprado. O erro se
+ * realimenta: quanto mais se investe, menos ela deixa investir.
+ *
+ * São eventuais por natureza. Nenhuma delas se repete todo mês, e é isso que as
+ * separa de energia, folha e faxina, que voltam sempre.
+ *
+ * A LISTA É POR NOME, de categoria ou de centro de custo, porque é assim que a
+ * pessoa reconhece a linha na tela. Quem monta o conjunto de ids é
+ * `idsDeInvestimento()`, uma vez, na entrada da tela.
+ */
+export const NOMES_DE_INVESTIMENTO = [
+  'equipamentos',
+  'obras e reforma',
+  'investimento',
+  'obras e expansão',
+];
+
+/** Os ids (de categoria e de centro de custo) que a sobra deve ignorar. */
+export function idsDeInvestimento(categorias = [], centros = [], nomes = NOMES_DE_INVESTIMENTO) {
+  const alvo = new Set(nomes.map(n => String(n).toLowerCase()));
+  const ids = new Set();
+  for (const c of [...(categorias || []), ...(centros || [])]) {
+    if (c?.id && alvo.has(String(c.nome || '').trim().toLowerCase())) ids.add(c.id);
+  }
+  return ids;
+}
+
 export const TIPOS = {
   revenda: {
     rotulo: 'Revenda',
@@ -109,15 +142,24 @@ function mesesAntes(iso, n) {
  *
  * O MÊS CORRENTE FICA DE FORA: ele está pela metade, e um mês incompleto
  * derruba a média por um motivo que não é sobre o negócio.
+ *
+ * E O INVESTIMENTO PASSADO TAMBÉM FICA DE FORA. Equipamento e obra são
+ * eventuais, e são exatamente o tipo de gasto que se está decidindo agora —
+ * contá-los como custo de operar faria a calculadora punir quem investiu. Eles
+ * voltam em `investido`, para a tela poder dizer quanto tirou da conta.
  */
-export function historicoMensal(lancamentos, folha, { hoje = hojeISO(), meses = REGUA.meses } = {}) {
+export function historicoMensal(lancamentos, folha, {
+  hoje = hojeISO(), meses = REGUA.meses, investimentoIds = null,
+} = {}) {
+  const ehInvestimento = l => !!investimentoIds
+    && (investimentoIds.has(l.categoria_id) || investimentoIds.has(l.centro_custo_id));
   const chaves = mesesAntes(hoje, meses + 1).slice(0, meses);   // sem o mês corrente
   const somaveis = (lancamentos || []).filter(contaNoTotal);
   const apurada = folhaDoPeriodo(lancamentos, folha).filter(f => !f.lancado);
 
   return chaves.map(competencia => {
     const chave = competencia.slice(0, 7);
-    let entrou = 0, saiu = 0, folhaMes = 0;
+    let entrou = 0, saiu = 0, folhaMes = 0, investido = 0;
 
     for (const l of somaveis) {
       const pago = (l.status || (l.pago ? 'pago' : 'pendente')) === 'pago';
@@ -126,6 +168,7 @@ export function historicoMensal(lancamentos, folha, { hoje = hojeISO(), meses = 
       const cents = emCentavos(l.valor);
       if (l.tipo === 'receita') entrou += cents;
       else if (ehDespesaDeFolha(l)) folhaMes += cents;
+      else if (ehInvestimento(l)) investido += cents;
       else saiu += cents;
     }
 
@@ -138,6 +181,7 @@ export function historicoMensal(lancamentos, folha, { hoje = hojeISO(), meses = 
       entrou: doCentavo(entrou),
       saiu: doCentavo(saiu + folhaMes),
       folha: doCentavo(folhaMes),
+      investido: doCentavo(investido),
       sobra: doCentavo(entrou - saiu - folhaMes),
     };
   });
@@ -156,15 +200,18 @@ export function historicoMensal(lancamentos, folha, { hoje = hojeISO(), meses = 
 export function capacidade(historico, { fatiaDaSobra = REGUA.fatiaDaSobra } = {}) {
   const sobras = (historico || []).map(m => emCentavos(m.sobra));
   if (!sobras.length) {
-    return { meses: 0, media: 0, pior: 0, melhor: 0, negativos: 0, capacidade: 0, noPiorMes: 0 };
+    return { meses: 0, media: 0, pior: 0, melhor: 0, negativos: 0,
+             capacidade: 0, noPiorMes: 0, investido: 0 };
   }
 
   const soma = sobras.reduce((s, c) => s + c, 0);
   const media = soma / sobras.length;
   const pior = Math.min(...sobras);
+  const investido = (historico || []).reduce((s, m) => s + emCentavos(m.investido), 0);
 
   return {
     meses: sobras.length,
+    investido: doCentavo(investido),
     media: doCentavo(media),
     pior: doCentavo(pior),
     melhor: doCentavo(Math.max(...sobras)),

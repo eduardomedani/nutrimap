@@ -16,6 +16,7 @@
 
 import {
   REGUA, TIPOS, historicoMensal, ticketMedio, analisar, ROTULO_VEREDICTO,
+  idsDeInvestimento, NOMES_DE_INVESTIMENTO,
 } from './investimento.js';
 import { formatarBRL, nomeCompetencia, hojeISO } from './financeiro.js';
 import { mascaraDeCentavos, mascararCampoDeDinheiro, valorDeTexto } from './utils.js';
@@ -39,11 +40,16 @@ let _dados = null;      // { historico, ticketSugerido }
 // o campo que a pessoa está usando.
 let _reguaAberta = false;
 
-export async function initInvestimentoUI(containerId, { lancamentos = [], folha = [], carregarAssinaturas = null } = {}) {
+export async function initInvestimentoUI(containerId, {
+  lancamentos = [], folha = [], categorias = [], centros = [], carregarAssinaturas = null,
+} = {}) {
   const alvo = document.getElementById(containerId);
   if (!alvo) return;
 
-  _fonte = { lancamentos, folha };
+  // COMPRA DE EQUIPAMENTO E OBRA NÃO SÃO CUSTO DE OPERAR. Elas saem da sobra
+  // aqui, na entrada: são eventuais e são o próprio tipo de gasto que se está
+  // decidindo. Ver NOMES_DE_INVESTIMENTO em js/investimento.js.
+  _fonte = { lancamentos, folha, investimentoIds: idsDeInvestimento(categorias, centros) };
 
   // O ticket médio é SUGESTÃO e vem da carteira real (o que se paga, não o
   // preço de tabela). Falha em silêncio: sem o Comercial acessível, a
@@ -94,8 +100,9 @@ function desenhar(alvo) {
   // O HISTÓRICO SE REFAZ A CADA DESENHO, e não uma vez no init: mudar "meses de
   // histórico" na régua tem que mudar a base da conta, senão o campo existiria
   // sem efeito nenhum sobre a resposta.
-  _dados.historico = historicoMensal(_fonte.lancamentos, _fonte.folha,
-                                     { hoje: hojeISO(), meses: _regua.meses });
+  _dados.historico = historicoMensal(_fonte.lancamentos, _fonte.folha, {
+    hoje: hojeISO(), meses: _regua.meses, investimentoIds: _fonte.investimentoIds,
+  });
 
   const dados = paraAnalise();
   const analise = analisar(dados, { historico: _dados.historico, regua: _regua });
@@ -124,7 +131,7 @@ function reguaHtml(a) {
         <div class="rs-tile">
           <div class="rs-tile-rot">Sobra média</div>
           <div class="rs-tile-val">${esc(formatarBRL(c.media))}</div>
-          <div class="rs-tile-sub">últimos ${c.meses} meses, já com tudo pago</div>
+          <div class="rs-tile-sub">últimos ${c.meses} meses de operação</div>
         </div>
         <div class="rs-tile">
           <div class="rs-tile-rot">Pior mês</div>
@@ -144,6 +151,14 @@ function reguaHtml(a) {
           <div class="rs-tile-sub">o caixa acima da reserva de ${esc(formatarBRL(_regua.reserva))}</div>
         </div>
       </div>
+
+      ${c.investido > 0 ? `
+        <p class="fe-nota inv-fora">
+          <i data-lucide="scissors"></i>
+          ${esc(formatarBRL(c.investido))} em equipamento e obra saíram desta conta.
+          São eventuais — e são o tipo de gasto que você está decidindo agora.
+          Contá-los como custo faria a calculadora punir quem investiu.
+        </p>` : ''}
 
       <div class="inv-barras" aria-hidden="true">
         ${meses.map(m => `

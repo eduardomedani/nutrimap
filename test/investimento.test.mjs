@@ -21,6 +21,7 @@ import {
   REGUA, TIPOS, historicoMensal, capacidade, entradaMaxima, parcelaDe,
   veredicto, cenarios, melhorCenario, ganhoMensal, payback,
   custoDePosse, custoPorMesDeVida, ticketMedio, analisar,
+  idsDeInvestimento, NOMES_DE_INVESTIMENTO,
 } from '../js/investimento.js';
 
 // Doze meses de sobra, um deles no vermelho — como um ano de verdade.
@@ -369,5 +370,75 @@ grupo('investimento · a tela', () => {
   teste('a aba está no Financeiro e carrega sob demanda', () => {
     contem(casca, "id: 'investimento'");
     contem(casca, "import('./financeiro-investimento-ui.js')");
+  });
+});
+
+// ───────────────────────────────────────────────────────────
+grupo('investimento · a compra passada não é custo de operar', () => {
+  // O DEFEITO QUE ISTO CONSERTA: enquanto equipamento e obra contavam como
+  // saída, um ano de muita compra derrubava a sobra e a calculadora recomendava
+  // não comprar — justamente por ter comprado. O erro se realimenta: quanto
+  // mais se investe, menos ela deixa investir.
+  const CATEGORIAS = [
+    { id: 'cat-eq', nome: 'Equipamentos' },
+    { id: 'cat-en', nome: 'Energia' },
+  ];
+  const CENTROS = [
+    { id: 'cc-inv', nome: 'INVESTIMENTO' },
+    { id: 'cc-adm', nome: 'ADMINISTRATIVO' },
+  ];
+
+  const LANCS = [
+    { tipo: 'receita', status: 'pago', pago_em: '2026-08-05', valor: 20000 },
+    { tipo: 'despesa', status: 'pago', pago_em: '2026-08-07', valor: 1000, categoria_id: 'cat-en' },
+    // A esteira comprada em agosto: eventual, e o tipo de gasto que se decide.
+    { tipo: 'despesa', status: 'pago', pago_em: '2026-08-09', valor: 9000, categoria_id: 'cat-eq' },
+    // A obra, reconhecida pelo CENTRO de custo.
+    { tipo: 'despesa', status: 'pago', pago_em: '2026-08-11', valor: 5000, centro_custo_id: 'cc-inv' },
+  ];
+
+  const ids = idsDeInvestimento(CATEGORIAS, CENTROS);
+
+  teste('reconhece por categoria E por centro de custo', () => {
+    ok(ids.has('cat-eq'));
+    ok(ids.has('cc-inv'));
+    ok(!ids.has('cat-en'), 'energia é custo de operar');
+    ok(!ids.has('cc-adm'), 'administrativo é alocação, não investimento');
+  });
+
+  teste('a sobra ignora a compra e conta o resto', () => {
+    const h = historicoMensal(LANCS, [], { hoje: '2026-09-05', investimentoIds: ids });
+    const ago = h[h.length - 1];
+    igual(ago.entrou, 20000);
+    igual(ago.saiu, 1000, 'só a energia é custo de operar');
+    igual(ago.investido, 14000, 'esteira + obra');
+    igual(ago.sobra, 19000, 'a sobra é o que a operação gera PARA investir');
+  });
+
+  teste('sem a separação, a sobra despencaria', () => {
+    // O comportamento antigo, para o teste mostrar o tamanho da diferença.
+    const h = historicoMensal(LANCS, [], { hoje: '2026-09-05' });
+    igual(h[h.length - 1].sobra, 5000);
+  });
+
+  teste('a capacidade soma o que foi tirado, para a tela poder dizer', () => {
+    // Sem esse número a tela esconderia a própria régua: a pessoa veria uma
+    // sobra alta sem saber que R$ 14.000 de compras não estão nela.
+    const h = historicoMensal(LANCS, [], { hoje: '2026-09-05', investimentoIds: ids });
+    igual(capacidade(h).investido, 14000);
+  });
+
+  teste('sem os ids, nada é tirado — e isso é o padrão seguro', () => {
+    // Quem não classificou as despesas ainda não pode ter linha excluída por
+    // adivinhação: sem categoria e sem centro, tudo continua sendo custo.
+    igual(idsDeInvestimento([], []).size, 0);
+    const h = historicoMensal(LANCS, [], { hoje: '2026-09-05', investimentoIds: new Set() });
+    igual(h[h.length - 1].investido, 0);
+  });
+
+  teste('os nomes reconhecidos são os do plano de contas real', () => {
+    for (const nome of ['equipamentos', 'obras e reforma', 'investimento', 'obras e expansão']) {
+      ok(NOMES_DE_INVESTIMENTO.includes(nome), `faltou ${nome}`);
+    }
   });
 });

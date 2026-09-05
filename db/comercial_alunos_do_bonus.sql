@@ -4,13 +4,15 @@
 -- Requer db/comercial_alunos_por_turno.sql. 100% re-executavel.
 --
 -- ===========================================================================
--- O QUE MUDA
+-- O QUE ELE ADICIONA
 -- ---------------------------------------------------------------------------
--- 1. O teto de desconto cai de 10% para 7% (decisao de 05/09/2026).
--- 2. Nasce `comercial_alunos_do_bonus`, que devolve o NOME de quem passa nesse
---    teto — para o bonus POR PRESENCA usar a mesma regua do bonus POR ALUNO.
+-- `comercial_alunos_do_bonus`, que devolve o NOME de quem passa no teto de
+-- desconto — para o bonus POR PRESENCA usar a mesma regua do bonus POR ALUNO.
 --
--- POR QUE A SEGUNDA FUNCAO EXISTE. O bonus por presenca e calculado a partir de
+-- O TETO NAO MUDA: segue em 10% (DESCONTO_MAXIMO, js/folha.js). O que muda e
+-- QUEM o respeita.
+--
+-- POR QUE ELA PRECISOU EXISTIR. O bonus por presenca e calculado a partir de
 -- DUAS PLANILHAS (presencas dos alunos + espelho de ponto) e nao enxerga o
 -- banco: em js/folha-ui.js ele nunca soube quem tem assinatura, quanto paga ou
 -- se e cortesia. Resultado: pagava por qualquer aluno que entrasse na sala,
@@ -53,90 +55,11 @@
 
 
 -- ===========================================================================
--- 1) O teto novo no default da funcao que ja existia
--- ---------------------------------------------------------------------------
--- O JS sempre passa `p_desconto_maximo` explicitamente (js/folha.js:517), entao
--- o default so serve para quem chama sem argumento — a conferencia 113. Mesmo
--- assim ele muda junto: dois numeros para a mesma regra e um convite a que a
--- conferencia diga uma coisa e a folha, outra.
--- ===========================================================================
-create or replace function public.comercial_alunos_por_turno(
-  p_ref              date    default current_date,
-  p_desconto_maximo  numeric default 0.07
-)
-returns table (turno text, alunos integer)
-language plpgsql
-stable
-security definer
-set search_path = public
-as $fn$
-declare
-  v_org uuid;
-begin
-  if auth.uid() is null then
-    raise exception 'sem sessao' using errcode = '42501';
-  end if;
-
-  v_org := public.organizacao_do_auth();
-  if v_org is null then
-    raise exception 'sem organizacao' using errcode = '42501';
-  end if;
-
-  if not public.tem_permissao('equipe.folha') then
-    raise exception 'sem permissao equipe.folha' using errcode = '42501';
-  end if;
-
-  return query
-  with periodos as (
-    select a.id, trim(a.horario) as turno,
-           a.inicio_periodo, a.fim_periodo, a.valor_contratado, a.plano_id
-      from public.comercial_assinaturas a
-     where a.nutri_id = v_org
-       and a.status = 'ativa'
-       and coalesce(trim(a.horario), '') <> ''
-    union all
-    select a.id, trim(a.horario) as turno,
-           (ad.antes ->> 'inicio_periodo')::date,
-           (ad.antes ->> 'fim_periodo')::date,
-           (ad.antes ->> 'valor_contratado')::numeric,
-           (ad.antes ->> 'plano_id')::uuid
-      from public.comercial_assinaturas a
-      join public.comercial_assinatura_auditoria ad
-        on ad.assinatura_id = a.id
-       and ad.acao = 'renovada'
-       and ad.antes ->> 'inicio_periodo' is not null
-       and ad.antes ->> 'fim_periodo'    is not null
-     where a.nutri_id = v_org
-       and a.status = 'ativa'
-       and coalesce(trim(a.horario), '') <> ''
-  ),
-  cobrindo as (
-    select distinct on (pe.id) pe.*
-      from periodos pe
-     where pe.inicio_periodo <= p_ref
-       and pe.fim_periodo    >= p_ref
-     order by pe.id, pe.fim_periodo desc
-  )
-  select c.turno, count(*)::integer
-    from cobrindo c
-    join public.comercial_planos p on p.id = c.plano_id
-   where p.preco_padrao > 0
-     and (1 - coalesce(c.valor_contratado, p.preco_padrao) / p.preco_padrao) <= p_desconto_maximo
-   group by c.turno
-   order by c.turno;
-end;
-$fn$;
-
-revoke all on function public.comercial_alunos_por_turno(date, numeric) from public, anon;
-grant execute on function public.comercial_alunos_por_turno(date, numeric) to authenticated;
-
-
--- ===========================================================================
--- 2) Os nomes de quem gera bonus
+-- Os nomes de quem gera bonus
 -- ===========================================================================
 create or replace function public.comercial_alunos_do_bonus(
   p_ref              date    default current_date,
-  p_desconto_maximo  numeric default 0.07
+  p_desconto_maximo  numeric default 0.10
 )
 returns table (nome text, nome_busca text)
 language plpgsql
@@ -211,14 +134,14 @@ grant execute on function public.comercial_alunos_do_bonus(date, numeric) to aut
 
 -- ===========================================================================
 -- CONFERENCIA. Esperado:
---   teto_por_turno = 0.07 · teto_do_bonus = 0.07 · definer = true (as duas)
+--   teto_por_turno = 0.10 · teto_do_bonus = 0.10 · definer = true (as duas)
 -- ---------------------------------------------------------------------------
 -- Rode tambem, para ver o efeito do teto novo antes de fechar a folha:
 --
---   select count(*) from public.comercial_alunos_do_bonus(date '2026-08-31', 0.10);
---   select count(*) from public.comercial_alunos_do_bonus(date '2026-08-31', 0.07);
+--   select count(*) from public.comercial_alunos_do_bonus(date '2026-08-31');
 --
--- A diferenca entre os dois e quantos alunos deixam de gerar bonus.
+-- E quantas presencas isso barra no bonus por presenca, que ate agora pagava
+-- por todo mundo.
 -- ===========================================================================
 select
   (select pg_get_function_arg_default(p.oid, 2) from pg_proc p

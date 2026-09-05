@@ -32,11 +32,11 @@ grupo('bônus por turno · a conta', () => {
     igual(BONUS_POR_ALUNO, 10);
   });
 
-  teste('o teto de desconto é 7%, e mora num lugar só', () => {
-    // 20% -> 10% -> 7%. O numero governa a chamada da RPC E o texto da tela —
-    // repetido em prosa, viraria duas fontes que discordam no dia em que uma
-    // mudar, e a que a pessoa le seria justamente a que nao decide nada.
-    igual(DESCONTO_MAXIMO, 0.07);
+  teste('o teto de desconto é 10%, e mora num lugar só', () => {
+    // Antes eram 20%. O numero governa a chamada das DUAS RPCs E o texto da
+    // tela — repetido em prosa, viraria duas fontes que discordam no dia em
+    // que uma mudar, e a que a pessoa le seria justamente a que nao decide nada.
+    igual(DESCONTO_MAXIMO, 0.10);
     contem(readFileSync(new URL('../js/folha.js', import.meta.url), 'utf8'),
            'p_desconto_maximo: DESCONTO_MAXIMO');
   });

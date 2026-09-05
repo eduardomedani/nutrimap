@@ -502,9 +502,21 @@ async function montarInvestimento(miolo) {
   miolo.innerHTML = `<div id="invRaiz"></div>`;
   const { initInvestimentoUI } = await import('./financeiro-investimento-ui.js');
 
+  // Os centros vêm por consulta própria: o cache das outras abas não os carrega,
+  // e é por eles (e pelas categorias) que a calculadora reconhece o que foi
+  // investimento e não custo de operar. Falha em silêncio — sem eles a conta
+  // continua, só sem tirar as compras passadas.
+  let centros = [];
+  try {
+    const { listarCentrosCusto } = await import('./financeiro.js');
+    centros = await listarCentrosCusto();
+  } catch (e) { centros = []; }
+
   await initInvestimentoUI('invRaiz', {
     lancamentos: d.lancamentos,
     folha: d.folha,
+    categorias: d.categorias,
+    centros,
     carregarAssinaturas: async () => {
       const { listarAssinaturas } = await import('./comercial-data.js');
       return listarAssinaturas({ incluirCanceladas: false });

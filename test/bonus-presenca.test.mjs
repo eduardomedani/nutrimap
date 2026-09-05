@@ -239,9 +239,10 @@ grupo('bônus · a conta fecha', () => {
 });
 
 grupo('bônus · aluno com desconto demais não gera nada', () => {
-  // Regra de 05/09/2026: só gera bônus o aluno com até 7% de desconto — a
-  // mesma régua do bônus por aluno ativo. Cortesia (100% de desconto) cai aqui
-  // por consequência, sem precisar de caso próprio.
+  // Regra de 05/09/2026: só gera bônus o aluno dentro do teto de desconto
+  // (`DESCONTO_MAXIMO`, hoje 10%) — a mesma régua do bônus por aluno ativo, que
+  // até então valia só para ele. Cortesia (100% de desconto) cai aqui por
+  // consequência, sem precisar de caso próprio.
   //
   // Quem decide é quem CHAMA: aqui só se sabe o nome que veio na planilha, e o
   // desconto mora na assinatura. Por isso a opção é um predicado.

@@ -73,7 +73,7 @@ export function calcularBonus(presencas = [], pessoas = [], {
 
   for (const v of visitas(presencas)) {
     // DESCONTO ALTO NÃO GERA BÔNUS, a mesma régua do bônus por aluno ativo
-    // (`DESCONTO_MAXIMO`, hoje 7%). Quem decide é quem chama: aqui só se sabe
+    // (`DESCONTO_MAXIMO`, hoje 10%). Quem decide é quem chama: aqui só se sabe
     // o nome que veio na planilha, e o desconto mora na assinatura.
     //
     // Sem a lista, ninguém é barrado. É de propósito: se a consulta ao banco

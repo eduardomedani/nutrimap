@@ -38,10 +38,10 @@ export const STATUS_FOLHA = { rascunho: 'Rascunho', fechada: 'Fechada' };
 export const BONUS_POR_ALUNO = 10;
 
 /**
- * Ate quanto de desconto o aluno ainda conta para o bonus. 7% desde
- * 05/09/2026 — era 10%, e antes disso 20%.
+ * Ate quanto de desconto o aluno ainda conta para o bonus. 10% desde
+ * 03/09/2026 — antes eram 20%.
  *
- * O NUMERO MORA AQUI E A TELA O LE, em vez de a prosa repetir "mais de 7%"
+ * O NUMERO MORA AQUI E A TELA O LE, em vez de a prosa repetir "mais de 10%"
  * escrito a mao. Repetido, ele vira duas fontes que discordam no dia em que uma
  * mudar — e a que a pessoa le seria justamente a que nao decide nada.
  *
@@ -55,7 +55,7 @@ export const BONUS_POR_ALUNO = 10;
  * quem as chama sem argumento (a conferencia 113), e os dois sao mantidos
  * iguais.
  */
-export const DESCONTO_MAXIMO = 0.07;
+export const DESCONTO_MAXIMO = 0.10;
 
 /**
  * Os turnos que geram bônus, e o rótulo de cada um.
