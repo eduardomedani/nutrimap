@@ -27,7 +27,7 @@ import {
 import {
   graficoReceitaDespesa, legendaHtml, SERIES, graficoFluxo, legendaFluxoHtml, SERIES_FLUXO,
 } from '../js/financeiro-grafico.js';
-import { lerValor, lerData, ehFolha, lerCsv, montarSql } from '../db/gerador_custos.mjs';
+import { lerValor, lerData, ehFolha, lerCsv, montarSql, centroUnificado } from '../db/gerador_custos.mjs';
 
 const CATS = [
   { id: 'c1', nome: 'ADMINISTRATIVO' },
@@ -564,5 +564,36 @@ grupo('importação · o SQL gerado', () => {
     contem(sql, 'as linhas_de_folha');
     contem(sql, 'as sem_centro');
     contem(sql, 'as sem_valor');
+  });
+});
+
+// ───────────────────────────────────────────────────────────
+grupo('importação · o centro de custo escrito de vários jeitos', () => {
+  teste('as três grafias de manutenção viram uma', () => {
+    // Separadas, o relatório racha o total entre três linhas e nenhuma delas
+    // mostra quanto a manutenção custou. Decidido em 05/09/2026.
+    igual(centroUnificado('MANUTENÇÃO CORRETIVA'), 'MANUTENÇÃO');
+    igual(centroUnificado('Manutenção e Reforma Estofados'), 'MANUTENÇÃO');
+    igual(centroUnificado('MANUTENÇÃO'), 'MANUTENÇÃO');
+  });
+
+  teste('quem não está no mapa passa intacto, só sem espaço em volta', () => {
+    igual(centroUnificado('  ADMINISTRATIVO '), 'ADMINISTRATIVO');
+    igual(centroUnificado('LIMPEZA'), 'LIMPEZA');
+    igual(centroUnificado(''), '');
+    igual(centroUnificado(null), '');
+  });
+
+  teste('a normalização acontece na LEITURA, não só no banco', () => {
+    // O gerador lê a planilha crua: arrumar apenas as linhas já importadas
+    // traria a grafia de volta na próxima reimportação, e ninguém desconfiaria
+    // porque o centro certo continuaria existindo — só que com parte das
+    // despesas. É a mesma lição de db/financeiro_categorias_grafias.sql.
+    const linhas = lerCsv([
+      'Data da Venda;Mês;Ano;Descrição;;Valor;Pago?;CENTRO DE CUSTO;Observações',
+      '03/11/2025;11;2025;Conserto do portão;;R$ 50,00;Sim;MANUTENÇÃO CORRETIVA;',
+      '04/11/2025;11;2025;Estofados;;R$ 1.700,00;Sim;Manutenção e Reforma Estofados;',
+    ].join('\n'));
+    igual(linhas.map(r => r.centro), ['MANUTENÇÃO', 'MANUTENÇÃO']);
   });
 });

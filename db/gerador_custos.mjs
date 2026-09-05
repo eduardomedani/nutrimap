@@ -83,6 +83,29 @@ export function lerData(bruto) {
   return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
 }
 
+/**
+ * O mesmo centro de custo escrito de vários jeitos vira UM.
+ *
+ * A planilha tem "MANUTENÇÃO", "MANUTENÇÃO CORRETIVA" e "Manutenção e Reforma
+ * Estofados" — três linhas no relatório para o mesmo assunto, e nenhuma delas
+ * mostrando quanto a manutenção realmente custou. Decidido em 05/09/2026.
+ *
+ * A NORMALIZAÇÃO MORA AQUI, e não só no banco: o gerador lê a planilha crua, e
+ * arrumar apenas as linhas já importadas traria as grafias de volta na próxima
+ * reimportação — sem ninguém desconfiar, porque o centro certo continuaria
+ * existindo, só que com parte das despesas.
+ * Ver db/financeiro_centros_unificar.sql, que conserta o que já está no banco.
+ */
+const CENTROS_UNIFICADOS = new Map([
+  ['manutenção corretiva',           'MANUTENÇÃO'],
+  ['manutenção e reforma estofados', 'MANUTENÇÃO'],
+]);
+
+export function centroUnificado(nome) {
+  const t = String(nome ?? '').trim();
+  return CENTROS_UNIFICADOS.get(t.toLowerCase()) || t;
+}
+
 /** Pagamento de gente. NÃO fica mais de fora: fica MARCADO — ver o cabeçalho. */
 export function ehFolha(descricao) {
   return /^(fopag|pagamento (professor|estagi))/i.test((descricao || '').trim());
@@ -99,7 +122,7 @@ function registro(linha, colunas) {
     descricao: String(descricao ?? '').trim(),
     valor: lerValor(valor),
     pago: !/^n/i.test(String(pago ?? '').trim()),
-    centro: String(centro ?? '').trim(),
+    centro: centroUnificado(centro),
     observacoes: String(observacoes ?? '').trim(),
   };
   r.folha = ehFolha(r.descricao);
