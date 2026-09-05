@@ -9,9 +9,10 @@
 --
 -- Este arquivo e onde a resposta e DADA, uma regra por linha.
 --
--- Das 323 despesas de operacao, o mapa abaixo classifica 317. As 6 que sobram
--- ficam sem categoria de proposito — aparecem na pendencia da Visao geral, que
--- e o lugar certo para elas ate alguem decidir.
+-- O mapa abaixo classifica as 323 despesas de operacao, sem sobra. As seis
+-- ultimas foram decididas uma a uma em 05/09/2026, olhando a lista do que tinha
+-- ficado sem regra — que e para isso que a Conferencia 2, no fim deste arquivo,
+-- existe.
 --
 -- ===========================================================================
 -- COMO ELE FUNCIONA
@@ -161,6 +162,19 @@ begin
     (120, 'Uniformes%',         'Uniformes'),
     (121, 'Camisas dos Alunos', 'Uniformes'),
 
+    -- As ultimas seis linhas da planilha, decididas em 05/09/2026. Alvara e
+    -- extintor sao obrigacao de FUNCIONAR, e nao imposto sobre faturamento:
+    -- as duas coisas se planejam em epocas diferentes do ano.
+    (125, 'Alvará%',   'Licenças e segurança'),
+    (126, 'Extintor',  'Licenças e segurança'),
+    -- "Materiais" e "Lan house e material de construcao" nao dizem para que
+    -- foram. Vao com o conserto do dia a dia, onde ja estao lampadas e tomadas.
+    (127, 'Materiais',  'Manutenção'),
+    (128, 'Lan house%', 'Manutenção'),
+    -- A logo e comunicacao visual. A categoria nasce com uma linha e existe
+    -- para receber fachada, panfleto e anuncio quando vierem.
+    (129, '%Instalação da Logo%', 'Marketing'),
+
     (130, 'Contabilidade', 'Contabilidade'),
     (140, 'Aluguel%',      'Aluguel'),
     (150, 'Café',           'Copa e alimentação'),
@@ -214,10 +228,10 @@ end $categorias$;
 -- ===========================================================================
 -- Conferencia 1 — o que cada categoria ficou tendo.
 -- Esperado (despesas de operacao da planilha):
---   Equipamentos 85 · Limpeza 49 · Energia 40 · Sistemas 55 · Manutencao 26
+--   Equipamentos 85 · Limpeza 49 · Sistemas 55 · Energia 40 · Manutencao 29
 --   Obras e reforma 15 · Impostos e encargos 12 · Eventos 10 · Tarifas 6
 --   Suplementos 5 · Contabilidade 4 · Copa 4 · Uniformes 3 · Telefonia 2
---   Aluguel 1 · SEM CATEGORIA 6
+--   Licencas e seguranca 2 · Aluguel 1 · Marketing 1 · SEM CATEGORIA 0
 -- ===========================================================================
 select
   coalesce(c.nome, '— SEM CATEGORIA —')                    as categoria,
