@@ -216,30 +216,34 @@ function formularioHtml() {
       <div class="inv-grade">
         ${campo('Valor total', 'invValor', _form.valor)}
         ${campo('Entrada', 'invEntrada', _form.entrada)}
-        ${campo('Caixa disponível hoje', 'invCaixa', _form.caixaHoje, 'text',
-                'O sistema não sabe seu saldo bancário — é daqui que sai a entrada possível.')}
+        ${campo('Caixa disponível hoje', 'invCaixa', _form.caixaHoje)}
         ${campo('Sem juros até (parcelas)', 'invSemJuros', _form.semJurosAte, 'number')}
         ${campo('Juros ao mês acima disso (%)', 'invTaxa', _form.taxaMes, 'text')}
         ${campo('Desconto à vista', 'invDesconto', _form.descontoAVista)}
-        ${campo('Custo mensal que ele cria', 'invCustoMensal', _form.custoMensal, 'text',
-                'Manutenção, energia, insumo. Uma esteira gasta ~R$ 50; uma polia, ~R$ 10.')}
+        ${campo('Custo mensal que ele cria', 'invCustoMensal', _form.custoMensal)}
         ${campo('Vida útil (anos)', 'invVida', _form.anosDeVida, 'number')}
       </div>
 
       ${t === 'revenda' ? `
-        <div class="inv-grade inv-retorno">
-          ${campo('Margem por unidade', 'invMargem', _form.margem)}
-          ${campo('Unidades por mês', 'invGiro', _form.giro, 'number')}
-        </div>` : ''}
+        <section class="inv-retorno">
+          <h3 class="inv-retorno-tit">O que ela traz por mês</h3>
+          <div class="inv-grade">
+            ${campo('Margem por unidade', 'invMargem', _form.margem)}
+            ${campo('Unidades por mês', 'invGiro', _form.giro, 'number')}
+          </div>
+        </section>` : ''}
 
       ${t === 'ampliacao' ? `
-        <div class="inv-grade inv-retorno">
-          ${campo('Alunos a mais', 'invAlunos', _form.alunos, 'number')}
-          ${campo('Mensalidade média', 'invTicket', _form.ticket, 'text',
-                  _dados.ticketSugerido
-                    ? `Sua carteira paga em média ${formatarBRL(_dados.ticketSugerido)} — o valor real, com os descontos.`
-                    : 'Não consegui ler a carteira; informe a mensalidade média.')}
-        </div>` : ''}
+        <section class="inv-retorno">
+          <h3 class="inv-retorno-tit">O que ela traz por mês</h3>
+          <div class="inv-grade">
+            ${campo('Alunos a mais', 'invAlunos', _form.alunos, 'number')}
+            ${campo('Mensalidade média', 'invTicket', _form.ticket, 'text',
+                    _dados.ticketSugerido
+                      ? `Sua carteira paga em média ${formatarBRL(_dados.ticketSugerido)}.`
+                      : 'Não consegui ler a carteira; informe a mensalidade média.')}
+          </div>
+        </section>` : ''}
     </div>`;
 }
 
