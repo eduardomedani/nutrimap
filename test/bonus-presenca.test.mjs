@@ -18,7 +18,7 @@
 import { grupo, teste, ok, igual, perto } from './runner.mjs';
 import { minutoDe, textoDoMinuto, turnosDoDia, lerAba } from '../js/ponto-planilha.js';
 import { calcularBonus, descricaoDoBonus } from '../js/bonus-presenca.js';
-import { lerPresencas } from '../js/frequencia.js';
+import { lerPresencas, faixaDe } from '../js/frequencia.js';
 
 grupo('espelho de ponto · as marcações', () => {
   teste('lê hora com e sem o asterisco de ajuste manual', () => {
@@ -92,7 +92,7 @@ const pessoa = (nome, funcao, turnos, impares = []) => ({
 const turno = (dia, de, ate) => ({ dia: `2026-08-${dia}`, de, ate });
 
 grupo('bônus · quem ganha pela presença', () => {
-  // Um aluno de 5x que treina todo dia útil = 100% = faixa de R$ 0,80.
+  // Um aluno de 5x que treina todo dia útil = 100% = faixa de R$ 1,00.
   const dias = ['03', '04', '05', '06', '07', '10', '11', '12', '13', '14',
     '17', '18', '19', '20', '21', '24', '25', '26', '27', '28', '31'];
   const presencas = lerPresencas([CAB, ...dias.map(d => pres('Assiduo', 'Mensal [5 dias]', d, '07:00'))]);
@@ -101,7 +101,7 @@ grupo('bônus · quem ganha pela presença', () => {
     const manha = pessoa('Manha', 'Estagiária', dias.map(d => turno(d, 420, 540)));
     const r = calcularBonus(presencas, [manha], { ate: '2026-08-31' });
     igual(r.linhas[0].presencas, 21);
-    perto(r.linhas[0].valor, 21 * 0.80, 0.01, 'aluno de 100% vale R$ 0,80');
+    perto(r.linhas[0].valor, 21 * 1.00, 0.01, 'aluno de 100% vale R$ 1,00');
     igual(r.semDono, 0);
   });
 
@@ -124,8 +124,8 @@ grupo('bônus · quem ganha pela presença', () => {
     const a = pessoa('A', 'Estagiária', dias.map(d => turno(d, 420, 540)));
     const b = pessoa('B', 'Estagiário', dias.map(d => turno(d, 420, 540)));
     const r = calcularBonus(presencas, [a, b], { ate: '2026-08-31' });
-    perto(r.total, 21 * 0.80, 0.01, 'o total tem que ser o MESMO de um estagiário sozinho');
-    perto(r.linhas[0].valor, 21 * 0.40, 0.01);
+    perto(r.total, 21 * 1.00, 0.01, 'o total tem que ser o MESMO de um estagiário sozinho');
+    perto(r.linhas[0].valor, 21 * 0.50, 0.01);
     igual(r.linhas[0].divididas, 21);
     igual(r.divididas, 21);
   });
@@ -158,12 +158,12 @@ grupo('bônus · a faixa vem do aluno, não do estagiário', () => {
   teste('aluno assíduo vale mais que aluno faltoso, na mesma sala', () => {
     // É a regra inteira do programa: aluno que não falta é aluno que renova.
     const linhas = [CAB,
-      ...dias.map(d => pres('Cheio', 'Mensal [5 dias]', d, '07:00')),          // 100% → 0,80
+      ...dias.map(d => pres('Cheio', 'Mensal [5 dias]', d, '07:00')),          // 100% → 1,00
       ...dias.slice(0, 6).map(d => pres('Pouco', 'Mensal [5 dias]', d, '07:10')), // 29% → 0,30
     ];
     const r = calcularBonus(lerPresencas(linhas), [estag], { ate: '2026-08-31' });
     igual(r.linhas[0].presencas, 27);
-    perto(r.linhas[0].valor, 21 * 0.80 + 6 * 0.30, 0.01);
+    perto(r.linhas[0].valor, 21 * 1.00 + 6 * 0.30, 0.01);
   });
 
   teste('aluno sem plano legível não gera bônus', () => {
@@ -191,14 +191,35 @@ grupo('bônus · a conta fecha', () => {
   teste('arredonda uma vez, no fim', () => {
     // Três presenças a R$ 0,65 divididas por 2 dão R$ 0,325 cada. Arredondando
     // a cada parcela, some ou nasce centavo; o total tem mais de mil parcelas.
+    //
+    // O caso precisa de uma parcela QUEBRADA para provar alguma coisa: com uma
+    // faixa que divide redondo, os dois jeitos de arredondar dão o mesmo número
+    // e o teste passaria mesmo com o erro dentro.
     const dias = ['03', '04', '05'];
-    const linhas = [CAB, ...dias.map(d => pres('X', 'Mensal [3 dias]', d, '07:00'))];
+    const linhas = [CAB,
+      ...dias.map(d => pres('X', 'Mensal [4 dias]', d, '07:00')),
+      // O dia 06 existe só para o plano de 4x render teto 4 naquela semana, e
+      // cai fora do turno de propósito: ninguém recebe por ele.
+      pres('Y', 'Mensal [4 dias]', '06', '20:00'),
+    ];
     const a = pessoa('A', 'Estagiária', dias.map(d => turno(d, 400, 600)));
     const b = pessoa('B', 'Estagiária', dias.map(d => turno(d, 400, 600)));
-    const r = calcularBonus(lerPresencas(linhas), [a, b], { ate: '2026-08-05' });
-    // 3 de 3 possíveis naquela semana = 100% → R$ 0,80, divididos por dois.
-    perto(r.linhas[0].valor, 1.20, 0.001);
-    perto(r.total, 2.40, 0.001);
+    const r = calcularBonus(lerPresencas(linhas), [a, b], { ate: '2026-08-06' });
+    // X fez 3 de 4 = 75% → R$ 0,65, divididos por dois = R$ 0,325 por presença.
+    // 3 × 0,325 = 0,975 → 0,98. Arredondado a cada parcela daria 0,99.
+    perto(r.linhas[0].valor, 0.98, 0.001);
+    perto(r.total, 1.96, 0.001);
+    igual(r.semDono, 1, 'a presença do dia 06 não tinha ninguém na sala');
+  });
+
+  teste('a faixa nova de 95 a 100% não invade a de baixo', () => {
+    // O real inteiro é degrau, não reajuste da faixa anterior: quem está em 86
+    // a 94% continua valendo R$ 0,80, e a fronteira é o que costuma escorregar
+    // quando uma faixa é partida em duas.
+    igual(faixaDe(94).valor, 0.80);
+    igual(faixaDe(95).valor, 1.00);
+    igual(faixaDe(100).valor, 1.00);
+    igual(faixaDe(85).valor, 0.65, 'o teto de baixo não se mexeu');
   });
 
   teste('a descrição diz o mês que o bônus pagou', () => {

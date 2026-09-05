@@ -10,13 +10,18 @@
 // fez. Aluno assíduo vale mais porque aluno que não falta é aluno que renova, e
 // é esse comportamento que o bônus compra.
 //
-//   até 50%  R$ 0,30      71 a 85%   R$ 0,65
-//   51 a 70% R$ 0,50      86 a 100%  R$ 0,80
+//   até 50%  R$ 0,30      71 a 85%  R$ 0,65      95 a 100%  R$ 1,00
+//   51 a 70% R$ 0,50      86 a 94%  R$ 0,80
 //
 // NENHUMA FAIXA VALE ZERO, e é deliberado. A versão anterior da tabela pagava
 // nada abaixo de 60%, o que tirava do estagiário todo incentivo de correr atrás
 // justamente de quem está a caminho de cancelar — que é quem o programa mais
 // quer alcançar.
+//
+// O TOPO É ESTREITO DE PROPÓSITO: 95 a 100% saiu de dentro da antiga faixa de
+// 86 a 100%, e não por cima dela. Quem fazia 90% continua valendo R$ 0,80; o
+// real inteiro é o degrau de quem chega ao mês quase cheio, que antes pagava o
+// mesmo que 86%.
 
 import { FAIXAS, faixaDe, visitas, retratoDosAlunos } from './frequencia.js';
 

@@ -120,8 +120,8 @@ grupo('frequência · o teto do plano', () => {
 grupo('frequência · as faixas', () => {
   teste('são a mesma régua do bônus por presença', () => {
     // Combinado de 04/09/2026. Se um dia mudarem, têm de mudar nos dois.
-    igual(FAIXAS.map(f => f.ate).join(','), '50,70,85,100');
-    igual(FAIXAS.map(f => f.valor).join(','), '0.3,0.5,0.65,0.8');
+    igual(FAIXAS.map(f => f.ate).join(','), '50,70,85,94,100');
+    igual(FAIXAS.map(f => f.valor).join(','), '0.3,0.5,0.65,0.8,1');
   });
 
   teste('as bordas caem na faixa de baixo', () => {
@@ -131,7 +131,9 @@ grupo('frequência · as faixas', () => {
     igual(faixaDe(71).chave, 'bom');
     igual(faixaDe(85).chave, 'bom');
     igual(faixaDe(86).chave, 'otimo');
-    igual(faixaDe(100).chave, 'otimo');
+    igual(faixaDe(94).chave, 'otimo');
+    igual(faixaDe(95).chave, 'elite');
+    igual(faixaDe(100).chave, 'elite');
   });
 });
 

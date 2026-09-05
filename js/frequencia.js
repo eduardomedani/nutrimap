@@ -108,7 +108,8 @@ export const FAIXAS = [
   { chave: 'critico', ate: 50,  rotulo: 'Até 50%',   valor: 0.30 },
   { chave: 'baixo',   ate: 70,  rotulo: '51 a 70%',  valor: 0.50 },
   { chave: 'bom',     ate: 85,  rotulo: '71 a 85%',  valor: 0.65 },
-  { chave: 'otimo',   ate: 100, rotulo: '86 a 100%', valor: 0.80 },
+  { chave: 'otimo',   ate: 94,  rotulo: '86 a 94%',  valor: 0.80 },
+  { chave: 'elite',   ate: 100, rotulo: '95 a 100%', valor: 1.00 },
 ];
 
 export function faixaDe(pct) {

@@ -921,6 +921,10 @@ body.cm-travado { overflow: hidden; }
 .cm-freq-pct.faixa-baixo   { color: var(--gold, #A0562A); }
 .cm-freq-pct.faixa-bom     { color: var(--text-primary, var(--ink)); }
 .cm-freq-pct.faixa-otimo   { color: var(--primary, var(--moss)); }
+/* Elite e a mesma cor de otimo, so que cheia: sao os dois extremos bons da
+   regua, e inventar uma quinta cor faria a tabela competir com o numero. */
+.cm-freq-pct.faixa-elite   { color: var(--primary, var(--moss)); text-decoration: underline;
+                             text-decoration-thickness: 2px; text-underline-offset: 3px; }
 
 @media print {
   @page { size: A4 portrait; margin: 14mm 15mm; }
