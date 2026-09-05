@@ -103,7 +103,16 @@ export function assinaturaVazia() {
     paciente_id: '', plano_id: '',
     data_inicio_original: hojeISO(), inicio_periodo: hojeISO(),
     valor_contratado: '', horario: '', observacoes: '',
-    renovacao_automatica: true, criar_cobranca: true,
+    // RENOVAÇÃO AUTOMÁTICA NASCE DESLIGADA desde 05/09/2026. Ligada, cada baixa
+    // criava na hora a cobrança do período seguinte, que ficava um mês inteiro
+    // como "Em aberto" no Financeiro — e a tela de receitas não distingue "ainda
+    // não venceu" de "venceu e não pagaram". O efeito era um "a receber" cheio
+    // de linhas que ninguém devia ainda, escondendo a única que estava vencida
+    // de verdade.
+    //
+    // Continua sendo uma caixa na tela: quem quer a cobrança nascendo sozinha
+    // marca por cliente. O que mudou é o padrão, não a capacidade.
+    renovacao_automatica: false, criar_cobranca: true,
   };
 }
 

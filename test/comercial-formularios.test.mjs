@@ -89,6 +89,24 @@ grupo('comercial · o plano vira registro do banco', () => {
   });
 });
 
+grupo('comercial · o padrão da assinatura nova', () => {
+  teste('RENOVAÇÃO AUTOMÁTICA NASCE DESLIGADA', () => {
+    // Ligada, cada baixa criava na hora a cobrança do período seguinte, que
+    // passava um mês inteiro como "Em aberto" no Financeiro. Como a tela de
+    // receitas não separa "ainda não venceu" de "venceu e não pagaram", a
+    // única cobrança realmente vencida ficava escondida no meio de vinte que
+    // ninguém devia. Decisão de 05/09/2026.
+    igual(assinaturaVazia().renovacao_automatica, false);
+  });
+
+  teste('mas a cobrança DO PERÍODO continua nascendo', () => {
+    // Sem ela a assinatura nasce sem nada para dar baixa, e o operador teria
+    // de criar a cobrança à mão antes do primeiro pagamento. São duas opções
+    // diferentes, e só uma mudou.
+    igual(assinaturaVazia().criar_cobranca, true);
+  });
+});
+
 grupo('comercial · validação da assinatura', () => {
   const base = () => ({ ...assinaturaVazia(), paciente_id: 'pac1', plano_id: 'p1', inicio_periodo: '2026-08-06', data_inicio_original: '2026-08-06' });
 
