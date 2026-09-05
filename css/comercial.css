@@ -515,6 +515,11 @@ body.cm-travado { overflow: hidden; }
 }
 .cm-dw-secao-topo .cm-dw-t { margin-bottom: 0; }
 
+/* Duas ações no topo da seção. `flex-wrap` porque "Desfazer cortesia" é longo:
+   no celular ele desce em vez de espremer o "Editar" a ponto de o ícone
+   encostar no texto. */
+.cm-dw-secao-acoes { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+
 /* A grade de dado. Duas colunas fixas em proporção, não `space-between`: com
    flex o rótulo curto e o rótulo longo alinhavam o valor em posições
    diferentes, e a coluna da direita ficava serrilhada de cima a baixo. */

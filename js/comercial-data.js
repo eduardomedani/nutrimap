@@ -516,3 +516,31 @@ export async function categoriasDeReceita() {
   if (error) throw error;
   return data || [];
 }
+
+
+/**
+ * Torna a assinatura uma cortesia: plano Bonificação, valor zero, período
+ * recomeçando hoje e renovação desligada.
+ *
+ * TUDO NUMA RPC porque são quatro escritas — o plano (que pode nascer aqui), a
+ * assinatura, a intenção de renovação que morre junto e a trilha. Sequenciais
+ * pelo PostgREST, uma falha no meio deixaria a assinatura zerada sem registro
+ * de que valor ela tinha antes, e aí não haveria como voltar.
+ */
+export async function tornarBonificacao(assinaturaId, meses = 12) {
+  const { data, error } = await sb.rpc('comercial_tornar_bonificacao', {
+    p_assinatura: assinaturaId,
+    p_meses: meses,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/** Devolve a assinatura ao plano, valor e período de antes da cortesia. */
+export async function desfazerBonificacao(assinaturaId) {
+  const { data, error } = await sb.rpc('comercial_desfazer_bonificacao', {
+    p_assinatura: assinaturaId,
+  });
+  if (error) throw error;
+  return data;
+}

@@ -1747,3 +1747,98 @@ grupo('comercial · edição: contexto e aviso', () => {
     igual(atrasoEmDias({ ...vencida, vencimento: '2026-09-02' }, HOJE).vencida, false);
   });
 });
+
+// ───────────────────────────────────────────────────────────
+// CORTESIA — a única porta da tela para trocar o plano
+// ---------------------------------------------------------------------------
+// O formulário de edição não deixa trocar plano nem período, de propósito: o
+// período tem uma porta só. A cortesia é a exceção estreita — um plano
+// específico, valor zero, período recomeçando hoje, e trilha gravada.
+// ───────────────────────────────────────────────────────────
+grupo('comercial · cortesia no drawer', () => {
+  const PAGANTE = { ...ASS, plano: { nome: 'Mensal - 3x' } };
+  const CORTESIA = { ...ASS, plano: { nome: 'Bonificacao' }, valor_contratado: 0 };
+
+  teste('quem paga vê "Tornar cortesia"; quem é cortesia vê "Desfazer"', () => {
+    // Só uma por vez: as duas juntas fariam a ficha perguntar o que ela sabe.
+    const pagante = assinaturaHtml(PAGANTE, HOJE);
+    contem(pagante, 'data-tornar-bonificacao');
+    naoContem(pagante, 'data-desfazer-bonificacao');
+
+    const cortesia = assinaturaHtml(CORTESIA, HOJE);
+    contem(cortesia, 'data-desfazer-bonificacao');
+    naoContem(cortesia, 'data-tornar-bonificacao');
+  });
+
+  teste('o acento do plano não decide se o cliente paga', () => {
+    // O banco grava "Bonificacao", mas nada impede alguém de renomear para
+    // "Bonificação" na tela de planos.
+    contem(assinaturaHtml({ ...ASS, plano: { nome: 'Bonificação' } }, HOJE),
+           'data-desfazer-bonificacao');
+    contem(assinaturaHtml({ ...ASS, plano: { nome: 'BONIFICACAO' } }, HOJE),
+           'data-desfazer-bonificacao');
+  });
+
+  teste('a ficha da cortesia EXPLICA o que ela é', () => {
+    // Um cliente com valor zero e sem cobrança parece defeito. A nota é o que
+    // diz que foi decisão — e quando ela expira.
+    const html = assinaturaHtml(CORTESIA, HOJE);
+    contem(html, 'Cortesia.');
+    contem(html, 'conta como aluno ativo');
+  });
+
+  teste('a nota de renovação desligada não aparece na cortesia', () => {
+    // Ela é verdadeira, mas redundante: a nota de cortesia já disse que não
+    // gera cobrança. Duas frases para o mesmo fato fazem parecer dois avisos.
+    naoContem(assinaturaHtml({ ...CORTESIA, renovacao_automatica: false }, HOJE),
+              'Renovação automática desligada');
+    contem(assinaturaHtml({ ...PAGANTE, renovacao_automatica: false }, HOJE),
+           'Renovação automática desligada');
+  });
+});
+
+grupo('comercial · cortesia — as RPCs', () => {
+  const sql = readFileSync(new URL('../db/comercial_bonificacao_rpc.sql', import.meta.url), 'utf8');
+  const codigo = sql.replace(/--[^\n]*/g, '');
+  const dados = readFileSync(new URL('../js/comercial-data.js', import.meta.url), 'utf8');
+
+  teste('TORNAR E DESFAZER NASCEM JUNTAS', () => {
+    // Um botão irreversível numa ficha de cliente é armadilha: trocar o plano
+    // de volta é exatamente o que o formulário de edição não faz.
+    contem(codigo, 'function public.comercial_tornar_bonificacao');
+    contem(codigo, 'function public.comercial_desfazer_bonificacao');
+    contem(dados, 'tornarBonificacao');
+    contem(dados, 'desfazerBonificacao');
+  });
+
+  teste('o estado anterior é lido sob trava', () => {
+    // Entre ler o "antes" e gravá-lo na trilha não pode caber outra escrita,
+    // ou a trilha guardaria um estado que nunca existiu.
+    contem(codigo, 'for update');
+  });
+
+  teste('a intenção de troca de plano morre junto', () => {
+    // Ela existia para a próxima renovação, e não há próxima renovação numa
+    // cortesia. Sobrevivendo, trocaria o plano sozinha um dia.
+    contem(codigo, 'proximo_plano_id         = null');
+    contem(codigo, 'renovacao_origem_id      = null');
+  });
+
+  teste('bonificar duas vezes não estica o período de graça', () => {
+    contem(codigo, "return jsonb_build_object('bonificou', false, 'ja_era', true,");
+  });
+
+  teste('o desfazer usa a ÚLTIMA bonificação, não qualquer uma', () => {
+    contem(codigo, "where au.assinatura_id = v_ass.id and au.acao = 'bonificada'");
+    contem(codigo, 'order by au.criado_em desc');
+  });
+
+  teste('assinatura cancelada não vira cortesia', () => {
+    contem(codigo, "raise exception 'assinatura cancelada nao vira cortesia");
+  });
+
+  teste('as duas exigem permissão de escrita do comercial', () => {
+    igual((codigo.match(/tem_permissao\('comercial\.editar'\)/g) || []).length, 2);
+    igual((codigo.match(/from public, anon;/g) || []).length, 2);
+  });
+});

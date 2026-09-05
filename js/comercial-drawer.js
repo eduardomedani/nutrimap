@@ -13,7 +13,7 @@
 import {
   situacaoDoCliente, situacaoDaCobranca, SITUACAO_ROTULO, COBRANCA_ROTULO,
   textoDoVencimento, telefoneBonito, telefoneDigitos, saldoDaCobranca,
-  renovar, diasEntre,
+  renovar, diasEntre, ehPlanoBonificacao,
 } from './comercial.js';
 import { moeda, dataBR, dePara } from './comercial-ui.js';
 import { valorDeTexto, mostrarToast, mostrarErro } from './utils.js';
@@ -40,6 +40,13 @@ export const MSG = {
   naoPendente: 'Esta cobrança não está mais pendente. Atualize os dados e tente novamente.',
   duplicada:   'Já existe uma cobrança ativa para este vencimento.',
   falhou:      'Não foi possível concluir. Tente novamente.',
+  // CORTESIA. Três frases porque são três desfechos diferentes, e um toast
+  // genérico deixaria a pessoa sem saber se a ação valeu.
+  virouCortesia:   'Agora é cortesia: sem cobrança, sem bônus, e ainda ativo.',
+  jaEraCortesia:   'Este cliente já era cortesia — nada mudou.',
+  cortesiaDesfeita: 'Cortesia desfeita. O plano e o período de antes voltaram.',
+  semBonificacao:  'Não há cortesia registrada para desfazer nesta assinatura.',
+  cortesiaCancelada: 'Assinatura cancelada não vira cortesia. Reative antes.',
 };
 
 /** Erro do Postgres não é frase de gente. */
@@ -53,6 +60,14 @@ export function traduzirErroCobranca(e) {
   if (m.includes('row-level security') || m.includes('violates row-level')) return 'Sem permissão para esta cobrança.';
   if (m.includes('failed to fetch') || m.includes('networkerror')) return 'Sem conexão. Tente novamente.';
   return MSG.falhou;
+}
+
+/** Os erros que só a cortesia produz. Cai no tradutor de cobrança no resto. */
+export function traduzirErroCortesia(e) {
+  const m = String(e?.message || e || '').toLowerCase();
+  if (m.includes('nao tem bonificacao registrada')) return MSG.semBonificacao;
+  if (m.includes('cancelada nao vira cortesia')) return MSG.cortesiaCancelada;
+  return traduzirErroCobranca(e);
 }
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -165,6 +180,7 @@ export function assinaturaHtml(a, hoje) {
   // lugar. Aqui ele só decide a COR da segunda linha; o texto continua vindo
   // de `textoDoVencimento`, para não existirem duas frases para o mesmo fato.
   const dias = diasEntre(hoje, a.fim_periodo);
+  const cortesia = ehPlanoBonificacao(a.plano);
   return secao('Assinatura', `
     ${linha('Cliente desde', esc(dataBR(a.data_inicio_original)), { sub: casa ? esc(casa) : '' })}
     ${linha('Período atual', `<span class="cm-dw-periodo">${esc(dataBR(a.inicio_periodo))} → ${esc(dataBR(a.fim_periodo))}</span>`)}
@@ -179,8 +195,25 @@ export function assinaturaHtml(a, hoje) {
     })}
     ${linha('Plano', esc(a.plano?.nome || '—'))}
     ${linha('Valor contratado', esc(moeda(a.valor_contratado)))}
-    ${a.renovacao_automatica ? '' : '<p class="cm-dw-nota">Renovação automática desligada: a próxima cobrança não nasce sozinha.</p>'}
-  `, `<button class="cm-btn cm-btn-mini" type="button" data-editar-assinatura aria-label="Editar assinatura"><i data-lucide="pencil"></i> Editar</button>`);
+    ${cortesia
+      ? `<p class="cm-dw-nota">
+           <b>Cortesia.</b> Não gera cobrança nem bônus, e não entra na receita
+           recorrente — mas conta como aluno ativo. O período termina em
+           ${esc(dataBR(a.fim_periodo))}; depois disso ele volta a aparecer
+           como vencido, para a cortesia ser revista em vez de virar permanente.
+         </p>`
+      : (a.renovacao_automatica ? '' : '<p class="cm-dw-nota">Renovação automática desligada: a próxima cobrança não nasce sozinha.</p>')}
+  `, `
+    ${/* Agrupados: o topo da seção é `space-between`, e dois botões soltos
+          ficariam um no meio e outro na quina. A ação de cortesia é o INVERSO
+          do estado e só uma aparece por vez — as duas juntas fariam a ficha
+          perguntar o que ela já sabe. */''}
+    <div class="cm-dw-secao-acoes">
+      <button class="cm-btn cm-btn-mini" type="button" data-editar-assinatura aria-label="Editar assinatura"><i data-lucide="pencil"></i> Editar</button>
+      ${cortesia
+        ? '<button class="cm-btn cm-btn-mini" type="button" data-desfazer-bonificacao><i data-lucide="undo-2"></i> Desfazer cortesia</button>'
+        : '<button class="cm-btn cm-btn-mini" type="button" data-tornar-bonificacao><i data-lucide="gift"></i> Tornar cortesia</button>'}
+    </div>`);
 }
 
 /**
@@ -773,6 +806,53 @@ export async function abrirDrawerCliente({ assinatura, aoMudar }) {
       // cobrança" logo abaixo, pelo mesmo motivo: se o banco recusar uma parte
       // do patch, a tela precisa mostrar o que ficou gravado, não o que se
       // tentou gravar.
+      // CORTESIA — a única porta da tela para trocar o plano de uma assinatura
+      // que já existe. O formulário de edição não faz isso de propósito (o
+      // período tem uma porta só), e aqui a exceção é estreita: um plano
+      // específico, valor zero, período recomeçando hoje, e trilha gravada.
+      //
+      // A confirmação é `confirm` e não um drawer próprio porque a pergunta é
+      // de uma linha e a resposta é sim ou não — abrir tela para isso seria
+      // cerimônia. Ver o aviso do harness sobre diálogos: aqui é ação do
+      // usuário na página real, não automação.
+      fundo.querySelector('[data-tornar-bonificacao]')?.addEventListener('click', async () => {
+        const nome = assinatura.paciente?.nome || 'este cliente';
+        if (!confirm(
+          `Tornar ${nome} cortesia?\n\n`
+          + 'O plano passa a ser Bonificação, o valor vai a zero e o período '
+          + 'recomeça hoje, por 12 meses. Ele deixa de gerar cobrança e de '
+          + 'contar para os bônus, mas continua como aluno ativo.\n\n'
+          + 'Dá para desfazer nesta mesma tela.')) return;
+        try {
+          const r = await dados.tornarBonificacao(assinatura.id);
+          mostrarToast(r?.ja_era ? MSG.jaEraCortesia : MSG.virouCortesia);
+          aoMudar?.();
+          // Reabre com o que o BANCO confirmou: o plano novo vem de lá, e a
+          // cópia em memória ainda tem o antigo — sem isto a ficha continuaria
+          // oferecendo "Tornar cortesia" para quem acabou de virar uma.
+          abrirDrawerCliente({
+            assinatura: r?.assinatura ? { ...assinatura, ...r.assinatura, plano: null } : assinatura,
+            aoMudar,
+          });
+        } catch (e) { mostrarErro(traduzirErroCortesia(e)); }
+      });
+
+      fundo.querySelector('[data-desfazer-bonificacao]')?.addEventListener('click', async () => {
+        if (!confirm(
+          'Desfazer a cortesia?\n\n'
+          + 'O plano, o valor e o período voltam a ser os de antes — inclusive '
+          + 'o vencimento, se já estava vencido na época.')) return;
+        try {
+          const r = await dados.desfazerBonificacao(assinatura.id);
+          mostrarToast(MSG.cortesiaDesfeita);
+          aoMudar?.();
+          abrirDrawerCliente({
+            assinatura: r?.assinatura ? { ...assinatura, ...r.assinatura, plano: null } : assinatura,
+            aoMudar,
+          });
+        } catch (e) { mostrarErro(traduzirErroCortesia(e)); }
+      });
+
       fundo.querySelector('[data-editar-assinatura]')?.addEventListener('click', async () => {
         const { abrirEdicaoAssinatura } = await import('./comercial-formularios.js');
         fechar();

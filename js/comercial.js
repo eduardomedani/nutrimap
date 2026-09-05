@@ -147,6 +147,26 @@ export function diasAteVencer(fimISO, hojeISO) {
  * humana e não dá para calculá-las. O resto sai da conta entre `fim_periodo` e
  * hoje — por isso nunca envelhece.
  */
+/**
+ * A assinatura é uma cortesia?
+ *
+ * O CRITÉRIO É O PLANO, e não uma coluna nova: cortesia é um plano comercial
+ * como os outros, com nome, duração e preço — que por acaso é zero. Foi essa
+ * escolha que fez o resto do sistema acertar sozinho, sem `if` espalhado. O
+ * banco reconhece pelo mesmo critério (`lower(pl.nome) = 'bonificacao'`).
+ *
+ * Comparado sem caixa e sem acento: o banco grava "Bonificacao", mas nada
+ * impede alguém de renomear para "Bonificação" na tela de planos, e um acento
+ * não pode mudar se o cliente paga ou não.
+ *
+ * Por nome e não por id porque o id seria um segundo lugar dizendo qual plano é
+ * a cortesia — no dia em que alguém recriasse o plano, a tela apontaria para o
+ * antigo e a ficha diria que um cliente pagante é cortesia.
+ */
+export const ehPlanoBonificacao = plano =>
+  String(plano?.nome || '').trim().toLowerCase()
+    .normalize('NFD').replace(/\p{Diacritic}/gu, '') === 'bonificacao';
+
 export function situacaoDoCliente(assinatura, hojeISO, avisoDias = 7) {
   if (!assinatura) return null;
   const status = assinatura.status || 'ativa';
