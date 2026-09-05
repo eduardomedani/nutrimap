@@ -119,8 +119,11 @@ grupo('arquitetura · o que mora em Equipe', () => {
 grupo('arquitetura · o que mora no Financeiro da empresa', () => {
   teste('as abas são as do negócio', () => {
     const ordem = [...financeiro.matchAll(/\{ id: '([\w-]+)'/g)].map(m => m[1]);
+    // 'investimento' entrou em 05/09/2026, DEPOIS de fluxo de caixa e antes de
+    // relatórios: ela pergunta sobre o futuro e só faz sentido depois de a
+    // pessoa ter visto o que o caixa fez até aqui.
     igual(ordem, ['visao-geral', 'receitas', 'despesas', 'contas-receber',
-                  'contas-pagar', 'fluxo-caixa', 'categorias', 'relatorios']);
+                  'contas-pagar', 'fluxo-caixa', 'categorias', 'investimento', 'relatorios']);
   });
 
   teste('nenhuma aba de gente, ponto ou folha', () => {

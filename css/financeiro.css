@@ -2380,3 +2380,74 @@ tbody tr.dsp-linha:focus-visible { outline: 2px solid var(--primary); outline-of
 }
 .fx-chip-filtro:hover { background: var(--primary, #2B6CB0); color: #fff; }
 .fx-chip-filtro i { width: 13px; height: 13px; }
+
+/* ═══════════════════════════════════════════════════════════
+   CALCULADORA DE INVESTIMENTO
+   ═══════════════════════════════════════════════════════════ */
+
+/* Os três tipos como escolha visível, e não como select: eles mudam QUAIS
+   perguntas a tela faz, e uma escolha que muda o formulário precisa estar à
+   vista enquanto se responde. */
+.inv-tipos { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin: 14px 0 6px; }
+.inv-tipo {
+  display: flex; flex-direction: column; gap: 3px; text-align: left;
+  padding: 12px 14px; border-radius: 12px; cursor: pointer;
+  border: 1px solid var(--border, #D8DEE5); background: var(--surface, #fff);
+  font: inherit; color: inherit;
+}
+.inv-tipo:hover { border-color: var(--primary, #2B6CB0); }
+.inv-tipo.on { border-color: var(--primary, #2B6CB0); background: var(--primary-soft, rgba(43,108,176,.10)); }
+.inv-tipo strong { font-size: 14px; }
+.inv-tipo span { font-size: 12px; color: var(--text-muted); }
+.inv-ajuda { margin: 2px 0 14px; }
+
+.inv-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.inv-retorno { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border, #D8DEE5); }
+
+/* As doze barras da sobra mês a mês. Pequenas de propósito: elas dizem o
+   FORMATO do ano (onde apertou, onde sobrou), e o número exato está nos tiles
+   logo acima. */
+.inv-barras { display: flex; align-items: flex-end; gap: 4px; height: 56px; margin: 16px 0 4px; }
+.inv-barra { flex: 1; display: flex; align-items: flex-end; height: 100%; }
+.inv-barra-fill { width: 100%; border-radius: 3px 3px 0 0; background: var(--primary, #2B6CB0); opacity: .55; }
+.inv-barra-fill.neg { background: var(--error, #C0392B); opacity: .75; }
+.inv-barras-rot { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--text-muted); }
+
+.inv-regua { margin-top: 16px; }
+.inv-regua summary { cursor: pointer; font-size: 13px; color: var(--text-muted); }
+.inv-regua summary:hover { color: var(--primary, #2B6CB0); }
+.inv-regua .inv-grade { margin-top: 12px; }
+
+/* O veredicto é o maior elemento da tela porque é a resposta. As três cores
+   correspondem a decisões diferentes — cabe, aperta, não cabe —, e o cinza do
+   "aperta" existe para ele não ser lido como proibição. */
+.inv-veredicto { padding: 16px 18px; border-radius: 14px; margin-bottom: 14px; border: 1px solid; }
+.inv-veredicto-tit { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
+.inv-veredicto-num { font-size: 22px; margin-top: 6px; }
+.inv-veredicto-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+.inv-ok    { border-color: var(--success, #167C57); background: var(--success-soft, rgba(22,124,87,.08)); }
+.inv-ok .inv-veredicto-tit { color: var(--success, #167C57); }
+.inv-aviso { border-color: #B7791F; background: rgba(183,121,31,.08); }
+.inv-aviso .inv-veredicto-tit { color: #B7791F; }
+.inv-nao   { border-color: var(--error, #C0392B); background: var(--error-soft, rgba(192,57,43,.08)); }
+.inv-nao .inv-veredicto-tit { color: var(--error, #C0392B); }
+
+.inv-alertas { list-style: none; padding: 0; margin: 0 0 14px; display: grid; gap: 8px; }
+.inv-alertas li { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--text-muted); }
+.inv-alertas i { width: 15px; height: 15px; flex: 0 0 15px; margin-top: 2px; }
+
+.inv-retorno-caixa {
+  display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px;
+  padding: 14px 16px; border-radius: 12px;
+  background: var(--surface-2, rgba(127,127,127,.06));
+  font-size: 13px;
+}
+.inv-retorno-caixa strong { display: block; margin-bottom: 3px; font-size: 14px; }
+.inv-retorno-caixa div div { color: var(--text-muted); }
+.inv-mudo { border: 1px dashed var(--border, #D8DEE5); background: transparent; }
+
+.inv-selo-ok    { background: var(--success-soft, rgba(22,124,87,.12)); color: var(--success, #167C57); }
+.inv-selo-aviso { background: rgba(183,121,31,.12); color: #B7791F; }
+.inv-selo-nao   { background: var(--error-soft, rgba(192,57,43,.10)); color: var(--error, #C0392B); }
+.inv-escolhido { background: var(--primary-soft, rgba(43,108,176,.08)); }
+.inv-escolhido td { font-weight: 600; }

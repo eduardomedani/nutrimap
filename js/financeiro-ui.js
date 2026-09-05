@@ -58,6 +58,9 @@ const SECOES = [
   { id: 'categorias', rotulo: 'Categorias', icone: 'tags',
     titulo: 'Categorias',
     sub: 'O plano de contas: como cada lançamento é classificado.' },
+  { id: 'investimento', rotulo: 'Investimento', icone: 'calculator',
+    titulo: 'Calculadora de investimento',
+    sub: 'Se o equipamento, a reforma ou o estoque cabem no caixa — e em quantas vezes.' },
   { id: 'relatorios', rotulo: 'Relatórios', icone: 'file-chart-column',
     titulo: 'Relatórios',
     sub: 'Fechamentos por período, comparativos e exportação.' },
@@ -151,6 +154,7 @@ async function montarSecao(id) {
   if (id === 'receitas')     { await montarLista(miolo, 'receita'); return; }
   if (id === 'fluxo-caixa')  { await montarFluxo(miolo); return; }
   if (id === 'categorias')   { await montarCategorias(miolo); return; }
+  if (id === 'investimento') { await montarInvestimento(miolo); return; }
 
   const alvo = SECOES.find(s => s.id === id);
   miolo.innerHTML = emConstrucaoHtml(alvo);
@@ -472,6 +476,40 @@ function pendenciasHtml(pend) {
         um centro de custo adivinhado entra no relatório como se fosse informação.
       </p>
     </div>`;
+}
+
+// ───────────────────────────────────────────────────────────
+// CALCULADORA DE INVESTIMENTO
+// ───────────────────────────────────────────────────────────
+
+/**
+ * A calculadora usa o MESMO cache das outras abas: ela lê o caixa realizado dos
+ * últimos doze meses, que já está aqui. Uma consulta própria traria os mesmos
+ * lançamentos com outro recorte, e os dois números divergiriam no dia em que um
+ * dos recortes mudasse.
+ *
+ * As assinaturas vêm em carregamento PREGUIÇOSO e opcional: elas servem só para
+ * sugerir o ticket médio real da carteira, e quem não tem acesso ao Comercial
+ * continua usando a calculadora com o campo em branco.
+ */
+async function montarInvestimento(miolo) {
+  miolo.innerHTML = `<div class="loading"><div class="spinner"></div>Carregando...</div>`;
+
+  let d;
+  try { d = await dados(); }
+  catch (e) { miolo.innerHTML = erroHtml(e); return; }
+
+  miolo.innerHTML = `<div id="invRaiz"></div>`;
+  const { initInvestimentoUI } = await import('./financeiro-investimento-ui.js');
+
+  await initInvestimentoUI('invRaiz', {
+    lancamentos: d.lancamentos,
+    folha: d.folha,
+    carregarAssinaturas: async () => {
+      const { listarAssinaturas } = await import('./comercial-data.js');
+      return listarAssinaturas({ incluirCanceladas: false });
+    },
+  });
 }
 
 // ───────────────────────────────────────────────────────────
