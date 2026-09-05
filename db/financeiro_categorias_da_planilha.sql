@@ -14,6 +14,11 @@
 -- ficado sem regra — que e para isso que a Conferencia 2, no fim deste arquivo,
 -- existe.
 --
+-- AS 37 FOPAG NAO PASSAM PELO MAPA: vao todas para "Folha de Pagamento", pela
+-- marca `metadata.folha` que a importacao gravou. E a mesma categoria do
+-- espelho de folha fechada, para o relatorio nao rachar o custo de equipe em
+-- duas linhas conforme o mes tenha vindo da planilha ou do modulo Equipe.
+--
 -- ===========================================================================
 -- COMO ELE FUNCIONA
 -- ---------------------------------------------------------------------------
@@ -193,7 +198,40 @@ begin
         and lower(c.nome) = lower(m.categoria));
 
   -- ---------------------------------------------------------------------
-  -- 2) A classificacao, em uma consulta so
+  -- 2) A FOLHA, pela MARCA e nao pela descricao
+  -- ---------------------------------------------------------------------
+  -- As 37 FOPAG vao todas para "Folha de Pagamento" — a MESMA categoria que
+  -- `financeiro_folha_sincronizar` usa para o espelho de uma folha fechada. E de
+  -- proposito: o relatorio por categoria nao pode rachar o custo de equipe em
+  -- duas linhas so porque um mes veio da planilha e outro do modulo Equipe.
+  --
+  -- Quem decide e `metadata.folha`, gravada na importacao, e nao um padrao de
+  -- texto. A marca ja saiu da descricao uma vez (db/gerador_custos.mjs); repetir
+  -- a regra aqui criaria uma segunda definicao de "o que e folha", e as duas
+  -- discordariam no dia em que aparecesse a quinta grafia.
+  -- ---------------------------------------------------------------------
+  insert into public.financeiro_categorias (nutri_id, nome, tipo)
+  select v_nutri, 'Folha de Pagamento', 'despesa'
+   where not exists (
+     select 1 from public.financeiro_categorias c
+      where c.nutri_id = v_nutri and c.tipo = 'despesa'
+        and lower(c.nome) = 'folha de pagamento');
+
+  update public.financeiro_lancamentos l
+     set categoria_id = c.id, atualizado_em = now()
+    from public.financeiro_categorias c
+   where c.nutri_id = v_nutri and c.tipo = 'despesa'
+     and lower(c.nome) = 'folha de pagamento'
+     and l.nutri_id = v_nutri
+     and l.origem = 'planilha'
+     and l.metadata ->> 'folha' = 'true'
+     and l.categoria_id is distinct from c.id;
+
+  get diagnostics v_n = row_count;
+  if v_n > 0 then raise notice 'Folha de Pagamento: % linhas.', v_n; end if;
+
+  -- ---------------------------------------------------------------------
+  -- 3) A classificacao das demais, em uma consulta so
   -- ---------------------------------------------------------------------
   -- `distinct on (l.id) ... order by l.id, m.ordem` e o que faz a MENOR ordem
   -- vencer quando a mesma descricao casa com mais de um padrao.
@@ -232,6 +270,7 @@ end $categorias$;
 --   Obras e reforma 15 · Impostos e encargos 12 · Eventos 10 · Tarifas 6
 --   Suplementos 5 · Contabilidade 4 · Copa 4 · Uniformes 3 · Telefonia 2
 --   Licencas e seguranca 2 · Aluguel 1 · Marketing 1 · SEM CATEGORIA 0
+--   Folha de Pagamento 37 (as FOPAG, R$ 151.584,19)
 -- ===========================================================================
 select
   coalesce(c.nome, '— SEM CATEGORIA —')                    as categoria,
@@ -240,7 +279,6 @@ select
 from public.financeiro_lancamentos l
 left join public.financeiro_categorias c on c.id = l.categoria_id
 where l.origem = 'planilha' and l.status <> 'cancelado'
-  and coalesce(l.metadata ->> 'folha', '') <> 'true'
 group by c.nome
 order by count(*) desc;
 
