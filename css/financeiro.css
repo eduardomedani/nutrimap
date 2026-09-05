@@ -2065,6 +2065,9 @@ tbody tr.dsp-linha:focus-visible { outline: 2px solid var(--primary); outline-of
 .dsp-selo-vencido   { background: var(--error-soft, rgba(192,57,43,.10)); color: var(--error, #C0392B); }
 .dsp-selo-cancelado { background: var(--surface-2, rgba(127,127,127,.12)); color: var(--text-muted); text-decoration: line-through; }
 .dsp-selo-import    { background: var(--surface-2, rgba(127,127,127,.10)); color: var(--text-muted); }
+/* A folha tem cor, e as outras origens não: ela é a única linha que se refaz
+   sozinha a cada fechamento, e é isso que muda o que se pode fazer com ela. */
+.dsp-selo-folha     { background: var(--primary-soft, rgba(43,108,176,.12)); color: var(--primary, #2B6CB0); }
 
 .dsp-paginacao {
   display: flex; align-items: center; justify-content: center; gap: 14px;

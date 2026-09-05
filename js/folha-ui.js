@@ -18,7 +18,8 @@ import {
   nomeCompetencia, competenciaAtual, proximaCompetencia,
   listarFolhas, abrirFolha, carregarFolha, salvarItem, excluirItem, adicionarItem,
   adicionarAdicional, atualizarAdicional, excluirAdicional, fecharFolha, reabrirFolha, excluirFolha,
-  traduzirErroFolha,
+  traduzirErroFolha, traduzirErroLancamento,
+  lancarFolhaNoFinanceiro, descricaoDespesaDaFolha,
   alunosPorTurno, diaDaContagem, mesTrabalhado, TURNOS_COM_BONUS, rotuloDoBonus, turnoDoBonus, valorDoBonus,
   DESCONTO_MAXIMO,
   BONUS_POR_ALUNO,
@@ -343,9 +344,12 @@ function render() {
     ${resumoTurnosHtml()}
     ${bonusPresencaHtml(_bonus, _itens)}
 
-    ${fechada && _folha?.data_pagamento
+    ${fechada
       ? `<div class="fp-aviso"><i data-lucide="check-circle-2"></i>
-           Paga em ${formatarData(_folha.data_pagamento)}.
+           <span>${_folha?.data_pagamento
+             ? `Paga em ${formatarData(_folha.data_pagamento)}.` : ''}
+             No Financeiro, esta competência é a despesa
+             <b>${esc(descricaoDespesaDaFolha(_folha.competencia))}</b>.</span>
          </div>`
       : ''}
 
@@ -591,8 +595,14 @@ function ligar() {
   cont.querySelectorAll('[data-fp-reabrir]').forEach(b => b.addEventListener('click', async () => {
     await comErro(async () => {
       _folha = await reabrirFolha(_folha.id);
+      // A despesa do mês volta a ser cancelada: enquanto a folha está em
+      // rascunho, o valor está sendo mexido e não é dinheiro combinado. Ela
+      // renasce no próximo fechamento, com o total novo.
+      const espelho = await espelharNoFinanceiro();
       _folhas = await listarFolhas();
-      mostrarToast('Folha reaberta');
+      mostrarToast(espelho?.acao === 'cancelado'
+        ? 'Folha reaberta · a despesa do mês saiu do caixa'
+        : 'Folha reaberta');
       render();
     });
   }));
@@ -1733,6 +1743,10 @@ async function concluir() {
     `${_itens.length} ${_itens.length === 1 ? 'colaborador' : 'colaboradores'} · ${formatarBRL(total)}`,
     `${publicaveis.length} ${publicaveis.length === 1 ? 'contracheque será publicado' : 'contracheques serão publicados'}`,
     `${r.pontos} de ${r.pessoas} com folha de ponto vinculada`,
+    // O Financeiro é a outra ponta do fechamento, e a pessoa precisa saber
+    // disso ANTES de confirmar: o total vira uma despesa no caixa da empresa,
+    // com este nome, e é por ele que ela vai procurar depois.
+    `No Financeiro: despesa "${descricaoDespesaDaFolha(_folha.competencia)}"`,
   ];
   if (semNada) revisao.push(`${semNada} com total zerado — não recebe contracheque`);
   if (r.semPonto.length) revisao.push(`Sem folha de ponto: ${r.semPonto.join(', ')}`);
@@ -1754,12 +1768,33 @@ async function concluir() {
 
   await comErro(async () => {
     _folha = await fecharFolha(_folha.id, data);
+    const espelho = await espelharNoFinanceiro();
     _folhas = await listarFolhas();
     _itens = await carregarFolha(_folha.id);
     await carregarDocumentos();
-    mostrarToast(`✓ Folha fechada · ${publicados} ${publicados === 1 ? 'contracheque publicado' : 'contracheques publicados'}`);
+    mostrarToast(`✓ Folha fechada · ${publicados} ${publicados === 1 ? 'contracheque publicado' : 'contracheques publicados'}`
+      + (espelho ? ' · lançada no Financeiro' : ''));
     render();
   });
+}
+
+/**
+ * Espelha a folha no Financeiro e devolve o que aconteceu — ou `null` se não
+ * deu.
+ *
+ * FALHAR AQUI NÃO DESFAZ O FECHAMENTO, pelo mesmo motivo de
+ * `publicarContracheques`: a folha fechada é o registro do pagamento, e
+ * travá-la porque o lançamento não entrou deixaria o mês em aberto por um
+ * motivo que nada tem a ver com o dinheiro pago. O erro aparece na tela, e
+ * fechar de novo (reabrir → fechar) tenta outra vez.
+ */
+async function espelharNoFinanceiro() {
+  try {
+    return await lancarFolhaNoFinanceiro(_folha.id);
+  } catch (e) {
+    mostrarErro(traduzirErroLancamento(e.message));
+    return null;
+  }
 }
 
 /**

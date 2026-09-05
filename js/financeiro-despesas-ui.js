@@ -15,7 +15,7 @@
 import {
   listarLancamentos, listarCategorias, listarCentrosCusto,
   marcarComoPaga, cancelarDespesa, excluirLancamento,
-  somar, pendencias, contasAPagar, contaNoTotal,
+  somar, pendencias, contasAPagar, contaNoTotal, ehDespesaDeFolha,
   anoDa, dataBR, hojeISO, formatarBRL, nomeCompetencia, SEM_CATEGORIA,
 } from './financeiro.js';
 import { abrirLancamento, despesaDoBanco } from './financeiro-lancamento-form.js';
@@ -311,14 +311,26 @@ function linha(l, hoje, nomeCat, nomeCC) {
         ? '<span class="fx-alerta">sem valor</span>'
         : esc(formatarBRL(l.valor))}</td>
       <td class="fx-c" data-rot="Situação"><span class="dsp-selo dsp-selo-${s}">${ROTULO_STATUS[s]}</span></td>
-      <td class="fx-c" data-rot="Origem">${l.origem === 'manual'
-        ? '<span class="dsp-mudo">Manual</span>'
-        : `<span class="dsp-selo dsp-selo-import">Importada</span>`}</td>
+      <td class="fx-c" data-rot="Origem">${rotuloOrigem(l)}</td>
       <td class="fx-acao-cel" data-rot="Ações">
         <button class="fp-acao" data-menu="${l.id}" aria-label="Ações de ${esc(l.descricao)}"
                 aria-haspopup="menu"><i data-lucide="ellipsis-vertical"></i></button>
       </td>
     </tr>`;
+}
+
+/**
+ * De onde a linha veio, em uma palavra.
+ *
+ * A folha ganha selo PRÓPRIO e não entra em "Importada": importada é linha que
+ * um dia veio de uma planilha e não muda mais sozinha; a folha é espelho de uma
+ * apuração viva, que se refaz a cada fechamento. Quem vê a diferença no selo
+ * entende por que editar uma e editar a outra não têm o mesmo efeito.
+ */
+function rotuloOrigem(l) {
+  if (ehDespesaDeFolha(l)) return '<span class="dsp-selo dsp-selo-folha">Folha</span>';
+  if (l.origem === 'manual') return '<span class="dsp-mudo">Manual</span>';
+  return '<span class="dsp-selo dsp-selo-import">Importada</span>';
 }
 
 function vazioHtml() {
@@ -420,11 +432,17 @@ async function acao(qual, l) {
     }
 
     if (qual === 'excluir') {
-      const importada = l.origem !== 'manual';
+      // A da folha volta pelo mesmo caminho por onde veio: reabrir e fechar a
+      // competência recria a linha, com o valor apurado na hora. Quem apaga
+      // precisa saber disso antes, não depois.
+      const daFolha = ehDespesaDeFolha(l);
+      const importada = !daFolha && l.origem !== 'manual';
       if (!confirm(
         `Excluir "${l.descricao}" definitivamente?\n\n` +
         'Cancelar é quase sempre melhor: preserva o registro de que existiu.' +
-        (importada ? '\n\nEsta linha veio de importação — reimportar vai trazê-la de volta.' : ''))) return;
+        (importada ? '\n\nEsta linha veio de importação — reimportar vai trazê-la de volta.' : '') +
+        (daFolha ? '\n\nEsta linha é o espelho de uma folha fechada — reabrir e fechar ' +
+                   'a folha de novo vai recriá-la. Para tirá-la do total, cancele.' : ''))) return;
       await excluirLancamento(l.id);
       return recarregar();
     }

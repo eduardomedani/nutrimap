@@ -418,6 +418,67 @@ export async function reabrirFolha(id) {
   return atualizarFolha(id, { status: 'rascunho' });
 }
 
+/**
+ * O nome da despesa que a folha vira no Financeiro.
+ *
+ * O mês é o da COMPETÊNCIA, que é como a folha se chama em toda a casa — a
+ * folha de setembro paga o trabalho de agosto (ver `mesTrabalhado`), mas quem
+ * procura a despesa no caixa procura pelo mês que viu na tela da folha.
+ *
+ * O MESMO TEXTO É MONTADO NO BANCO, em `financeiro_folha_sincronizar`. Aqui ele
+ * existe para a tela poder dizer o que vai acontecer ANTES de fechar; lá, para
+ * o lançamento nascer com o nome certo mesmo pelo backfill. Os dois formatos
+ * são comparados em test/folha-despesa.test.mjs — duas fontes do mesmo texto
+ * divergem no dia em que uma muda, e o teste é o que impede isso.
+ */
+export const DESPESA_DA_FOLHA = 'Folha de Pagamento';
+
+export function descricaoDespesaDaFolha(competencia) {
+  return `${DESPESA_DA_FOLHA} - ${nomeCompetencia(competencia)}`;
+}
+
+/**
+ * Espelha a folha no caixa da empresa: fechada, vira despesa; reaberta, a
+ * despesa é cancelada.
+ *
+ * QUEM DECIDE É O ESTADO DA FOLHA, não quem chama — por isso a mesma função
+ * serve ao fechar e ao reabrir, e chamá-la duas vezes seguidas não faz duas
+ * coisas diferentes.
+ *
+ * Passa por RPC e não por insert direto porque quem fecha a folha tem
+ * `equipe.folha` e não necessariamente `financeiro.lancar`. Ver o cabeçalho de
+ * db/financeiro_folha_despesa.sql.
+ *
+ * @returns {{lancamento_id, acao, descricao, valor, status}|null} `null` quando
+ *          não havia nada a fazer (rascunho que nunca foi fechado).
+ */
+export async function lancarFolhaNoFinanceiro(folhaId) {
+  const { data, error } = await sb.rpc('financeiro_lancar_folha', { p_folha_id: folhaId });
+  if (error) throw error;
+  return (Array.isArray(data) ? data[0] : data) || null;
+}
+
+/**
+ * O erro da RPC em português.
+ *
+ * Separado de `traduzirErroFolha` porque estas falhas NÃO desfazem nada: a
+ * folha já foi fechada (ou reaberta) quando elas acontecem, e uma frase que
+ * dissesse só "não consegui" deixaria a pessoa sem saber em que estado o mês
+ * ficou. Toda mensagem daqui começa dizendo que a folha está salva.
+ */
+export function traduzirErroLancamento(msg) {
+  const m = String(msg || '').toLowerCase();
+  const salva = 'A folha está salva, mas';
+  if (m.includes('financeiro_lancar_folha') || m.includes('could not find the function')
+      || m.includes('schema cache')) {
+    return `${salva} o Financeiro ainda não sabe recebê-la — rode db/financeiro_folha_despesa.sql.`;
+  }
+  if (m.includes('sem permissao')) {
+    return `${salva} você não tem permissão para lançá-la no Financeiro.`;
+  }
+  return `${salva} não consegui lançá-la no Financeiro: ${msg || 'erro desconhecido'}`;
+}
+
 export async function excluirFolha(id) {
   const { error } = await sb.from('folhas').delete().eq('id', id);
   if (error) throw error;

@@ -577,7 +577,21 @@ export function drawerHtml(ctx = {}) {
     if ((l.status || (l.pago ? 'pago' : 'pendente')) === 'pago') {
       partes.push(`<div class="dsp-aviso"><i data-lucide="info"></i><div>${t.afeta}</div></div>`);
     }
-    if (l.origem && l.origem !== 'manual') {
+    // O espelho da folha NÃO é importação: ele se refaz a cada fechamento, e
+    // é isso que precisa estar dito antes de alguém editar o valor aqui.
+    if (l.origem === 'folha') {
+      partes.push(`<div class="dsp-aviso dsp-aviso-origem">
+        <i data-lucide="users-round"></i>
+        <div>
+          <strong>Origem: folha de pagamento</strong>
+          <div class="dsp-origem-dados">
+            O valor é apurado em Equipe e reescrito toda vez que a folha desta
+            competência é fechada. Corrigir aqui vale até o próximo fechamento —
+            para mudar o número de verdade, reabra a folha e corrija lá.
+          </div>
+        </div>
+      </div>`);
+    } else if (l.origem && l.origem !== 'manual') {
       const orig = l.metadata?.original;
       partes.push(`<div class="dsp-aviso dsp-aviso-origem">
         <i data-lucide="file-input"></i>

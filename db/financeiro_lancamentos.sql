@@ -1,16 +1,19 @@
 -- ===========================================================================
 -- Evollo · Financeiro da empresa — LANCAMENTOS
 -- ---------------------------------------------------------------------------
--- O que entra e o que sai do caixa. NAO e a folha de pagamento: o custo de
--- colaborador e apurado em folhas/folha_itens (db/folha_schema.sql) e o
--- Financeiro LE aquele numero em vez de guardar uma segunda copia dele.
+-- O que entra e o que sai do caixa. A FOLHA NAO E APURADA AQUI: o custo de
+-- colaborador sai de folhas/folha_itens (db/folha_schema.sql). Desde
+-- db/financeiro_folha_despesa.sql, a folha FECHADA ganha uma linha nesta
+-- tabela — origem 'folha', com `folha_id` — que e ESPELHO daquela apuracao e
+-- se refaz a cada fechamento.
 --
--- POR QUE ISSO IMPORTA: a planilha de custos trazia 88 linhas de FOPAG e
--- pagamento nominal, R$ 162.869,74, que o modulo Equipe ja apura a partir do
--- ponto. Importar as duas coisas faria o custo de equipe existir em dois
--- lugares, e duas fontes do mesmo numero divergem — nao no dia da importacao,
--- mas no primeiro mes em que alguem corrigir um lado so. Aqui entram as
--- despesas de operacao; a folha continua sendo respondida por quem a calcula.
+-- POR QUE A DISTINCAO IMPORTA: a planilha de custos trazia 88 linhas de FOPAG e
+-- pagamento nominal, R$ 162.869,74, digitadas a mao e sem vinculo nenhum com a
+-- apuracao. Aquelas ficaram de fora, e continuam de fora: importa-las faria o
+-- custo de equipe existir em dois lugares SEM ninguem saber qual dos dois esta
+-- certo — nao no dia da importacao, mas no primeiro mes em que alguem corrigir
+-- um lado so. O espelho e o oposto disso: tem dono, tem valor recalculado, e a
+-- tela sabe que, onde ele existe, a apuracao nao soma junto.
 --
 -- Requer: nada alem do auth do Supabase. 100% re-executavel.
 -- Rodar no SQL Editor do Supabase.
@@ -125,9 +128,13 @@ alter table public.financeiro_lancamentos add  constraint financeiro_lancamentos
 -- silencio — e o estrago so apareceria no total do mes seguinte.
 --   'planilha' = custos.csv        (db/gerador_custos.mjs)
 --   'vendas'   = Vendas.xlsx       (db/gerador_vendas.mjs)
+--   'folha'    = o espelho de uma folha fechada, gerado por
+--                db/financeiro_folha_despesa.sql. Nao vem de importacao
+--                nenhuma: e a unica origem que o proprio sistema escreve, e o
+--                valor dela e recalculado toda vez que a folha fecha.
 alter table public.financeiro_lancamentos drop constraint if exists financeiro_lancamentos_origem_check;
 alter table public.financeiro_lancamentos add  constraint financeiro_lancamentos_origem_check
-  check (origem in ('manual', 'planilha', 'vendas'));
+  check (origem in ('manual', 'planilha', 'vendas', 'folha'));
 
 -- Valor negativo em lancamento seria uma despesa que devolve dinheiro — isso e
 -- um estorno, que se registra como receita, com data e descricao propria.

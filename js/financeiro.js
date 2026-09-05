@@ -1,11 +1,18 @@
 // ═══════════════════════════════════════════════════════════
 // FINANCEIRO DA EMPRESA — camada de dados e cálculo
 // ═══════════════════════════════════════════════════════════
-// O caixa: o que sai e o que entra. NÃO é a folha de pagamento — o custo de
-// colaborador é apurado em js/folha.js a partir do ponto, e aqui ele é LIDO,
-// nunca copiado. As duas coisas somadas dão o custo do mês; guardadas nos dois
-// lugares, dariam dois números diferentes no primeiro mês em que alguém
-// corrigisse um lado só.
+// O caixa: o que sai e o que entra. A FOLHA NÃO É APURADA AQUI — o custo de
+// colaborador sai de js/folha.js, a partir do ponto —, mas desde
+// db/financeiro_folha_despesa.sql ela é LANÇADA aqui quando a competência
+// fecha: uma despesa "Folha de Pagamento - <mês> de <ano>", com `folha_id`
+// apontando para a folha que a gerou.
+//
+// ISSO NÃO CRIA UM SEGUNDO NÚMERO, e a distinção é o que sustenta este módulo
+// inteiro. O lançamento é ESPELHO: nasce do total apurado e é reescrito a cada
+// fechamento. Quem responde pelo custo de um mês é sempre UM dos dois —
+// `folhaDoPeriodo()` dá a palavra ao lançamento onde ele existe e à apuração
+// onde não existe, e nunca soma os dois. Sem essa regra, o mês em que a folha
+// fecha apareceria com o dobro do custo de pessoal, sem nada dizendo por quê.
 //
 // A importação da planilha de custos deixou duas classes de pendência, de
 // propósito: 22 lançamentos sem categoria e 1 sem valor. Nada foi adivinhado —
@@ -68,6 +75,67 @@ export function contaNoTotal(l) {
 }
 
 const somaveis = lista => (lista || []).filter(contaNoTotal);
+
+/**
+ * A despesa é o espelho de uma folha fechada?
+ *
+ * Reconhecida pela ORIGEM, e não pela descrição: "Folha de Pagamento - Agosto
+ * de 2026" digitada à mão por alguém é uma despesa comum, e tratá-la como
+ * espelho faria o Financeiro parar de somar a folha apurada daquele mês.
+ *
+ * Não olha `folha_id` porque a coluna não é lida pela tela — quem não rodou
+ * db/financeiro_folha_despesa.sql não tem a coluna, e pedi-la no `select`
+ * derrubaria o módulo inteiro por causa de um recurso que ele nem usa ainda.
+ */
+export function ehDespesaDeFolha(l) {
+  return l?.origem === 'folha';
+}
+
+/** Separa o que é operação do que é espelho da folha. As duas parcelas são
+ *  mostradas separadas na tela: um total que junta as duas sem dizer de onde
+ *  cada pedaço veio é impossível de conferir quando diverge. */
+export function separarFolha(lancamentos) {
+  const operacao = [], daFolha = [];
+  for (const l of lancamentos || []) (ehDespesaDeFolha(l) ? daFolha : operacao).push(l);
+  return { operacao, daFolha };
+}
+
+const mesDe = v => String(v || '').slice(0, 7);
+
+/**
+ * A folha de cada mês, vinda de UMA fonte só por competência.
+ *
+ * ONDE HÁ LANÇAMENTO, ELE MANDA. A folha fechada vira despesa no caixa
+ * (db/financeiro_folha_despesa.sql) e continua existindo na apuração de
+ * folhas/folha_itens — somar as duas contaria o mesmo pagamento duas vezes, e o
+ * custo do mês dobraria sem nada na tela dizendo por quê.
+ *
+ * Onde não há — folha em rascunho, ou fechada antes daquela migration — vale a
+ * apuração, exatamente como antes.
+ *
+ * O espelho CANCELADO não conta como lançamento: cancelar é o que acontece
+ * quando a folha é reaberta, e nesse momento o mês volta a ser respondido pela
+ * apuração, que é o número que está sendo mexido.
+ */
+export function folhaDoPeriodo(lancamentos, folha) {
+  const lancada = new Map();
+  for (const l of somaveis(lancamentos)) {
+    if (!ehDespesaDeFolha(l)) continue;
+    const mes = mesDe(l.competencia);
+    if (!mes) continue;
+    lancada.set(mes, (lancada.get(mes) || 0) + emCentavos(l.valor));
+  }
+
+  const fora = [...lancada.entries()]
+    .map(([mes, cents]) => ({ competencia: `${mes}-01`, total: cents / 100, lancado: true }));
+
+  for (const f of folha || []) {
+    if (lancada.has(mesDe(f.competencia))) continue;
+    fora.push({ ...f, total: Number(f.total) || 0, lancado: false });
+  }
+
+  return fora.sort((a, b) => String(a.competencia).localeCompare(String(b.competencia)));
+}
 
 /** Soma que ignora nulo. Lançamento sem valor não vale zero: vale desconhecido,
  *  e é `pendencias()` que denuncia isso. Somar como zero aqui faria o total
@@ -223,10 +291,16 @@ export function anosDisponiveis(lancamentos, folha = []) {
  * `despesa` e `folha` vêm separadas porque são apuradas por módulos diferentes.
  * A soma das duas é o custo do mês; guardá-las juntas apagaria de onde cada
  * pedaço veio no dia em que os dois números divergirem.
+ *
+ * O ESPELHO DA FOLHA CONTINUA NA PARCELA `folha`, mesmo sendo uma despesa
+ * lançada. Ele não vira "despesa de operação" ao entrar no caixa: quem lê o
+ * gráfico quer saber quanto custou a equipe e quanto custou o resto, e essa
+ * pergunta não muda porque o número passou a ter uma linha no financeiro.
  */
 export function serieAnual(lancamentos, folha, ano) {
   const alvo = String(ano);
   const meses = [];
+  const daFolha = folhaDoPeriodo(lancamentos, folha);
 
   for (let m = 1; m <= 12; m++) {
     const competencia = competenciaDe(alvo, m);
@@ -234,12 +308,13 @@ export function serieAnual(lancamentos, folha, ano) {
 
     for (const l of somaveis(lancamentos)) {
       if (String(l.competencia || '').slice(0, 7) !== competencia.slice(0, 7)) continue;
+      if (ehDespesaDeFolha(l)) continue;              // entra pela parcela `folha`
       if (l.tipo === 'receita') receita += emCentavos(l.valor);
       else despesa += emCentavos(l.valor);
     }
 
     let folhaMes = 0;
-    for (const f of folha || []) {
+    for (const f of daFolha) {
       if (String(f.competencia || '').slice(0, 7) === competencia.slice(0, 7)) folhaMes += emCentavos(f.total);
     }
 
@@ -272,19 +347,30 @@ export function serieAnual(lancamentos, folha, ano) {
  * financeiro: o relatório do mês fecha certo e o caixa fica errado, ou o
  * contrário, e não há como saber qual dos dois está mentindo.
  *
- * A FOLHA entra como saída realizada pela competência, que na convenção deste
- * projeto é o mês do pagamento (ver db/folha_schema.sql).
+ * A FOLHA entra como saída realizada de dois jeitos, e a diferença é a mesma
+ * das três datas acima. A folha JÁ LANÇADA (espelho de folha fechada) anda pelo
+ * `pago_em` do lançamento, como qualquer despesa paga — é a data em que o Pix
+ * saiu. A folha ainda NÃO lançada entra pela competência, que na convenção
+ * deste projeto é o mês do pagamento (ver db/folha_schema.sql): é a melhor
+ * aproximação disponível quando não há um lançamento com data própria.
+ *
+ * Os dois nunca se somam no mesmo mês — `folhaDoPeriodo()` deixa só um deles
+ * responder por cada competência.
  */
 export function fluxoDeCaixa(lancamentos, folha, ano) {
   const alvo = String(ano);
   const meses = [];
   let acumulado = 0;
 
+  // Só as competências que NÃO viraram lançamento. As que viraram andam com as
+  // outras despesas, logo abaixo, pela data do pagamento.
+  const apurada = folhaDoPeriodo(lancamentos, folha).filter(f => !f.lancado);
+
   for (let m = 1; m <= 12; m++) {
     const competencia = competenciaDe(alvo, m);
     const chave = competencia.slice(0, 7);
 
-    let entrou = 0, saiu = 0, aReceber = 0, aPagar = 0;
+    let entrou = 0, saiu = 0, aReceber = 0, aPagar = 0, folhaPaga = 0;
 
     for (const l of somaveis(lancamentos)) {
       const pago = (l.status || (l.pago ? 'pago' : 'pendente')) === 'pago';
@@ -295,15 +381,17 @@ export function fluxoDeCaixa(lancamentos, folha, ano) {
         // fora do fluxo em vez de entrar num mês adivinhado — e aparece na
         // conferência como pendência, que é o que ela é.
         if (String(l.pago_em || '').slice(0, 7) !== chave) continue;
-        if (l.tipo === 'receita') entrou += cents; else saiu += cents;
+        if (l.tipo === 'receita') entrou += cents;
+        else if (ehDespesaDeFolha(l)) folhaPaga += cents;
+        else saiu += cents;
       } else {
         if (String(l.vencimento || '').slice(0, 7) !== chave) continue;
         if (l.tipo === 'receita') aReceber += cents; else aPagar += cents;
       }
     }
 
-    let folhaMes = 0;
-    for (const f of folha || []) {
+    let folhaMes = folhaPaga;
+    for (const f of apurada) {
       if (String(f.competencia || '').slice(0, 7) === chave) folhaMes += emCentavos(f.total);
     }
 

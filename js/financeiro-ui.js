@@ -5,10 +5,16 @@
 // que está para pagar. NÃO é a folha de pagamento — pessoas, horas, ponto e
 // contracheques moram em Equipe e pagamentos (js/equipe-admin-ui.js).
 //
-// O custo da equipe aparece aqui como PARCELA do custo do mês, lida da folha,
-// e a tela sempre mostra as duas parcelas separadas. Um total que junta
-// despesas e folha sem dizer de onde cada pedaço veio é impossível de conferir
-// no dia em que os dois números divergirem.
+// O custo da equipe aparece aqui como PARCELA do custo do mês, e a tela sempre
+// mostra as duas parcelas separadas. Um total que junta despesas e folha sem
+// dizer de onde cada pedaço veio é impossível de conferir no dia em que os dois
+// números divergirem.
+//
+// A folha FECHADA tem lançamento próprio no caixa desde
+// db/financeiro_folha_despesa.sql, e mesmo assim ela continua na parcela dela:
+// virar uma linha do financeiro não a transforma em despesa de operação. Por
+// isso a Visão geral separa `separarFolha()` antes de somar — sem isso, o
+// mesmo dinheiro apareceria no tile das despesas e no tile ao lado.
 //
 // A VISÃO GERAL NÃO ESCONDE O QUE FALTA. A importação da planilha trouxe
 // lançamento sem categoria e lançamento sem valor; a tela abre com isso à
@@ -23,7 +29,7 @@ import {
   listarCategorias, listarLancamentos, folhaPorCompetencia,
   salvarLancamento, criarLancamento, excluirLancamento, fundirCategorias,
   somar, porCategoria, porAno, pendencias, serieAnual, totaisDoAno, anosDisponiveis,
-  fluxoDeCaixa, forasDoFluxo,
+  fluxoDeCaixa, forasDoFluxo, separarFolha, folhaDoPeriodo,
   anoDa, dataBR, formatarBRL, nomeCompetencia, valorDeTexto, SEM_CATEGORIA,
 } from './financeiro.js';
 import {
@@ -190,14 +196,23 @@ async function montarVisaoGeral(miolo) {
   try { d = await dados(); }
   catch (e) { miolo.innerHTML = erroHtml(e); return; }
 
-  const despesas = doTipo(d.lancamentos, 'despesa');
+  // A FOLHA SAI DAS DESPESAS DE OPERAÇÃO, mesmo já sendo um lançamento. Desde
+  // db/financeiro_folha_despesa.sql a folha fechada tem linha própria no caixa
+  // — e somá-la aqui a faria aparecer duas vezes na mesma tela: no tile das
+  // despesas e no tile do custo da equipe, logo ao lado.
+  const { operacao: despesas } = separarFolha(doTipo(d.lancamentos, 'despesa'));
   const receitas = doTipo(d.lancamentos, 'receita');
 
   if (!d.lancamentos.length) { miolo.innerHTML = vazioHtml('despesa'); ligarAcoes(miolo); return; }
 
+  // Uma fonte por competência: onde há lançamento, ele manda; onde não há,
+  // vale a apuração da folha. Ver `folhaDoPeriodo` em js/financeiro.js.
+  const folhaMeses = folhaDoPeriodo(d.lancamentos, d.folha);
+  const lancadas = folhaMeses.filter(f => f.lancado).length;
+
   const totalDespesas = somar(despesas);
   const totalReceitas = somar(receitas);
-  const totalFolha = d.folha.reduce((s, f) => s + (Number(f.total) || 0), 0);
+  const totalFolha = somar(folhaMeses.map(f => ({ valor: f.total })));
   const pend = pendencias(d.lancamentos);
   const anos = porAno(despesas);
   const cats = porCategoria(despesas, d.categorias);
@@ -216,12 +231,13 @@ async function montarVisaoGeral(miolo) {
       <div class="rs-tile">
         <div class="rs-tile-rot">Despesas lançadas</div>
         <div class="rs-tile-val">${esc(formatarBRL(totalDespesas))}</div>
-        <div class="rs-tile-sub">${despesas.length} lançamentos</div>
+        <div class="rs-tile-sub">${despesas.length} lançamentos, sem a folha</div>
       </div>
       <div class="rs-tile">
         <div class="rs-tile-rot">Custo da equipe</div>
         <div class="rs-tile-val">${esc(formatarBRL(totalFolha))}</div>
-        <div class="rs-tile-sub">${d.folha.length} competências · apurado na folha</div>
+        <div class="rs-tile-sub">${folhaMeses.length} competências · ${
+          lancadas ? `${lancadas} já ${lancadas === 1 ? 'lançada' : 'lançadas'} no caixa` : 'apurado na folha'}</div>
       </div>
       <div class="rs-tile">
         <div class="rs-tile-rot">Custo total</div>
@@ -255,8 +271,8 @@ async function montarVisaoGeral(miolo) {
           </div>`).join('')}
       </div>
       <p class="fe-nota">
-        Só despesas de operação. O custo da equipe é apurado na folha e não é
-        somado aqui para não aparecer duas vezes.
+        Só despesas de operação. A folha fechada tem lançamento próprio no caixa
+        e é contada no custo da equipe — aqui ela ficaria pela segunda vez.
       </p>
     </div>
 
@@ -280,7 +296,8 @@ async function montarVisaoGeral(miolo) {
       <div class="fe-ponte-info">
         <div class="fe-ponte-rot"><i data-lucide="users-round"></i> Custo da equipe</div>
         <div class="fe-ponte-val">${esc(formatarBRL(totalFolha))}</div>
-        <div class="fe-ponte-sub">horas, adicionais e contracheques ficam em Equipe e pagamentos</div>
+        <div class="fe-ponte-sub">horas, adicionais e contracheques ficam em Equipe e pagamentos${
+          lancadas ? ` · ${lancadas} ${lancadas === 1 ? 'folha fechada virou despesa' : 'folhas fechadas viraram despesa'}` : ''}</div>
       </div>
       <button class="btn" id="feVerEquipe">
         Ver folha e colaboradores <i data-lucide="arrow-right"></i>
@@ -347,7 +364,8 @@ function desenharGrafico() {
 
     <p class="fe-nota">
       Os doze meses aparecem sempre, inclusive os vazios: mês sem receita é um
-      fato sobre o negócio, não falta de dado. A folha vem do módulo Equipe.
+      fato sobre o negócio, não falta de dado. A folha continua sendo parcela
+      própria, esteja ela lançada no caixa ou ainda só apurada em Equipe.
     </p>
   `;
 

@@ -261,8 +261,12 @@ grupo('importação · as duas planilhas não se atropelam', () => {
     ok(vendas.includes("'vendas', v.linha"), 'vendas precisa gravar origem vendas');
   });
 
-  teste('o schema aceita as três origens', () => {
-    contem(schema, "check (origem in ('manual', 'planilha', 'vendas'))");
+  teste('o schema aceita as quatro origens', () => {
+    // A quarta é 'folha', e é a única que o próprio sistema escreve: o espelho
+    // de uma folha fechada (db/financeiro_folha_despesa.sql). As três de
+    // importação continuam intocadas — o que importa aqui é que as marcas não
+    // se misturem, porque cada seed apaga o que trouxe filtrando por elas.
+    contem(schema, "check (origem in ('manual', 'planilha', 'vendas', 'folha'))");
   });
 
   teste('nenhum dos dois usa truncate', () => {
