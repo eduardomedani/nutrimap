@@ -45,6 +45,48 @@ const MET_DESC = {
   'FST-7':      '7 séries do mesmo exercício com ~30–45s de descanso, buscando congestão máxima.',
   'Cluster':    'Fracione a série em mini-blocos de poucas reps com pausas curtas.',
 };
+/**
+ * A mídia do exercício — o vídeo tocando no card, sem tirar o aluno do treino.
+ *
+ * O LINK "Ver vídeo" ABRIA ABA NOVA, e no meio de uma série isso é caro: o
+ * aluno sai do app, volta, e o cronômetro de descanso perdeu o contexto na
+ * cabeça dele. Aqui o vídeo toca onde ele está.
+ *
+ * PÁGINA NÃO É ARQUIVO. YouTube, Instagram e Drive entregam uma PÁGINA, não
+ * bytes de vídeo — dentro de um <video> eles não tocam. Esses vão como link,
+ * porque um player quebrado é pior que um link honesto.
+ *
+ * O RESTO TENTA TOCAR E CAI NO LINK SE FALHAR. Sniffar extensão não serve: as
+ * URLs de biblioteca costumam não ter (`/api/free/<uuid>` devolve video/mp4
+ * sem nenhum ".mp4"), e uma allowlist de host viraria manutenção eterna. Deixar
+ * o navegador decidir é o único teste que não envelhece — quem sabe se toca é
+ * quem vai tocar.
+ *
+ * `preload="none"` porque um treino tem doze exercícios: pré-carregar todos
+ * gastaria a franquia do aluno com vídeo que ele não vai abrir. `playsinline`
+ * para o iPhone não jogar em tela cheia sozinho, e `loop` + `muted` porque
+ * demonstração de movimento se vê em repetição e sem som.
+ */
+const PAGINAS_DE_VIDEO = /(?:youtube.com|youtu.be|instagram.com|drive.google.com|vimeo.com|tiktok.com)/i;
+
+export function midiaDoExercicioHtml(url) {
+  const u = String(url || '').trim();
+  if (!u) return '';
+
+  const link = `<a class="pa-video" href="${esc(u)}" target="_blank" rel="noopener"><i data-lucide="play"></i> Ver vídeo</a>`;
+  if (PAGINAS_DE_VIDEO.test(u)) return link;
+
+  // O link vem JUNTO, escondido: o `onerror` do <video> só troca o `hidden`.
+  // Montá-lo por JS depois da falha exigiria guardar a URL em algum lugar do
+  // DOM e reconstruir a marcação — mais código para o caso que já deu errado.
+  return `
+    <div class="pa-midia">
+      <video class="pa-midia-v" src="${esc(u)}" preload="none" playsinline loop muted controls
+             onerror="this.hidden=true;this.nextElementSibling.hidden=false"></video>
+      <span hidden>${link}</span>
+    </div>`;
+}
+
 function metodoInfo(metodo) {
   const key = String(metodo || '').trim().toLowerCase();
   if (!key) return null;
@@ -1253,9 +1295,7 @@ function cardExercicio(it, i, opts = {}) {
   // 3-4 · Último treino + evolução (do cache já pré-carregado).
   const regs = _progCache.get(it.id) || [];
 
-  const video = ex.video_url
-    ? `<a class="pa-video" href="${esc(ex.video_url)}" target="_blank" rel="noopener"><i data-lucide="play"></i> Ver vídeo</a>`
-    : '';
+  const video = midiaDoExercicioHtml(ex.video_url);
 
   return `
     <div class="pa-ex${feito ? ' done' : ''}" data-ex="${it.id}">

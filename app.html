@@ -455,6 +455,17 @@
   .pa-ex-foot { display: flex; align-items: center; gap: 10px; margin-top: 13px; }
   .pa-video { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; font-size: 13px; font-weight: 700; color: var(--moss); text-decoration: none; padding: 8px 12px; border-radius: 10px; background: var(--bg-warm); }
   .pa-video svg { width: 15px; height: 15px; }
+  /* O player no card. `aspect-ratio` fixo em retrato porque os clipes de
+     demonstração são verticais e o card não pode pular de altura quando o
+     vídeo carrega — layout que salta no meio de um treino faz o aluno perder
+     o dedo do botão de série. `background` escuro para a barra preta do
+     vídeo não brigar com o fundo claro do card. */
+  .pa-midia { margin-top: 13px; }
+  .pa-midia-v {
+    width: 100%; max-width: 320px; aspect-ratio: 9 / 16;
+    display: block; border-radius: 12px; background: #12140F;
+    object-fit: cover;
+  }
 
   /* ── Progressão ── */
   .pa-prog { margin-top: 16px; border-top: 1px solid var(--hair); padding-top: 16px; }
