@@ -15,6 +15,7 @@ import {
   listarExercicios, buscarExercicioPorNome,
   listarProgressao, registrarProgressao, excluirProgressao,
   listarModelos, prescreverModeloParaPaciente, salvarComoModelo,
+  duplicarTreino,
 } from './treinos.js';
 import { sb } from './supabase.js';
 import { registrarEvento } from './timeline.js';
@@ -214,6 +215,7 @@ async function renderLista() {
           </div>
           <button class="patient-action primary" data-tr-edit="${t.id}"><i data-lucide="pencil"></i> Abrir</button>
           ${ehModelo ? '' : `<button class="patient-action" data-tr-lib="${t.id}" data-tr-nome="${esc(t.nome || '')}" title="Salvar na biblioteca como modelo"><i data-lucide="copy-plus"></i></button>`}
+          <button class="patient-action" data-tr-dup="${t.id}" data-tr-nome="${esc(t.nome || '')}" title="Duplicar"><i data-lucide="copy"></i></button>
           <button class="patient-action patient-action-danger" data-tr-del="${t.id}" data-tr-nome="${esc(t.nome || '')}"><i data-lucide="trash-2"></i></button>
         </div>`;
       }).join('')
@@ -249,8 +251,34 @@ async function renderLista() {
     b.addEventListener('click', () => abrirEditor(treinos.find(t => t.id === b.dataset.trEdit))));
   _mountEl.querySelectorAll('[data-tr-del]').forEach(b =>
     b.addEventListener('click', () => removerTreino(b.dataset.trDel, b.dataset.trNome)));
+  _mountEl.querySelectorAll('[data-tr-dup]').forEach(b =>
+    b.addEventListener('click', () => duplicarEsteTreino(b.dataset.trDup, b.dataset.trNome, b)));
   _mountEl.querySelectorAll('[data-tr-lib]').forEach(b =>
     b.addEventListener('click', () => salvarTreinoNaBiblioteca(b.dataset.trLib, b.dataset.trNome, b)));
+}
+
+/**
+ * Duplica o treino da linha e recarrega a lista.
+ *
+ * SEM CONFIRMAÇÃO, de propósito. Duplicar não destrói nada e o desfazer é o
+ * botão de excluir logo ao lado — pedir "tem certeza?" para uma ação reversível
+ * é o tipo de diálogo que a pessoa aprende a fechar sem ler, e aí ela também
+ * fecha sem ler o de excluir.
+ *
+ * O toast diz o nome que saiu, porque é ele que a pessoa vai procurar na lista:
+ * a cópia entra ordenada por data de criação e nem sempre cai ao lado da
+ * original.
+ */
+async function duplicarEsteTreino(id, nome, btn) {
+  if (btn) btn.disabled = true;
+  try {
+    const copia = await duplicarTreino(id);
+    mostrarToast(`✓ "${copia.nome}" criado`);
+    await renderLista();
+  } catch (e) {
+    mostrarErro('Erro ao duplicar: ' + e.message);
+    if (btn) btn.disabled = false;
+  }
 }
 
 // Sobe um treino do aluno para a biblioteca como modelo reutilizável.

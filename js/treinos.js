@@ -191,6 +191,67 @@ export async function excluirTreino(id) {
 }
 
 /**
+ * Copia os itens de um treino para outro.
+ *
+ * TRÊS OPERAÇÕES COPIAVAM ITENS COM O MESMO CÓDIGO REPETIDO, e as duas
+ * primeiras esqueciam quatro colunas: `drop_ultimas`, `grupo_id`,
+ * `grupo_pos` e `grupo_obs`. Na prática, prescrever um modelo ou salvar na
+ * biblioteca DESMONTAVA os bi-sets e perdia os drop sets — e em silêncio, que
+ * é o pior jeito: o treino chegava inteiro em número de exercícios e errado em
+ * estrutura.
+ *
+ * O BI-SET NÃO PODE SER COPIADO CRU. `grupo_id` aponta para o id de OUTRO
+ * item — o exercício âncora. Copiado como está, os itens novos apontariam para
+ * os itens do treino ORIGINAL: dois treinos amarrados por dentro, e mexer num
+ * quebraria o outro. É pior que perder o bi-set.
+ *
+ * Por isso os ids são gerados AQUI, antes do insert, com `crypto.randomUUID()`.
+ * Com o id novo em mãos antes de gravar, o remapeamento vira uma consulta a um
+ * Map — sem segundo round-trip e sem depender de o banco devolver as linhas na
+ * mesma ordem em que foram enviadas.
+ */
+async function copiarItens(itens, treinoDestinoId, nutriId, { comCarga = true } = {}) {
+  if (!itens.length) return [];
+
+  // De-para do id antigo para o novo, montado antes de qualquer escrita.
+  const novoId = new Map(itens.map(it => [it.id, crypto.randomUUID()]));
+
+  const copias = itens.map((it) => ({
+    id:             novoId.get(it.id),
+    nutri_id:       nutriId,
+    treino_id:      treinoDestinoId,
+    exercicio_id:   it.exercicio_id,
+    dia:            it.dia,
+    ordem:          it.ordem,
+    series:         it.series,
+    repeticoes:     it.repeticoes,
+    // A CARGA É DO ALUNO, NÃO DO TREINO. `comCarga: false` zera o campo em vez
+    // de omiti-lo, para a coluna ficar explicitamente vazia e não herdar
+    // default nenhum. Tudo o mais que define COMO executar — método, drop set,
+    // bi-set, cadência, RIR, séries e repetições — vai junto: é a receita, e é
+    // exatamente o que se quer preservar ao duplicar.
+    carga:          comCarga ? it.carga : null,
+    cadencia:       it.cadencia,
+    descanso:       it.descanso,
+    descanso_final: it.descanso_final,
+    rir:            it.rir,
+    rir_modo:       it.rir_modo,
+    metodo:         it.metodo,
+    observacao:     it.observacao,
+    drop_ultimas:   it.drop_ultimas ?? 0,
+    // O âncora de um bi-set some se o par não veio junto: melhor um item solto
+    // do que um ponteiro para treino alheio.
+    grupo_id:       it.grupo_id ? (novoId.get(it.grupo_id) ?? null) : null,
+    grupo_pos:      it.grupo_id ? it.grupo_pos : null,
+    grupo_obs:      it.grupo_obs,
+  }));
+
+  const { error } = await sb.from('treino_exercicios').insert(copias);
+  if (error) throw error;
+  return copias;
+}
+
+/**
  * Instancia um MODELO como prescrição de um aluno: cria um novo treino
  * copiando os dados do modelo + todos os itens, agora com paciente_id.
  * Reaproveita o nutri_id do próprio modelo. Retorna o treino recém-criado.
@@ -208,27 +269,7 @@ export async function prescreverModeloParaPaciente(modeloId, pacienteId, extras 
     paciente_id:     pacienteId,
   });
 
-  if (itens.length) {
-    const copias = itens.map((it) => ({
-      nutri_id:       modelo.nutri_id,
-      treino_id:      novo.id,
-      exercicio_id:   it.exercicio_id,
-      dia:            it.dia,
-      ordem:          it.ordem,
-      series:         it.series,
-      repeticoes:     it.repeticoes,
-      carga:          it.carga,
-      cadencia:       it.cadencia,
-      descanso:       it.descanso,
-      descanso_final: it.descanso_final,
-      rir:            it.rir,
-      rir_modo:       it.rir_modo,
-      metodo:         it.metodo,
-      observacao:     it.observacao,
-    }));
-    const { error } = await sb.from('treino_exercicios').insert(copias);
-    if (error) throw error;
-  }
+  await copiarItens(itens, novo.id, modelo.nutri_id);
   return novo;
 }
 
@@ -251,28 +292,54 @@ export async function salvarComoModelo(treinoId, extras = {}) {
     paciente_id:     null,     // <- vai para a biblioteca
   });
 
-  if (itens.length) {
-    const copias = itens.map((it) => ({
-      nutri_id:       origem.nutri_id,
-      treino_id:      modelo.id,
-      exercicio_id:   it.exercicio_id,
-      dia:            it.dia,
-      ordem:          it.ordem,
-      series:         it.series,
-      repeticoes:     it.repeticoes,
-      carga:          it.carga,
-      cadencia:       it.cadencia,
-      descanso:       it.descanso,
-      descanso_final: it.descanso_final,
-      rir:            it.rir,
-      rir_modo:       it.rir_modo,
-      metodo:         it.metodo,
-      observacao:     it.observacao,
-    }));
-    const { error } = await sb.from('treino_exercicios').insert(copias);
-    if (error) throw error;
-  }
+  await copiarItens(itens, modelo.id, origem.nutri_id);
   return modelo;
+}
+
+/** O sufixo da cópia, num lugar só — a tela lê daqui para prever o nome. */
+export const SUFIXO_COPIA = ' - Cópia';
+
+/**
+ * Duplica um treino no MESMO lugar: modelo vira outro modelo, treino de aluno
+ * vira outro treino do mesmo aluno. Copia todos os itens, com bi-set e drop
+ * set preservados. NÃO copia a progressão — carga realizada é histórico do
+ * aluno, não parte da receita.
+ *
+ * A CÓPIA DE UM TREINO DE ALUNO NASCE INATIVA, e isso não é detalhe: o app do
+ * aluno lista TODOS os treinos ativos (js/paciente-data.js, `.eq('ativo',
+ * true)`). Nascendo ativa, a duplicata apareceria na tela dele no mesmo
+ * segundo, ao lado da original, sem ninguém ter decidido isso. Quem duplica
+ * quer editar antes de publicar; ativar é um clique depois.
+ *
+ * Modelo nasce ativo porque `ativo` não significa nada na biblioteca — ela
+ * não é mostrada a aluno nenhum.
+ *
+ * `data_inicio` e `data_fim` são copiados como estão. Um treino duplicado
+ * para virar o próximo ciclo terá as datas trocadas na edição de qualquer
+ * forma, e zerá-las aqui apagaria informação de quem duplica só para ajustar
+ * um exercício.
+ */
+export async function duplicarTreino(treinoId, extras = {}) {
+  const origem = await buscarTreino(treinoId);
+  const itens  = await listarItensDoTreino(treinoId);
+  const ehModelo = !origem.paciente_id;
+
+  const copia = await criarTreino(origem.nutri_id, {
+    nome:            extras.nome ?? ((origem.nome || 'Treino') + SUFIXO_COPIA),
+    divisao:         origem.divisao,
+    descanso_padrao: origem.descanso_padrao ?? null,
+    data_inicio:     origem.data_inicio ?? null,
+    data_fim:        origem.data_fim ?? null,
+    ativo:           extras.ativo ?? ehModelo,
+    paciente_id:     origem.paciente_id ?? null,
+  });
+
+  // SEM A CARGA. Duplicar um treino é reaproveitar a receita, não o desempenho:
+  // a carga que estava lá era a do aluno naquele ciclo, e levá-la para a cópia
+  // faria o novo treino nascer já prescrevendo um peso que ninguém decidiu.
+  // Os métodos vão todos — é o que dá trabalho de montar e o que se quer manter.
+  await copiarItens(itens, copia.id, origem.nutri_id, { comCarga: false });
+  return copia;
 }
 
 // ───────────────────────────────────────────────────────────
