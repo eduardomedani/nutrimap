@@ -232,7 +232,10 @@ async function renderLista() {
        </div>
        <div class="list-header">
          <div class="list-title">Biblioteca de <em>treinos</em></div>
-         <button class="btn primary" id="trBtnNovo"><i data-lucide="plus"></i> Novo modelo</button>
+         <div style="display:flex; gap:10px; flex-wrap:wrap;">
+           <button class="btn btn-ia" id="trBtnIA"><i data-lucide="sparkles"></i> Gerar com IA</button>
+           <button class="btn primary" id="trBtnNovo"><i data-lucide="plus"></i> Novo modelo</button>
+         </div>
        </div>`
     : `<div class="list-header">
          <div class="list-title">Treinos de <em>${esc(_paciente.nome || _paciente.codigo)}</em></div>
@@ -419,9 +422,23 @@ async function aplicarModelo(modeloId) {
 // GERADOR DE TREINO POR IA (músculos-alvo + frequência semanal)
 // ═══════════════════════════════════════════════════════════
 async function renderGeradorIA() {
-  let treinos = [];
-  try { treinos = await listarTreinosDoPaciente(_paciente.id); } catch {}
-  const base = treinos.filter(t => t.paciente_id);   // treinos prescritos ao aluno
+  // O gerador serve os DOIS modos, e a diferença não é cosmética.
+  //
+  //   biblioteca → cria MODELO (paciente_id null). A base para "ajustar" são os
+  //                próprios modelos.
+  //   paciente   → cria PRESCRIÇÃO. A base são os treinos daquele aluno.
+  //
+  // "EVOLUIR" NÃO EXISTE NA BIBLIOTECA, e é por falta de dado, não por escolha
+  // de tela: ele progride a partir das cargas que o ALUNO registrou
+  // (`progressaoTexto`). Um modelo não tem aluno nem carga registrada — o botão
+  // ficaria lá prometendo uma conta que não tem como ser feita.
+  const ehBiblioteca = _modo === 'modelo';
+  let base = [];
+  try {
+    base = ehBiblioteca
+      ? await listarModelos()
+      : (await listarTreinosDoPaciente(_paciente.id)).filter(t => t.paciente_id);
+  } catch {}
   const temBase = base.length > 0;
 
   const chips = GRUPOS_MUSC.map(g => `
@@ -431,14 +448,14 @@ async function renderGeradorIA() {
   const optBase = base.map(t => `<option value="${t.id}">${esc(t.nome || 'Treino')}</option>`).join('');
 
   _mountEl.innerHTML = `
-    <span class="ficha-voltar" id="iaVoltar"><i data-lucide="arrow-left"></i> Voltar para os treinos</span>
+    <span class="ficha-voltar" id="iaVoltar"><i data-lucide="arrow-left"></i> Voltar para ${ehBiblioteca ? 'a biblioteca' : 'os treinos'}</span>
     <div class="av-form-card">
       <div class="av-form-title"><i data-lucide="sparkles"></i> Gerar treino com <em>IA</em></div>
 
       <div class="ia-modos">
         <button type="button" class="ia-modo active" data-ia-modo="criar"><i data-lucide="plus"></i> Criar do zero</button>
-        <button type="button" class="ia-modo" data-ia-modo="evoluir" ${temBase ? '' : 'disabled'}><i data-lucide="trending-up"></i> Evoluir treino atual</button>
-        <button type="button" class="ia-modo" data-ia-modo="ajustar" ${temBase ? '' : 'disabled'}><i data-lucide="wrench"></i> Ajustar treino atual</button>
+        ${ehBiblioteca ? '' : `<button type="button" class="ia-modo" data-ia-modo="evoluir" ${temBase ? '' : 'disabled'}><i data-lucide="trending-up"></i> Evoluir treino atual</button>`}
+        <button type="button" class="ia-modo" data-ia-modo="ajustar" ${temBase ? '' : 'disabled'}><i data-lucide="wrench"></i> Ajustar ${ehBiblioteca ? 'um modelo' : 'treino atual'}</button>
       </div>
 
       <div data-ia-bloco="criar">
@@ -448,7 +465,7 @@ async function renderGeradorIA() {
       </div>
 
       <div data-ia-bloco="base" hidden>
-        <div class="av-field"><label>Treino a usar como base</label>
+        <div class="av-field"><label>${ehBiblioteca ? 'Modelo' : 'Treino'} a usar como base</label>
           <select id="iaTreinoBase" class="np-input">${optBase}</select></div>
       </div>
 
@@ -677,9 +694,11 @@ async function criarTreinoDaIA(plano) {
   btns.forEach(b => { b.disabled = true; });
   try {
     const nutriId = await getNutriId();
+    // `paciente_id` é o que decide se o resultado nasce modelo ou prescrição —
+    // é a mesma regra do resto do módulo, e não há um terceiro caso.
     const treino = await criarTreino(nutriId, {
       nome: plano.nome || 'Treino gerado por IA',
-      paciente_id: _paciente.id,
+      paciente_id: _modo === 'modelo' ? null : _paciente.id,
       divisao: LETRAS.slice(0, plano.dias.length).join(''),
       ativo: true,
     });
