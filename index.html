@@ -593,6 +593,25 @@
   .tr-dias-tabs .btn:hover { background: var(--bg-card); transform: none; }
   .tr-dias-tabs .btn.primary { background: var(--moss); color: var(--cream); box-shadow: var(--shadow); }
   .tr-dias-tabs .btn.primary:hover { background: var(--moss-deep); }
+  /* Abas de dia arrastáveis.  é o único aviso de que dá para
+     arrastar — sem ele ninguém descobre, porque nada na aba sugere isso. */
+  .tr-dia-tab { cursor: grab; user-select: none; }
+  .tr-dia-tab:active { cursor: grabbing; }
+  /* A aba em trânsito some pela metade em vez de sumir: apagá-la faria as
+     outras pularem de posição e o alvo do arrasto se mover sozinho. */
+  .tr-dia-arrastando { opacity: .4; }
+  /* O alvo se anuncia por uma barra na borda esquerda, não por preenchimento:
+     preenchimento se confunde com o estado `primary` da aba selecionada. */
+  .tr-dia-alvo { box-shadow: inset 3px 0 0 0 var(--moss); }
+  /* As setas de toque, dentro da aba ativa. Alvo de 22px porque dedo não acerta
+     um chevron de 10px, e sem isto o caminho alternativo ao arrasto não serve
+     justamente em quem depende dele. */
+  .tr-dia-mover {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; margin: 0 -4px; border-radius: 6px;
+    font-size: 17px; line-height: 1; opacity: .75;
+  }
+  .tr-dia-mover:hover { background: rgba(255,255,255,.22); opacity: 1; }
   .tr-dia-head { font-family: var(--font-sans); font-size: 17px; color: var(--moss-deep); margin: 18px 0 14px; font-weight: 600; }
   .tr-dia-head em { color: var(--moss); font-style: italic; font-weight: 700; }
   .tr-add-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }

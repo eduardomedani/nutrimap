@@ -12,6 +12,7 @@
 import {
   listarTreinosDoPaciente, criarTreino, atualizarTreino, excluirTreino,
   listarItensDoTreino, adicionarExercicioAoTreino, atualizarItem, excluirItem,
+  reordenarDias,
   listarExercicios, buscarExercicioPorNome,
   listarProgressao, registrarProgressao, excluirProgressao,
   listarModelos, prescreverModeloParaPaciente, salvarComoModelo,
@@ -44,6 +45,7 @@ let _exSelecionado = null;   // exercício escolhido no autocomplete (resolve o 
 let _treino       = null;    // treino em edição (null enquanto não criado)
 let _itens      = [];       // itens (treino_exercicios) do treino em edição
 let _dias       = [];       // letras dos dias, ex.: ['A','B','C']
+let _arrastando = null;     // índice da aba sendo arrastada (null = nenhuma)
 let _diaSel     = 'A';      // dia selecionado
 let _progAbertas = new Set(); // ids de treino_exercicio com o painel de progressão aberto
 
@@ -278,6 +280,47 @@ async function duplicarEsteTreino(id, nome, btn) {
   } catch (e) {
     mostrarErro('Erro ao duplicar: ' + e.message);
     if (btn) btn.disabled = false;
+  }
+}
+
+/**
+ * Move o dia da posição `de` para a posição `para` e grava.
+ *
+ * O CONTEÚDO SE MOVE, AS LETRAS FICAM. Depois de arrastar o Dia D para a
+ * frente, os exercícios que estavam nele passam a ser o Dia A — e as abas
+ * continuam A, B, C, D. É o que "trazer o D para ser o A" quer dizer; renomear
+ * as abas para D, A, B, C deixaria o treino com um dia D antes do A.
+ *
+ * A TELA MUDA ANTES DO BANCO RESPONDER, e volta atrás se ele recusar. Arrastar
+ * é gesto: esperar meio segundo pelo servidor para a aba assumir a posição faz
+ * a pessoa arrastar de novo achando que não pegou.
+ *
+ * Segue a aba que foi movida, não a posição — quem arrastou quer continuar
+ * vendo o dia que arrastou.
+ */
+async function moverDia(de, para) {
+  if (de === para || de == null || para == null) return;
+  if (para < 0 || para >= _dias.length) return;
+
+  const antes = _dias.slice();
+  const ordem = _dias.slice();
+  const [letra] = ordem.splice(de, 1);
+  ordem.splice(para, 0, letra);
+
+  _dias = LETRAS.slice(0, ordem.length);
+  _diaSel = LETRAS[para];
+  renderEditor();
+
+  try {
+    await reordenarDias(_treino.id, ordem);
+    _itens = await listarItensDoTreino(_treino.id);
+    renderEditor();
+    mostrarToast('✓ Dias reordenados');
+  } catch (e) {
+    _dias = antes;
+    _diaSel = antes[de];
+    renderEditor();
+    mostrarErro('Não foi possível reordenar: ' + e.message);
   }
 }
 
@@ -744,7 +787,19 @@ function renderEditor() {
 
     ${t ? `
       <div class="tr-dias-tabs" id="trDiasTabs">
-        ${_dias.map(d => `<button class="btn ${d === _diaSel ? 'primary' : ''}" data-dia="${d}">Dia ${d}</button>`).join('')}
+        ${/* ARRASTAR + SETAS, e as duas coisas são necessárias. O drag nativo do
+              HTML não dispara em toque: num tablet — que é onde metade dos
+              professores monta treino — a aba não sairia do lugar e a função
+              simplesmente não existiria. As setas aparecem só na aba ativa,
+              para não encher a barra de botão. */''}
+        ${_dias.map((d, i) => `<button class="btn ${d === _diaSel ? 'primary' : ''} tr-dia-tab"
+             draggable="true" data-dia="${d}" data-idx="${i}">${
+          d === _diaSel && _dias.length > 1
+            ? `<span class="tr-dia-mover" data-mover="${i}:-1" title="Mover para a esquerda" ${i === 0 ? 'hidden' : ''}>‹</span>` : ''
+        }Dia ${d}${
+          d === _diaSel && _dias.length > 1
+            ? `<span class="tr-dia-mover" data-mover="${i}:1" title="Mover para a direita" ${i === _dias.length - 1 ? 'hidden' : ''}>›</span>` : ''
+        }</button>`).join('')}
       </div>
       <div id="trDiaConteudo"></div>
     ` : `
@@ -759,8 +814,44 @@ function renderEditor() {
   ligarAutocalculoDatas(t);
 
   if (t) {
-    _mountEl.querySelectorAll('#trDiasTabs [data-dia]').forEach(b =>
-      b.addEventListener('click', () => { _diaSel = b.dataset.dia; renderEditor(); }));
+    _mountEl.querySelectorAll('#trDiasTabs [data-dia]').forEach(b => {
+      b.addEventListener('click', (ev) => {
+        // A seta vive DENTRO do botão: sem isto, mover também trocaria a aba
+        // selecionada, e a pessoa perderia de vista o dia que acabou de mexer.
+        const mover = ev.target.closest('[data-mover]');
+        if (mover) {
+          ev.stopPropagation();
+          const [de, passo] = mover.dataset.mover.split(':').map(Number);
+          return moverDia(de, de + passo);
+        }
+        _diaSel = b.dataset.dia; renderEditor();
+      });
+      b.addEventListener('dragstart', (ev) => {
+        _arrastando = Number(b.dataset.idx);
+        ev.dataTransfer.effectAllowed = 'move';
+        // Firefox só inicia o arrasto se algo for escrito no dataTransfer.
+        ev.dataTransfer.setData('text/plain', b.dataset.dia);
+        b.classList.add('tr-dia-arrastando');
+      });
+      b.addEventListener('dragend', () => {
+        _arrastando = null;
+        _mountEl.querySelectorAll('.tr-dia-tab').forEach(x =>
+          x.classList.remove('tr-dia-arrastando', 'tr-dia-alvo'));
+      });
+      b.addEventListener('dragover', (ev) => {
+        if (_arrastando === null) return;
+        ev.preventDefault();                       // sem isto o drop não dispara
+        ev.dataTransfer.dropEffect = 'move';
+        if (Number(b.dataset.idx) !== _arrastando) b.classList.add('tr-dia-alvo');
+      });
+      b.addEventListener('dragleave', () => b.classList.remove('tr-dia-alvo'));
+      b.addEventListener('drop', (ev) => {
+        ev.preventDefault();
+        b.classList.remove('tr-dia-alvo');
+        if (_arrastando === null) return;
+        moverDia(_arrastando, Number(b.dataset.idx));
+      });
+    });
     renderDia();
   }
 }

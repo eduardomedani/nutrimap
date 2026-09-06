@@ -161,3 +161,90 @@ grupo('treinos · a cópia vai sem carga e com todos os métodos', () => {
     contem(codigo, 'await copiarItens(itens, modelo.id, origem.nutri_id);');
   });
 });
+
+// ───────────────────────────────────────────────────────────
+// REORDENAR OS DIAS — arrastar as abas A/B/C/D
+// ---------------------------------------------------------------------------
+// O erro que estes testes existem para pegar é o UPDATE EM CASCATA, e ele é
+// silencioso. A forma ingênua de mover o dia D para A seria
+// `update where dia='D' set dia='A'` seguido de `where dia='A' set dia='B'` —
+// e a segunda instrução pega também as linhas que a primeira acabou de mover.
+// Como `dia` não tem unicidade, o banco aceita calado e o treino sai
+// embaralhado, sem erro nenhum na tela.
+// ───────────────────────────────────────────────────────────
+grupo('treinos · reordenar dias', () => {
+  teste('O FILTRO É POR ID, NÃO PELA LETRA', () => {
+    // Ids não mudam durante a operação, então nenhuma instrução enxerga o
+    // efeito da anterior. É a única forma de a cascata não acontecer.
+    contem(codigo, 'const ids = itens.filter(it => it.dia === de).map(it => it.id);');
+    contem(codigo, ".update({ dia: para }).in('id', ids)");
+  });
+
+  teste('dia que não mudou de letra não é tocado', () => {
+    contem(codigo, 'if (de === para) continue;');
+  });
+
+  teste('menos de dois dias não faz nada', () => {
+    contem(codigo, 'if (letras.length < 2) return { movidos: 0 };');
+  });
+
+  teste('a divisão do treino NÃO é alterada', () => {
+    // `divisao` guarda QUANTOS dias existem ("ABC"); reordenar não muda isso.
+    const bloco = codigo.slice(codigo.indexOf('export async function reordenarDias'),
+                               codigo.indexOf('const LETRAS_DIA'));
+    naoContem(bloco, "from('treinos')");
+  });
+});
+
+grupo('treinos · arrastar as abas', () => {
+  teste('ARRASTAR E SETAS CONVIVEM', () => {
+    // O drag nativo do HTML não dispara em toque. Num tablet — que é onde
+    // metade dos professores monta treino — a aba não sairia do lugar e a
+    // função simplesmente não existiria.
+    contem(ui, 'draggable="true"');
+    contem(ui, 'data-mover=');
+    contem(ui, "b.addEventListener('dragstart'");
+    contem(ui, "b.addEventListener('drop'");
+  });
+
+  teste('dragover chama preventDefault, senão o drop nunca dispara', () => {
+    const bloco = ui.slice(ui.indexOf("b.addEventListener('dragover'"),
+                           ui.indexOf("b.addEventListener('dragleave'"));
+    contem(bloco, 'ev.preventDefault()');
+  });
+
+  teste('o Firefox precisa de setData para iniciar o arrasto', () => {
+    contem(ui, "ev.dataTransfer.setData('text/plain'");
+  });
+
+  teste('clicar na seta não troca a aba selecionada', () => {
+    // A seta vive DENTRO do botão: sem parar a propagação, mover também
+    // selecionaria outro dia e a pessoa perderia de vista o que acabou de mexer.
+    contem(ui, "const mover = ev.target.closest('[data-mover]');");
+    contem(ui, 'ev.stopPropagation();');
+  });
+
+  teste('as setas só aparecem na aba ativa e não passam da borda', () => {
+    contem(ui, "d === _diaSel && _dias.length > 1");
+    contem(ui, "${i === 0 ? 'hidden' : ''}");
+    contem(ui, "${i === _dias.length - 1 ? 'hidden' : ''}");
+  });
+
+  teste('A TELA MUDA ANTES DO BANCO, E VOLTA SE ELE RECUSAR', () => {
+    // Arrastar é gesto: esperar o servidor para a aba assumir a posição faz a
+    // pessoa arrastar de novo achando que não pegou. Mas otimismo sem rollback
+    // deixa a tela mentindo sobre o que está gravado.
+    const fn = ui.slice(ui.indexOf('async function moverDia'), ui.indexOf('\n}', ui.indexOf('async function moverDia')));
+    contem(fn, 'const antes = _dias.slice();');
+    contem(fn, '_dias = antes;');
+    contem(fn, 'mostrarErro(');
+  });
+
+  teste('o CSS avisa que dá para arrastar', () => {
+    // Sem `cursor: grab` ninguém descobre a funcionalidade: nada na aba sugere
+    // que ela se move.
+    const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    contem(html, '.tr-dia-tab { cursor: grab');
+    contem(html, '.tr-dia-alvo');
+  });
+});

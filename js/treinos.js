@@ -342,6 +342,52 @@ export async function duplicarTreino(treinoId, extras = {}) {
   return copia;
 }
 
+/**
+ * Reordena os dias de um treino.
+ *
+ * `novaOrdem` são as letras ATUAIS na ordem desejada. Pedir `['D','A','B','C']`
+ * quer dizer "o que hoje é o dia D passa a ser o A, o que é A vira B, e assim
+ * por diante" — o conteúdo se move, as letras continuam sendo A, B, C, D.
+ *
+ * O PERIGO AQUI É O UPDATE EM CASCATA, e ele é silencioso. A forma ingênua
+ * seria `update ... where dia = 'D' set dia = 'A'` seguido de
+ * `where dia = 'A' set dia = 'B'` — mas a segunda instrução pega também as
+ * linhas que a primeira acabou de mover, e o dia D reaparece no B. Como não há
+ * unicidade em `dia`, o banco aceita tudo calado e o treino sai embaralhado.
+ *
+ * Por isso o filtro é por ID, capturado ANTES de qualquer escrita. Os ids não
+ * mudam, então nenhuma instrução enxerga o efeito da anterior. São tantos
+ * updates quanto dias que realmente mudaram de letra — dia que ficou no lugar
+ * não é tocado.
+ *
+ * NÃO MEXE EM `treinos.divisao`: ela guarda QUANTOS dias existem ("ABC"), e
+ * reordenar não muda a quantidade.
+ */
+export async function reordenarDias(treinoId, novaOrdem) {
+  const letras = (novaOrdem || []).map(l => String(l || '').toUpperCase()).filter(Boolean);
+  if (letras.length < 2) return { movidos: 0 };
+
+  const itens = await listarItensDoTreino(treinoId);
+
+  // De-para: a letra que está na posição i passa a ser a i-ésima do alfabeto.
+  const destino = new Map();
+  letras.forEach((atual, i) => destino.set(atual, LETRAS_DIA[i]));
+
+  let movidos = 0;
+  for (const [de, para] of destino) {
+    if (de === para) continue;
+    const ids = itens.filter(it => it.dia === de).map(it => it.id);
+    if (!ids.length) continue;
+    const { error } = await sb.from('treino_exercicios').update({ dia: para }).in('id', ids);
+    if (error) throw error;
+    movidos += ids.length;
+  }
+  return { movidos };
+}
+
+/** As letras válidas de dia, na ordem. Espelha o CHECK da tabela (A..G). */
+const LETRAS_DIA = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+
 // ───────────────────────────────────────────────────────────
 // ITENS DO TREINO  (treino_exercicios)
 // ───────────────────────────────────────────────────────────
