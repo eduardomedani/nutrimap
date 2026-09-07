@@ -21,12 +21,14 @@
   flex-direction: column;
   /* 16px entre cabeçalho, resumo e lista somavam 32px de respiro antes da
      primeira refeição. 12px continua separando os blocos sem custar meia tela
-     de celular. */
-  gap: 12px;
+     de celular — e é o mesmo respiro das outras duas telas. */
+  gap: var(--pa-conteudo-gap);
   width: 100%;
-  max-width: 780px;
-  margin: 0 auto;
 }
+/* Sem max-width próprio. Havia 780px aqui dentro de um <main> de 620: um teto
+   que nunca chegava a valer, mas que dava a impressão de que a Dieta tinha
+   largura própria. Quem define a coluna é --pa-conteudo-max, uma vez só, para
+   Início, Treino e Dieta. */
 
 /* ── Cabeçalho ─────────────────────────────────────────────────────────── */
 .dt-head { padding: 2px 2px 0; }
@@ -34,7 +36,7 @@
 .dt-head-linha { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 
 .dt-head-titulo {
-  font-size: 13px;
+  font-size: var(--pa-fs-rotulo);
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -50,23 +52,27 @@
   border-radius: 100px;
   background: var(--bg-warm);
   color: var(--moss);
-  font-size: 11px;
+  font-size: var(--pa-fs-rotulo);
   font-weight: 800;
   letter-spacing: 0.02em;
 }
 .dt-head-badge svg { width: 12px; height: 12px; }
 
+/* O título da tela, no mesmo corpo do "Vamos treinar?" do Treino. Era 21px
+   contra 27: o nome do plano — a informação que dá contexto a tudo abaixo —
+   entrava menor que um nome de treino, e a tela inteira lia como miniatura. */
 .dt-head-nome {
-  font-size: 21px;
+  font-size: var(--pa-fs-hero);
   font-weight: 800;
-  line-height: 1.2;
+  line-height: 1.15;
   letter-spacing: var(--tracking-snug, -0.01em);
   color: var(--moss-deep, var(--ink));
 }
 
 .dt-head-obj {
-  margin-top: 3px;
-  font-size: 14px;
+  margin-top: 4px;
+  font-size: var(--pa-fs-sub);
+  font-weight: 600;
   color: var(--ink-soft);
 }
 
@@ -74,8 +80,9 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px 14px;
-  margin-top: 7px;
-  font-size: 12.5px;
+  margin-top: 8px;
+  font-size: var(--pa-fs-meta);
+  font-weight: 600;
   color: var(--ink-mute);
 }
 .dt-head-meta span { display: inline-flex; align-items: center; gap: 5px; }
@@ -85,11 +92,11 @@
 .dt-resumo {
   background: var(--bg-warm);
   border: 1px solid var(--line);
-  border-radius: var(--radius, 16px);
-  padding: 12px 14px;
+  border-radius: var(--pa-card-radius);
+  padding: var(--pa-card-pad-y) var(--pa-card-pad-x);
 }
 .dt-resumo-hoje {
-  font-size: 11px;
+  font-size: var(--pa-fs-rotulo);
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -101,19 +108,20 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 6px;
-  font-size: 13.5px;
+  font-size: var(--pa-fs-sub);
+  font-weight: 600;
   color: var(--ink-soft);
 }
 .dt-resumo-linha strong { color: var(--ink); font-variant-numeric: tabular-nums; }
 .dt-resumo-sep { opacity: .35; }
 
 /* ── Accordion da refeição ─────────────────────────────────────────────── */
-.dt-lista { display: flex; flex-direction: column; gap: 12px; }
+.dt-lista { display: flex; flex-direction: column; gap: var(--pa-conteudo-gap); }
 
 .dt-card {
   background: var(--bg-card);
   border: 1px solid var(--line);
-  border-radius: var(--radius, 16px);
+  border-radius: var(--pa-card-radius);
   box-shadow: var(--shadow-xs);
   overflow: hidden;
 }
@@ -129,10 +137,10 @@
 .dt-card-topo {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 13px;
   width: 100%;
   min-height: 72px;
-  padding: 12px 14px;
+  padding: var(--pa-card-pad-y) var(--pa-card-pad-x);
   background: none;
   border: none;
   font: inherit;
@@ -146,25 +154,27 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: var(--pa-ic-card);
+  height: var(--pa-ic-card);
   flex-shrink: 0;
-  border-radius: 12px;
+  border-radius: 13px;
   background: var(--bg-warm);
   color: var(--moss);
 }
-.dt-card-icone svg { width: 19px; height: 19px; }
+.dt-card-icone svg { width: var(--pa-ic-card-svg); height: var(--pa-ic-card-svg); }
 
 /* Nome em cima, contagem embaixo: é a informação que diz se vale abrir. */
 .dt-card-tit { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 
+/* Nome de card, exatamente como "Treino A" na lista do Treino — inclusive o
+   peso: era 700 contra 800, meio tom mais leve na mesma posição da tela. */
 .dt-card-nome {
-  font-size: 16px;
-  font-weight: 700;
+  font-size: var(--pa-fs-card);
+  font-weight: 800;
   line-height: 1.25;
   color: var(--ink);
 }
-.dt-card-sub { font-size: 12.5px; color: var(--ink-mute); line-height: 1.3; }
+.dt-card-sub { font-size: var(--pa-fs-meta); font-weight: 600; color: var(--ink-mute); line-height: 1.3; }
 
 /* Coluna direita de largura fixa: horário e selo alinhados em TODOS os cards,
    independentemente do tamanho do nome. Sem isso o olho perde a coluna. */
@@ -176,18 +186,21 @@
   flex-shrink: 0;
 }
 .dt-card-hora {
-  font-size: 13.5px;
-  font-weight: 700;
+  font-size: var(--pa-fs-sub);
+  font-weight: 800;
   color: var(--moss);
   font-variant-numeric: tabular-nums;
 }
 
+/* O "AGORA" era a menor tipografia do app inteiro (9,5px) — e marca a única
+   refeição que importa no momento em que o aluno abre a tela. Passa ao mesmo
+   selo do "PRÓXIMO" do card de treino. */
 .dt-selo {
-  font-size: 9.5px;
+  font-size: var(--pa-fs-selo);
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 2px 7px;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
   border-radius: 100px;
   white-space: nowrap;
 }
@@ -201,7 +214,7 @@
   flex-shrink: 0;
   transition: transform var(--duration-base, .2s) var(--ease, ease);
 }
-.dt-chevron svg { width: 18px; height: 18px; }
+.dt-chevron svg { width: 20px; height: 20px; }
 .dt-aberta .dt-chevron { transform: rotate(180deg); }
 
 /* A refeição do horário atual: borda da marca e fundo levemente esverdeado.
@@ -241,7 +254,7 @@
 .dt-item-info { min-width: 0; flex: 1; }
 
 .dt-item-nome {
-  font-size: 14.5px;
+  font-size: var(--pa-fs-corpo);
   font-weight: 600;
   color: var(--ink);
   line-height: 1.35;
@@ -256,10 +269,10 @@
 }
 /* A medida caseira é o que o paciente executa; o peso é conferência. Por isso
    a caseira vem em verde e o peso em cinza, e não o contrário. */
-.dt-item-qtd { font-size: 13.5px; font-weight: 700; color: var(--moss); }
-.dt-item-peso { font-size: 12.5px; color: var(--ink-mute); font-variant-numeric: tabular-nums; }
+.dt-item-qtd { font-size: var(--pa-fs-sub); font-weight: 700; color: var(--moss); }
+.dt-item-peso { font-size: var(--pa-fs-meta); color: var(--ink-mute); font-variant-numeric: tabular-nums; }
 
-.dt-item-obs { margin-top: 4px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.4; }
+.dt-item-obs { margin-top: 4px; font-size: var(--pa-fs-meta); color: var(--ink-soft); line-height: 1.4; }
 
 .dt-card-vazio {
   margin-top: 10px;
@@ -282,7 +295,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--pa-fs-rotulo);
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -332,25 +345,25 @@
   padding: 14px 16px;
   background: var(--bg-warm);
   border: 1px solid var(--line);
-  border-radius: var(--radius, 16px);
+  border-radius: var(--pa-card-radius);
 }
-.dt-vazio-box-t { font-size: 13.5px; font-weight: 800; color: var(--moss-deep, var(--ink)); }
-.dt-vazio-box-s { margin-top: 5px; font-size: 13px; line-height: 1.5; color: var(--ink-soft); }
+.dt-vazio-box-t { font-size: var(--pa-fs-sub); font-weight: 800; color: var(--moss-deep, var(--ink)); }
+.dt-vazio-box-s { margin-top: 5px; font-size: var(--pa-fs-sub); line-height: 1.5; color: var(--ink-soft); }
 
-.dt-retry { margin-top: 20px; min-height: 46px; }
+.dt-retry { margin-top: 20px; }
 
 /* ── Esqueleto ─────────────────────────────────────────────────────────── */
 /* Tem a FORMA da tela — cabeçalho, dois cards, três linhas cada. Um spinner
    sozinho não diz o que vem, e a chegada do conteúdo vira um salto. */
-.dt-sk { display: flex; flex-direction: column; gap: 12px; }
+.dt-sk { display: flex; flex-direction: column; gap: var(--pa-conteudo-gap); }
 .dt-sk-header { height: 54px; border-radius: 12px; }
 .dt-sk-card {
   border: 1px solid var(--line);
-  border-radius: var(--radius, 16px);
-  padding: 14px 15px;
+  border-radius: var(--pa-card-radius);
+  padding: var(--pa-card-pad-y) var(--pa-card-pad-x);
 }
-.dt-sk-topo { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; }
-.dt-sk-bolha { width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0; }
+.dt-sk-topo { display: flex; align-items: center; gap: 13px; margin-bottom: 14px; }
+.dt-sk-bolha { width: var(--pa-ic-card); height: var(--pa-ic-card); border-radius: 13px; flex-shrink: 0; }
 .dt-sk-tit { height: 16px; width: 45%; border-radius: 6px; }
 .dt-sk-linha { height: 13px; border-radius: 6px; margin-top: 11px; }
 .dt-sk-linha:nth-child(3) { width: 82%; }
@@ -380,18 +393,18 @@
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
-  min-height: 38px;
-  padding: 8px 13px;
+  min-height: 40px;
+  padding: 8px 15px;
   border: 1px solid var(--moss);
   border-radius: 100px;
   background: transparent;
   color: var(--moss);
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--pa-fs-sub);
   font-weight: 700;
   cursor: pointer;
 }
-.dt-sub-btn svg { width: 14px; height: 14px; }
+.dt-sub-btn svg { width: 15px; height: 15px; }
 .dt-sub-btn:hover, .dt-sub-btn:active { background: var(--bg-warm); }
 .dt-sub-btn:focus-visible { outline: 2px solid var(--moss); outline-offset: 2px; }
 
@@ -480,7 +493,7 @@ body.dt-travado { overflow: hidden; }
 
 /* Quando não há medida caseira, o peso É a porção — então assume o peso e a
    cor de quem manda na linha, em vez de continuar como nota de rodapé. */
-.dt-item-peso-unico { font-size: 13.5px; font-weight: 700; color: var(--moss); }
+.dt-item-peso-unico { font-size: var(--pa-fs-sub); font-weight: 700; color: var(--moss); }
 
 .dt-sheet-x {
   width: 40px; height: 40px; flex-shrink: 0;
@@ -498,17 +511,19 @@ body.dt-travado { overflow: hidden; }
 }
 .dt-sheet-info { flex: 1; min-width: 0; }
 
+/* Altura e corpo do CTA principal; o raio pill fica, porque é a linguagem dos
+   botões de dentro da folha de substituições e trocá-lo seria redesenho. */
 .dt-escolher {
   flex-shrink: 0;
-  min-height: 42px;
-  padding: 9px 18px;
+  min-height: var(--pa-cta-h);
+  padding: 9px var(--pa-cta-pad-x);
   border: none;
   border-radius: 100px;
   background: var(--moss);
   color: var(--cream);
   font: inherit;
-  font-size: 13.5px;
-  font-weight: 700;
+  font-size: var(--pa-cta-fs);
+  font-weight: var(--pa-cta-fw);
   cursor: pointer;
 }
 .dt-escolher:focus-visible { outline: 2px solid var(--moss); outline-offset: 2px; }
@@ -528,11 +543,9 @@ body.dt-travado { overflow: hidden; }
 /* NUNCA duas colunas. O que muda no desktop é só a largura máxima do conteúdo
    (já em `.dt`) e um pouco de tipografia — a leitura continua vertical, como o
    dia acontece. */
-@media (min-width: 720px) {
-  .dt-head-nome { font-size: 23px; }
-  .dt-card-topo { padding: 14px 18px; }
-  .dt-card-corpo { padding: 2px 18px 16px; }
-}
+/* Nada de tipografia própria no desktop: a coluna de conteúdo agora é a mesma
+   das outras telas (--pa-conteudo-max), e um corpo diferente aqui reintroduz
+   exatamente a divergência que este ajuste veio resolver. */
 
 /* O sheet vira caixa centrada quando há altura sobrando: colado embaixo numa
    tela de 1080px ele ficaria a um palmo do rodapé, longe do olhar. */

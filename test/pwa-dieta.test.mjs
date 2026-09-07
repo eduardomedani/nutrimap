@@ -439,7 +439,19 @@ grupo('dieta · acessibilidade e identidade', () => {
     // telas. Aqui só se garante que a dieta não abre uma segunda, que era como
     // o vão de ~112px embaixo da última refeição nascia.
     const shell = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
-    contem(shell, '.pa-main { max-width: 620px; margin: 0 auto; padding: 18px 16px; }');
+    // app.html tem DOIS blocos '.pa-main': o da casca (que rola) e o da coluna
+    // de conteúdo. Aqui interessa o segundo — o que se centraliza.
+    const corpoDe = (txt) => {
+      let i = -1;
+      while ((i = txt.indexOf('.pa-main {', i + 1)) !== -1) {
+        const corpo = txt.slice(i, txt.indexOf('}', i) + 1);
+        if (corpo.includes('margin: 0 auto')) return corpo;
+      }
+      return '';
+    };
+    const main = corpoDe(shell);
+    contem(main, 'max-width: var(--pa-conteudo-max)');
+    ok(!main.includes('padding-bottom'), 'reserva embaixo do <main> reabre o vão');
     ok(!/^\s*\.dt\s*\{[^}]*padding-bottom/m.test(css), 'a dieta não declara reserva própria');
     ok(!css.includes('main.pa-main:has('), 'zerar a reserva da casca é sinal de reserva duplicada');
   });
@@ -460,7 +472,12 @@ grupo('dieta · acessibilidade e identidade', () => {
     naoContem(css, 'columns:');
     const lista = (/\.dt-lista \{[^}]*\}/.exec(css) || [''])[0];
     contem(lista, 'flex-direction: column');
-    contem(css, 'max-width: 780px');
+    // A largura da coluna NÃO mora aqui. A dieta declarava 780px dentro de um
+    // <main> de 620 — um teto que nunca chegava a valer, mas que dava a
+    // impressão de que ela tinha largura própria. É --pa-conteudo-max, uma vez
+    // só, para Início, Treino e Dieta.
+    const dt = css.slice(css.indexOf('.dt {'), css.indexOf('}', css.indexOf('.dt {')) + 1);
+    ok(!dt.includes('max-width'), 'a dieta não pode ter largura própria: a coluna é compartilhada');
   });
 
   teste('os cards fechados têm a mesma altura', () => {

@@ -118,39 +118,40 @@
    são o motivo de o paciente abrir o app. */
 .in-doc {
   display: flex; align-items: center; gap: 12px;
-  padding: 14px; margin-bottom: 18px;
+  padding: var(--pa-card-pad-y) var(--pa-card-pad-x); margin-bottom: 18px;
   border: 1px solid color-mix(in srgb, var(--moss, var(--primary)) 26%, transparent);
-  border-radius: 16px;
+  border-radius: var(--pa-card-radius);
   background: color-mix(in srgb, var(--moss, var(--primary)) 7%, transparent);
 }
 .in-doc-ico {
-  width: 38px; height: 38px; flex-shrink: 0;
-  display: grid; place-items: center; border-radius: 11px;
+  width: var(--pa-ic-card); height: var(--pa-ic-card); flex-shrink: 0;
+  display: grid; place-items: center; border-radius: 13px;
   background: var(--bg-card, var(--surface));
   color: var(--moss, var(--primary));
 }
-.in-doc-ico svg { width: 18px; height: 18px; }
+.in-doc-ico svg { width: var(--pa-ic-card-svg); height: var(--pa-ic-card-svg); }
 .in-doc-txt { flex: 1; min-width: 0; }
 .in-doc-tag {
-  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+  font-size: var(--pa-fs-rotulo); font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
   color: var(--moss-deep, var(--primary));
 }
 .in-doc-tit {
-  margin-top: 2px; font-size: 14.5px; font-weight: 700; line-height: 1.25;
+  margin-top: 2px; font-size: var(--pa-fs-card); font-weight: 800; line-height: 1.25;
   color: var(--ink, var(--text-primary));
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.in-doc-sub { margin-top: 2px; font-size: 12.5px; color: var(--ink-soft, var(--text-secondary)); }
+.in-doc-sub { margin-top: 2px; font-size: var(--pa-fs-meta); color: var(--ink-soft, var(--text-secondary)); }
+/* Mesma linguagem do "Ver treino" — ver --pa-cta-* em css/tokens.css. */
 .in-doc-btn {
-  flex-shrink: 0; min-height: 38px; padding: 9px 14px;
-  border: none; border-radius: 11px;
+  flex-shrink: 0; min-height: var(--pa-cta-h); padding: 9px var(--pa-cta-pad-x);
+  border: none; border-radius: var(--pa-cta-radius);
   background: var(--moss, var(--primary)); color: var(--on-primary, #fff);
-  font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer;
+  font-size: var(--pa-cta-fs); font-weight: var(--pa-cta-fw); font-family: inherit; cursor: pointer;
 }
 
 /* O contador do acesso persistente, no Acesso rápido. */
 .in-atalho-n {
-  margin-left: auto; font-size: 12px; font-weight: 600;
+  margin-left: auto; font-size: var(--pa-fs-meta); font-weight: 600;
   color: var(--ink-mute, var(--text-secondary));
 }
 

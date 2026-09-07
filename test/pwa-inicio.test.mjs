@@ -570,7 +570,19 @@ grupo('início · o CSS', () => {
     // e não passa por cima de nada. Esta folha só não pode inventar um respiro
     // embaixo, que hoje seria um vão puro.
     const shell = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
-    contem(shell, '.pa-main { max-width: 620px; margin: 0 auto; padding: 18px 16px; }');
+    // app.html tem DOIS blocos '.pa-main': o da casca (que rola) e o da coluna
+    // de conteúdo. Aqui interessa o segundo — o que se centraliza.
+    const corpoDe = (txt) => {
+      let i = -1;
+      while ((i = txt.indexOf('.pa-main {', i + 1)) !== -1) {
+        const corpo = txt.slice(i, txt.indexOf('}', i) + 1);
+        if (corpo.includes('margin: 0 auto')) return corpo;
+      }
+      return '';
+    };
+    const main = corpoDe(shell);
+    contem(main, 'max-width: var(--pa-conteudo-max)');
+    ok(!main.includes('padding-bottom'), 'reserva embaixo do <main> reabre o vão');
     ok(!/padding-bottom/.test(css.slice(0, css.indexOf('.inicio .pa-hero'))),
        'respiro embaixo declarado aqui é vão, não reserva');
   });
@@ -773,9 +785,27 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
     // justificar o buraco.
     ok(!semComentario.includes('--pa-nav-reserva'),
        'a reserva não pode voltar: a barra não cobre mais o conteúdo');
-    contem(semComentario, '.pa-main { max-width: 620px; margin: 0 auto; padding: 18px 16px; }');
-    ok(!/\.pa-main \{[^}]*(96px|nav-reserva)/.test(semComentario),
+    // app.html tem DOIS blocos '.pa-main': o da casca (que rola) e o da coluna
+    // de conteúdo. Aqui interessa o segundo — o que se centraliza.
+    const corpoDe = (txt) => {
+      let i = -1;
+      while ((i = txt.indexOf('.pa-main {', i + 1)) !== -1) {
+        const corpo = txt.slice(i, txt.indexOf('}', i) + 1);
+        if (corpo.includes('margin: 0 auto')) return corpo;
+      }
+      return '';
+    };
+    const main = corpoDe(semComentario);
+    contem(main, 'max-width: var(--pa-conteudo-max)');
+    ok(!main.includes('96px') && !main.includes('nav-reserva') && !main.includes('padding-bottom'),
        'reserva em número solto ou em variável reabre o vão');
+    // "width: 100%" é o que impede o <main> de virar shrink-to-fit. Sem ele,
+    // "margin: 0 auto" desliga o stretch do item flex e a largura da tela passa
+    // a ser a do texto mais longo dela: a 360px o miolo ficava 6px mais largo
+    // que a casca e o ✓ de cada série saía cortado — sem barra de rolagem para
+    // denunciar, porque não era estouro, era corte. Ver o bloco A COLUNA DE
+    // CONTEÚDO em app.html.
+    contem(main, 'width: 100%');
   });
 
   teste('a barra de finalizar também está em fluxo, não fixa', () => {

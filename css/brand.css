@@ -195,6 +195,17 @@ h3, .evo-h3 {
               box-shadow var(--duration-fast) var(--ease),
               transform var(--duration-fast) var(--ease);
 }
+/* O app do aluno tem a própria régua de CTA (--pa-cta-*, em css/tokens.css), e
+   ela nasce do "Ver treino" — o botão que o aluno mais toca. A régua do painel
+   do profissional (--text-button-*) é meio ponto menor e dois pesos mais leve;
+   herdada aqui, ela fazia dois botões primários da MESMA tela ("Ver treino" e
+   "Iniciar treino") sairem com tipos diferentes. Fundo, cor e transição
+   continuam vindo da regra acima — só o texto é do aluno. */
+.pa-btn {
+  font-size: var(--pa-cta-fs);
+  font-weight: var(--pa-cta-fw);
+}
+
 .btn.primary:hover, .form-btn:hover:not(:disabled), .btn-sm:hover,
 .patient-action.primary:hover, .btn-editar-dados:hover, .pa-btn:hover:not(:disabled) {
   background: var(--primary-hover);

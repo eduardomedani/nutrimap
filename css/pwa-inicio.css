@@ -15,22 +15,22 @@
    lugares para o mesmo número, que era justamente como o vão nascia. */
 
 /* ── Hero do Início ────────────────────────────────────────────────────── */
-/* Três linhas viraram duas: o "Hoje" era palavra estática em corpo 27 — manchete
-   para informação zero. A saudação sobe para o lugar dele e a data continua
-   embaixo, o que economiza ~40px logo onde o olho chega primeiro.
-   O hero do Treino NÃO muda: lá o título diz "Vamos treinar?" ou "Mandou bem!",
-   que é informação de verdade. */
-.inicio .pa-hero {
-  padding: 16px 18px 14px;
-  margin-bottom: 14px;
-}
-.inicio .pa-hero-title { font-size: 22px; line-height: 1.15; }
+/* Duas linhas, não três: o "Hoje" era palavra estática em corpo 27 — manchete
+   para informação zero. A saudação ocupa o lugar dele e a data fica embaixo.
+
+   A saudação está no MESMO corpo do título do Treino ("Vamos treinar?"), e o
+   cartão tem o mesmo padding. Aqui ela era 22px num cartão mais raso, e era
+   isso que fazia o Início parecer um nível menor que o Treino: dois títulos de
+   tela com dois corpos diferentes, na mesma barra de navegação. A economia de
+   altura que esta regra dava vem agora de ter uma linha a menos, não de um
+   corpo menor. */
+.inicio .pa-hero-title { line-height: 1.15; }
 .inicio .pa-hero-sub { margin-top: 4px; }
 
 /* ── Títulos de seção ──────────────────────────────────────────────────── */
 .in-t {
   margin: 16px 0 8px;
-  font-size: 11px;
+  font-size: var(--pa-fs-rotulo);
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -43,7 +43,7 @@
 .in-bloco {
   background: var(--bg-card);
   border: 1px solid var(--hair);
-  border-radius: 16px;
+  border-radius: var(--pa-card-radius);
   box-shadow: var(--shadow);
   overflow: hidden;
 }
@@ -66,27 +66,31 @@
 .in-linha:hover { background: var(--bg-warm); }
 .in-linha:focus-visible { outline: 2px solid var(--moss); outline-offset: -2px; }
 
+/* Mesma bolha do card de treino (.pa-dc-letra): eram 40px aqui contra 44 lá, e
+   a diferença aparecia porque as duas telas trocam pela barra inferior. */
 .in-linha-ic {
   flex: 0 0 auto;
-  width: 40px; height: 40px;
+  width: var(--pa-ic-card); height: var(--pa-ic-card);
   display: flex; align-items: center; justify-content: center;
-  border-radius: 12px;
+  border-radius: 13px;
   background: var(--cream);
   color: var(--moss-deep);
 }
-.in-linha-ic svg { width: 19px; height: 19px; }
+.in-linha-ic svg { width: var(--pa-ic-card-svg); height: var(--pa-ic-card-svg); }
 
 .in-linha-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .in-linha-rot {
-  font-size: 11px; font-weight: 800; text-transform: uppercase;
+  font-size: var(--pa-fs-rotulo); font-weight: 800; text-transform: uppercase;
   letter-spacing: 0.06em; color: var(--ink-mute);
 }
+/* Nome de card, como "Treino A" na lista do Treino. Era 15,5px — meio ponto
+   abaixo, o bastante para a linha parecer secundária ao lado dele. */
 .in-linha-val {
-  font-size: 15.5px; font-weight: 800; color: var(--ink);
+  font-size: var(--pa-fs-card); font-weight: 800; color: var(--ink);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .in-linha-det {
-  font-size: 12.5px; font-weight: 600; color: var(--ink-soft);
+  font-size: var(--pa-fs-meta); font-weight: 600; color: var(--ink-soft);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
@@ -112,21 +116,23 @@
   background-size: 200% 100%;
   animation: in-brilho 1.2s ease-in-out infinite;
 }
-.in-sk-ic  { width: 40px; height: 40px; border-radius: 12px; }
+.in-sk-ic  { width: var(--pa-ic-card); height: var(--pa-ic-card); border-radius: 13px; }
 .in-sk-val { width: 62%; height: 15px; margin-top: 3px; }
 .in-sk-num { width: 48px; height: 19px; }
 @keyframes in-brilho { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
 /* ── Progresso: três tiles em vez dos dois da tela de treino ───────────── */
+/* Só o NÚMERO DE COLUNAS muda em relação ao Treino. O corpo do número, a
+   unidade ao lado e o padding do tile são os mesmos: eram 20px contra 23, e
+   11px contra 13 na unidade, e é o tipo de diferença que ninguém consegue
+   nomear olhando — só sente que uma tela vale menos que a outra. */
 .in-stats3 { grid-template-columns: repeat(3, 1fr); gap: 9px; margin-bottom: 0; }
-.in-stats3 .pa-stat { padding: 12px 11px; }
-.in-stats3 .pa-stat-val { font-size: 20px; }
-.in-stats3 .pa-stat-val small { font-size: 11px; margin-left: 2px; }
-.in-stats3 .pa-stat-top { font-size: 11px; }
+.in-stats3 .pa-stat { padding: 14px 12px; }
 
-/* Num celular estreito três colunas espremem "Recordes" até quebrar a palavra;
-   ali a terceira desce para a linha de baixo, ocupando a largura toda. */
-@media (max-width: 359px) {
+/* Com três tiles em corpo cheio, "Recordes" já não cabe em três colunas num
+   celular estreito. O ponto de quebra sobe de 359 para 400px: abaixo dele o
+   terceiro desce e ocupa a linha inteira, em vez de a palavra quebrar ao meio. */
+@media (max-width: 400px) {
   .in-stats3 { grid-template-columns: 1fr 1fr; }
   .in-stats3 .pa-stat:last-child { grid-column: 1 / -1; }
 }
@@ -142,45 +148,46 @@
   align-items: baseline;
   flex-wrap: wrap;
   gap: 4px 10px;
-  padding: 12px 15px;
+  padding: var(--pa-card-pad-y) var(--pa-card-pad-x);
   border: 1px solid var(--hair);
-  border-radius: 14px;
+  border-radius: var(--pa-card-radius);
   background: var(--bg-card);
   box-shadow: var(--shadow);
 }
 .in-meta + .in-meta { margin-top: 9px; }
 
-.in-meta-nome { flex: 1 1 auto; font-size: 14.5px; font-weight: 800; color: var(--ink); }
+.in-meta-nome { flex: 1 1 auto; font-size: var(--pa-fs-corpo); font-weight: 800; color: var(--ink); }
 .in-meta-alvo {
-  flex: 0 0 auto; font-size: 13.5px; font-weight: 800; color: var(--moss-deep);
+  flex: 0 0 auto; font-size: var(--pa-fs-sub); font-weight: 800; color: var(--moss-deep);
   font-variant-numeric: tabular-nums;
 }
 .in-meta-prazo {
-  flex: 0 0 100%; font-size: 12px; font-weight: 600; color: var(--ink-mute);
+  flex: 0 0 100%; font-size: var(--pa-fs-meta); font-weight: 600; color: var(--ink-mute);
 }
 
 /* ── Acesso rápido ─────────────────────────────────────────────────────── */
 .in-atalhos { display: flex; flex-direction: column; gap: 10px; }
 
+/* Mesma linguagem do "Ver treino" — ver --pa-cta-* em css/tokens.css. */
 .in-atalho {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   width: 100%;
-  min-height: 48px;
-  padding: 13px;
+  min-height: var(--pa-cta-h);
+  padding: 13px var(--pa-cta-pad-x);
   border: 1px solid var(--hair);
-  border-radius: 13px;
+  border-radius: var(--pa-cta-radius);
   background: var(--bg-card);
   color: var(--ink);
   font-family: inherit;
-  font-size: 14.5px;
-  font-weight: 800;
+  font-size: var(--pa-cta-fs);
+  font-weight: var(--pa-cta-fw);
   cursor: pointer;
   box-shadow: var(--shadow);
   transition: transform 0.15s, background 0.2s;
 }
 .in-atalho:hover { transform: translateY(-1px); }
 .in-atalho:focus-visible { outline: 2px solid var(--moss); outline-offset: 2px; }
-.in-atalho svg { width: 17px; height: 17px; }
+.in-atalho svg { width: var(--pa-cta-svg); height: var(--pa-cta-svg); }
 
 .in-atalho-forte {
   border-color: transparent;

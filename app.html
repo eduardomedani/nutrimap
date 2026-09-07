@@ -139,10 +139,12 @@
   .pa-input:focus { outline: none; border-color: var(--moss); }
   .pa-codigo { text-transform: uppercase; letter-spacing: 0.14em; font-weight: 700; text-align: center; font-size: 20px; }
 
-  .pa-btn { width: 100%; margin-top: 20px; padding: 14px; background: var(--moss); color: var(--cream); border: none; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+  /* Mesma linguagem do "Ver treino": era 12px de raio, 15px/700 contra 13px de
+     raio, 14,5px/800 — dois botões primários com dois pesos, na mesma tela. */
+  .pa-btn { width: 100%; min-height: var(--pa-cta-h); margin-top: 20px; padding: 13px var(--pa-cta-pad-x); background: var(--moss); color: var(--cream); border: none; border-radius: var(--pa-cta-radius); font-size: var(--pa-cta-fs); font-weight: var(--pa-cta-fw); cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
   .pa-btn:hover:not(:disabled) { background: var(--moss-deep); transform: translateY(-1px); }
   .pa-btn:disabled { opacity: 0.6; cursor: default; }
-  .pa-btn svg { width: 17px; height: 17px; }
+  .pa-btn svg { width: var(--pa-cta-svg); height: var(--pa-cta-svg); }
 
   .pa-msg { min-height: 18px; margin-top: 12px; font-size: 13px; color: var(--error); text-align: center; }
   .pa-msg.ok { color: var(--moss); }
@@ -195,10 +197,42 @@
      o que reservar. Era essa reserva — escrita em dois lugares, cancelada com
      `:has()` num terceiro — que produzia o vão embaixo do último cartão. */
 
-  /* ── Treino ── */
-  /* Sem reserva embaixo. A barra deixou de cobrir o conteúdo quando virou item
-     da coluna flex da casca — ver o bloco A CASCA lá em cima. */
-  .pa-main { max-width: 620px; margin: 0 auto; padding: 18px 16px; }
+  /* ══════════════════════════════════════════════════════════════════════
+     A COLUNA DE CONTEÚDO — a mesma nas três telas
+     ══════════════════════════════════════════════════════════════════════
+     Início, Treino e Dieta usam este mesmo <main>. A largura, o recuo lateral
+     e o teto vêm de tokens (--pa-conteudo-*), porque três telas com a mesma
+     função não podem ter três medidas.
+
+     Sem reserva embaixo: a barra deixou de cobrir o conteúdo quando virou item
+     da coluna flex da casca — ver o bloco A CASCA lá em cima.
+
+     `width: 100%` NÃO é decoração, e tirá-lo devolve um defeito difícil de
+     ler. A casca é `display: flex; flex-direction: column`, então o eixo
+     transversal do <main> é o HORIZONTAL — e `margin: 0 auto` num item flex
+     DESLIGA o `stretch` nesse eixo. Sem `width`, a largura do <main> passa
+     a ser shrink-to-fit: o maior entre o min-content do conteúdo e o espaço
+     disponível, limitado ao max-content.
+
+     O que isso produzia, medido:
+       · a 360px o <main> ficava com 366px dentro de uma casca de 360 que tem
+         `overflow: hidden` — 6px recortados à direita, comendo a borda do
+         card e metade do ✓ de cada série. Sem barra de rolagem horizontal
+         nenhuma, porque não era estouro: era corte;
+       · a 412 e 430px o recuo lateral virava 23 e 32px em vez dos 16 daqui,
+         porque o <main> parava de crescer no max-content do texto;
+       · a 768px o max-width nem chegava a valer: o <main> ficava com a largura
+         da frase mais longa da tela, diferente em cada uma das três.
+
+     Ou seja: as três telas tinham larguras úteis diferentes sem que ninguém
+     tivesse escrito medida diferente em lugar nenhum. `width: 100%` devolve
+     o `stretch`, e o max-width volta a ser quem manda. */
+  .pa-main {
+    width: 100%;
+    max-width: var(--pa-conteudo-max);
+    margin: 0 auto;
+    padding: 18px var(--pa-conteudo-pad);
+  }
 
   /* ══════════════════════════════════════════════════════════════════════
      NAVEGAÇÃO INFERIOR (Início | Treino | Dieta)
@@ -259,8 +293,8 @@
 
   /* ── Hero: tela inicial do treino do dia ── */
   .pa-hero { background: linear-gradient(150deg, var(--bg-card) 0%, #EEF2EB 100%); border-radius: 20px; padding: 20px 20px 17px; margin-bottom: 18px; box-shadow: var(--shadow); }
-  .pa-hero-hi { font-size: 13.5px; font-weight: 600; color: var(--ink-soft); }
-  .pa-hero-title { font-size: 27px; font-weight: 800; color: var(--moss-deep); line-height: 1.08; letter-spacing: -0.015em; margin-top: 2px; }
+  .pa-hero-hi { font-size: var(--pa-fs-sub); font-weight: 600; color: var(--ink-soft); }
+  .pa-hero-title { font-size: var(--pa-fs-hero); font-weight: 800; color: var(--moss-deep); line-height: 1.08; letter-spacing: -0.015em; margin-top: 2px; }
   .pa-hero-sel { margin-top: 11px; }
   .pa-hero-bar { margin-top: 17px; height: 7px; border-radius: 100px; background: #E4E7E0; overflow: hidden; }
   .pa-hero-bar > span { display: block; height: 100%; border-radius: 100px; background: linear-gradient(90deg, var(--moss), var(--sage)); transition: width 0.5s cubic-bezier(.4,0,.2,1); }
@@ -279,8 +313,10 @@
 
   /* Treino em andamento tem DUAS barras embaixo: a navegação e a .pa-finishbar
      logo acima dela. Nenhuma das duas cobre o miolo — as três são itens da
-     mesma coluna —, então aqui só sobra a largura. */
-  .pa-main-run { max-width: 720px; }
+     mesma coluna. A largura também não é mais assunto daqui: o treino aberto
+     media 720px contra os 620 das outras telas, e era a mesma tela do aluno
+     mudando de tamanho quando ele tocava num card. Agora é --pa-conteudo-max,
+     como todo o resto. */
 
   /* Cabeçalho do treino: acompanha a rolagem, logo abaixo da topbar. */
   /* `top: 0`: quem rola agora é o `<main>`, e a topbar está FORA dele. Descontar
@@ -321,23 +357,27 @@
      linha da coluna, e a navegação é a última. */
   .pa-finishbar { flex: 0 0 auto; z-index: 25;
     background: linear-gradient(to top, var(--background) 62%, color-mix(in srgb, var(--background) 0%, transparent)); pointer-events: none; }
-  .pa-finishbar-in { max-width: 720px; margin: 0 auto; padding: 14px 16px 10px; pointer-events: auto; }
-  .pa-finishbar .pa-btn { margin-top: 0; min-height: 48px; box-shadow: var(--shadow-md); }
+  /* Mesma coluna dos cards, pelo mesmo token. Com o <main> em shrink-to-fit e
+     esta barra respeitando o próprio max-width, as duas divergiam: a 768px o
+     "Iniciar treino" tinha 688px de largura contra 638 dos cards logo acima —
+     25px de desalinhamento de cada lado, no elemento mais visível da tela. */
+  .pa-finishbar-in { max-width: var(--pa-conteudo-max); margin: 0 auto; padding: 14px var(--pa-conteudo-pad) 10px; pointer-events: auto; }
+  .pa-finishbar .pa-btn { margin-top: 0; box-shadow: var(--shadow-md); }
 
   /* ── Indicadores de evolução (topo): sequência + recordes ── */
   .pa-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
   .pa-stat { background: var(--bg-card); border: 1px solid var(--hair); border-radius: 16px; padding: 14px 15px; box-shadow: var(--shadow); }
-  .pa-stat-top { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--ink-mute); }
+  .pa-stat-top { display: flex; align-items: center; gap: 6px; font-size: var(--pa-fs-rotulo); font-weight: 700; color: var(--ink-mute); }
   .pa-stat-ic { font-size: 15px; line-height: 1; }
-  .pa-stat-val { margin-top: 7px; font-size: 23px; font-weight: 800; color: var(--moss-deep); line-height: 1; letter-spacing: -0.01em; }
-  .pa-stat-val small { font-size: 13px; font-weight: 700; color: var(--ink-soft); margin-left: 3px; }
+  .pa-stat-val { margin-top: 7px; font-size: var(--pa-fs-num); font-weight: 800; color: var(--moss-deep); line-height: 1; letter-spacing: -0.01em; }
+  .pa-stat-val small { font-size: var(--pa-fs-num-un); font-weight: 700; color: var(--ink-soft); margin-left: 3px; }
 
   /* ── Tela de seleção de dia (lista) ── */
-  .pa-hero-sub { margin-top: 8px; font-size: 13.5px; font-weight: 600; color: var(--ink-soft); }
+  .pa-hero-sub { margin-top: 8px; font-size: var(--pa-fs-sub); font-weight: 600; color: var(--ink-soft); }
   .pa-hero-sub b { color: var(--moss-deep); font-weight: 800; }
   .pa-lista-sel { margin-bottom: 14px; }
   .pa-diacards { display: flex; flex-direction: column; gap: 11px; }
-  .pa-diacard { display: flex; align-items: center; gap: 13px; width: 100%; text-align: left; background: var(--bg-card); border: 1px solid var(--hair); border-radius: 16px; padding: 13px 14px; box-shadow: var(--shadow); cursor: pointer; font-family: inherit; transition: transform 0.15s, box-shadow 0.2s, border-color 0.2s; }
+  .pa-diacard { display: flex; align-items: center; gap: 13px; width: 100%; text-align: left; background: var(--bg-card); border: 1px solid var(--hair); border-radius: var(--pa-card-radius); padding: var(--pa-card-pad-y) var(--pa-card-pad-x); box-shadow: var(--shadow); cursor: pointer; font-family: inherit; transition: transform 0.15s, box-shadow 0.2s, border-color 0.2s; }
   .pa-diacard:hover { transform: translateY(-1px); }
   .pa-diacard.prox { border-color: var(--sage); background: linear-gradient(150deg, var(--bg-card) 0%, #EEF3EC 100%); }
 
@@ -349,20 +389,23 @@
   .pa-diacard.featured .pa-dc-nome { font-size: 18px; }
   .pa-dc-info { margin-top: 14px; }
   .pa-dc-grupos { font-size: 13px; font-weight: 700; color: var(--moss-deep); line-height: 1.35; }
-  .pa-dc-conta { margin-top: 3px; font-size: 12.5px; font-weight: 600; color: var(--ink-mute); }
-  .pa-dc-cta { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; margin-top: 16px; padding: 13px; border: none; border-radius: 13px; background: var(--moss); color: var(--cream); font-family: inherit; font-size: 14.5px; font-weight: 800; cursor: pointer; transition: background 0.2s, transform 0.15s; }
+  .pa-dc-conta { margin-top: 3px; font-size: var(--pa-fs-meta); font-weight: 600; color: var(--ink-mute); }
+  /* A RÉGUA dos CTAs do app do aluno. "Iniciar treino", os atalhos do Início e
+     os botões da Dieta seguem estes mesmos tokens — ver --pa-cta-* em
+     css/tokens.css. Altere lá, não aqui. */
+  .pa-dc-cta { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; min-height: var(--pa-cta-h); margin-top: 16px; padding: 13px var(--pa-cta-pad-x); border: none; border-radius: var(--pa-cta-radius); background: var(--moss); color: var(--cream); font-family: inherit; font-size: var(--pa-cta-fs); font-weight: var(--pa-cta-fw); cursor: pointer; transition: background 0.2s, transform 0.15s; }
   .pa-dc-cta:hover { background: var(--moss-deep); transform: translateY(-1px); }
-  .pa-dc-cta svg { width: 17px; height: 17px; }
+  .pa-dc-cta svg { width: var(--pa-cta-svg); height: var(--pa-cta-svg); }
 
-  .pa-dc-letra { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 13px; background: var(--cream); color: var(--moss-deep); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; }
+  .pa-dc-letra { flex: 0 0 auto; width: var(--pa-ic-card); height: var(--pa-ic-card); border-radius: 13px; background: var(--cream); color: var(--moss-deep); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; }
   .pa-diacard.prox .pa-dc-letra { background: var(--moss); color: var(--cream); }
   .pa-dc-body { flex: 1 1 auto; min-width: 0; }
   .pa-dc-top { display: flex; align-items: center; gap: 8px; }
-  .pa-dc-nome { font-size: 16px; font-weight: 800; color: var(--ink); }
-  .pa-dc-sub { display: block; margin-top: 3px; font-size: 12.5px; font-weight: 600; color: var(--ink-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pa-dc-nome { font-size: var(--pa-fs-card); font-weight: 800; color: var(--ink); }
+  .pa-dc-sub { display: block; margin-top: 3px; font-size: var(--pa-fs-meta); font-weight: 600; color: var(--ink-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pa-dc-meta { display: flex; align-items: center; gap: 5px; margin-top: 4px; font-size: 12px; font-weight: 700; color: var(--ink-soft); }
   .pa-dc-meta svg { width: 13px; height: 13px; flex: 0 0 auto; }
-  .pa-dc-badge { flex: 0 0 auto; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 3px 8px; border-radius: 100px; white-space: nowrap; }
+  .pa-dc-badge { flex: 0 0 auto; font-size: var(--pa-fs-selo); font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; padding: 3px 8px; border-radius: 100px; white-space: nowrap; }
   .pa-dc-badge.prox { background: var(--moss); color: var(--cream); }
   .pa-dc-badge.andamento { display: inline-flex; align-items: center; gap: 6px; background: var(--moss); color: var(--cream); font-size: 11.5px; font-variant-numeric: tabular-nums; letter-spacing: 0; text-transform: none; padding: 4px 9px; }
   .pa-dc-badge.feito { background: color-mix(in srgb, var(--color-primary-400) 18%, transparent); color: var(--moss-deep); }
@@ -423,7 +466,16 @@
   .pa-ex-body { padding: 2px 14px 14px; border-top: 1px solid var(--border); margin: 0 0 0; }
   .pa-ex-body[hidden] { display: none; }
   .pa-ex-body > :first-child { margin-top: 13px; }
-  @media (max-width: 380px) { .pa-ex-tag { display: none !important; } }
+  /* Abaixo de 380px o que cede é a GEOMETRIA, nunca a tipografia: o campo
+     continua em 16px (menos que isso e o iOS dá zoom sozinho ao focar) e a
+     altura de toque do input e do ✓ continua acima de 44px. O que encolhe é a
+     coluna do número, o vão entre colunas e o respiro lateral de dentro do
+     campo — nada disso é alvo de dedo. */
+  @media (max-width: 380px) {
+    .pa-ex-tag { display: none !important; }
+    .pa-serie { --pa-serie-c1: 26px; --pa-serie-gap: 8px; }
+    .pa-serie .pa-mini { padding-left: 8px; padding-right: 8px; }
+  }
 
   /* 2 · Linha compacta de prescrição */
   .pa-ex-spec { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 9px; font-size: 13.5px; color: var(--ink-soft); font-weight: 600; }
@@ -474,7 +526,7 @@
   .pa-prog-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
   .pa-mini { padding: 10px 12px; font-size: 16px; }   /* 16px evita zoom automático no iOS */
   .pa-prog-form [data-p="obs"] { grid-column: 1 / -1; }
-  .pa-btn-mini { grid-column: 1 / -1; margin-top: 2px; min-height: 48px; padding: 12px; font-size: 14.5px; font-weight: 700; }
+  .pa-btn-mini { grid-column: 1 / -1; margin-top: 2px; min-height: var(--pa-cta-h); padding: 12px var(--pa-cta-pad-x); font-size: var(--pa-cta-fs); font-weight: var(--pa-cta-fw); }
   .pa-btn-mini.is-loading { opacity: 0.75; cursor: progress; }
 
   .pa-prog-list { display: flex; flex-direction: column; gap: 6px; }
@@ -491,11 +543,24 @@
   /* Registro por série (peso + reps de cada série) */
   .pa-prog-when { font-size: 11.5px; font-weight: 600; color: var(--ink-mute); margin-left: auto; }
   .pa-series { display: flex; flex-direction: column; gap: 11px; margin-bottom: 12px; }
-  .pa-serie { display: grid; grid-template-columns: 32px 1fr 1fr 40px; gap: 10px; align-items: center; }
+  /* nº | peso | reps | ✓ — as quatro colunas SEMPRE visíveis, em toda largura.
+     As medidas vêm de tokens porque o selo do drop set e a comparação com a
+     última vez se alinham à primeira coluna: com o 42px chumbado em cada um
+     deles, apertar o grid no celular estreito desalinhava os três de uma vez.
+     `minmax(0, 1fr)` em vez de `1fr`: o mínimo automático de uma coluna
+     `1fr` é o min-content do que está dentro, e um <input> tem largura
+     intrínseca própria (~20 caracteres). Enquanto houver espaço não muda nada;
+     quando não houver, é ele que impede a coluna de recusar-se a encolher. */
+  .pa-serie {
+    display: grid;
+    grid-template-columns: var(--pa-serie-c1) minmax(0, 1fr) minmax(0, 1fr) var(--pa-serie-c4);
+    gap: var(--pa-serie-gap);
+    align-items: center;
+  }
   .pa-serie-num { font-size: 14px; font-weight: 800; color: var(--moss); text-align: center; }
   .pa-serie-lab { padding-bottom: 0; }
   .pa-serie-lab span { font-size: 11px; font-weight: 600; color: var(--ink-mute); text-transform: uppercase; letter-spacing: 0.03em; }
-  .pa-serie .pa-mini { text-align: center; }
+  .pa-serie .pa-mini { text-align: center; min-height: 44px; }
   /* Botão de concluir cada série — círculo discreto; estado concluído preenchido */
   .pa-serie-check { justify-self: end; width: 36px; height: 36px; padding: 0; border: 1px solid var(--hair); border-radius: 50%; background: var(--bg); color: var(--ink-mute); display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
   .pa-serie-check svg { width: 17px; height: 17px; }
@@ -512,7 +577,7 @@
   .pa-serie-block { display: flex; flex-direction: column; }
   /* Selo discreto "DROP SET" sob a linha da série */
   .pa-drop-badge { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start;
-    margin: 7px 0 0 42px; padding: 3px 9px; border-radius: 7px;
+    margin: 7px 0 0 var(--pa-serie-recuo); padding: 3px 9px; border-radius: 7px;
     background: var(--plum-soft); color: var(--plum);
     font-size: 10.5px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; }
   .pa-drop-badge svg { width: 13px; height: 13px; }

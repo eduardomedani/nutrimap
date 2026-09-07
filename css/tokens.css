@@ -85,6 +85,59 @@
   --tracking-snug:  -0.011em;
   --tracking-wide:   0.04em;
 
+  /* ── APP DO ALUNO (PWA) · a régua das três telas ────────────────────── */
+  /* Início, Treino e Dieta são a MESMA tela com conteúdos diferentes, e por
+     isso partilham uma régua só. Os valores abaixo não foram inventados: são
+     os da tela Treino, que já era a mais bem resolvida das três — foi ela que
+     virou referência quando as três estavam fora de escala entre si.
+
+     Quem precisar de um tamanho que não está aqui deve perguntar primeiro qual
+     PAPEL ele exerce; se o papel já existe, é este token. Um px solto numa das
+     folhas por tela é exatamente como as três voltam a divergir. */
+
+  /* Geometria da coluna de conteúdo — igual nas três telas e na barra de ação. */
+  --pa-conteudo-max: 680px;
+  --pa-conteudo-pad: 16px;    /* recuo lateral: no celular o card ocupa o resto */
+  --pa-conteudo-gap: 12px;    /* respiro vertical entre blocos */
+
+  /* Tipografia por PAPEL, não por tela. */
+  --pa-fs-hero:   27px;       /* título da tela ("Vamos treinar?", "Plano 1.838 kcal") */
+  --pa-fs-titulo: 19px;       /* título de cabeçalho fixo / card em destaque */
+  --pa-fs-card:   16px;       /* nome de um card (treino, refeição, linha do Hoje) */
+  --pa-fs-corpo:  14.5px;
+  --pa-fs-sub:    13.5px;     /* apoio do título, horário, valor secundário */
+  --pa-fs-meta:   12.5px;     /* legenda, contagem, detalhe */
+  --pa-fs-rotulo: 11px;       /* RÓTULO EM CAIXA ALTA */
+  --pa-fs-selo:   10.5px;     /* selo/badge ("PRÓXIMO", "AGORA") */
+  --pa-fs-num:    23px;       /* número do indicador */
+  --pa-fs-num-un: 13px;       /* a unidade ao lado dele */
+
+  /* Presença do card. */
+  --pa-ic-card:     44px;     /* bolha/letra à esquerda do card */
+  --pa-ic-card-svg: 20px;
+  --pa-card-pad-y:  13px;
+  --pa-card-pad-x:  14px;
+  --pa-card-radius: 16px;
+
+  /* CTA principal. A régua é o "Ver treino" do card em destaque do Treino —
+     é o botão que o aluno mais toca, e o que os outros precisam parecer. */
+  --pa-cta-h:      48px;
+  --pa-cta-radius: 13px;
+  --pa-cta-fs:     14.5px;
+  --pa-cta-fw:     800;
+  --pa-cta-pad-x:  18px;
+  --pa-cta-svg:    17px;
+
+  /* Colunas da linha de série (nº | peso | reps | ✓). Moram aqui porque outros
+     dois elementos se alinham por elas (o selo do drop set e a comparação com
+     a última vez): com o número chumbado em cada um, encolher a primeira
+     coluna no celular estreito desalinhava os três de uma vez. */
+  --pa-serie-c1:  32px;
+  --pa-serie-c4:  40px;
+  --pa-serie-gap: 10px;
+  /* Onde a linha de série começa, para quem precisa se alinhar a ela. */
+  --pa-serie-recuo: calc(var(--pa-serie-c1) + var(--pa-serie-gap));
+
   /* ── FORMA ──────────────────────────────────────────────────────────── */
   --radius-sm:   8px;
   --radius-md:   12px;

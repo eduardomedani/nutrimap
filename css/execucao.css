@@ -47,9 +47,12 @@
 .pa-serie-block.done .pa-serie .pa-mini { transition: background var(--duration-base) var(--ease), color var(--duration-base) var(--ease); }
 
 /* ── Comparação com a última vez ── */
+/* Alinhada à primeira coluna da linha de série. Era 42px chumbado (32 + 10 de
+   vão); com a coluna encolhendo no celular estreito, o número parava de bater.
+   Agora sai do mesmo token que o grid — ver --pa-serie-recuo em tokens.css. */
 .pa-serie-comp {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
-  margin: 6px 0 0 42px; font-size: 11.5px; font-weight: 600; color: var(--text-muted);
+  margin: 6px 0 0 var(--pa-serie-recuo); font-size: 11.5px; font-weight: 600; color: var(--text-muted);
 }
 .pa-serie-comp:empty { display: none; }
 .pa-serie-comp-ant { font-variant-numeric: tabular-nums; }
