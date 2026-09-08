@@ -171,7 +171,34 @@
           `tela     screen ${px(screen.height)}  dpr ${devicePixelRatio}  standalone ${!!navigator.standalone}\n` +
           `casca    --h ${cs.getPropertyValue('--pa-casca-h').trim() || '(vazia)'}  --top ${cs.getPropertyValue('--pa-casca-top').trim() || '(vazia)'}\n` +
           `barra    fim ${nav ? px(nav.getBoundingClientRect().bottom) : '—'}  sobra ${nav ? px(innerHeight - nav.getBoundingClientRect().bottom) : '—'}\n` +
-          `sobra real ${nav ? px(screen.height - nav.getBoundingClientRect().bottom) : '—'} (contra a tela)   · 5 toques no logo desligam`;
+          `sobra real ${nav ? px(screen.height - nav.getBoundingClientRect().bottom) : '—'} (contra a tela)\n` +
+          medirBarra() +
+          `\n· 5 toques no logo desligam`;
+      };
+
+      // Anatomia da barra: onde cada pixel dela é gasto. É o que separa
+      // "a barra está no lugar errado" de "a barra é alta demais".
+      const medirBarra = () => {
+        const nav = document.querySelector('.pa-bottomnav');
+        const item = nav && nav.querySelector('.pa-nav-item');
+        if (!nav || !item) return 'nav      (ainda não montada)';
+        const cn = getComputedStyle(nav), ci = getComputedStyle(item);
+        const n = nav.getBoundingClientRect(), i = item.getBoundingClientRect();
+        const svg = item.querySelector('svg');
+        // O fim do RÓTULO, que é o último pixel de conteúdo de verdade.
+        const texto = [].filter.call(item.childNodes, (x) => x.nodeType === 3 && x.textContent.trim())[0];
+        let fimTexto = i.bottom;
+        if (texto) { const r = document.createRange(); r.selectNode(texto); fimTexto = r.getBoundingClientRect().bottom; }
+        const safe = getComputedStyle(document.documentElement).getPropertyValue('--pa-nav-safe').trim();
+        return (
+          `nav      top ${px(n.top)}  height ${px(n.height)}  bottom ${px(n.bottom)}\n` +
+          `nav pad  top ${cn.paddingTop}  bottom ${cn.paddingBottom}  box ${cn.boxSizing}  minH ${cn.minHeight}\n` +
+          `item     top ${px(i.top)}  height ${px(i.height)}  bottom ${px(i.bottom)}  minH ${ci.minHeight}\n` +
+          `item pad top ${ci.paddingTop}  bottom ${ci.paddingBottom}  justify ${ci.justifyContent}\n` +
+          `icone ${svg ? px(svg.getBoundingClientRect().height) : '—'}  rotulo fim ${px(fimTexto)}  safe ${safe}\n` +
+          `>> do fim do texto ate o fim da barra: ${px(n.bottom - fimTexto)}\n` +
+          `>> morto (fora a safe-area):           ${px(n.bottom - fimTexto - parseFloat(cn.paddingBottom))}`
+        );
       };
       setInterval(ler, 400);
       ler();
@@ -336,17 +363,35 @@
      centralizados dentro dela — sobravam ~4,5px de folga que, somados ao
      padding do item e à safe-area, viravam ~46px de branco abaixo do rótulo
      quando só 34 são obrigatórios. Agora a altura do item É a área de toque:
-     não há caixa maior para centralizar dentro. */
+     não há caixa maior para centralizar dentro.
+
+     O respiro de cima era contado DUAS VEZES, e a auditoria da barra achou:
+     `--pa-nav-item-h` valia 43px como se fosse só o conteúdo, mas o item tem o
+     `box-sizing: border-box` global — 43px já INCLUÍAM o padding de cima. A
+     área útil somava esse mesmo padding de novo (9 + 43 = 52), a barra pedia
+     52px de conteúdo, o item media 49px de verdade e o `align-items: stretch`
+     esticava a diferença. Os 3px sobravam mortos embaixo do rótulo, somados à
+     safe-area. Agora a variável diz o que mede: a altura REAL do item, padding
+     incluído, e a barra não pede altura nenhuma além dela. */
   :root {
     --pa-nav-pad-top: 9px;    /* respiro acima do ícone */
-    --pa-nav-item-h: 43px;    /* ícone 22 + gap 4 + rótulo ~13, com folga */
-    --pa-nav-h: calc(var(--pa-nav-pad-top) + var(--pa-nav-item-h));   /* 52px úteis */
+    /* Altura real do item, COM o padding de cima (border-box):
+       9 (respiro) + 22 (ícone) + 3 (gap) + 15 (rótulo) = 49px.
+       É também o alvo de toque, e por isso não desce de 44px. */
+    --pa-nav-item-h: 49px;
 
-    /* A safe-area REAL do aparelho, com um piso para quem não tem nenhuma
-       (Android, desktop, iPhone sem indicador Home): sem o piso a barra fica
-       rente demais na borda. Declarada UMA vez, usada como variável — é o que
-       impede a mesma medida de ser escrita em dois lugares e sair de sincronia. */
-    --pa-nav-safe: max(6px, env(safe-area-inset-bottom, 0px));
+    /* A safe-area REAL do aparelho, com um PISO de respiro. Declarada UMA vez e
+       usada como variável — é o que impede a mesma medida de ser escrita em
+       dois lugares e sair de sincronia.
+
+       O piso de 10px não é decoração nem palpite: com a folga morta zerada,
+       abaixo do rótulo passou a existir exatamente esta variável e mais nada.
+       Onde o aparelho tem indicador Home, os 34px dele já são o respiro, e é
+       assim que a tab bar do próprio iOS se comporta — o rótulo encosta no
+       topo da área do indicador. Onde não tem (Android, desktop, iPhone antigo)
+       o inset vale 0, e sem piso o rótulo ficaria colado na borda: os 10px são
+       o respiro nesses casos. Um `max()` cobre os dois sem um `if` de aparelho. */
+    --pa-nav-safe: max(10px, env(safe-area-inset-bottom, 0px));
   }
   /* Não existe mais --pa-nav-reserva. A barra é o último item da coluna flex
      da casca: ela não cobre o conteúdo, e conteúdo que não é coberto não tem
@@ -406,19 +451,14 @@
      Safe-area UMA vez, aqui, e SÓ como padding interno de baixo: é o que faz o
      rótulo parar logo acima do indicador Home em vez de embaixo dele.
 
-     A altura NÃO é fixa: é a área útil (--pa-nav-h) mais a safe-area real do
-     aparelho. Nada de 120/130/150px chumbado, que seria certo num modelo e
-     errado em todos os outros. */
+     A altura NÃO é fixa e NÃO é pedida aqui: é a do item mais a safe-area real
+     do aparelho, e só. Nada de 120/130/150px chumbado, que seria certo num
+     modelo e errado em todos os outros — e nada de `min-height` próprio, que
+     era o que esticava o item além do que ele mede e deixava folga morta
+     embaixo do rótulo. Quem define a altura é quem tem conteúdo: o item. */
   .pa-bottomnav {
     flex: 0 0 auto; z-index: 30;
     display: flex; align-items: stretch;
-    /* content-box só aqui, contra o `* { box-sizing: border-box }` do topo.
-       Com border-box, min-height passaria a INCLUIR o padding da safe-area e
-       os 34px do iPhone comeriam a área de toque, espremendo ícone e rótulo.
-       Aqui min-height é a área útil e a safe-area soma por fora — que é
-       exatamente o contrato descrito em --pa-nav-h. */
-    box-sizing: content-box;
-    min-height: var(--pa-nav-h);
     padding-top: 0;
     padding-bottom: var(--pa-nav-safe);
     /* Fundo OPACO, sem backdrop-filter. O blur obriga o navegador a compor a

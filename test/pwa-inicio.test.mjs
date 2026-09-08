@@ -772,7 +772,7 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
     // qualquer uma dessas é abrir a porta para as duas saírem de sincronia.
     igual((semComentario.match(/env\(safe-area-inset-bottom/g) || []).length, 1,
           'o inset de baixo aparece uma vez no arquivo inteiro: na variável');
-    contem(shell, '--pa-nav-safe: max(6px, env(safe-area-inset-bottom, 0px));');
+    contem(shell, '--pa-nav-safe: max(10px, env(safe-area-inset-bottom, 0px));');
     contem(corpoNav, 'padding-bottom: var(--pa-nav-safe);');
     ok(!/env\(safe-area-inset-bottom/.test(corpoNav),
        'a barra lê a variável; env() escrito aqui duplicaria a fonte da medida');
@@ -803,13 +803,23 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
     const item = Number((shell.match(/--pa-nav-item-h:\s*(\d+)px/) || [])[1]);
     ok(pad && item, 'a geometria da barra tem que ser variável, não número solto');
     ok(pad >= 6 && pad <= 12, `respiro de cima de ${pad}px — fora da faixa 6–12px`);
-    const h = pad + item;
-    ok(h >= 48 && h <= 64, `área útil de ${h}px — fora da faixa 48–64px`);
-    contem(shell, '--pa-nav-h: calc(var(--pa-nav-pad-top) + var(--pa-nav-item-h));');
-    contem(corpoNav, 'min-height: var(--pa-nav-h);');
-    // min-height é a área ÚTIL: com border-box o inset entraria nela e
-    // espremeria ícone e rótulo em vez de somar por fora.
-    contem(corpoNav, 'box-sizing: content-box;');
+    // --pa-nav-item-h é a altura REAL do item, padding de cima incluído: o item
+    // herda o `box-sizing: border-box` global. Somar o padding de novo era o
+    // que pedia 52px de uma caixa que mede 49 e deixava 3px mortos embaixo do
+    // rótulo, esticados pelo `align-items: stretch`.
+    ok(item >= 48 && item <= 64, `área útil de ${item}px — fora da faixa 48–64px`);
+    ok(item > pad, 'a altura do item inclui o respiro de cima; somar de novo conta duas vezes');
+  });
+
+  teste('a barra não pede altura própria — quem a define é o item', () => {
+    // `min-height` na barra a esticava além do que o conteúdo mede, e a
+    // diferença virava folga morta embaixo do rótulo. Sem ela, a altura é
+    // exatamente item + safe-area + borda, que é o contrato desejado.
+    ok(!/min-height/.test(corpoNav),
+       'min-height na barra estica o item e recria a folga embaixo do rótulo');
+    ok(!/box-sizing/.test(corpoNav),
+       'sem min-height não há o que proteger: content-box aqui só confunde');
+    ok(!/height:\s*\d/.test(corpoNav), 'altura fixa é certa num aparelho e errada nos outros');
   });
 
   teste('nada de folga abaixo do rótulo além da safe-area', () => {
