@@ -695,14 +695,45 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
        'login e boot rolam na janela: a trava tem que sair com a casca');
   });
 
-  teste('o teclado move a casca pela visualViewport, não por altura chumbada', () => {
-    // O iOS encolhe a viewport VISUAL e deixa a de LAYOUT do mesmo tamanho.
-    // `inset: 0` sozinho ancoraria a barra atrás do teclado; a visualViewport é
-    // a única fonte que sabe o que está realmente visível.
+  teste('a casca segue a visualViewport, não uma altura chumbada', () => {
     contem(semComentario, 'visualViewport');
     contem(semComentario, 'interactive-widget=resizes-content');
     ok(!/\b\d{3,4}px\b[^;]*--pa-casca-h/.test(semComentario),
        'altura de teclado chumbada é palpite: cada aparelho tem a sua');
+  });
+
+  teste('a comparação de viewports não tem direção', () => {
+    // ISTO já falhou uma vez, e o defeito passou pela validação porque o
+    // ambiente de teste só exercitava um dos lados.
+    //
+    // As duas viewports discordam em direções OPOSTAS conforme a causa:
+    //   · teclado aberto  → a VISUAL encolhe (visual < layout)
+    //   · lançamento do PWA no iPhone → a de LAYOUT é que vem curta, e a
+    //     visual é a maior e a certa (visual > layout)
+    //
+    // A primeira versão testava `innerHeight - vv.height > 1`, que só pega o
+    // primeiro caso. No segundo a conta dá negativo, nada era escrito, e a
+    // casca ficava com a viewport errada — exatamente o defeito que o bloco
+    // existia para corrigir. A regra certa é o módulo da diferença.
+    const bloco = semComentario.slice(semComentario.indexOf('function ancorarCasca'));
+    const corpo = bloco.slice(0, bloco.indexOf('})();'));
+    contem(corpo, 'Math.abs(');
+    ok(!/innerHeight\s*-\s*vv\.height\s*>/.test(corpo),
+       'comparação com direção só enxerga o teclado e deixa o lançamento quebrado');
+    ok(!/vv\.height\s*-\s*(window\.)?innerHeight\s*>/.test(corpo),
+       'comparação com direção só enxerga o lançamento e deixa o teclado quebrado');
+  });
+
+  teste('a primeira medida da casca não espera quadro', () => {
+    // `requestAnimationFrame` não roda com a página oculta, e um PWA pode ser
+    // aberto em segundo plano. Se a primeira âncora dependesse de quadro, a
+    // casca nasceria com a viewport errada e ficaria assim até o app aparecer.
+    const bloco = semComentario.slice(semComentario.indexOf('function ancorarCasca'));
+    const corpo = bloco.slice(0, bloco.indexOf('})();'));
+    const fim = corpo.slice(corpo.lastIndexOf('addEventListener'));
+    ok(/\baplicar\(\);/.test(fim), 'a medida inicial tem que ser síncrona');
+    // E um pedido pendente que nunca virou quadro não pode engolir os próximos.
+    contem(corpo, 'cancelAnimationFrame');
   });
 
   teste('toda tela com barra entra na casca, por um caminho só', () => {

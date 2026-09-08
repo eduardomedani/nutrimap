@@ -55,49 +55,103 @@
 </script>
 
 <script>
-  // ── A casca contra o teclado virtual ──────────────────────────────────
+  // ── A casca contra a viewport que o iOS erra ──────────────────────────
   // Só apresentação: escreve duas variáveis CSS. Não conhece treino, dieta,
   // rota nem dado nenhum.
   //
   // `#app.pa-shell` é `position: fixed; inset: 0`, que ancora na viewport de
-  // LAYOUT. Isso resolve o lançamento do PWA no iPhone, mas não resolve o
-  // teclado: ao abrir, o iOS encolhe a viewport VISUAL e deixa a de layout do
-  // mesmo tamanho, deslocando uma contra a outra. A casca continuaria com a
-  // altura da tela inteira, e a barra inferior ficaria atrás do teclado — ou,
-  // com a viewport visual rolada, boiando no meio da tela.
+  // LAYOUT. Existem DOIS jeitos de essa viewport discordar da tela, e eles vão
+  // em direções opostas — foi cair só no segundo que deixou a primeira versão
+  // deste bloco sem efeito no aparelho:
   //
-  // A visualViewport é a única fonte que sabe o que está REALMENTE visível.
-  // Enquanto ela concorda com a viewport de layout (o caso normal), nenhuma
-  // variável é escrita e o `inset: 0` responde sozinho — é de propósito: quanto
-  // menos estados este código produz, menos ele tem como errar.
+  //   1. LANÇAMENTO DO PWA no iPhone: a viewport de layout vem MENOR que a
+  //      tela. A visual é a certa, e é a MAIOR das duas. `inset: 0` herda a
+  //      medida curta, a casca termina antes do fim da tela e aparece uma
+  //      faixa do fundo embaixo da barra.
+  //   2. TECLADO ABERTO: o iOS encolhe a viewport VISUAL e deixa a de layout
+  //      do tamanho da tela, ainda deslocando uma contra a outra. Agora a
+  //      visual é a MENOR. Sem ajuste, a barra fica atrás do teclado.
+  //
+  // A primeira versão testava só `innerHeight - vv.height > 1`, que é o caso 2.
+  // No caso 1 essa conta dá negativo, nada era escrito, e a casca ficava com a
+  // viewport errada — que é o defeito que se queria corrigir.
+  //
+  // A regra certa não tem direção: a visualViewport é a única fonte que sabe o
+  // que está REALMENTE visível, então a casca ESPELHA ela sempre que as duas
+  // discordam, para qualquer lado. Quando concordam, nenhuma variável existe e
+  // o `inset: 0` responde sozinho.
   (function ancorarCasca() {
     const vv = window.visualViewport;
     if (!vv) return;              // sem suporte, o inset: 0 já basta
     const raiz = document.documentElement;
     let agendado = null;
 
+    // A decisão, isolada e síncrona. Exposta para o teste poder exercitá-la sem
+    // depender de quadro — `requestAnimationFrame` não roda com a aba oculta.
+    function aplicar() {
+      // 1px de tolerância: a visualViewport devolve fracionário e ficaria
+      // reescrevendo a variável a cada quadro durante a rolagem.
+      const discorda = Math.abs(vv.height - window.innerHeight) > 1 || vv.offsetTop > 1;
+      if (discorda) {
+        raiz.style.setProperty('--pa-casca-h', vv.height + 'px');
+        raiz.style.setProperty('--pa-casca-top', vv.offsetTop + 'px');
+      } else {
+        raiz.style.removeProperty('--pa-casca-h');
+        raiz.style.removeProperty('--pa-casca-top');
+      }
+    }
+    window.__ancorarCascaAplicar = aplicar;
+
     function sincronizar() {
-      if (agendado) return;       // um ajuste por quadro; o resize dispara em rajada
-      agendado = requestAnimationFrame(() => {
-        agendado = null;
-        // 1px de tolerância: a visualViewport devolve fracionário e ficaria
-        // reescrevendo a variável a cada quadro durante a rolagem.
-        const encolheu = window.innerHeight - vv.height > 1;
-        const deslocou = vv.offsetTop > 1;
-        if (encolheu || deslocou) {
-          raiz.style.setProperty('--pa-casca-h', vv.height + 'px');
-          raiz.style.setProperty('--pa-casca-top', vv.offsetTop + 'px');
-        } else {
-          raiz.style.removeProperty('--pa-casca-h');
-          raiz.style.removeProperty('--pa-casca-top');
-        }
-      });
+      // Reagenda em vez de ignorar: um pedido pendente que nunca virou quadro
+      // (aba oculta, app em segundo plano) não pode engolir os pedidos
+      // seguintes. Um ajuste por quadro, e o último pedido é o que vale.
+      if (agendado) cancelAnimationFrame(agendado);
+      agendado = requestAnimationFrame(() => { agendado = null; aplicar(); });
     }
 
     vv.addEventListener('resize', sincronizar);
     vv.addEventListener('scroll', sincronizar);
-    sincronizar();
+    // O iOS ressincroniza a viewport sozinho depois do lançamento — era o que
+    // o toque duplo forçava, no defeito antigo. Nem toda ressincronização
+    // dispara evento de visualViewport, então remedimos também nestes marcos.
+    // Não são "alturas mágicas": nenhum número de tela aparece aqui, é só
+    // quando perguntar de novo.
+    addEventListener('resize', sincronizar);
+    addEventListener('orientationchange', sincronizar);
+    addEventListener('pageshow', sincronizar);
+    addEventListener('load', sincronizar);
+    document.addEventListener('visibilitychange', sincronizar);
+    // A PRIMEIRA medida é síncrona, sem esperar quadro: no lançamento do PWA a
+    // casca precisa nascer ancorada, e um app que abre em segundo plano pode
+    // levar segundos até o primeiro frame. As seguintes podem esperar.
+    aplicar();
   })();
+
+  // Leitura das viewports, para quando o aparelho discordar do que se espera.
+  // Só existe com ?diag=1 na URL — não custa nada a quem não pede.
+  if (new URLSearchParams(location.search).get('diag') === '1') {
+    addEventListener('DOMContentLoaded', () => {
+      const cx = document.createElement('pre');
+      cx.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;margin:0;padding:6px 8px;background:#0E1A16;color:#7EE2C3;font:11px/1.35 ui-monospace,monospace;white-space:pre-wrap';
+      document.body.appendChild(cx);
+      const px = (n) => Math.round(n * 10) / 10;
+      const ler = () => {
+        const vv = window.visualViewport;
+        const raiz = document.documentElement;
+        const nav = document.querySelector('.pa-bottomnav');
+        const cs = getComputedStyle(raiz);
+        cx.textContent =
+          `layout   innerHeight ${px(innerHeight)}  clientHeight ${px(raiz.clientHeight)}\n` +
+          `visual   height ${vv ? px(vv.height) : '—'}  offsetTop ${vv ? px(vv.offsetTop) : '—'}  scale ${vv ? px(vv.scale) : '—'}\n` +
+          `tela     screen ${px(screen.height)}  dpr ${devicePixelRatio}  standalone ${!!navigator.standalone}\n` +
+          `casca    --h ${cs.getPropertyValue('--pa-casca-h').trim() || '(vazia)'}  --top ${cs.getPropertyValue('--pa-casca-top').trim() || '(vazia)'}\n` +
+          `barra    fim ${nav ? px(nav.getBoundingClientRect().bottom) : '—'}  sobra ${nav ? px(innerHeight - nav.getBoundingClientRect().bottom) : '—'}`;
+      };
+      setInterval(ler, 400);
+      ler();
+    });
+  }
 </script>
 
 <style>
