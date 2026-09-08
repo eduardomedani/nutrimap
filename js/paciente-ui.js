@@ -886,6 +886,8 @@ function rolador() {
 /** Sai da casca: login, vinculação, boot e erro não têm barra nem main. */
 function semCasca() {
   app()?.classList.remove('pa-shell');
+  // Devolve a rolagem à janela: estas telas rolam no documento, não num miolo.
+  document.body.classList.remove('pa-app');
 }
 
 // Trocar de seção começa no topo da seção nova.
@@ -899,10 +901,15 @@ function aoTopo() {
 }
 
 function ligarShell() {
-  // A casca é o que dá altura à tela e põe a barra inferior no fim do fluxo.
+  // A casca é o que ancora a tela e põe a barra inferior no fundo da viewport.
   // Fica aqui porque `ligarShell` é o ponto por onde TODA tela com barra
   // passa — marcar em cada render deixaria a próxima tela nova de fora.
   app()?.classList.add('pa-shell');
+  // Par obrigatório da casca: com ela no ar, a página não rola — só o miolo.
+  // A casca é `fixed`, então não empurra o documento; o que sobraria sem isto
+  // é o `min-height` do body virando rolagem fantasma quando a medida de
+  // viewport vem maior que a tela. Ver o bloco A CASCA em app.html.
+  document.body.classList.add('pa-app');
   document.getElementById('paLogout')?.addEventListener('click', logout);
   app().querySelectorAll('.pa-nav-item').forEach(b =>
     b.addEventListener('click', () => {

@@ -2,7 +2,11 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- `interactive-widget=resizes-content`: o teclado virtual passa a ENCOLHER a
+     viewport de layout em vez de deslizar por cima dela. Sem isso, a barra
+     inferior fica presa atrás do teclado. Cobre Android e iOS 17+; nas versões
+     anteriores quem resolve é o sincronismo de visualViewport, mais abaixo. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Evollo — Aluno</title>
 <meta name="theme-color" content="#18B984">
 <meta name="description" content="Seu treino e sua progressão de carga — Evollo">
@@ -50,13 +54,69 @@
   observarIcones();
 </script>
 
+<script>
+  // ── A casca contra o teclado virtual ──────────────────────────────────
+  // Só apresentação: escreve duas variáveis CSS. Não conhece treino, dieta,
+  // rota nem dado nenhum.
+  //
+  // `#app.pa-shell` é `position: fixed; inset: 0`, que ancora na viewport de
+  // LAYOUT. Isso resolve o lançamento do PWA no iPhone, mas não resolve o
+  // teclado: ao abrir, o iOS encolhe a viewport VISUAL e deixa a de layout do
+  // mesmo tamanho, deslocando uma contra a outra. A casca continuaria com a
+  // altura da tela inteira, e a barra inferior ficaria atrás do teclado — ou,
+  // com a viewport visual rolada, boiando no meio da tela.
+  //
+  // A visualViewport é a única fonte que sabe o que está REALMENTE visível.
+  // Enquanto ela concorda com a viewport de layout (o caso normal), nenhuma
+  // variável é escrita e o `inset: 0` responde sozinho — é de propósito: quanto
+  // menos estados este código produz, menos ele tem como errar.
+  (function ancorarCasca() {
+    const vv = window.visualViewport;
+    if (!vv) return;              // sem suporte, o inset: 0 já basta
+    const raiz = document.documentElement;
+    let agendado = null;
+
+    function sincronizar() {
+      if (agendado) return;       // um ajuste por quadro; o resize dispara em rajada
+      agendado = requestAnimationFrame(() => {
+        agendado = null;
+        // 1px de tolerância: a visualViewport devolve fracionário e ficaria
+        // reescrevendo a variável a cada quadro durante a rolagem.
+        const encolheu = window.innerHeight - vv.height > 1;
+        const deslocou = vv.offsetTop > 1;
+        if (encolheu || deslocou) {
+          raiz.style.setProperty('--pa-casca-h', vv.height + 'px');
+          raiz.style.setProperty('--pa-casca-top', vv.offsetTop + 'px');
+        } else {
+          raiz.style.removeProperty('--pa-casca-h');
+          raiz.style.removeProperty('--pa-casca-top');
+        }
+      });
+    }
+
+    vv.addEventListener('resize', sincronizar);
+    vv.addEventListener('scroll', sincronizar);
+    sincronizar();
+  })();
+</script>
+
 <style>
   /* As cores da marca vivem em css/tokens.css — ver o <link> antes de </head>. */
   * { box-sizing: border-box; margin: 0; padding: 0; }
   /* `dvh` depois de `%`: a viewport do iOS em modo standalone muda de altura
      entre o lançamento e a primeira interação, e `100%` resolve contra a
-     medida ANTIGA. Quem não conhece dvh fica com o `%`, que continua acima. */
+     medida ANTIGA. Quem não conhece dvh fica com o `%`, que continua acima.
+     Isto vale para as telas SEM casca (entrar, vincular, boot, erro), que rolam
+     na janela. Dentro da casca quem manda é `body.pa-app`, logo abaixo. */
   html, body { min-height: 100%; min-height: 100dvh; }
+
+  /* Com a casca no ar, a página não rola — quem rola é o miolo, e só ele.
+     A classe é posta por ligarShell() e tirada por semCasca(), em
+     js/paciente-ui.js, junto da própria `.pa-shell`.
+     Sem isto, a casca `fixed` não empurra o documento mas o `min-height` acima
+     continua valendo: se a medida de viewport vier maior que a tela, sobra uma
+     rolagem fantasma que não move nada e só produz o efeito elástico. */
+  body.pa-app { overflow: hidden; min-height: 0; }
   /* Fundo chapado: os gradientes radiais quentes saíram com a identidade antiga. */
   body {
     background: var(--background);
@@ -75,34 +135,51 @@
   svg.lucide { stroke-width: 1.6; }
 
   /* ══════════════════════════════════════════════════════════════════════
-     A CASCA — quem manda na altura da tela
+     A CASCA — três faixas: topbar fixa, miolo que rola, barra no fundo
      ══════════════════════════════════════════════════════════════════════
-     A barra inferior parou de ser `position: fixed`. Este é o motivo, e vale
-     escrito porque a correção anterior (mexer na geometria da barra) não
-     podia funcionar:
+     UMA casca só para Início, Treino, Dieta e treino em execução. As quatro
+     telas montam `<header class="pa-topbar">`, `<main class="pa-main">` e a
+     `<nav class="pa-bottomnav">` dentro deste mesmo `#app.pa-shell`, e é aqui
+     — em lugar nenhum além daqui — que a geometria delas é decidida.
 
-     No iOS em modo standalone, a viewport de LAYOUT no lançamento do app não
-     é a mesma que a tela. Um elemento `fixed; bottom: 0` se ancora nessa
-     viewport errada e para ACIMA do fim da tela, com uma faixa do fundo
-     embaixo. O sintoma que entregou o caso: um toque duplo na tela fazia o
-     conteúdo descer, a topbar sair do lugar e a barra inferior acertar
-     sozinha — o toque forçava o Safari a ressincronizar a viewport. Nenhuma
-     medida de altura da barra corrige isso, porque o erro não é a altura
-     dela: é a régua contra a qual ela se posiciona.
+     A CASCA NÃO TEM ALTURA. Tem ÂNCORA. Essa é a coisa inteira.
 
-     Aqui a casca ocupa a viewport DINÂMICA (dvh, que reresolve quando a
-     medida muda) e é ela quem rola por dentro. A barra é o último item de uma
-     coluna flex: não existe régua para errar, ela está no fim do fluxo. A
-     topbar deixa de precisar de `sticky` pelo mesmo motivo.
+     A versão anterior era `height: 100dvh` numa coluna flex, com a barra como
+     último item. Em Chrome e Android isso funciona em todos os estados — foi
+     medido: conteúdo menor, igual e maior que a tela, nas quatro telas, de 320
+     a 1024px, sempre com a barra colada no fundo.
 
-     Efeito colateral bem-vindo: o conteúdo não reserva mais espaço embaixo. A
-     família inteira de defeitos "reserva contada duas vezes / spacer / vão
-     abaixo do último cartão" deixa de ter onde nascer, porque a barra não
-     cobre mais nada. */
+     No iPhone em standalone, não. `100dvh` é um NÚMERO que o navegador mede, e
+     no lançamento do app o iOS mede a viewport errada — a mesma raiz que já
+     tinha derrubado a tentativa anterior, quando a barra era `fixed; bottom: 0`.
+     Quando esse número sai menor que a tela, a casca inteira fica curta: a
+     barra sobe junto com ela e aparece uma faixa do fundo do body embaixo.
+     Reproduzido injetando 44px de erro na medida — o sintoma é idêntico ao
+     relatado.
+
+     Trocar a barra de lugar nunca ia resolver, porque o erro nunca foi a barra:
+     era a régua. `position: fixed; inset: 0` não usa régua nenhuma. Não é uma
+     medida guardada, é uma restrição que o navegador reresolve a cada layout
+     contra a viewport de verdade. Não existe valor errado para guardar.
+
+     `--pa-casca-h` / `--pa-casca-top` entram por cima quando — e só quando — a
+     visualViewport discorda da viewport de layout. É o caso do teclado virtual:
+     o iOS encolhe a viewport VISUAL e deixa a de LAYOUT do mesmo tamanho, então
+     `inset: 0` sozinho ancoraria a barra atrás do teclado. Quem escreve as duas
+     variáveis é o bloco `ancorarCasca` no <script> do topo. Sem JS, sem
+     visualViewport, ou com o teclado fechado, elas não existem e o `inset: 0`
+     responde sozinho.
+
+     Sem `overflow: hidden`. Ele estava aqui como cinto de segurança e virou
+     mordaça: era ele que escondia o miolo transbordando 6px à direita a 360px
+     — o corte do ✓ da série ficou meses invisível porque não havia barra de
+     rolagem para denunciar. Sem ele, um estouro futuro aparece na hora. */
   #app.pa-shell {
-    height: 100vh; height: 100dvh;
+    position: fixed;
+    inset: 0;
+    top: var(--pa-casca-top, 0px);
+    height: var(--pa-casca-h, auto);
     display: flex; flex-direction: column;
-    overflow: hidden;   /* quem rola é o .pa-main, não a página */
   }
   .pa-shell .pa-main {
     flex: 1 1 auto; min-height: 0;   /* min-height: 0 senão o flex não deixa encolher e a rolagem some */

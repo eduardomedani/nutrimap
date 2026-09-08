@@ -647,20 +647,62 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
     contem(corpoNav, 'flex: 0 0 auto');
   });
 
-  teste('a casca ocupa a viewport dinâmica e é ela quem rola', () => {
+  teste('a casca ancora na viewport — não guarda a altura dela', () => {
     const shellRegra = semComentario.slice(semComentario.indexOf('#app.pa-shell {'));
     const corpo = shellRegra.slice(0, shellRegra.indexOf('}') + 1);
-    // dvh, não vh: é justamente a medida que muda entre o lançamento do app e
-    // a primeira interação, e dvh reresolve quando ela muda.
-    contem(corpo, 'height: 100dvh');
+
+    // `inset: 0` num elemento fixed é uma RESTRIÇÃO que o navegador reresolve a
+    // cada layout. `height: 100dvh` era um NÚMERO medido — e no lançamento do
+    // PWA no iPhone o iOS mede a viewport errada. Quando esse número saía menor
+    // que a tela, a casca ficava curta: a barra subia junto e aparecia uma
+    // faixa do fundo do body embaixo dela.
+    contem(corpo, 'position: fixed');
+    contem(corpo, 'inset: 0');
     contem(corpo, 'flex-direction: column');
-    contem(corpo, 'overflow: hidden');
+    ok(!/height:\s*100(d|s|l)?vh/.test(corpo),
+       'altura medida na casca reabre a faixa embaixo da barra no iPhone');
+
+    // O teclado é o único caso em que a viewport VISUAL discorda da de layout,
+    // e aí quem manda são estas duas variáveis — escritas por ancorarCasca().
+    contem(corpo, '--pa-casca-h');
+    contem(corpo, '--pa-casca-top');
+
+    // Sem máscara: era `overflow: hidden` que escondia o miolo transbordando à
+    // direita a 360px, e o corte do ✓ da série ficou invisível por isso.
+    ok(!/overflow:\s*hidden/.test(corpo),
+       'overflow: hidden na casca esconde estouro em vez de deixá-lo aparecer');
 
     const mainRegra = semComentario.slice(semComentario.indexOf('.pa-shell .pa-main {'));
     const main = mainRegra.slice(0, mainRegra.indexOf('}') + 1);
     contem(main, 'overflow-y: auto');
     // Sem isto o item flex não encolhe abaixo do conteúdo e a rolagem some.
     contem(main, 'min-height: 0');
+  });
+
+  teste('com a casca no ar, quem rola é o miolo — nunca a página', () => {
+    // A casca é `fixed`, então não empurra o documento. O que sobraria sem esta
+    // trava é o `min-height` do body virando rolagem fantasma quando a medida
+    // de viewport vem maior que a tela: rola, não move nada, e dá o elástico.
+    contem(semComentario, 'body.pa-app');
+    const r = semComentario.slice(semComentario.indexOf('body.pa-app'));
+    contem(r.slice(0, r.indexOf('}') + 1), 'overflow: hidden');
+    // E o par tem que ser ligado e desligado junto da própria casca.
+    const liga = ui.slice(ui.indexOf('function ligarShell()'));
+    ok(liga.slice(0, liga.indexOf('\n}')).includes("classList.add('pa-app')"),
+       'a trava de rolagem entra junto com a casca');
+    const sai = ui.slice(ui.indexOf('function semCasca()'));
+    ok(sai.slice(0, sai.indexOf('\n}')).includes("classList.remove('pa-app')"),
+       'login e boot rolam na janela: a trava tem que sair com a casca');
+  });
+
+  teste('o teclado move a casca pela visualViewport, não por altura chumbada', () => {
+    // O iOS encolhe a viewport VISUAL e deixa a de LAYOUT do mesmo tamanho.
+    // `inset: 0` sozinho ancoraria a barra atrás do teclado; a visualViewport é
+    // a única fonte que sabe o que está realmente visível.
+    contem(semComentario, 'visualViewport');
+    contem(semComentario, 'interactive-widget=resizes-content');
+    ok(!/\b\d{3,4}px\b[^;]*--pa-casca-h/.test(semComentario),
+       'altura de teclado chumbada é palpite: cada aparelho tem a sua');
   });
 
   teste('toda tela com barra entra na casca, por um caminho só', () => {
@@ -808,18 +850,29 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
     contem(main, 'width: 100%');
   });
 
-  teste('a barra de finalizar também está em fluxo, não fixa', () => {
-    // Ela era `fixed` medida por --pa-nav-h + --pa-nav-safe: a mesma exposição
-    // ao erro de viewport do iOS que levantava a navegação. Em fluxo ela é a
-    // penúltima linha da coluna e a navegação é a última — não há medida para
-    // acertar, e nenhuma das duas cobre o miolo.
-    const r = semComentario.slice(semComentario.indexOf('.pa-finishbar {'));
-    const corpo = r.slice(0, r.indexOf('}') + 1);
-    ok(!/position:\s*fixed/.test(corpo), 'fixed devolve a barra à viewport de layout');
-    contem(corpo, 'flex: 0 0 auto');
-    // Nenhum elemento da casca pode voltar a ser fixed pelo mesmo motivo.
-    ok(!/position:\s*fixed/.test(semComentario),
-       'a casca inteira vive em fluxo — um fixed reabre o defeito do iOS');
+  teste('barra e CTA são itens da coluna — nenhum se ancora sozinho', () => {
+    // A distinção que importa: a CASCA é fixed (`inset: 0`, ancorada nas quatro
+    // bordas — não há medida para errar). O que mora DENTRO dela, não: uma
+    // `.pa-finishbar` ou uma `.pa-bottomnav` com `fixed; bottom: 0` volta a se
+    // ancorar sozinha na viewport de layout, que é exatamente a que o iOS erra
+    // no lançamento do PWA. Foi assim que a barra ficava acima do fim da tela.
+    // Em fluxo elas são a penúltima e a última linha da coluna: seguem a casca.
+    for (const sel of ['.pa-finishbar {', '.pa-bottomnav {']) {
+      const r = semComentario.slice(semComentario.indexOf(sel));
+      const corpo = r.slice(0, r.indexOf('}') + 1);
+      ok(!/position:\s*fixed/.test(corpo),
+         `${sel} com fixed se ancora sozinha e reabre o defeito do iOS`);
+      contem(corpo, 'flex: 0 0 auto');
+    }
+    // Só a casca pode ser fixed, e só ela. A contagem olha apenas o <style>:
+    // fora dele há `position: fixed` escrito em comentário de JS, que o
+    // recorte de /* */ não tira e não é declaração nenhuma.
+    const css = semComentario.slice(semComentario.indexOf('<style>'), semComentario.indexOf('</style>'));
+    const fixos = (css.match(/position:\s*fixed/g) || []).length;
+    const regraCasca = css.slice(css.indexOf('#app.pa-shell {'));
+    ok(/position:\s*fixed/.test(regraCasca.slice(0, regraCasca.indexOf('}') + 1)),
+       'a casca é quem ancora');
+    ok(fixos === 1, `só a casca pode ser fixed — achei ${fixos} declarações no CSS`);
   });
 
   teste('a reserva mora em UM lugar — nenhuma tela declara a sua', () => {
