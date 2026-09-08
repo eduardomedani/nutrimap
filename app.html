@@ -129,8 +129,32 @@
   })();
 
   // Leitura das viewports, para quando o aparelho discordar do que se espera.
-  // Só existe com ?diag=1 na URL — não custa nada a quem não pede.
-  if (new URLSearchParams(location.search).get('diag') === '1') {
+  //
+  // Liga por `?diag=1` OU por CINCO TOQUES no logo. O toque existe porque o
+  // app instalado não tem barra de endereço: dentro dele não há como chegar a
+  // uma URL com parâmetro, e é justamente lá que o defeito aparece. Cinco
+  // toques seguidos no logo não acontecem por acaso.
+  (function diagnostico() {
+    const LIGADO = 'nm_diag';
+    let toques = 0, ultimo = 0;
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest || !e.target.closest('.pa-topbrand')) return;
+      const agora = Date.now();
+      toques = agora - ultimo < 800 ? toques + 1 : 1;
+      ultimo = agora;
+      if (toques < 5) return;
+      toques = 0;
+      try {
+        const novo = localStorage.getItem(LIGADO) === '1' ? '0' : '1';
+        localStorage.setItem(LIGADO, novo);
+      } catch (e) {}
+      location.reload();
+    });
+
+    let pedido = false;
+    try { pedido = localStorage.getItem(LIGADO) === '1'; } catch (e) {}
+    if (new URLSearchParams(location.search).get('diag') !== '1' && !pedido) return;
+
     addEventListener('DOMContentLoaded', () => {
       const cx = document.createElement('pre');
       cx.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;margin:0;padding:6px 8px;background:#0E1A16;color:#7EE2C3;font:11px/1.35 ui-monospace,monospace;white-space:pre-wrap';
@@ -146,12 +170,13 @@
           `visual   height ${vv ? px(vv.height) : '—'}  offsetTop ${vv ? px(vv.offsetTop) : '—'}  scale ${vv ? px(vv.scale) : '—'}\n` +
           `tela     screen ${px(screen.height)}  dpr ${devicePixelRatio}  standalone ${!!navigator.standalone}\n` +
           `casca    --h ${cs.getPropertyValue('--pa-casca-h').trim() || '(vazia)'}  --top ${cs.getPropertyValue('--pa-casca-top').trim() || '(vazia)'}\n` +
-          `barra    fim ${nav ? px(nav.getBoundingClientRect().bottom) : '—'}  sobra ${nav ? px(innerHeight - nav.getBoundingClientRect().bottom) : '—'}`;
+          `barra    fim ${nav ? px(nav.getBoundingClientRect().bottom) : '—'}  sobra ${nav ? px(innerHeight - nav.getBoundingClientRect().bottom) : '—'}\n` +
+          `sobra real ${nav ? px(screen.height - nav.getBoundingClientRect().bottom) : '—'} (contra a tela)   · 5 toques no logo desligam`;
       };
       setInterval(ler, 400);
       ler();
     });
-  }
+  })();
 </script>
 
 <style>
