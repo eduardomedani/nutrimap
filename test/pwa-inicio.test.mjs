@@ -744,6 +744,33 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
        'a casca não decide geometria por modo de exibição');
   });
 
+  teste('a faixa que o layout não alcança recebe a cor da barra', () => {
+    // Medido no iPhone em standalone: tela 956, viewport de layout 894,
+    // safe-area-inset-top 62px — a diferença exata. Aqueles 62px não são
+    // endereçáveis por layout (esticar a casca até lá renderiza cortado), e o
+    // único que pinta ali é o fundo do canvas, propagado do <body>.
+    //
+    // Então o body recebe a cor da BARRA, e a cor do app passa a ser declarada
+    // na casca, que cobre exatamente a viewport. A faixa deixa de ser emenda.
+    const corpoApp = semComentario.slice(semComentario.indexOf('body.pa-app { background'));
+    contem(corpoApp.slice(0, corpoApp.indexOf('}') + 1), 'var(--bg-card)');
+    // O par: a cor da aplicação passa a ser declarada na casca. Uma regra só
+    // para `#app.pa-shell` — duas fariam qualquer busca por ela achar a errada.
+    const casca = semComentario.slice(semComentario.indexOf('#app.pa-shell {'));
+    contem(casca.slice(0, casca.indexOf('}') + 1), 'background: var(--background)');
+    igual((semComentario.match(/#app\.pa-shell \{/g) || []).length, 1,
+          'a casca tem uma regra só: duas escondem uma da outra');
+
+    // A barra tem que usar a MESMA variável do body, senão as duas divergem no
+    // primeiro ajuste de marca e a emenda volta.
+    contem(corpoNav, 'background: var(--bg-card);');
+
+    // E só com a casca no ar: login, vinculação, boot e erro rolam na janela,
+    // não têm barra nenhuma e não podem herdar o fundo dela.
+    const regraBody = shell.slice(shell.indexOf('  body {'));
+    contem(regraBody.slice(0, regraBody.indexOf('}')), 'background: var(--background)');
+  });
+
   teste('a primeira medida da casca não espera quadro', () => {
     // `requestAnimationFrame` não roda com a página oculta, e um PWA pode ser
     // aberto em segundo plano. Se a primeira âncora dependesse de quadro, a

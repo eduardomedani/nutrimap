@@ -287,6 +287,35 @@
      continua valendo: se a medida de viewport vier maior que a tela, sobra uma
      rolagem fantasma que não move nada e só produz o efeito elástico. */
   body.pa-app { overflow: hidden; min-height: 0; }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     A FAIXA QUE O LAYOUT NÃO ALCANÇA
+     ══════════════════════════════════════════════════════════════════════
+     Medido no iPhone em standalone: tela 956, viewport de LAYOUT 894, e
+     `safe-area-inset-top` 62px — a diferença exata. O iOS reserva o recuo do
+     topo, desenha o conteúdo a partir de y=0 mesmo assim, e sobram 62px no fim
+     da tela que a viewport não cobre.
+
+     Esses 62px NÃO são endereçáveis por layout, e isso foi testado no aparelho:
+     esticar a casca até `screen` media certo (`barra fim 956`, `sobra real 0`)
+     e renderizava errado — o iOS aceita a geometria e não pinta nada abaixo da
+     viewport de layout. Os ícones da barra saíam cortados e os rótulos sumiam.
+     Ver o comentário em `aplicar()`, no <script> do topo.
+
+     O ÚNICO que pinta ali é o fundo do canvas, que o CSS propaga a partir do
+     <body>. Então é ele que recebe a cor da barra: a faixa deixa de aparecer
+     como emenda e vira continuação dela. A cor de fundo do app não se perde —
+     passa a ser declarada na casca, que cobre exatamente a viewport.
+
+     Só com a casca no ar (`body.pa-app`): entrar, vincular, boot e erro rolam
+     na janela, não têm barra nenhuma, e continuam com o fundo de sempre.
+
+     Isto NÃO move nada. Geometria da barra, posição do conteúdo e área de
+     toque ficam idênticas — é pintura, e só.
+
+     A outra metade do par — o fundo da aplicação, que o body deixou de
+     carregar — está declarada na própria casca, em `#app.pa-shell`. */
+  body.pa-app { background: var(--bg-card); }
   /* Fundo chapado: os gradientes radiais quentes saíram com a identidade antiga. */
   body {
     background: var(--background);
@@ -350,6 +379,11 @@
     top: var(--pa-casca-top, 0px);
     height: var(--pa-casca-h, auto);
     display: flex; flex-direction: column;
+    /* O fundo da aplicação mora AQUI, não no body. O body carrega a cor da
+       barra, para pintar a faixa que o layout não alcança — ver o bloco
+       A FAIXA QUE O LAYOUT NÃO ALCANÇA, em `body.pa-app`. A casca cobre
+       exatamente a viewport, então o miolo continua com a cor de sempre. */
+    background: var(--background);
   }
   .pa-shell .pa-main {
     flex: 1 1 auto; min-height: 0;   /* min-height: 0 senão o flex não deixa encolher e a rolagem some */
