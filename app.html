@@ -101,8 +101,7 @@
     // Ou seja: aqueles 62px não são endereçáveis por layout. O que pinta ali é
     // só o fundo do canvas (html/body), que é como a faixa aparece.
     //
-    // A decisão, isolada e síncrona. Exposta para o teste poder exercitá-la sem
-    // depender de quadro — `requestAnimationFrame` não roda com a aba oculta.
+    // A decisão, isolada e síncrona: o chamador escolhe se espera quadro ou não.
     function aplicar() {
       // 1px de tolerância: a visualViewport devolve fracionário e ficaria
       // reescrevendo a variável a cada quadro durante a rolagem.
@@ -115,7 +114,6 @@
         raiz.style.removeProperty('--pa-casca-top');
       }
     }
-    window.__ancorarCascaAplicar = aplicar;
 
     function sincronizar() {
       // Reagenda em vez de ignorar: um pedido pendente que nunca virou quadro
@@ -141,146 +139,6 @@
     // casca precisa nascer ancorada, e um app que abre em segundo plano pode
     // levar segundos até o primeiro frame. As seguintes podem esperar.
     aplicar();
-  })();
-
-  // ── Diagnóstico de viewport e da barra inferior ───────────────────────
-  // Liga por `?diag=1` OU por CINCO TOQUES no logo. O toque existe porque o
-  // app instalado não tem barra de endereço: dentro dele não há como chegar a
-  // uma URL com parâmetro, e é justamente lá que o defeito aparece.
-  //
-  // A primeira versão deste gesto NÃO funcionava no iPhone, por três motivos —
-  // vale escrito, porque os três são armadilhas de toque no iOS:
-  //
-  //   1. escutava `click`. Toques rápidos e repetidos num elemento que não é
-  //      botão fazem o Safari tentar o double-tap-to-zoom e a seleção de texto,
-  //      e os `click` seguintes são atrasados ou engolidos — cinco nunca
-  //      chegavam. `pointerup` é entregue antes de qualquer uma dessas
-  //      interpretações e não depende de o gesto virar clique.
-  //   2. o logo tem texto ("Evollo") e nada que impedisse seleção: o segundo
-  //      toque já começava a selecionar a palavra, e daí o iOS tratava o gesto
-  //      como seleção. Resolvido no CSS de .pa-topbrand (touch-action e
-  //      user-select), logo abaixo no <style>.
-  //   3. no fim chamava `location.reload()`. Mesmo contando os cinco, o painel
-  //      só apareceria depois de recarregar — e um reload que demora é
-  //      indistinguível de "o gesto não funcionou". Agora abre na hora.
-  (function diagnostico() {
-    let cx = null, tique = null;
-    const px = (n) => Math.round(n * 10) / 10;
-
-    // Anatomia da barra: onde cada pixel dela é gasto. É o que separa
-    // "a barra está no lugar errado" de "a barra é alta demais".
-    function medirBarra() {
-      const nav = document.querySelector('.pa-bottomnav');
-      const item = nav && nav.querySelector('.pa-nav-item');
-      if (!nav || !item) return 'nav      (ainda não montada)';
-      const cn = getComputedStyle(nav), ci = getComputedStyle(item);
-      const n = nav.getBoundingClientRect(), i = item.getBoundingClientRect();
-      const svg = item.querySelector('svg');
-      // O fim do RÓTULO, que é o último pixel de conteúdo de verdade.
-      const texto = [].filter.call(item.childNodes, (x) => x.nodeType === 3 && x.textContent.trim())[0];
-      let fimTexto = i.bottom;
-      if (texto) { const r = document.createRange(); r.selectNode(texto); fimTexto = r.getBoundingClientRect().bottom; }
-      const safe = getComputedStyle(document.documentElement).getPropertyValue('--pa-nav-safe').trim();
-      return (
-        `nav      top ${px(n.top)}  height ${px(n.height)}  bottom ${px(n.bottom)}\n` +
-        `nav pad  top ${cn.paddingTop}  bottom ${cn.paddingBottom}  box ${cn.boxSizing}  minH ${cn.minHeight}\n` +
-        `item     top ${px(i.top)}  height ${px(i.height)}  bottom ${px(i.bottom)}  minH ${ci.minHeight}\n` +
-        `item pad top ${ci.paddingTop}  bottom ${ci.paddingBottom}  justify ${ci.justifyContent}\n` +
-        `icone ${svg ? px(svg.getBoundingClientRect().height) : '—'}  rotulo fim ${px(fimTexto)}  safe ${safe}\n` +
-        `>> do fim do texto ate o fim da barra: ${px(n.bottom - fimTexto)}\n` +
-        `>> morto (fora a safe-area):           ${px(n.bottom - fimTexto - parseFloat(cn.paddingBottom))}`
-      );
-    }
-
-    function ler() {
-      if (!cx) return;
-      const vv = window.visualViewport;
-      const raiz = document.documentElement;
-      const nav = document.querySelector('.pa-bottomnav');
-      const cs = getComputedStyle(raiz);
-      cx.textContent =
-        `layout   innerHeight ${px(innerHeight)}  clientHeight ${px(raiz.clientHeight)}\n` +
-        `visual   height ${vv ? px(vv.height) : '—'}  offsetTop ${vv ? px(vv.offsetTop) : '—'}  scale ${vv ? px(vv.scale) : '—'}\n` +
-        `tela     screen ${px(screen.height)}x${px(screen.width)}  dpr ${devicePixelRatio}  standalone ${!!navigator.standalone}\n` +
-        `insets   topo ${insets().topo}  base ${insets().base}\n` +
-        `casca    --h ${cs.getPropertyValue('--pa-casca-h').trim() || '(vazia)'}  --top ${cs.getPropertyValue('--pa-casca-top').trim() || '(vazia)'}\n` +
-        `barra    fim ${nav ? px(nav.getBoundingClientRect().bottom) : '—'}  sobra ${nav ? px(innerHeight - nav.getBoundingClientRect().bottom) : '—'}\n` +
-        `sobra real ${nav ? px(screen.height - nav.getBoundingClientRect().bottom) : '—'} (contra a tela)\n` +
-        `canvas   body "${document.body.className}"  bg ${getComputedStyle(document.body).backgroundColor}\n` +
-        medirBarra() +
-        `\n· 5 toques no logo fecham`;
-    }
-
-    // Sonda invisível para ler os env() de safe-area direto da fonte, em vez de
-    // deduzi-los do padding de algum componente.
-    let sonda = null;
-    function insets() {
-      if (!sonda) {
-        sonda = document.createElement('div');
-        sonda.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)';
-        document.body.appendChild(sonda);
-      }
-      const c = getComputedStyle(sonda);
-      return { topo: c.paddingTop, base: c.paddingBottom };
-    }
-
-    function abrir() {
-      if (cx) return;
-      cx = document.createElement('pre');
-      // `pointer-events: none` NÃO é detalhe: o painel é `fixed; top: 0` e
-      // cobre a topbar inteira, logo incluído. Sem isto ele engole os toques
-      // no logo — que são justamente o que o fecha —, e quem abriu o
-      // diagnóstico fica preso com ele na tela até desinstalar o app.
-      cx.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;margin:0;padding:6px 8px;background:#0E1A16;color:#7EE2C3;font:11px/1.35 ui-monospace,monospace;white-space:pre-wrap;pointer-events:none';
-      document.body.appendChild(cx);
-      // A sonda de pintura (fundo magenta) saiu: a pergunta que ela existia
-      // para responder já foi respondida no aparelho — a faixa ficou magenta,
-      // então a página PINTA os 62px fora da viewport de layout, e a cor
-      // declarada no body chega lá.
-      tique = setInterval(ler, 400);
-      ler();
-    }
-
-    function fechar() {
-      if (!cx) return;
-      clearInterval(tique);
-      cx.remove();
-      if (sonda) { sonda.remove(); sonda = null; }
-      cx = null; tique = null;
-    }
-
-    // `pointerup` cobre toque, caneta e mouse com um evento só, e chega antes
-    // de o iOS decidir se aquilo é zoom ou seleção. Em capture, para não
-    // depender de nenhum handler da tela deixar o evento subir.
-    const EVENTO = window.PointerEvent ? 'pointerup'
-                 : ('ontouchend' in window ? 'touchend' : 'click');
-    let toques = 0, ultimo = 0;
-    document.addEventListener(EVENTO, (e) => {
-      const alvo = e.target && e.target.closest && e.target.closest('.pa-topbrand');
-      if (!alvo) return;
-      const agora = Date.now();
-      // 1200ms entre toques: 800 exigia uma cadência que o dedo não sustenta.
-      toques = agora - ultimo < 1200 ? toques + 1 : 1;
-      ultimo = agora;
-      if (toques < 5) return;
-      toques = 0;
-      if (cx) fechar(); else abrir();
-    }, true);
-
-    // Sem persistência. Ela existia porque a versão antiga do gesto recarregava
-    // a página, e a marca no localStorage era o que sobrevivia ao reload. Sem
-    // reload ela perdeu a função e virou risco: quem abrisse o painel voltava a
-    // encontrá-lo aberto a cada lançamento, e — enquanto o painel engolia os
-    // toques no logo — não tinha como fechá-lo. Agora ele só existe enquanto a
-    // sessão durar, e fecha com os mesmos cinco toques.
-    //
-    // Limpa a marca antiga, para ninguém ficar preso com o painel de ontem.
-    try { localStorage.removeItem('nm_diag'); } catch (e) {}
-
-    if (new URLSearchParams(location.search).get('diag') !== '1') return;
-
-    if (document.readyState === 'loading') addEventListener('DOMContentLoaded', abrir);
-    else abrir();
   })();
 </script>
 
@@ -454,18 +312,7 @@
      onde o conteúdo deveria estar. Sem inset (desktop, Android), os 12px
      continuam valendo. */
   .pa-topbar { flex: 0 0 auto; z-index: 20; display: flex; align-items: center; justify-content: space-between; padding: max(12px, env(safe-area-inset-top)) 18px 12px; background: rgba(255,255,255,0.86); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
-  /* `touch-action: manipulation` desliga o double-tap-to-zoom AQUI, e
-     `user-select: none` impede que o segundo toque comece a selecionar a
-     palavra "Evollo". Sem os dois, o iOS reinterpreta a sequência de toques
-     como zoom ou seleção no meio do caminho e engole os eventos — era o que
-     matava o gesto de cinco toques que abre o diagnóstico. Não muda nada do
-     que se vê: o logo não é selecionável nem ampliável de propósito. */
-  .pa-topbrand {
-    font-size: 19px; font-weight: 500; display: flex; align-items: center; gap: 8px;
-    touch-action: manipulation;
-    -webkit-user-select: none; user-select: none;
-    -webkit-touch-callout: none;
-  }
+  .pa-topbrand { font-size: 19px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
   .pa-topbrand em { color: var(--moss); }
   .pa-topmark { width: 30px; height: 30px; background: linear-gradient(135deg, var(--moss), var(--olive)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--cream); font-size: 15px; font-weight: 600; font-style: italic; }
   .pa-topuser { display: flex; align-items: center; gap: 8px; }
