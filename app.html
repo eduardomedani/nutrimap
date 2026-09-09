@@ -207,8 +207,9 @@
         `casca    --h ${cs.getPropertyValue('--pa-casca-h').trim() || '(vazia)'}  --top ${cs.getPropertyValue('--pa-casca-top').trim() || '(vazia)'}\n` +
         `barra    fim ${nav ? px(nav.getBoundingClientRect().bottom) : '—'}  sobra ${nav ? px(innerHeight - nav.getBoundingClientRect().bottom) : '—'}\n` +
         `sobra real ${nav ? px(screen.height - nav.getBoundingClientRect().bottom) : '—'} (contra a tela)\n` +
+        `canvas   body "${document.body.className}"  bg ${getComputedStyle(document.body).backgroundColor}\n` +
         medirBarra() +
-        `\n· 5 toques no logo fecham`;
+        `\n· FAIXA MAGENTA = a pagina pinta ali · 5 toques fecham`;
     }
 
     // Sonda invisível para ler os env() de safe-area direto da fonte, em vez de
@@ -229,6 +230,19 @@
       cx = document.createElement('pre');
       cx.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;margin:0;padding:6px 8px;background:#0E1A16;color:#7EE2C3;font:11px/1.35 ui-monospace,monospace;white-space:pre-wrap';
       document.body.appendChild(cx);
+      // SONDA DE PINTURA. Enquanto o diagnóstico está aberto, o fundo do
+      // canvas fica MAGENTA. É a única forma de responder, sem ambiguidade de
+      // JPEG, a pergunta que decide a correção da faixa inferior:
+      //
+      //   os 62px fora da viewport de layout são pintados PELA PÁGINA?
+      //
+      // Se a faixa embaixo da barra ficar magenta, sim — e então dar ao body a
+      // cor da barra resolve. Se continuar clara, não: quem pinta ali é o iOS,
+      // e nenhuma cor declarada aqui alcança aquele pedaço de tela.
+      //
+      // A casca cobre a viewport inteira com o fundo dela, então o magenta não
+      // aparece atrás do conteúdo — só onde a página normalmente não chega.
+      document.body.style.background = 'magenta';
       tique = setInterval(ler, 400);
       ler();
       try { localStorage.setItem(LIGADO, '1'); } catch (e) {}
@@ -239,6 +253,7 @@
       clearInterval(tique);
       cx.remove();
       if (sonda) { sonda.remove(); sonda = null; }
+      document.body.style.background = '';
       cx = null; tique = null;
       try { localStorage.setItem(LIGADO, '0'); } catch (e) {}
     }
