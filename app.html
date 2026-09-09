@@ -86,15 +86,48 @@
     const raiz = document.documentElement;
     let agendado = null;
 
+    // A altura da TELA na orientação atual. `screen.width/height` no iOS não
+    // trocam de lugar quando o aparelho gira: são sempre os do retrato. Quem
+    // diz a orientação é a viewport, não o screen.
+    function alturaDaTela() {
+      const maior = Math.max(screen.width, screen.height);
+      const menor = Math.min(screen.width, screen.height);
+      return window.innerWidth > window.innerHeight ? menor : maior;
+    }
+
     // A decisão, isolada e síncrona. Exposta para o teste poder exercitá-la sem
     // depender de quadro — `requestAnimationFrame` não roda com a aba oculta.
     function aplicar() {
+      const layout = window.innerHeight;
+      const visual = vv.height;
+
+      // O TECLADO encolhe a viewport VISUAL e deixa a de LAYOUT intacta. É o
+      // único sinal que separa "teclado aberto" de "o iOS mediu errado" — o
+      // segundo encolhe as duas juntas, e por isso nenhuma comparação entre
+      // elas consegue vê-lo.
+      const teclado = visual < layout - 1;
+
+      let altura = visual, topo = vv.offsetTop;
+
+      // O ERRO DO iOS EM STANDALONE, medido no aparelho: tela 956, viewport
+      // 894, as duas viewports concordando no 894. O iOS reserva o recuo do
+      // topo e mesmo assim desenha o conteúdo a partir de y=0 — sobram 62px
+      // no fim, que não são safe-area nem folga da barra: são viewport que
+      // ninguém entregou.
+      //
+      // `screen` é a única fonte que sabe disso, e só vale AQUI: em standalone
+      // não existe cromo de navegador para ocupar a diferença legitimamente.
+      // No Safari a mesma conta daria 160px, que são a barra de endereço dele.
+      if (!teclado && navigator.standalone === true) {
+        const tela = alturaDaTela();
+        if (tela > layout + 1) { altura = tela; topo = 0; }
+      }
+
       // 1px de tolerância: a visualViewport devolve fracionário e ficaria
       // reescrevendo a variável a cada quadro durante a rolagem.
-      const discorda = Math.abs(vv.height - window.innerHeight) > 1 || vv.offsetTop > 1;
-      if (discorda) {
-        raiz.style.setProperty('--pa-casca-h', vv.height + 'px');
-        raiz.style.setProperty('--pa-casca-top', vv.offsetTop + 'px');
+      if (Math.abs(altura - layout) > 1 || topo > 1) {
+        raiz.style.setProperty('--pa-casca-h', altura + 'px');
+        raiz.style.setProperty('--pa-casca-top', topo + 'px');
       } else {
         raiz.style.removeProperty('--pa-casca-h');
         raiz.style.removeProperty('--pa-casca-top');
@@ -187,12 +220,26 @@
       cx.textContent =
         `layout   innerHeight ${px(innerHeight)}  clientHeight ${px(raiz.clientHeight)}\n` +
         `visual   height ${vv ? px(vv.height) : '—'}  offsetTop ${vv ? px(vv.offsetTop) : '—'}  scale ${vv ? px(vv.scale) : '—'}\n` +
-        `tela     screen ${px(screen.height)}  dpr ${devicePixelRatio}  standalone ${!!navigator.standalone}\n` +
+        `tela     screen ${px(screen.height)}x${px(screen.width)}  dpr ${devicePixelRatio}  standalone ${!!navigator.standalone}\n` +
+        `insets   topo ${insets().topo}  base ${insets().base}\n` +
         `casca    --h ${cs.getPropertyValue('--pa-casca-h').trim() || '(vazia)'}  --top ${cs.getPropertyValue('--pa-casca-top').trim() || '(vazia)'}\n` +
         `barra    fim ${nav ? px(nav.getBoundingClientRect().bottom) : '—'}  sobra ${nav ? px(innerHeight - nav.getBoundingClientRect().bottom) : '—'}\n` +
         `sobra real ${nav ? px(screen.height - nav.getBoundingClientRect().bottom) : '—'} (contra a tela)\n` +
         medirBarra() +
         `\n· 5 toques no logo fecham`;
+    }
+
+    // Sonda invisível para ler os env() de safe-area direto da fonte, em vez de
+    // deduzi-los do padding de algum componente.
+    let sonda = null;
+    function insets() {
+      if (!sonda) {
+        sonda = document.createElement('div');
+        sonda.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)';
+        document.body.appendChild(sonda);
+      }
+      const c = getComputedStyle(sonda);
+      return { topo: c.paddingTop, base: c.paddingBottom };
     }
 
     function abrir() {
@@ -209,6 +256,7 @@
       if (!cx) return;
       clearInterval(tique);
       cx.remove();
+      if (sonda) { sonda.remove(); sonda = null; }
       cx = null; tique = null;
       try { localStorage.setItem(LIGADO, '0'); } catch (e) {}
     }

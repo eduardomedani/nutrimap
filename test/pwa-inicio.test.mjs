@@ -724,6 +724,33 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
        'comparação com direção só enxerga o lançamento e deixa o teclado quebrado');
   });
 
+  teste('em standalone a tela vale mais que a viewport — e só ali', () => {
+    // Medido no iPhone: tela 956, viewport 894, e as DUAS viewports
+    // concordando no 894. O iOS reserva o recuo do topo e mesmo assim desenha
+    // o conteúdo a partir de y=0: sobram 62px no fim que não são safe-area nem
+    // folga da barra. Nenhuma comparação entre layout e visual enxerga isso,
+    // porque as duas erram juntas — só `screen` sabe.
+    const bloco = semComentario.slice(semComentario.indexOf('function ancorarCasca'));
+    const corpo = bloco.slice(0, bloco.indexOf('})();'));
+    contem(corpo, 'navigator.standalone === true');
+
+    // A guarda que impede a tela de mandar quando é o TECLADO que encolheu: o
+    // teclado encolhe só a visual, e aí quem manda é ela. Sem isto a barra
+    // volta para trás do teclado.
+    ok(/teclado/.test(corpo), 'a regra da tela precisa da guarda de teclado');
+    const regra = corpo.slice(corpo.indexOf('navigator.standalone'));
+    ok(/!teclado/.test(corpo.slice(0, corpo.indexOf('navigator.standalone') + 40)),
+       'a tela só pode mandar com o teclado fechado');
+
+    // E fora do standalone, NUNCA: no navegador a diferença entre tela e
+    // viewport é o cromo dele, e é legítima.
+    ok(!/screen\.height\s*>/.test(corpo.replace(/navigator\.standalone[^\n]*\n/, '')) ||
+       /standalone/.test(corpo), 'screen só vale sob a guarda de standalone');
+
+    // A orientação não pode sair de `screen`: no iOS ele não gira.
+    contem(corpo, 'innerWidth > window.innerHeight');
+  });
+
   teste('a primeira medida da casca não espera quadro', () => {
     // `requestAnimationFrame` não roda com a página oculta, e um PWA pode ser
     // aberto em segundo plano. Se a primeira âncora dependesse de quadro, a
@@ -770,8 +797,16 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
     // referencia. Quem quiser a safe-area — a barra, a reserva do conteúdo, a
     // barra de finalizar do treino — lê a variável. Escrever env() de novo em
     // qualquer uma dessas é abrir a porta para as duas saírem de sincronia.
-    igual((semComentario.match(/env\(safe-area-inset-bottom/g) || []).length, 1,
-          'o inset de baixo aparece uma vez no arquivo inteiro: na variável');
+    // A conta é sobre o CSS que forma o LAYOUT. A sonda do diagnóstico também
+    // escreve env(), mas num <div> de 0x0, invisível e sem eventos, criado só
+    // para LER o inset do aparelho — ela não empurra nada. Por isso o recorte
+    // é o <style>, e não o arquivo inteiro.
+    const cssLayout = semComentario.slice(
+      semComentario.indexOf('\n<style>'), semComentario.indexOf('\n</style>'));
+    igual((cssLayout.match(/env\(safe-area-inset-bottom/g) || []).length, 1,
+          'o inset de baixo aparece uma vez no CSS de layout: na variável');
+    ok(!/padding-bottom:\s*env\(safe-area-inset-bottom/.test(cssLayout),
+       'env() direto num padding do layout é a segunda fonte da mesma medida');
     contem(shell, '--pa-nav-safe: max(10px, env(safe-area-inset-bottom, 0px));');
     contem(corpoNav, 'padding-bottom: var(--pa-nav-safe);');
     ok(!/env\(safe-area-inset-bottom/.test(corpoNav),
