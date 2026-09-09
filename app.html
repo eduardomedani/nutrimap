@@ -86,48 +86,30 @@
     const raiz = document.documentElement;
     let agendado = null;
 
-    // A altura da TELA na orientação atual. `screen.width/height` no iOS não
-    // trocam de lugar quando o aparelho gira: são sempre os do retrato. Quem
-    // diz a orientação é a viewport, não o screen.
-    function alturaDaTela() {
-      const maior = Math.max(screen.width, screen.height);
-      const menor = Math.min(screen.width, screen.height);
-      return window.innerWidth > window.innerHeight ? menor : maior;
-    }
-
+    // NÃO tente esticar a casca até `screen` em standalone. Foi tentado, com
+    // as guardas certas, e o aparelho recusou — medido no iPhone:
+    //
+    //   tela 956 · viewport de layout 894 · insets topo 62px
+    //   (956 − 894 = 62 = exatamente o recuo do topo)
+    //
+    // O iOS reserva o recuo do topo, desenha o conteúdo a partir de y=0 mesmo
+    // assim, e os 62px sobram no fim. A regra media certo — a casca ia a 956,
+    // `barra fim 956`, `sobra real 0` — mas o iOS ACEITA a geometria e não
+    // PINTA o que passa da viewport de layout: os ícones saíam cortados ao meio
+    // em 894 e os rótulos, inteiramente abaixo, sumiam.
+    //
+    // Ou seja: aqueles 62px não são endereçáveis por layout. O que pinta ali é
+    // só o fundo do canvas (html/body), que é como a faixa aparece.
+    //
     // A decisão, isolada e síncrona. Exposta para o teste poder exercitá-la sem
     // depender de quadro — `requestAnimationFrame` não roda com a aba oculta.
     function aplicar() {
-      const layout = window.innerHeight;
-      const visual = vv.height;
-
-      // O TECLADO encolhe a viewport VISUAL e deixa a de LAYOUT intacta. É o
-      // único sinal que separa "teclado aberto" de "o iOS mediu errado" — o
-      // segundo encolhe as duas juntas, e por isso nenhuma comparação entre
-      // elas consegue vê-lo.
-      const teclado = visual < layout - 1;
-
-      let altura = visual, topo = vv.offsetTop;
-
-      // O ERRO DO iOS EM STANDALONE, medido no aparelho: tela 956, viewport
-      // 894, as duas viewports concordando no 894. O iOS reserva o recuo do
-      // topo e mesmo assim desenha o conteúdo a partir de y=0 — sobram 62px
-      // no fim, que não são safe-area nem folga da barra: são viewport que
-      // ninguém entregou.
-      //
-      // `screen` é a única fonte que sabe disso, e só vale AQUI: em standalone
-      // não existe cromo de navegador para ocupar a diferença legitimamente.
-      // No Safari a mesma conta daria 160px, que são a barra de endereço dele.
-      if (!teclado && navigator.standalone === true) {
-        const tela = alturaDaTela();
-        if (tela > layout + 1) { altura = tela; topo = 0; }
-      }
-
       // 1px de tolerância: a visualViewport devolve fracionário e ficaria
       // reescrevendo a variável a cada quadro durante a rolagem.
-      if (Math.abs(altura - layout) > 1 || topo > 1) {
-        raiz.style.setProperty('--pa-casca-h', altura + 'px');
-        raiz.style.setProperty('--pa-casca-top', topo + 'px');
+      const discorda = Math.abs(vv.height - window.innerHeight) > 1 || vv.offsetTop > 1;
+      if (discorda) {
+        raiz.style.setProperty('--pa-casca-h', vv.height + 'px');
+        raiz.style.setProperty('--pa-casca-top', vv.offsetTop + 'px');
       } else {
         raiz.style.removeProperty('--pa-casca-h');
         raiz.style.removeProperty('--pa-casca-top');

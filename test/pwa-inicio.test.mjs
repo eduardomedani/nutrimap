@@ -724,31 +724,24 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
        'comparação com direção só enxerga o lançamento e deixa o teclado quebrado');
   });
 
-  teste('em standalone a tela vale mais que a viewport — e só ali', () => {
-    // Medido no iPhone: tela 956, viewport 894, e as DUAS viewports
-    // concordando no 894. O iOS reserva o recuo do topo e mesmo assim desenha
-    // o conteúdo a partir de y=0: sobram 62px no fim que não são safe-area nem
-    // folga da barra. Nenhuma comparação entre layout e visual enxerga isso,
-    // porque as duas erram juntas — só `screen` sabe.
+  teste('a casca não tenta passar da viewport de layout', () => {
+    // Tentado e REPROVADO no aparelho, e o registro fica para ninguém tentar
+    // de novo: em standalone o iPhone entrega uma viewport de layout 62px menor
+    // que a tela (956 vs 894 — exatamente o safe-area-inset-top), e desenha o
+    // conteúdo a partir de y=0 mesmo assim.
+    //
+    // Esticar a casca até `screen` mede certo e RENDERIZA errado: o iOS aceita
+    // a geometria mas não pinta nada abaixo da viewport de layout. Os ícones
+    // da barra saíam cortados ao meio e os rótulos sumiam.
+    //
+    // Se alguém trouxer `screen.height` de volta para cá, é este defeito que
+    // volta junto.
     const bloco = semComentario.slice(semComentario.indexOf('function ancorarCasca'));
     const corpo = bloco.slice(0, bloco.indexOf('})();'));
-    contem(corpo, 'navigator.standalone === true');
-
-    // A guarda que impede a tela de mandar quando é o TECLADO que encolheu: o
-    // teclado encolhe só a visual, e aí quem manda é ela. Sem isto a barra
-    // volta para trás do teclado.
-    ok(/teclado/.test(corpo), 'a regra da tela precisa da guarda de teclado');
-    const regra = corpo.slice(corpo.indexOf('navigator.standalone'));
-    ok(/!teclado/.test(corpo.slice(0, corpo.indexOf('navigator.standalone') + 40)),
-       'a tela só pode mandar com o teclado fechado');
-
-    // E fora do standalone, NUNCA: no navegador a diferença entre tela e
-    // viewport é o cromo dele, e é legítima.
-    ok(!/screen\.height\s*>/.test(corpo.replace(/navigator\.standalone[^\n]*\n/, '')) ||
-       /standalone/.test(corpo), 'screen só vale sob a guarda de standalone');
-
-    // A orientação não pode sair de `screen`: no iOS ele não gira.
-    contem(corpo, 'innerWidth > window.innerHeight');
+    ok(!/screen\s*\.\s*(height|width)/.test(corpo),
+       'screen na âncora da casca corta os rótulos da barra no iPhone');
+    ok(!/navigator\s*\.\s*standalone/.test(corpo),
+       'a casca não decide geometria por modo de exibição');
   });
 
   teste('a primeira medida da casca não espera quadro', () => {
