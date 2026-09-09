@@ -908,7 +908,12 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
     // Só a casca pode ser fixed, e só ela. A contagem olha apenas o <style>:
     // fora dele há `position: fixed` escrito em comentário de JS, que o
     // recorte de /* */ não tira e não é declaração nenhuma.
-    const css = semComentario.slice(semComentario.indexOf('<style>'), semComentario.indexOf('</style>'));
+    // A TAG, não a palavra: um comentário de JS que mencione <style> faria o
+    // recorte começar dentro do script e trazer o `position:fixed` do painel
+    // de diagnóstico para dentro da contagem do CSS.
+    const abre = semComentario.indexOf('\n<style>');
+    const css = semComentario.slice(abre, semComentario.indexOf('\n</style>'));
+    ok(abre > 0, 'não achei a tag <style> no início de linha');
     const fixos = (css.match(/position:\s*fixed/g) || []).length;
     const regraCasca = css.slice(css.indexOf('#app.pa-shell {'));
     ok(/position:\s*fixed/.test(regraCasca.slice(0, regraCasca.indexOf('}') + 1)),
