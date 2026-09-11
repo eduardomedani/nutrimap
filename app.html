@@ -344,11 +344,19 @@
      safe-area. Agora a variável diz o que mede: a altura REAL do item, padding
      incluído, e a barra não pede altura nenhuma além dela. */
   :root {
-    --pa-nav-pad-top: 9px;    /* respiro acima do ícone */
+    --pa-nav-pad-top: 8px;    /* respiro acima do ícone */
     /* Altura real do item, COM o padding de cima (border-box):
-       9 (respiro) + 22 (ícone) + 3 (gap) + 15 (rótulo) = 49px.
-       É também o alvo de toque, e por isso não desce de 44px. */
-    --pa-nav-item-h: 49px;
+       8 (respiro) + 22 (ícone) + 3 (gap) + 13,2 (rótulo) = 46,2px.
+
+       Eram 49px: 9 + 22 + 3 + 15. A economia sai do respiro de cima, do gap e
+       da entrelinha do rótulo — não do ícone, que continua em 22px, e não da
+       safe-area nem da posição da barra, que seguem como a auditoria as
+       deixou.
+
+       O piso é o alvo de toque: 44px é o mínimo da Apple HIG, e 46,2 passa com
+       folga. Descer os outros 2px exigiria encolher o ícone, e aí a barra fica
+       menor à custa de ficar mais difícil de ler. */
+    --pa-nav-item-h: 46px;
 
     /* A safe-area REAL do aparelho, com um PISO de respiro. Declarada UMA vez e
        usada como variável — é o que impede a mesma medida de ser escrita em
@@ -452,7 +460,7 @@
      mora em --pa-nav-pad-top; embaixo do rótulo só existe a safe-area.
      `line-height: 1.1` no rótulo pelo mesmo motivo — o 1.55 herdado do body
      virava ~6px de entrelinha invisível dentro de um texto de uma linha só. */
-  .pa-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px; min-height: var(--pa-nav-item-h); padding: var(--pa-nav-pad-top) 4px 0; background: none; border: none; cursor: pointer; color: var(--ink-mute); font-size: 12px; line-height: 1.1; font-weight: 700; font-family: inherit; transition: color 0.15s; }
+  .pa-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px; min-height: var(--pa-nav-item-h); padding: var(--pa-nav-pad-top) 4px 0; background: none; border: none; cursor: pointer; color: var(--ink-mute); font-size: 12px; line-height: 1.1; font-weight: 700; font-family: inherit; transition: color 0.15s; }
   .pa-nav-item svg { width: 22px; height: 22px; }
   .pa-nav-item.active { color: var(--moss); }
   .pa-select { padding: 9px 12px; border: 1px solid var(--hair); border-radius: 10px; background: var(--bg-card); font-size: 13.5px; color: var(--ink); max-width: 100%; }
@@ -527,7 +535,13 @@
      esta barra respeitando o próprio max-width, as duas divergiam: a 768px o
      "Iniciar treino" tinha 688px de largura contra 638 dos cards logo acima —
      25px de desalinhamento de cada lado, no elemento mais visível da tela. */
-  .pa-finishbar-in { max-width: var(--pa-conteudo-max); margin: 0 auto; padding: 14px var(--pa-conteudo-pad) 10px; pointer-events: auto; }
+  /* O respiro de cima era 14px e virava o dobro na tela: o <main> já termina
+     com os 18px do próprio padding, e os dois somavam 32px de vazio entre o
+     último card e o botão. Com 9px aqui, o CTA fica perto do conteúdo a que
+     pertence, e a faixa deixa de se parecer com um segundo rodapé empilhado
+     sobre a navegação. Embaixo bastam 6px: quem dá o respiro final é a barra,
+     que vem logo abaixo com a safe-area dela. */
+  .pa-finishbar-in { max-width: var(--pa-conteudo-max); margin: 0 auto; padding: 9px var(--pa-conteudo-pad) 6px; pointer-events: auto; }
   .pa-finishbar .pa-btn { margin-top: 0; box-shadow: var(--shadow-md); }
 
   /* ── Indicadores de evolução (topo): sequência + recordes ── */
@@ -673,21 +687,48 @@
   .pa-ex-foot { display: flex; align-items: center; gap: 10px; margin-top: 13px; }
   .pa-video { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; font-size: 13px; font-weight: 700; color: var(--moss); text-decoration: none; padding: 8px 12px; border-radius: 10px; background: var(--bg-warm); }
   .pa-video svg { width: 15px; height: 15px; }
-  /* O player no card. `aspect-ratio` fixo em retrato porque os clipes de
-     demonstração são verticais e o card não pode pular de altura quando o
-     vídeo carrega — layout que salta no meio de um treino faz o aluno perder
-     o dedo do botão de série. `background` escuro para a barra preta do
-     vídeo não brigar com o fundo claro do card. */
-  .pa-midia { margin-top: 13px; }
+  /* O player no card, num container dedicado que centraliza.
+
+     A PROPORÇÃO É 16/9, E ISSO É DADO MEDIDO, NÃO GOSTO. As 68 animações do
+     acervo são 1920x1080 — as 68, sem exceção (db/exercicio_midias_seed.sql).
+     Aqui havia `aspect-ratio: 9/16` com `object-fit: cover`, escrito quando o
+     único vídeo do card era link externo de biblioteca, que de fato costuma
+     ser vertical. Com o acervo, essa combinação punha um clipe deitado numa
+     caixa em pé e recortava as laterais: sobrava a faixa central da imagem, e
+     o aluno via um pedaço do movimento no lugar do movimento.
+
+     `contain` em vez de `cover` é o que garante isso para SEMPRE, inclusive
+     para o link externo vertical que continua existindo em 14 exercícios: a
+     caixa é deitada, o clipe em pé aparece INTEIRO com tarja dos dois lados.
+     Cortar seria mais bonito e mostraria menos do exercício.
+
+     `aspect-ratio` continua fixo — agora na proporção certa — porque
+     `preload="none"` significa que o navegador não conhece o tamanho do vídeo
+     até alguém tocar. Sem a reserva, a caixa nasceria 300x150 e pularia de
+     altura no play: layout que salta no meio de um treino faz o aluno perder
+     o dedo do botão de série.
+
+     `width: min(100%, 420px)` + `margin-inline: auto`: no celular ocupa a
+     largura do card e nada mais — o recuo lateral é o padding do próprio card,
+     o mesmo dos outros elementos; no tablet e no desktop para de crescer e
+     fica centralizado, em vez de virar uma faixa solta atravessando a tela. */
+  .pa-midia { margin-top: 13px; width: min(100%, 420px); margin-inline: auto; }
   .pa-midia-v {
-    width: 100%; max-width: 320px; aspect-ratio: 9 / 16;
-    display: block; border-radius: 12px; background: #12140F;
-    object-fit: cover;
+    display: block; width: 100%; height: auto;
+    aspect-ratio: 16 / 9;
+    border-radius: 12px; background: #12140F;
+    object-fit: contain;
   }
   /* O aviso que ocupa o lugar do player quando nem a segunda URL assinada
      abriu. Discreto de propósito: a demonstração é apoio, e o aluno tem a
      série para fazer de qualquer jeito. */
+  /* `display: block` numa CLASSE vence o `display: none` que o atributo
+     `hidden` aplica pela folha do navegador — especificidade de classe contra
+     a de um seletor de atributo do UA. O resultado era o aviso de falha visível
+     embaixo de todo vídeo que funciona. O `[hidden]` explícito devolve a
+     palavra final a quem tem a informação: o JS, que marca e desmarca. */
   .pa-midia-erro { display: block; font-size: 13px; color: var(--ink-mute); padding: 6px 0 2px; }
+  .pa-midia-erro[hidden] { display: none; }
 
   /* ── Progressão ── */
   .pa-prog { margin-top: 16px; border-top: 1px solid var(--hair); padding-top: 16px; }

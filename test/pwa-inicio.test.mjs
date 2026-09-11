@@ -851,9 +851,18 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
        'altura total chumbada (120/130/150px) é certa num aparelho e errada nos outros');
   });
 
-  teste('a área útil é compacta: entre 48 e 64px, fora a safe-area', () => {
-    // Referência: a tab bar nativa do iPhone tem 49pt de conteúdo + a safe-area.
-    // Acima de ~64px a barra passa a parecer um bloco, que é a queixa original.
+  teste('a área útil é compacta: entre 44 e 64px, fora a safe-area', () => {
+    // Referência ORIGINAL: a tab bar nativa do iPhone tem 49pt de conteúdo +
+    // a safe-area. Acima de ~64px a barra passa a parecer um bloco, que é a
+    // queixa que fez este teste existir — e esse teto não mudou.
+    //
+    // O PISO DESCEU DE 48 PARA 44, a pedido, quando a barra continuou parecendo
+    // alta demais no aparelho. 44px não é um número escolhido para caber no que
+    // já estava escrito: é o alvo de toque mínimo da Apple HIG, o ponto onde a
+    // compactação para de ser estética e passa a atrapalhar o polegar.
+    //
+    // O ícone continua fora desta negociação: 22px é o mínimo em que o desenho
+    // do lucide ainda se distingue, e ele tem teste próprio logo abaixo.
     const pad = Number((shell.match(/--pa-nav-pad-top:\s*(\d+)px/) || [])[1]);
     const item = Number((shell.match(/--pa-nav-item-h:\s*(\d+)px/) || [])[1]);
     ok(pad && item, 'a geometria da barra tem que ser variável, não número solto');
@@ -862,7 +871,7 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
     // herda o `box-sizing: border-box` global. Somar o padding de novo era o
     // que pedia 52px de uma caixa que mede 49 e deixava 3px mortos embaixo do
     // rótulo, esticados pelo `align-items: stretch`.
-    ok(item >= 48 && item <= 64, `área útil de ${item}px — fora da faixa 48–64px`);
+    ok(item >= 44 && item <= 64, `área útil de ${item}px — fora da faixa 44–64px`);
     ok(item > pad, 'a altura do item inclui o respiro de cima; somar de novo conta duas vezes');
   });
 

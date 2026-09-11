@@ -84,10 +84,35 @@ grupo('pwa · a mídia do exercício', () => {
 grupo('pwa · o card não pula quando o vídeo carrega', () => {
   const css = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
 
-  teste('o player tem altura reservada', () => {
+  teste('o player tem altura reservada, na proporção do acervo', () => {
     // Sem `aspect-ratio`, o card cresce quando o vídeo chega e o dedo do aluno
-    // erra o botão de série que estava ali.
+    // erra o botão de série que estava ali. Isto é o que o teste protege, e
+    // continua valendo.
+    //
+    // A PROPORÇÃO MUDOU DE 9/16 PARA 16/9, e não é questão de gosto: as 68
+    // animações do acervo são 1920x1080 — as 68, medido em
+    // db/exercicio_midias_seed.sql. O 9/16 foi escrito quando o único vídeo do
+    // card era link externo de biblioteca, que costuma ser vertical; com o
+    // acervo, punha um clipe deitado numa caixa em pé.
     contem(css, '.pa-midia-v');
-    contem(css, 'aspect-ratio: 9 / 16');
+    contem(css, 'aspect-ratio: 16 / 9');
+  });
+
+  teste('a animação aparece inteira — nada de recorte', () => {
+    // `cover` preenche a caixa recortando o que sobra: num clipe 16/9 dentro de
+    // caixa 9/16, sobrava a faixa central e sumiam os dois lados do movimento.
+    // `contain` mostra tudo, com tarja quando a proporção não bate — e é o que
+    // mantém inteiro também o link externo vertical dos outros 14 exercícios.
+    contem(css, 'object-fit: contain');
+    ok(!/\.pa-midia-v\s*\{[^}]*object-fit:\s*cover/.test(css),
+       'cover no player do exercício recorta a demonstração');
+  });
+
+  teste('o aviso de falha não aparece sobre um vídeo que funciona', () => {
+    // `display: block` numa classe vence o `display: none` que o atributo
+    // `hidden` aplica pela folha do navegador. Sem a regra explícita, o aviso
+    // de indisponível fica visível embaixo de TODO vídeo que carregou bem.
+    ok(/\.pa-midia-erro\[hidden\]\s*\{[^}]*display:\s*none/.test(css),
+       'a classe do aviso precisa devolver o display:none do atributo hidden');
   });
 });
