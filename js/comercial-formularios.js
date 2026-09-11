@@ -379,6 +379,7 @@ export function formCobrancaPeriodoHtml({ assinatura = {}, planos = [], form = {
             <span class="cm-dw-val">${esc(moeda(assinatura.valor_contratado))}</span>
           </div>
         </div>
+        ${erros.geral ? `<div class="cm-erro-msg" role="alert">${esc(erros.geral)}</div>` : ''}
 
         <section class="cm-dw-secao">
           <h3 class="cm-dw-t">Cobrança deste período</h3>
@@ -781,7 +782,10 @@ export function abrirFormularioCobrancaPeriodo({ assinatura, planos = [], aoSalv
         } catch (e) {
           salvando = false;
           console.error('Comercial · cobrança do período:', e);
-          desenhar({ vencimento: e?.message || String(e) });
+          // No TOPO, e não embaixo do vencimento: o erro comum aqui é o
+          // período já ter cobrança, e marcá-lo no campo de data fazia a
+          // pessoa trocar o vencimento achando que era ele o problema.
+          desenhar({ geral: e?.message || String(e) });
         }
       });
     }
@@ -882,6 +886,10 @@ export function abrirFormularioAssinatura({ pacientes = [], planos = [], aoSalva
 //
 //   cliente    mudar de quem é o contrato não é correção, é outro contrato.
 //
+//   cliente desde  tem ação PRÓPRIA (`abrirAlteracaoClienteDesde`), com
+//              confirmação e trilha. Aqui ele era um campo entre outros,
+//              gravado sem confirmação e sem registro de quem mudou.
+//
 // O contexto que não se edita aparece como LEITURA, e não como campo cinza —
 // campo desabilitado convida a tentar clicar. Mesma decisão de
 // `formEdicaoHtml` em js/comercial-drawer.js.
@@ -891,7 +899,6 @@ export function edicaoAssinaturaVazia(assinatura = {}) {
   return {
     valor_contratado: paraCampoValor(assinatura.valor_contratado),
     horario: assinatura.horario || '',
-    data_inicio_original: assinatura.data_inicio_original || '',
     observacoes: assinatura.observacoes || '',
     renovacao_automatica: assinatura.renovacao_automatica !== false,
   };
@@ -900,11 +907,10 @@ export function edicaoAssinaturaVazia(assinatura = {}) {
 /**
  * Valida só o que esta tela deixa mexer.
  *
- * `inicio_periodo` entra como REFERÊNCIA para checar "cliente desde": é o mesmo
- * CHECK que a tabela tem (`inicio_periodo >= data_inicio_original`), e errar
- * aqui devolveria um erro cru do Postgres em vez de uma frase.
+ * "Cliente desde" saiu daqui: tem ação própria, com confirmação e trilha —
+ * ver `validarClienteDesde`.
  */
-export function validarEdicaoAssinatura(form = {}, { inicio_periodo = null } = {}) {
+export function validarEdicaoAssinatura(form = {}) {
   const erros = {};
 
   if (String(form.valor_contratado || '').trim()) {
@@ -912,17 +918,11 @@ export function validarEdicaoAssinatura(form = {}, { inicio_periodo = null } = {
     if (v == null || v < 0) erros.valor_contratado = 'Valor inválido.';
   }
 
-  if (form.data_inicio_original && inicio_periodo &&
-      String(inicio_periodo) < String(form.data_inicio_original)) {
-    erros.data_inicio_original =
-      'O cliente não pode ter começado depois do período que já está em curso.';
-  }
-
   return erros;
 }
 
 /**
- * O que vai para o banco. Só as cinco chaves — mandar o objeto inteiro faria um
+ * O que vai para o banco. Só as quatro chaves — mandar o objeto inteiro faria um
  * `update` reescrever período e plano com o que a tela tinha em memória.
  *
  * VALOR EM BRANCO VIRA NULL, e não o preço do plano. Na criação, branco copia o
@@ -936,7 +936,6 @@ export function edicaoAssinaturaParaBanco(form = {}) {
       ? moedaParaNumero(form.valor_contratado)
       : null,
     horario: String(form.horario || '').trim() || null,
-    data_inicio_original: form.data_inicio_original || null,
     observacoes: String(form.observacoes || '').trim() || null,
     renovacao_automatica: form.renovacao_automatica !== false,
   };
@@ -1017,7 +1016,8 @@ export function formEdicaoAssinaturaHtml({ assinatura = {}, form = {}, erros = {
         <p class="cm-dw-aviso-sutil">
           Plano e período não mudam aqui. Para trocar de plano, use
           <b>Criar cobrança do período</b> — a troca entra na próxima renovação,
-          com registro de quem decidiu e quando.
+          com registro de quem decidiu e quando. <b>Cliente desde</b> tem ação
+          própria na ficha do cliente, com confirmação.
         </p>
 
         <div class="cm-linha-campos">
@@ -1036,12 +1036,6 @@ export function formEdicaoAssinaturaHtml({ assinatura = {}, form = {}, erros = {
           Em branco, o valor volta a seguir o preço padrão do plano.
           O horário é o que separa os turnos no fechamento da folha.
         </p>
-
-        <div class="cm-campo${cls(erros, 'data_inicio_original')}">
-          <label for="cmEaDesde">Cliente desde</label>
-          <input id="cmEaDesde" type="date" value="${esc(form.data_inicio_original)}">
-          ${msg(erros, 'data_inicio_original')}
-        </div>
 
         <div class="cm-campo">
           <label for="cmEaObs">Observações comerciais</label>
@@ -1086,7 +1080,6 @@ export function abrirEdicaoAssinatura({ assinatura, aoSalvar, aoVoltar } = {}) {
       return {
         valor_contratado: g('cmEaValor')?.value || '',
         horario: fundo.querySelector('input[name="cmEaHorario"]:checked')?.value || '',
-        data_inicio_original: g('cmEaDesde')?.value || '',
         observacoes: g('cmEaObs')?.value || '',
         renovacao_automatica: !!g('cmEaRenova')?.checked,
       };
@@ -1111,6 +1104,164 @@ export function abrirEdicaoAssinatura({ assinatura, aoSalvar, aoVoltar } = {}) {
           salvando = false;
           console.error('Comercial · editar assinatura:', e);
           desenhar({ valor_contratado: 'Não consegui salvar: ' + (e?.message || e) });
+        }
+      });
+    }
+
+    desenhar();
+  });
+}
+
+// ───────────────────────────────────────────────────────────
+// CLIENTE DESDE — ação própria, com confirmação e trilha
+// ───────────────────────────────────────────────────────────
+// É dado CADASTRAL/HISTÓRICO: desde quando a pessoa é cliente. Não é o
+// período, e nenhuma regra de cobrança o lê — por isso a tela diz, antes de
+// salvar, tudo o que ele NÃO muda. Quem grava é a RPC
+// `comercial_alterar_cliente_desde`, que registra quem alterou, quando, e a
+// data antes e depois; o banco recusa mudar a coluna por outro caminho.
+
+/** O que alterar "Cliente desde" não toca. A tela lista; o banco garante. */
+export const CLIENTE_DESDE_NAO_MUDA = [
+  'o período atual', 'as cobranças e os vencimentos', 'os pagamentos',
+  'as competências', 'o plano', 'o valor contratado',
+];
+
+export function clienteDesdeVazio(assinatura = {}) {
+  return { data: String(assinatura.data_inicio_original || '').slice(0, 10) };
+}
+
+/**
+ * O limite é o do CHECK da tabela (`inicio_periodo >= data_inicio_original`),
+ * dito em frase. A mesma data também é recusada aqui: confirmar "de 10/01 para
+ * 10/01" seria pedir uma decisão que não existe.
+ */
+export function validarClienteDesde(form = {}, assinatura = {}) {
+  const erros = {};
+  const d = String(form.data || '');
+  const inicio = String(assinatura.inicio_periodo || '').slice(0, 10);
+  const atual = String(assinatura.data_inicio_original || '').slice(0, 10);
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+    erros.data = 'Informe a data.';
+  } else if (inicio && d > inicio) {
+    erros.data = `Não pode ser depois do início do período atual (${dataBR(inicio)}).`;
+  } else if (d === atual) {
+    erros.data = 'É a mesma data que já está gravada.';
+  }
+  return erros;
+}
+
+/** A pergunta da confirmação: data anterior → data nova, e o que não muda. */
+export function textoConfirmacaoClienteDesde(assinatura = {}, nova) {
+  const nome = assinatura.paciente?.nome || 'este cliente';
+  return [
+    `Alterar "Cliente desde" de ${nome}?`,
+    '',
+    `${dataBR(assinatura.data_inicio_original) || '—'} → ${dataBR(nova)}`,
+    '',
+    `Isto só corrige o cadastro. Não mudam: ${CLIENTE_DESDE_NAO_MUDA.join(', ')}.`,
+    'A alteração fica registrada com quem fez e quando.',
+  ].join('\n');
+}
+
+/** Erro do banco não é frase de gente. */
+export function traduzirErroClienteDesde(e) {
+  const m = String(e?.message || e || '').toLowerCase();
+  if (m.includes('depois do inicio do periodo')) return 'A data não pode ser depois do início do período atual.';
+  if (m.includes('sem permissao') || m.includes('fora da organizacao')) return 'Sem permissão para alterar esta assinatura.';
+  if (m.includes('failed to fetch') || m.includes('networkerror')) return 'Sem conexão. Tente novamente.';
+  return 'Não foi possível salvar. Tente novamente.';
+}
+
+export function formClienteDesdeHtml({ assinatura = {}, form = {}, erros = {} } = {}) {
+  const periodo = assinatura.inicio_periodo && assinatura.fim_periodo
+    ? `${dataBR(assinatura.inicio_periodo)} a ${dataBR(assinatura.fim_periodo)}`
+    : '—';
+  const max = String(assinatura.inicio_periodo || '').slice(0, 10);
+
+  return `
+    <div class="cm-drawer" role="dialog" aria-modal="true" aria-labelledby="cmCdTit">
+      <header class="cm-drawer-topo">
+        <h2 id="cmCdTit">Cliente desde</h2>
+        <button class="cm-drawer-x" type="button" data-fechar aria-label="Fechar"><i data-lucide="x"></i></button>
+      </header>
+
+      <div class="cm-drawer-corpo">
+        <div class="cm-dw-leitura">
+          <div class="cm-dw-linha"><span>Cliente</span><b>${esc(assinatura.paciente?.nome || '—')}</b></div>
+          <div class="cm-dw-linha"><span>Data gravada</span><b>${esc(dataBR(assinatura.data_inicio_original) || '—')}</b></div>
+          <div class="cm-dw-linha"><span>Período atual</span><b>${esc(periodo)}</b></div>
+        </div>
+
+        <p class="cm-dw-aviso-sutil">
+          Corrige só o cadastro: desde quando a pessoa é cliente. Não mudam
+          ${esc(CLIENTE_DESDE_NAO_MUDA.join(', '))}.
+        </p>
+
+        ${erros.geral ? `<div class="cm-erro-msg" role="alert">${esc(erros.geral)}</div>` : ''}
+
+        <div class="cm-campo${cls(erros, 'data')}">
+          <label for="cmCdData">Nova data</label>
+          <input id="cmCdData" type="date" value="${esc(form.data)}"${max ? ` max="${esc(max)}"` : ''}>
+          ${msg(erros, 'data')}
+        </div>
+        <p class="cm-ajuda-campo">
+          Não pode passar do início do período atual. A alteração fica
+          registrada com quem fez e quando.
+        </p>
+      </div>
+
+      <footer class="cm-drawer-pe">
+        <button class="cm-btn" type="button" data-fechar>Voltar</button>
+        <button class="cm-btn cm-btn-forte" type="button" data-salvar>
+          <i data-lucide="check"></i> Alterar
+        </button>
+      </footer>
+    </div>`;
+}
+
+/**
+ * @param assinatura  a linha vigente, com `paciente` embutido
+ * @param aoSalvar    recebe a data nova; grava e reabre o cliente
+ * @param aoVoltar    devolve ao cliente sem gravar
+ */
+export function abrirAlteracaoClienteDesde({ assinatura, aoSalvar, aoVoltar } = {}) {
+  let form = clienteDesdeVazio(assinatura);
+  let salvando = false;
+
+  return abrirDrawer((fundo, fechar) => {
+    const desenhar = (erros = {}) => {
+      fundo.innerHTML = formClienteDesdeHtml({ assinatura, form, erros });
+      window.renderIcons?.();
+      ligar();
+      fundo.querySelector('.cm-erro-campo input')?.focus();
+    };
+
+    function voltar() { fechar(); aoVoltar?.(); }
+
+    function ligar() {
+      fundo.querySelectorAll('[data-fechar]').forEach(b => b.addEventListener('click', voltar));
+
+      fundo.querySelector('[data-salvar]')?.addEventListener('click', async () => {
+        if (salvando) return;
+        form = { data: fundo.querySelector('#cmCdData')?.value || '' };
+        const erros = validarClienteDesde(form, assinatura);
+        if (Object.keys(erros).length) { desenhar(erros); return; }
+
+        // A CONFIRMAÇÃO é regra, não enfeite: é a última coisa lida antes de
+        // reescrever um dado histórico, e ela mostra as duas datas.
+        if (!confirm(textoConfirmacaoClienteDesde(assinatura, form.data))) return;
+
+        salvando = true;
+        try {
+          await aoSalvar(form.data);
+          // Só fecha: quem salvou reabre o cliente com o que o banco confirmou.
+          fechar();
+        } catch (e) {
+          salvando = false;
+          console.error('Comercial · cliente desde:', e);
+          desenhar({ geral: traduzirErroClienteDesde(e) });
         }
       });
     }

@@ -37,8 +37,12 @@ export const MSG = {
   // "Assinatura", e não "Cobrança": as duas edições convivem no mesmo drawer, e
   // um toast genérico deixaria a pessoa sem saber qual das duas salvou.
   assinaturaSalva: 'Assinatura atualizada.',
+  clienteDesdeSalvo: '"Cliente desde" atualizado.',
+  clienteDesdeIgual: 'A data já era essa — nada mudou.',
   naoPendente: 'Esta cobrança não está mais pendente. Atualize os dados e tente novamente.',
-  duplicada:   'Já existe uma cobrança ativa para este vencimento.',
+  // PERÍODO, e não vencimento: é o que `uq_comercial_cobranca_do_periodo`
+  // guarda desde a Migration C. Duas cobranças podem vencer no mesmo dia.
+  duplicada:   'Já existe uma cobrança para este período.',
   falhou:      'Não foi possível concluir. Tente novamente.',
   // CORTESIA. Três frases porque são três desfechos diferentes, e um toast
   // genérico deixaria a pessoa sem saber se a ação valeu.
@@ -49,10 +53,21 @@ export const MSG = {
   cortesiaCancelada: 'Assinatura cancelada não vira cortesia. Reative antes.',
 };
 
-/** Erro do Postgres não é frase de gente. */
-export function traduzirErroCobranca(e) {
+/**
+ * Erro do Postgres não é frase de gente.
+ *
+ * `assinatura` é opcional: com ela, a duplicidade diz QUAL período já está
+ * ocupado. Só o índice do período vira essa frase — outra chave única não é
+ * duplicidade de período, e afirmar que é mandaria o usuário procurar uma
+ * cobrança que não existe.
+ */
+export function traduzirErroCobranca(e, { assinatura = null } = {}) {
   const m = String(e?.message || e || '').toLowerCase();
-  if (m.includes('uq_comercial_cobranca_periodo') || m.includes('duplicate key')) return MSG.duplicada;
+  if (m.includes('uq_comercial_cobranca_do_periodo')) {
+    return assinatura?.inicio_periodo && assinatura?.fim_periodo
+      ? `Já existe uma cobrança para o período ${dataBR(assinatura.inicio_periodo)} a ${dataBR(assinatura.fim_periodo)}.`
+      : MSG.duplicada;
+  }
   // A RPC de pagamento devolve `pagou: false` quando a cobrança já não estava
   // pendente, e a camada de dados transforma isso em erro. É a mesma situação
   // que o `null` do caminho antigo — então a mesma frase.
@@ -182,7 +197,11 @@ export function assinaturaHtml(a, hoje) {
   const dias = diasEntre(hoje, a.fim_periodo);
   const cortesia = ehPlanoBonificacao(a.plano);
   return secao('Assinatura', `
-    ${linha('Cliente desde', esc(dataBR(a.data_inicio_original)), { sub: casa ? esc(casa) : '' })}
+    ${/* "Alterar" é ação PRÓPRIA, e não campo do "Editar": é dado histórico,
+          e a mudança pede confirmação e fica na trilha. */''}
+    ${linha('Cliente desde',
+      `${esc(dataBR(a.data_inicio_original))} <button class="cm-link-sutil" type="button" data-alterar-cliente-desde>Alterar</button>`,
+      { sub: casa ? esc(casa) : '' })}
     ${linha('Período atual', `<span class="cm-dw-periodo">${esc(dataBR(a.inicio_periodo))} → ${esc(dataBR(a.fim_periodo))}</span>`)}
     ${/* "Período termina em", e não "Próximo vencimento". São conceitos
           diferentes que, no ciclo em que a cobrança existe, têm a MESMA data —
@@ -239,6 +258,10 @@ export function cobrancaAbertaHtml(cobranca, hoje) {
 
   const st = situacaoDaCobranca(cobranca, hoje);
   const { valor, pago, saldo, parcial } = saldoDaCobranca(cobranca);
+  // O período que ELA cobre — é o que a identifica, e o que impede confundir
+  // uma pendente antiga com a do período atual só porque está no topo.
+  const periodo = cobranca.periodo_inicio && cobranca.periodo_fim
+    ? `${dataBR(cobranca.periodo_inicio)} → ${dataBR(cobranca.periodo_fim)}` : '';
 
   if (st === 'pago') {
     return secao('Próxima cobrança', `
@@ -246,6 +269,7 @@ export function cobrancaAbertaHtml(cobranca, hoje) {
         <i data-lucide="circle-check-big"></i>
         <div>
           <b>Esta cobrança já possui um pagamento registrado.</b>
+          ${periodo ? `<div>Período ${esc(periodo)}</div>` : ''}
           <div>Pago em ${esc(dataBR(cobranca.pago_em))} · ${esc(moeda(pago))}</div>
         </div>
       </div>
@@ -257,6 +281,7 @@ export function cobrancaAbertaHtml(cobranca, hoje) {
   }
 
   return secao('Próxima cobrança', `
+    ${periodo ? linha('Período', esc(periodo)) : ''}
     ${linha('Vencimento', esc(dataBR(cobranca.vencimento)), {
       sub: esc(textoDoVencimento(cobranca.vencimento, hoje)),
       tom: st === 'vencida' ? 'alerta' : '',
@@ -396,9 +421,38 @@ export function observacoesHtml(a) {
   return secao('Observações comerciais', `<p class="cm-dw-obs">${esc(a.observacoes)}</p>`);
 }
 
+/**
+ * A cobrança DO PERÍODO ATUAL, pela identidade de negócio:
+ * `assinatura_id` + `periodo_inicio` + `periodo_fim`, e viva.
+ *
+ * NUNCA PELO VENCIMENTO. Desde a Migration C os dois não coincidem: a cobrança
+ * manual vence em criação + 30 dias, e a paga da planilha venceu no INÍCIO do
+ * período. Casar pelo vencimento fez a tela dizer "Nenhuma cobrança em aberto"
+ * para períodos já pagos, e o índice recusar a criação logo em seguida — foi
+ * o que travou 29 assinaturas em 11/09/2026 (conferência 132).
+ *
+ * Cancelada não conta: é justamente o que se refaz, e o índice
+ * `uq_comercial_cobranca_do_periodo` também a ignora.
+ */
+export function cobrancaDoPeriodo(cobrancas = [], assinatura = {}) {
+  const { id, inicio_periodo: ini, fim_periodo: fim } = assinatura || {};
+  if (!id || !ini || !fim) return null;
+  return cobrancas.find(c =>
+    c.status !== 'cancelado' &&
+    c.assinatura_id === id &&
+    c.periodo_inicio === ini &&
+    c.periodo_fim === fim) || null;
+}
+
 export function drawerHtml({ assinatura, cobrancas = [], hoje, mostrarCanceladas = false, planos = [] }) {
-  const aberta = cobrancas.find(c => c.status === 'pendente') ||
-                 cobrancas.find(c => c.status === 'pago' && c.vencimento === assinatura.fim_periodo) || null;
+  // O TOPO: pendente primeiro — a do período, ou uma antiga de outro período,
+  // que continua sendo dinheiro devido e diz qual período cobre. Sem pendente,
+  // a do período mesmo paga. "Criar cobrança" só aparece sem nenhuma das duas:
+  // oferecer criar ao lado de uma pendente abriria duas cobranças em aberto.
+  const doPeriodo = cobrancaDoPeriodo(cobrancas, assinatura);
+  const aberta = (doPeriodo?.status === 'pendente' ? doPeriodo : null) ||
+                 cobrancas.find(c => c.status === 'pendente') ||
+                 doPeriodo || null;
   return `
     <div class="cm-drawer cm-dw" role="dialog" aria-modal="true" aria-labelledby="cmDwTit">
       ${cabecalhoHtml(assinatura, hoje)}
@@ -853,6 +907,28 @@ export async function abrirDrawerCliente({ assinatura, aoMudar }) {
         } catch (e) { mostrarErro(traduzirErroCortesia(e)); }
       });
 
+      // CLIENTE DESDE — ação própria, com confirmação e trilha. Fecha antes
+      // pelo mesmo motivo do "Editar": um drawer por vez. Reabre com o que o
+      // banco devolveu; o merge preserva `paciente` e `plano`, que a RPC não
+      // traz (ela devolve a LINHA).
+      fundo.querySelector('[data-alterar-cliente-desde]')?.addEventListener('click', async () => {
+        const { abrirAlteracaoClienteDesde } = await import('./comercial-formularios.js');
+        fechar();
+        abrirAlteracaoClienteDesde({
+          assinatura,
+          aoVoltar: () => abrirDrawerCliente({ assinatura, aoMudar }),
+          aoSalvar: async (data) => {
+            const r = await dados.alterarClienteDesde(assinatura.id, data);
+            mostrarToast(r?.alterou ? MSG.clienteDesdeSalvo : MSG.clienteDesdeIgual);
+            aoMudar?.();
+            abrirDrawerCliente({
+              assinatura: r?.assinatura ? { ...assinatura, ...r.assinatura } : assinatura,
+              aoMudar,
+            });
+          },
+        });
+      });
+
       fundo.querySelector('[data-editar-assinatura]')?.addEventListener('click', async () => {
         const { abrirEdicaoAssinatura } = await import('./comercial-formularios.js');
         fechar();
@@ -910,9 +986,10 @@ export async function abrirDrawerCliente({ assinatura, aoMudar }) {
             } catch (e) {
               console.error('Comercial · criar cobrança:', e);
               // O caso comum aqui é o índice único: já existe cobrança viva
-              // para aquele vencimento. Sobe para o formulário mostrar no
-              // campo, em vez de fechar tudo e perder o que foi digitado.
-              throw new Error(traduzirErroCobranca(e));
+              // para este PERÍODO — não para o vencimento digitado. Sobe para
+              // o formulário mostrar, em vez de fechar tudo e perder o que foi
+              // digitado.
+              throw new Error(traduzirErroCobranca(e, { assinatura }));
             }
           },
         });

@@ -39,13 +39,14 @@ const ASSINATURA = {
 
 // ───────────────────────────────────────────────────────────
 grupo('editar assinatura · o formulário nasce do que está gravado', () => {
-  teste('os cinco campos vêm da assinatura, não vazios', () => {
+  teste('os quatro campos vêm da assinatura, não vazios', () => {
     const f = edicaoAssinaturaVazia(ASSINATURA);
     igual(f.valor_contratado, '311,00');
     igual(f.horario, 'Noturno');
-    igual(f.data_inicio_original, '2026-01-10');
     igual(f.observacoes, 'prefere Pix');
     igual(f.renovacao_automatica, true);
+    // "Cliente desde" tem ação própria, com confirmação e trilha.
+    ok(!('data_inicio_original' in f), 'cliente desde não é mais campo desta tela');
   });
 
   teste('assinatura sem horário abre com o campo vazio, não com "null"', () => {
@@ -63,10 +64,9 @@ grupo('editar assinatura · o formulário nasce do que está gravado', () => {
 
 // ───────────────────────────────────────────────────────────
 grupo('editar assinatura · o patch só carrega o que a tela edita', () => {
-  const CAMPOS = ['valor_contratado', 'horario', 'data_inicio_original',
-                  'observacoes', 'renovacao_automatica'];
+  const CAMPOS = ['valor_contratado', 'horario', 'observacoes', 'renovacao_automatica'];
 
-  teste('exatamente cinco chaves saem para o banco', () => {
+  teste('exatamente quatro chaves saem para o banco', () => {
     const patch = edicaoAssinaturaParaBanco(edicaoAssinaturaVazia(ASSINATURA));
     igual(Object.keys(patch).sort().join(','), [...CAMPOS].sort().join(','));
   });
@@ -79,8 +79,10 @@ grupo('editar assinatura · o patch só carrega o que a tela edita', () => {
       // Mesmo que alguém injete os campos no form, eles não podem sair daqui.
       plano_id: 'outro', paciente_id: 'outro',
       inicio_periodo: '2020-01-01', fim_periodo: '2020-02-01', status: 'cancelada',
+      data_inicio_original: '2019-01-01',
     });
-    for (const proibido of ['plano_id', 'paciente_id', 'inicio_periodo', 'fim_periodo', 'status']) {
+    for (const proibido of ['plano_id', 'paciente_id', 'inicio_periodo', 'fim_periodo', 'status',
+                            'data_inicio_original']) {
       ok(!(proibido in patch), `${proibido} vazou para o patch`);
     }
   });
@@ -123,15 +125,9 @@ grupo('editar assinatura · validação', () => {
     igual(Object.keys(validarEdicaoAssinatura({ valor_contratado: '' }, ASSINATURA)).length, 0);
   });
 
-  teste('"cliente desde" depois do período em curso é recusado', () => {
-    // É o mesmo CHECK que a tabela tem. Deixar passar devolveria um erro cru do
-    // Postgres em vez de uma frase.
-    const e = validarEdicaoAssinatura({ data_inicio_original: '2026-09-01' }, ASSINATURA);
-    ok(e.data_inicio_original);
-  });
-
-  teste('"cliente desde" antes do período em curso passa', () => {
-    igual(Object.keys(validarEdicaoAssinatura({ data_inicio_original: '2020-01-01' }, ASSINATURA)).length, 0);
+  teste('"cliente desde" não se valida aqui — tem ação própria', () => {
+    // A regra mora em validarClienteDesde (test/comercial-cliente-desde.test.mjs).
+    igual(Object.keys(validarEdicaoAssinatura({ data_inicio_original: '2026-09-01' })).length, 0);
   });
 });
 
@@ -177,6 +173,12 @@ grupo('editar assinatura · a tela segue o design system', () => {
   teste('não existe campo de plano, período ou cliente', () => {
     for (const id of ['cmaPlano', 'cmaInicio', 'cmaPaciente']) naoContem(html, id);
     naoContem(html, '<select');
+  });
+
+  teste('"cliente desde" não é mais campo daqui, e a tela diz onde ele mora', () => {
+    naoContem(html, 'cmEaDesde');
+    naoContem(FONTE, "g('cmEaDesde')");
+    contem(html, '<b>Cliente desde</b> tem ação');
   });
 
   teste('a tela diz onde se troca de plano', () => {

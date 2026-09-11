@@ -11,11 +11,12 @@ import {
   drawerHtml, pagamentoVazio, validarPagamento, previaDaRenovacao, formPagamentoHtml,
   FORMAS, competenciaExtenso, atrasoEmDias, historicoItemHtml, textoRemocao,
   edicaoVazia, validarEdicao, formEdicaoHtml, formaRotulo, MSG, traduzirErroCobranca,
+  cobrancaDoPeriodo,
 } from '../js/comercial-drawer.js';
 // A regra do vencimento nasce no formulário e termina no banco — o grupo
 // que a protege precisa dos dois lados.
 import { cobrancaDoPeriodoVazia, mudancaDaRenovacao, validarCobrancaDoPeriodo,
-         PRAZO_COBRANCA_DIAS } from '../js/comercial-formularios.js';
+         PRAZO_COBRANCA_DIAS, formCobrancaPeriodoHtml } from '../js/comercial-formularios.js';
 // `situacaoDaCobranca` é a regra que decide se uma cobrança está vencida —
 // derivada da data, nunca gravada.
 import { situacaoDaCobranca } from '../js/comercial.js';
@@ -271,6 +272,99 @@ grupo('comercial · o drawer inteiro', () => {
     // Com as duas em mãos, a que importa agora é a que ainda não foi paga.
     contem(html, 'data-registrar="c1"');
     naoContem(html, 'já possui um pagamento registrado');
+  });
+});
+
+// ───────────────────────────────────────────────────────────
+// A COBRANÇA DO PERÍODO É PELO PERÍODO, NÃO PELO VENCIMENTO
+// ---------------------------------------------------------------------------
+// Em 11/09/2026 (conferência 132) 29 assinaturas travaram: o drawer só
+// reconhecia a paga do período quando `vencimento === fim_periodo`, dizia
+// "Nenhuma cobrança em aberto" para um período já pago, e o índice
+// `uq_comercial_cobranca_do_periodo` recusava a criação. A identidade da
+// cobrança é assinatura + período; o vencimento é só quando o dinheiro entra.
+// ───────────────────────────────────────────────────────────
+grupo('comercial · a cobrança do período é pelo período, não pelo vencimento', () => {
+  const A = { ...ASS, id: 'a1', inicio_periodo: '2026-08-03', fim_periodo: '2026-09-02' };
+  const doPeriodo = extra => ({ id: 'cx', assinatura_id: 'a1', valor: 330,
+    periodo_inicio: '2026-08-03', periodo_fim: '2026-09-02', ...extra });
+  const doAnterior = extra => ({ id: 'cy', assinatura_id: 'a1', valor: 330,
+    periodo_inicio: '2026-07-04', periodo_fim: '2026-08-03', ...extra });
+  const tela = cobrancas => drawerHtml({ assinatura: A, cobrancas, hoje: HOJE });
+
+  teste('mesmo vencimento, período diferente: não é a cobrança do período', () => {
+    // Venceu exatamente no fim do período atual — a regra antiga a tomava pela
+    // paga do período. Mas ela cobre o ANTERIOR.
+    const paga = doAnterior({ status: 'pago', vencimento: A.fim_periodo, pago_em: '2026-08-03', valor_pago: 330 });
+    igual(cobrancaDoPeriodo([paga], A), null);
+    const h = tela([paga]);
+    contem(h, 'data-criar-cobranca');
+    naoContem(h, 'já possui um pagamento registrado');
+  });
+
+  teste('mesmo período, vencimento diferente: é ela, e criar some', () => {
+    // O caso da Nilca antes da correção: paga que venceu no INÍCIO do período.
+    const paga = doPeriodo({ status: 'pago', vencimento: A.inicio_periodo, pago_em: '2026-08-05', valor_pago: 330 });
+    igual(cobrancaDoPeriodo([paga], A)?.id, 'cx');
+    const h = tela([paga]);
+    naoContem(h, 'data-criar-cobranca');
+    naoContem(h, 'Nenhuma cobrança em aberto');
+    contem(h, 'já possui um pagamento registrado');
+    contem(h, 'Período 03/08/2026 → 02/09/2026');
+
+    // Pendente do mesmo período com outro vencimento: também é ela.
+    const pend = doPeriodo({ status: 'pendente', vencimento: '2026-10-05' });
+    const h2 = tela([pend]);
+    naoContem(h2, 'data-criar-cobranca');
+    contem(h2, 'data-registrar="cx"');
+  });
+
+  teste('cancelada do mesmo período: libera criar de novo', () => {
+    const canc = doPeriodo({ status: 'cancelado', vencimento: '2026-10-05' });
+    igual(cobrancaDoPeriodo([canc], A), null);
+    contem(tela([canc]), 'data-criar-cobranca');
+  });
+
+  teste('de outra assinatura, com o mesmo período, não conta', () => {
+    const alheia = doPeriodo({ status: 'pago', assinatura_id: 'a2', vencimento: A.fim_periodo });
+    igual(cobrancaDoPeriodo([alheia], A), null);
+  });
+
+  teste('pendente de outro período fica no topo, mas dizendo qual período cobre', () => {
+    // É dinheiro devido: some do topo, e alguém cria uma segunda em aberto.
+    const antiga = doAnterior({ status: 'pendente', vencimento: A.fim_periodo });
+    igual(cobrancaDoPeriodo([antiga], A), null);
+    const h = tela([antiga]);
+    contem(h, 'data-registrar="cy"');
+    contem(h, '04/07/2026 → 03/08/2026');
+    naoContem(h, 'data-criar-cobranca');
+  });
+
+  teste('com a do período paga e uma pendente antiga, a pendente fica no topo', () => {
+    const paga = doPeriodo({ status: 'pago', vencimento: A.inicio_periodo, pago_em: '2026-08-05', valor_pago: 330 });
+    const antiga = doAnterior({ status: 'pendente', vencimento: '2026-08-03' });
+    const h = tela([paga, antiga]);
+    contem(h, 'data-registrar="cy"');
+    naoContem(h, 'data-criar-cobranca');
+  });
+
+  teste('o erro do índice fala em período, e diz qual', () => {
+    const e = new Error('duplicate key value violates unique constraint "uq_comercial_cobranca_do_periodo"');
+    igual(traduzirErroCobranca(e, { assinatura: A }),
+          'Já existe uma cobrança para o período 03/08/2026 a 02/09/2026.');
+    igual(traduzirErroCobranca(e), MSG.duplicada);
+    naoContem(MSG.duplicada, 'vencimento');
+    // Outra chave única NÃO é duplicidade de período — não se afirma que é.
+    naoContem(traduzirErroCobranca(new Error('duplicate key value violates unique constraint "x"')), 'período');
+  });
+
+  teste('o drawer passa a assinatura ao tradutor, e o formulário mostra no topo', () => {
+    const drawer = readFileSync(new URL('../js/comercial-drawer.js', import.meta.url), 'utf8');
+    contem(drawer, 'traduzirErroCobranca(e, { assinatura })');
+    const form = formCobrancaPeriodoHtml({ assinatura: A, form: {}, erros: { geral: 'Já existe uma cobrança para este período.' } });
+    contem(form, 'role="alert"');
+    // E não marca o vencimento como se ele fosse o problema.
+    naoContem(form, 'cm-campo cm-erro-campo');
   });
 });
 
@@ -1522,12 +1616,12 @@ grupo('comercial · editar cobrança', () => {
     contem(drawer, "if (m.includes('nao_pendente')) return MSG.naoPendente;");
   });
 
-  teste('vencimento duplicado vira frase de gente', () => {
-    // O índice único protege contra duas cobranças no mesmo período; o erro
-    // cru do Postgres não diz nada a quem só queria trocar uma data.
-    igual(traduzirErroCobranca(new Error('duplicate key value violates unique constraint "uq_comercial_cobranca_periodo"')),
+  teste('período duplicado vira frase de gente', () => {
+    // O índice único protege contra duas cobranças no mesmo PERÍODO; o erro
+    // cru do Postgres não diz nada a quem só queria criar a cobrança.
+    igual(traduzirErroCobranca(new Error('duplicate key value violates unique constraint "uq_comercial_cobranca_do_periodo"')),
           MSG.duplicada);
-    igual(MSG.duplicada, 'Já existe uma cobrança ativa para este vencimento.');
+    igual(MSG.duplicada, 'Já existe uma cobrança para este período.');
   });
 });
 
@@ -1684,7 +1778,7 @@ grupo('comercial · mensagens padronizadas', () => {
     igual(MSG.atualizada, 'Cobrança atualizada.');
     igual(MSG.removida, 'Cobrança removida.');
     igual(MSG.naoPendente, 'Esta cobrança não está mais pendente. Atualize os dados e tente novamente.');
-    igual(MSG.duplicada, 'Já existe uma cobrança ativa para este vencimento.');
+    igual(MSG.duplicada, 'Já existe uma cobrança para este período.');
   });
 
   teste('nenhuma mensagem técnica chega ao usuário', () => {

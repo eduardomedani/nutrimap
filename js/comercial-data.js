@@ -151,6 +151,26 @@ export async function salvarAssinatura(assinaturaId, dados) {
   return data;
 }
 
+/**
+ * Corrige o "Cliente desde" — e SÓ ele.
+ *
+ * RPC, e não `salvarAssinatura`: a mudança precisa de trilha (quem, quando, de
+ * que data para que data), e o banco recusa mexer na coluna por qualquer outro
+ * caminho (`trg_comercial_cliente_desde_so_pela_rpc`). Período, cobranças,
+ * pagamentos, competências, vencimentos, plano e valor ficam onde estão — é
+ * dado cadastral, não regra de cobrança.
+ *
+ * @returns {{alterou: boolean, antes?: string, depois?: string, assinatura: object}}
+ */
+export async function alterarClienteDesde(assinaturaId, data) {
+  const { data: r, error } = await sb.rpc('comercial_alterar_cliente_desde', {
+    p_assinatura_id: assinaturaId,
+    p_data: data,
+  });
+  if (error) throw error;
+  return r;
+}
+
 // ── COBRANÇAS (que são lançamentos) ───────────────────────────
 
 /** O histórico de uma assinatura: toda cobrança, paga ou não, mais nova
@@ -301,7 +321,7 @@ export async function criarCobrancaDoPeriodo({
  * sem rastro é o tipo de buraco que só aparece no fechamento do mês.
  *
  * Cancelar já era o desenho do módulo, não uma escolha nova: o índice
- * `uq_comercial_cobranca_periodo` é PARCIAL (`status <> 'cancelado'`), e o
+ * `uq_comercial_cobranca_do_periodo` é PARCIAL (`status <> 'cancelado'`), e o
  * comentário dele diz o motivo — "um lançamento cancelado é justamente o que
  * se refaz". Ou seja, cancelar libera o período para a cobrança certa entrar
  * no lugar, com o valor ou o vencimento corrigidos.
