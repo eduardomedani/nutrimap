@@ -913,6 +913,13 @@
     import { iniciarApp } from './js/paciente-ui.js';
     iniciarApp();
 
+    // SONDA TEMPORÁRIA do rodapé — cinco toques no logo. Sai junto com
+    // js/diag-rodape.js quando a medição no iPhone terminar.
+    // `import()` dinâmico com `catch`, e não estático: se o arquivo faltar (o
+    // SW não o precacheia), um import estático derrubaria o app inteiro por
+    // causa de uma ferramenta de medição.
+    import('./js/diag-rodape.js').catch(() => {});
+
     // PWA — registra o service worker (só em https ou localhost)
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
