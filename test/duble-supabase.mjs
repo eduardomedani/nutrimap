@@ -183,6 +183,15 @@ export const sb = {
   auth: {
     getUser: async () => ({ data: { user: { id: 'nutri-teste' } }, error: null }),
     getSession: async () => ({ data: { session: { user: { id: 'nutri-teste' } } }, error: null }),
+    /**
+     * Registra o `scope` pedido. É ele que importa: o padrão do supabase-js é
+     * `global`, que revoga a conta em todos os aparelhos — e o portão do painel
+     * só pode encerrar a sessão do próprio painel.
+     */
+    signOut: async (opcoes) => {
+      chamadas.push({ tabela: null, operacao: 'signOut', payload: opcoes ?? null });
+      return { error: null };
+    },
   },
 };
 

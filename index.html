@@ -2189,6 +2189,7 @@
   // que nunca repassa o texto cru do provedor. A função segue exportada e em
   // uso no admin.html — só não é mais chamada aqui.
   import { fazerLogin, criarConta, fazerLogout, obterSessao, obterPerfilNutri, validarCodigoConvite, registrarUsoCodigo } from './js/auth.js';
+  import { portaoDoPainel } from './js/acesso-painel.js';
   import { listarPacientes, criarPaciente, excluirPaciente, calcularEstatisticas } from './js/pacientes.js';
   import { formatarData, iniciaisDoNome, copiarParaClipboard, mostrarToast, gerarLinkWhatsapp, montarMensagemQuestionario } from './js/utils.js';
   import { carregarPermissoes, limparPermissoes, registrarAcesso, pode } from './js/permissoes.js';
@@ -2543,7 +2544,9 @@
     ocupado(btn, true, 'Entrando...');
     try {
       await fazerLogin(campoEmail.value.trim(), campoSenha.value);
-      await iniciarApp();
+      // Portão negou: o painel não montou e a tela de entrada continua. Sem
+      // isto o botão ficaria girando em "Entrando..." para sempre.
+      if (!(await iniciarApp())) ocupado(btn, false, null, 'Entrar');
     } catch (err) {
       mostrarMsg(error, mensagemAmigavel(err, 'login'), 'erro');
       ocupado(btn, false, null, 'Entrar');
@@ -2602,7 +2605,7 @@
           err.amigavel = true;
           throw err;
         }
-        await iniciarApp();
+        if (!(await iniciarApp())) ocupado(btn, false, null, 'Criar conta');
         return;
       }
 
@@ -2629,8 +2632,11 @@
       }
 
       if (data.session) {
-        await iniciarApp();
-        return;                                   // app montado: não reabilita o botão
+        // O cadastro do SaaS NÃO cria organização — registrar_uso_codigo só
+        // conta o uso do convite. Até ela existir, o portão nega e avisa, em
+        // vez de montar um painel vazio que a RLS não deixaria usar.
+        if (!(await iniciarApp())) ocupado(btn, false, null, 'Criar conta');
+        return;
       }
       mostrarMsg(success, 'Conta criada! Verifique seu e-mail para confirmar o acesso.', 'ok');
       ocupado(btn, false, null, 'Criar conta');
@@ -2649,6 +2655,22 @@
   });
 
   async function iniciarApp() {
+    // O PORTÃO VEM ANTES DE QUALQUER PIXEL DO PAINEL. Antes dele, estas duas
+    // linhas de baixo eram as primeiras, e toda sessão válida — inclusive a de
+    // um aluno — via a tela profissional. O #app nasce escondido (.app só
+    // aparece com .active), então enquanto o portão pergunta ao banco nada do
+    // painel é pintado. A regra inteira está em js/acesso-painel.js.
+    //
+    // As quatro portas passam por aqui: sessão salva ao abrir a página, Entrar,
+    // e os dois cadastros por convite. Um portão cobre as quatro.
+    //
+    // O aviso vai para o formulário que está À VISTA: quem chega pelo cadastro
+    // não pode receber a mensagem num formulário escondido.
+    const noCadastro = document.getElementById('formSignup')?.style.display !== 'none';
+    const alvoAviso = document.getElementById(noCadastro ? 'errorSignup' : 'errorLogin');
+    const liberado = await portaoDoPainel({ avisar: (texto) => mostrarMsg(alvoAviso, texto, 'erro') });
+    if (!liberado) return false;
+
     document.getElementById('authWrapper').style.display = 'none';
     document.getElementById('app').classList.add('active');
 
@@ -2686,6 +2708,7 @@
     await carregarPacientes();
     abrirDashboard().catch(console.error);
     restaurarRota();   // F5 mantém a página/ficha/aba onde o usuário estava
+    return true;
   }
 
   async function carregarPacientes() {
