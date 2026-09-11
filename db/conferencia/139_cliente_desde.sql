@@ -29,7 +29,7 @@
 -- e pagamentos da assinatura sao comparados por um md5 das linhas inteiras.
 --
 -- Rodar no SQL Editor do Supabase.
--- Para colar, use db/conferencia/137_cliente_desde_LIMPO.sql
+-- Para colar, use db/conferencia/139_cliente_desde_LIMPO.sql
 -- ===========================================================================
 
 drop table if exists conf137;

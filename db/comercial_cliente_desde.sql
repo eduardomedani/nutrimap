@@ -3,7 +3,7 @@
 -- ---------------------------------------------------------------------------
 -- 100% re-executavel. Desfazer: db/comercial_cliente_desde_desfazer.sql
 -- Conferencia (com teste funcional que se desfaz sozinho):
---   db/conferencia/137_cliente_desde.sql
+--   db/conferencia/139_cliente_desde.sql
 --
 -- O QUE E. `comercial_assinaturas.data_inicio_original` responde "cliente
 -- desde": dado CADASTRAL/HISTORICO. Nenhuma funcao do banco a le para calcular
@@ -201,7 +201,7 @@ create trigger trg_comercial_cliente_desde_so_pela_rpc
 -- ===========================================================================
 -- CONFERENCIA. Esperado: funcao 1 · definer true · anon_executa false ·
 -- authenticated_executa true · check_tem_acao true · gatilho 1
--- A prova de funcionamento e a conferencia 137.
+-- A prova de funcionamento e a conferencia 139.
 -- ===========================================================================
 select
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace

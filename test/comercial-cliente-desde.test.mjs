@@ -9,7 +9,7 @@
 //   1. a mudança só toca a coluna — nunca período, plano, valor ou financeiro;
 //   2. ela deixa trilha (quem, quando, antes e depois);
 //   3. a tela confirma mostrando as duas datas.
-// O funcionamento no banco é provado pela conferência 137.
+// O funcionamento no banco é provado pela conferência 139.
 
 import { grupo, teste, ok, igual, contem, naoContem } from './runner.mjs';
 import { readFileSync } from 'node:fs';
@@ -23,7 +23,7 @@ import { assinaturaHtml, MSG } from '../js/comercial-drawer.js';
 const ler = p => readFileSync(new URL(p, import.meta.url), 'utf8');
 const SQL      = ler('../db/comercial_cliente_desde.sql');
 const DESFAZER = ler('../db/comercial_cliente_desde_desfazer.sql');
-const CONF     = ler('../db/conferencia/137_cliente_desde.sql');
+const CONF     = ler('../db/conferencia/139_cliente_desde.sql');
 const DRAWER   = ler('../js/comercial-drawer.js');
 const FORMS    = ler('../js/comercial-formularios.js');
 const DADOS    = ler('../js/comercial-data.js');
@@ -248,7 +248,7 @@ grupo('cliente desde · a trava e o CHECK', () => {
     naoContem(DESFAZER, 'delete from');
   });
 
-  teste('a conferência 137 roda os casos e se desfaz sozinha', () => {
+  teste('a conferência 139 roda os casos e se desfaz sozinha', () => {
     contem(CONF, "raise exception 'desfazer_teste_137'");
     for (const caso of ['CASO A', 'CASO B', 'CASO C', 'CASO D', 'SEM RASTRO']) contem(CONF, caso);
   });
