@@ -185,6 +185,22 @@
      Isto NÃO move nada. Geometria da barra, posição do conteúdo e área de
      toque ficam idênticas — é pintura, e só.
 
+     DÍVIDA CONHECIDA — encerrada como investigação em 11/09/2026. Medido pela
+     sonda no iPhone real, em standalone, do fim do rótulo da barra até o fim
+     físico da tela:
+
+       A = 0    conteúdo da nav abaixo do rótulo (navContentHeight 47px)
+       B = 34   safe-area, o padding de baixo da barra
+       C = 62   fora da viewport de layout (screen 956 − viewport 894)
+
+     Os 62px não se resolvem por CSS neste modelo de PWA. Descartados, cada um
+     com medição no aparelho:
+       · esticar a casca até `screen` — mede certo e renderiza cortado;
+       · `viewport-fit=cover` — já estava ligado; o C = 62 foi medido com ele;
+       · `apple-mobile-web-app-status-bar-style: default` — C = 62 antes e depois.
+     Não há compensação a acrescentar aqui, e reduzir a barra não mexe em C. A
+     frente que pode resolver é empacotar o app do aluno (Capacitor), e é outra.
+
      A outra metade do par — o fundo da aplicação, que o body deixou de
      carregar — está declarada na própria casca, em `#app.pa-shell`. */
   body.pa-app { background: var(--bg-card); }
@@ -912,13 +928,6 @@
   <script type="module">
     import { iniciarApp } from './js/paciente-ui.js';
     iniciarApp();
-
-    // SONDA TEMPORÁRIA do rodapé — cinco toques no logo. Sai junto com
-    // js/diag-rodape.js quando a medição no iPhone terminar.
-    // `import()` dinâmico com `catch`, e não estático: se o arquivo faltar (o
-    // SW não o precacheia), um import estático derrubaria o app inteiro por
-    // causa de uma ferramenta de medição.
-    import('./js/diag-rodape.js').catch(() => {});
 
     // PWA — registra o service worker (só em https ou localhost)
     if ('serviceWorker' in navigator) {

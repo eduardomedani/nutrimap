@@ -845,8 +845,19 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
     // Android e desktop: env() vale 0, o piso de 6px assume e a barra fica
     // rente ao fim da tela sem colar o rótulo na borda.
     contem(shell, 'env(safe-area-inset-bottom, 0px)');
-    ok(!/\b(34|44|83)px\b/.test(corpoNav),
+    ok(!/\b(34|44|62|83)px\b/.test(corpoNav),
        'altura de um modelo específico de iPhone não pode virar constante');
+
+    // 62px é a faixa fora da viewport no iOS standalone (956 − 894). Ela foi
+    // medida, investigada até o fim e registrada como DÍVIDA CONHECIDA no
+    // app.html: não se resolve por CSS neste modelo de PWA. Uma constante de
+    // 62px em qualquer regra de layout seria compensação chumbada — certa num
+    // aparelho, errada em todos os outros —, e foi descartada de propósito.
+    // Só o CSS de verdade conta: o comentário da dívida cita o número.
+    const cssLayout = semComentario.slice(
+      semComentario.indexOf('\n<style>'), semComentario.indexOf('\n</style>'));
+    ok(!/\b62px\b/.test(cssLayout),
+       'compensar os 62px com constante no CSS foi descartado — ver DÍVIDA CONHECIDA no app.html');
     ok(!/\b(1[0-9]{2})px\b/.test(corpoNav),
        'altura total chumbada (120/130/150px) é certa num aparelho e errada nos outros');
   });
@@ -1027,6 +1038,18 @@ grupo('início · a barra inferior encosta no fim da TELA', () => {
     // Sem isso o iOS não informa env(safe-area-inset-*) nenhum.
     contem(shell, 'viewport-fit=cover');
     igual((shell.match(/name="viewport"/g) || []).length, 1);
+  });
+
+  teste('a barra de status continua black-translucent — default foi medido e não resolve', () => {
+    // Testado no iPhone real, num Preview da Vercel, em 11/09/2026, com a sonda
+    // do rodapé: trocando `black-translucent` por `default`, a faixa fora da
+    // viewport continuou com 62px — C = 62 antes e depois. A troca só deixaria
+    // a barra de status opaca, sem ganhar pixel nenhum embaixo.
+    //
+    // Se alguém propuser a troca de novo como "a solução da faixa", este teste
+    // é o registro de que ela já foi medida. A dívida inteira está no comentário
+    // A FAIXA QUE O LAYOUT NÃO ALCANÇA, no app.html.
+    contem(shell, '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">');
   });
 
   teste('a barra não pede camada própria de composição', () => {
