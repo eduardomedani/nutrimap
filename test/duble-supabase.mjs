@@ -152,6 +152,24 @@ export const sb = {
           if (erro) { _errosStorage.delete('signed'); return { data: null, error: erro }; }
           return { data: { signedUrl: `https://exemplo.invalid/${caminho}?exp=${segundos}` }, error: null };
         },
+        /**
+         * Assinatura em LOTE — o que o acervo de animações usa.
+         *
+         * `falharStorage('signed-lote', ...)` derruba a chamada inteira;
+         * `falharStorage('signed:<caminho>', ...)` derruba um caminho só e
+         * deixa os outros passarem, que é como o Storage real se comporta.
+         */
+        async createSignedUrls(caminhos, segundos) {
+          chamadas.push({ tabela: null, operacao: 'signed-lote', bucket, payload: [...caminhos], segundos });
+          const erro = _errosStorage.get('signed-lote');
+          if (erro) { _errosStorage.delete('signed-lote'); return { data: null, error: erro }; }
+          const data = caminhos.map((c) => {
+            const so = _errosStorage.get(`signed:${c}`);
+            if (so) { _errosStorage.delete(`signed:${c}`); return { path: c, signedUrl: null, error: so }; }
+            return { path: c, signedUrl: `https://exemplo.invalid/${c}?exp=${segundos}`, error: null };
+          });
+          return { data, error: null };
+        },
       };
     },
   },

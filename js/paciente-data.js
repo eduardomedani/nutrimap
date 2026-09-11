@@ -66,7 +66,9 @@ export async function meuPaciente(usuario = null) {
   if (!user) return null;
   const { data, error } = await sb
     .from('pacientes')
-    .select('id, nome, codigo, status')
+    // `sexo` entra por causa da animação: o acervo tem versão masculina e
+    // feminina do mesmo exercício, e a escolha sai daqui.
+    .select('id, nome, codigo, status, sexo')
     .eq('auth_user_id', user.id)
     .maybeSingle();
   if (error) throw error;
@@ -100,11 +102,24 @@ export async function meusTreinos(pacienteId) {
   return data || [];
 }
 
-/** Itens de um treino (com dados do exercício), ordenados por dia e ordem. */
+/**
+ * Itens de um treino (com dados do exercício), ordenados por dia e ordem.
+ *
+ * As mídias vêm ANINHADAS, e não numa segunda consulta: um treino tem doze
+ * exercícios, e doze idas ao banco para buscar animação seriam doze esperas
+ * numa tela que o aluno abre no meio da série.
+ *
+ * A RLS continua valendo dentro do aninhamento — o aluno recebe apenas as
+ * mídias dos exercícios que estão no treino DELE. É o caminho provado em
+ * db/conferencia/128, provas 10 e 11.
+ */
 export async function itensDoTreino(treinoId) {
   const { data, error } = await sb
     .from('treino_exercicios')
-    .select('*, exercicio:exercicios(nome, grupo_muscular, equipamento, video_url, observacoes)')
+    .select(`*, exercicio:exercicios(
+         nome, grupo_muscular, equipamento, video_url, observacoes,
+         midias:exercicio_midias(papel, ordem, midia:midias(id, bucket, caminho, genero))
+       )`)
     .eq('treino_id', treinoId)
     .order('dia',   { ascending: true })
     .order('ordem', { ascending: true });

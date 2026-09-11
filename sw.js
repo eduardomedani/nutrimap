@@ -6,7 +6,7 @@
 
 // Um SW só para os DOIS apps: o escopo é a raiz, e registrar um segundo
 // service worker no mesmo escopo só criaria disputa entre eles.
-const CACHE = 'evollo-apps-v23';
+const CACHE = 'evollo-apps-v24';
 // Caminhos relativos ao escopo do SW — funcionam tanto na raiz (localhost)
 // quanto numa subpasta (GitHub Pages: /nutrimap/).
 const SHELL = [
@@ -26,6 +26,11 @@ const SHELL = [
   'js/paciente-execucao.js',
   'js/execucao-core.js',
   'js/paciente-data.js',
+  // `paciente-ui.js` importa este aqui de forma ESTÁTICA. Módulo importado que
+  // fica fora do SHELL não é "um recurso a menos no offline": o import falha e
+  // o app inteiro não abre. Quem entra na lista é quem o `import` exige, não
+  // quem parece importante.
+  'js/exercicio-midia.js',
   'js/push.js',
 
   // App do colaborador

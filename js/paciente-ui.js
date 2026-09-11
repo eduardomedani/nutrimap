@@ -17,6 +17,7 @@ import { mostrarToast, mostrarErro, confirmar } from './utils.js';
 import { pushSuportado, pushAtivo, ativarNotificacoes, desativarNotificacoes, traduzirPush } from './push.js';
 import * as Exec from './paciente-execucao.js';
 import { descansoDoItem, parseCadencia, fmtSegLongo } from './execucao-core.js';
+import * as Midia from './exercicio-midia.js';
 
 // ── Estado ──
 let _paciente = null;
@@ -27,6 +28,8 @@ let _dias     = [];
 let _diaSel   = 'A';
 let _progAbertas = new Set();
 let _progCache = new Map();   // id do item -> regs (progressão) já carregada
+let _sexo     = null;         // 'M' | 'F' | null — decide a versão da animação
+let _urlsAssinadas = new Map();  // id da mídia -> URL assinada desta sessão
 let _secao    = 'inicio';     // seção ativa: 'inicio' | 'treino' | 'dieta'
 let _view     = 'lista';      // dentro de treino: 'lista' (escolher dia) | 'treino' (página do dia)
 let _treinosCarregados = false;
@@ -85,6 +88,63 @@ export function midiaDoExercicioHtml(url) {
              onerror="this.hidden=true;this.nextElementSibling.hidden=false"></video>
       <span hidden>${link}</span>
     </div>`;
+}
+
+/**
+ * A animação do acervo, com URL assinada.
+ *
+ * Aqui o `onerror` NÃO revela um link: a URL expirada não abre em lugar
+ * nenhum, e oferecer um link quebrado é pior que dizer que não deu. O
+ * tratamento vive em `aoFalharMidia`, delegado no container.
+ *
+ * `data-midia` guarda o ID, nunca o caminho — ver o cabeçalho de
+ * js/exercicio-midia.js.
+ */
+function midiaAssinadaHtml(midiaId, url) {
+  return `
+    <div class="pa-midia" data-midia="${esc(midiaId)}">
+      <video class="pa-midia-v" src="${esc(url)}" preload="none" playsinline loop muted controls></video>
+      <span class="pa-midia-erro" hidden>Vídeo indisponível no momento.</span>
+    </div>`;
+}
+
+/**
+ * O que mostrar para este exercício, na ordem decidida:
+ *
+ *   animação vinculada  >  video_url antigo  >  nada
+ *
+ * Os dois primeiros nunca competem: nenhum dos 49 exercícios com animação tem
+ * `video_url`, e nenhum dos 40 com link tem animação. Medido em
+ * db/conferencia/130d, zero linhas. A ordem existe para o dia em que passarem
+ * a competir — e nesse dia a animação nossa ganha.
+ */
+function videoDoItem(ex) {
+  const m = Midia.escolherMidia(ex, _sexo);
+  const url = m && _urlsAssinadas.get(m.id);
+  if (url) return midiaAssinadaHtml(m.id, url);
+  return midiaDoExercicioHtml(ex?.video_url);
+}
+
+/**
+ * Uma tentativa a mais, e só uma.
+ *
+ * A marca é gravada ANTES de pedir a URL nova. Se fosse depois, uma segunda
+ * falha rápida encontraria o elemento ainda sem marca e tentaria de novo —
+ * e aí seria laço, não retentativa.
+ */
+async function aoFalharMidia(video) {
+  const caixa = video.closest?.('.pa-midia');
+  const erro  = caixa?.querySelector?.('.pa-midia-erro');
+  const desistir = () => { video.hidden = true; if (erro) erro.hidden = false; };
+
+  if (!caixa || video.dataset.retried) { desistir(); return; }
+  video.dataset.retried = '1';
+
+  const url = await Midia.renovar(caixa.dataset.midia);
+  if (!url) { desistir(); return; }
+
+  video.src = url;
+  video.load?.();
 }
 
 function metodoInfo(metodo) {
@@ -152,6 +212,8 @@ export async function iniciarApp() {
 
     if (!_paciente) { renderVincular(codigoDaUrl()); return; }
 
+    _sexo = Midia.normalizarSexo(_paciente.sexo);
+
     // O app abre no Início, não no Treino: quem entra quer saber o que vem
     // agora, e só então decidir para onde ir.
     //
@@ -174,6 +236,18 @@ let _execLigada = false;
 function ligarExecucao() {
   if (_execLigada) return;
   _execLigada = true;
+
+  // O evento `error` de um <video> NÃO borbulha — só passa na fase de captura.
+  // Por isso o `true` no fim: um ouvinte no documento cobre todos os vídeos,
+  // inclusive os que ainda não existem quando esta linha roda.
+  //
+  // Delegar também é o que mantém o caminho fora do DOM: o handler resolve a
+  // mídia pelo `data-midia` do container, e o módulo recusa id desconhecido.
+  document.addEventListener('error', (ev) => {
+    const alvo = ev.target;
+    if (alvo?.classList?.contains?.('pa-midia-v')) aoFalharMidia(alvo);
+  }, true);
+
   Exec.configurarDescanso({
     aoTick: (est, resta) => {
       const mini = est ? document.querySelector('[data-rest-mini]') : null;
@@ -388,6 +462,12 @@ async function carregarTreino() {
     _treinoSel = _treinos[0].id;
   }
   _itens = await itensDoTreino(_treinoSel);
+
+  // Assinar aqui, e não no render: o render roda a cada troca de dia e de aba,
+  // e assinar ali emitiria tokens novos a cada repintura. Uma chamada por
+  // treino, sobre as mídias que de fato serão mostradas.
+  _urlsAssinadas = await Midia.assinarDoTreino(_itens, _sexo);
+
   _dias = diasComExercicios(_itens);
   if (!_dias.includes(_diaSel)) _diaSel = _dias[0] || 'A';
   _progAbertas.clear();
@@ -1302,7 +1382,7 @@ function cardExercicio(it, i, opts = {}) {
   // 3-4 · Último treino + evolução (do cache já pré-carregado).
   const regs = _progCache.get(it.id) || [];
 
-  const video = midiaDoExercicioHtml(ex.video_url);
+  const video = videoDoItem(ex);
 
   return `
     <div class="pa-ex${feito ? ' done' : ''}" data-ex="${it.id}">
@@ -2303,6 +2383,7 @@ function renderErro(txt) {
 async function logout() {
   await sair();
   _paciente = null; _treinos = []; _treinoSel = null; _itens = []; _dias = []; _diaSel = 'A';
+  _sexo = null; _urlsAssinadas = new Map(); Midia.limpar();
   _progAbertas.clear();
   _progCache = new Map();
   _secao = 'treino'; _view = 'lista'; _treinosCarregados = false;
