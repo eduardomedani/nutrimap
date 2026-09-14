@@ -16,6 +16,12 @@ const RAIZ = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 function varrer(dir, saida = []) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
+    // `nativo/` (casca Capacitor) e `node_modules` ficam FORA. Hoje isto é
+    // DEFENSIVO: a varredura começa em `js/` — ver o default de
+    // `conferirImports` — e nunca chega lá. Mas a pasta vem por parâmetro, e no
+    // dia em que alguém passar a raiz, o `www/` gerado e o JS do projeto
+    // Android entrariam na conta de uma ferramenta que é da árvore web.
+    if (e.name === 'nativo' || e.name === 'node_modules') continue;
     const p = `${dir}/${e.name}`;
     if (e.isDirectory()) varrer(p, saida);
     else if (e.name.endsWith('.js')) saida.push(p);
