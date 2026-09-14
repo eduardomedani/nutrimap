@@ -1,0 +1,11 @@
+{
+  "appId": "app.evollo.aluno",
+  "appName": "Evollo",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#F7F7F6"
+  }
+}

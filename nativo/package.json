@@ -1,0 +1,23 @@
+{
+  "name": "evollo-aluno-nativo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Casca Capacitor do app do aluno (Evollo). Projeto npm SEPARADO de propósito: a raiz é um site estático sem dependências, e o `npm test` de lá não pode passar a depender disto.",
+  "scripts": {
+    "montar": "node scripts/montar-web.mjs",
+    "sync": "npm run montar && cap sync android",
+    "abrir": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/core": "^6.2.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0",
+    "@fontsource/inter": "^5.1.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "esbuild": "^0.24.0",
+    "lucide": "^0.460.0"
+  }
+}

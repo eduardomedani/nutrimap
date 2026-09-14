@@ -76,6 +76,12 @@ db/comercial_clientes_novos.json
 # .claude/settings.json vai versionado; este nao.
 .claude/settings.local.json
 
+# Casca nativa (Capacitor). O projeto npm de `nativo/` e separado do da raiz, e
+# o `www/` e GERADO por nativo/scripts/montar-web.mjs a partir de copias do
+# site — versionar o gerado criaria uma segunda verdade sobre o app do aluno.
+nativo/node_modules/
+nativo/www/
+
 # Pagamentos da planilha "Pagamentos.xlsx": o retrato do banco traz NOME DE
 # CLIENTE, valor, data e periodo contratado, e os dois scripts gerados a partir
 # dele carregam a mesma coisa. Mesma regra dos outros seeds —
