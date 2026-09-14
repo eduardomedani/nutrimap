@@ -2188,7 +2188,7 @@
   // traduzirErroAuth saiu do import: a tela de login usa mensagemAmigavel(),
   // que nunca repassa o texto cru do provedor. A função segue exportada e em
   // uso no admin.html — só não é mais chamada aqui.
-  import { fazerLogin, criarConta, fazerLogout, obterSessao, obterPerfilNutri, validarCodigoConvite, registrarUsoCodigo } from './js/auth.js';
+  import { fazerLogin, criarConta, fazerLogout, obterSessao, obterPerfilNutri, validarCodigoConvite } from './js/auth.js';
   import { portaoDoPainel } from './js/acesso-painel.js';
   import { listarPacientes, criarPaciente, excluirPaciente, calcularEstatisticas } from './js/pacientes.js';
   import { formatarData, iniciaisDoNome, copiarParaClipboard, mostrarToast, gerarLinkWhatsapp, montarMensagemQuestionario } from './js/utils.js';
@@ -2452,6 +2452,12 @@
     if (m.includes('password')) return 'A senha precisa ter no mínimo 6 caracteres.';
     if (m.includes('failed to fetch') || m.includes('networkerror') || m.includes('load failed'))
       return 'Sem conexão com o servidor. Verifique sua internet e tente de novo.';
+    // O gatilho do cadastro recusou — convite esgotado ou expirado entre a
+    // validação e o cadastro, por exemplo. O Auth esconde a mensagem do
+    // `raise` e devolve só esta frase. Como tudo foi uma transação, a conta
+    // NÃO foi criada: dá para tentar de novo com outro código.
+    if (m.includes('database error saving new user'))
+      return 'Não foi possível concluir o cadastro com este convite. Ele pode ter acabado de ser usado ou expirado — peça um novo código e tente de novo.';
     return contexto === 'signup'
       ? 'Não foi possível criar sua conta. Tente novamente.'
       : 'Não foi possível acessar sua conta. Tente novamente.';
@@ -2618,23 +2624,18 @@
         throw e;
       }
 
-      // 2. Cria a conta
+      // 2. Cria a conta — e, na MESMA transação, a organização e o vínculo.
+      //    O convite viaja no metadata do signUp; o gatilho handle_new_user
+      //    trava e revalida o convite, cria organização ativa + vínculo ativo
+      //    de proprietário e consome o uso (db/onboarding_saas.sql). Se
+      //    qualquer parte falhar, o Postgres desfaz tudo e a conta não existe:
+      //    não sobra conta sem organização para alguém destravar à mão.
       ocupado(btn, true, 'Criando conta...');
-      const data = await criarConta({ nome, email, senha });
-
-      // 3. Registra o uso do código (best-effort, não bloqueia se falhar)
-      if (data.user) {
-        try {
-          await registrarUsoCodigo(codigo, data.user.id, email);
-        } catch (e) {
-          console.warn('Não foi possível registrar uso do código:', e);
-        }
-      }
+      const data = await criarConta({ nome, email, senha, convite: codigo });
 
       if (data.session) {
-        // O cadastro do SaaS NÃO cria organização — registrar_uso_codigo só
-        // conta o uso do convite. Até ela existir, o portão nega e avisa, em
-        // vez de montar um painel vazio que a RLS não deixaria usar.
+        // Com a organização criada no cadastro, o portão libera. Se negar
+        // mesmo assim, o botão volta em vez de ficar girando.
         if (!(await iniciarApp())) ocupado(btn, false, null, 'Criar conta');
         return;
       }

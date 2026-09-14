@@ -20,7 +20,7 @@
 -- O passo 4 e o que separa isto de encenacao. Sem ele, o proximo
 -- `create function` recria o grant para PUBLIC e o trabalho se desfaz sozinho.
 --
--- AS CINCO QUE PRECISAM DE anon, e por que (rastreado no codigo, nao suposto):
+-- AS QUATRO QUE PRECISAM DE anon, e por que (rastreado no codigo, nao suposto):
 --
 --   rpc_buscar_paciente_por_codigo  anamnese.html -> js/pacientes.js:33
 --   rpc_salvar_respostas            anamnese.html -> js/respostas.js:39
@@ -28,8 +28,13 @@
 --     O questionario e preenchido pelo PACIENTE, por link, SEM LOGIN.
 --
 --   validar_codigo_convite          js/auth.js:40
---   registrar_uso_codigo            js/auth.js:49
---     O cadastro de profissional acontece ANTES de existir sessao.
+--     O cadastro de profissional valida o convite ANTES de existir sessao.
+--
+--   registrar_uso_codigo SAIU desta lista com db/onboarding_saas.sql: o
+--   consumo do convite passou para dentro do gatilho do cadastro, e a RPC
+--   ficou sem chamador. Aberta, ela deixava qualquer um gastar usos de
+--   convite e gravar log com id e e-mail inventados. O passo 3b a fecha
+--   tambem para authenticated, que o passo 2 reabriria.
 --
 -- Nenhum outro caminho publico existe: `api/*.js` nao tocam o Supabase (falam
 -- so com a Anthropic), `dashboard.html` e estatica, e as demais paginas exigem
@@ -38,7 +43,7 @@
 -- O RISCO DESTE SCRIPT e assimetrico: revogar demais nao da erro na tela de
 -- quem roda — da erro no paciente que nao consegue enviar o questionario, ou
 -- no profissional novo que nao consegue se cadastrar. Por isso a conferencia
--- no fim NOMEIA as cinco em vez de so contar.
+-- no fim NOMEIA as quatro em vez de so contar.
 --
 -- Desfazer: db/hardening_execute_publico_desfazer.sql
 -- Rodar no SQL Editor do Supabase.
@@ -77,8 +82,7 @@ begin
       and p.proname in ('rpc_buscar_paciente_por_codigo',
                         'rpc_salvar_respostas',
                         'rpc_marcar_completo',
-                        'validar_codigo_convite',
-                        'registrar_uso_codigo')
+                        'validar_codigo_convite')
   loop
     execute format('grant execute on function %s(%s) to anon', r.nome, r.args);
     v_anon := v_anon + 1;
@@ -86,9 +90,16 @@ begin
 
   raise notice 'Funcoes fechadas: %. Devolvidas a anon: %.', v_revogadas, v_anon;
 
-  if v_anon < 5 then
+  if v_anon < 4 then
     raise exception
-      'Esperava devolver anon a 5 funcoes e devolvi a %. Alguma nao existe com esse nome — NAO deixe assim: o cadastro ou a anamnese vao quebrar.', v_anon;
+      'Esperava devolver anon a 4 funcoes e devolvi a %. Alguma nao existe com esse nome — NAO deixe assim: o cadastro ou a anamnese vao quebrar.', v_anon;
+  end if;
+
+  -- 3b) Fecha o que ficou sem chamador. O passo 2 devolve EXECUTE a
+  -- authenticated para TODA funcao de public — inclusive esta, que desde
+  -- db/onboarding_saas.sql nao tem mais quem a chame.
+  if to_regprocedure('public.registrar_uso_codigo(text, uuid, text)') is not null then
+    execute 'revoke all on function public.registrar_uso_codigo(text, uuid, text) from authenticated';
   end if;
 end $$;
 
@@ -113,7 +124,7 @@ end $$;
 
 
 -- ===========================================================================
--- Conferencia. Esperado: anon_executa 5, e as cinco NOMEADAS abaixo.
+-- Conferencia. Esperado: anon_executa 4, e as quatro NOMEADAS abaixo.
 -- ===========================================================================
 select
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace

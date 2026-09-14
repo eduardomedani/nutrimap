@@ -52,6 +52,14 @@ export const BASELINES = readdirSync(new URL('db/', raiz))
   .filter(f => f.endsWith('_baseline.sql'))
   .sort();
 
+// Funções que estão num baseline mas ganharam DONA: uma migration que as
+// substituiu de propósito. O baseline continua como retrato da data em que
+// foi lido; a conferência 70 deixa de compará-las — senão ficaria vermelha
+// para sempre — e a comparação passa para a conferência da migration.
+export const SUBSTITUIDAS = new Map([
+  ['handle_new_user', 'onboarding_saas.sql'],   // conferência 141
+]);
+
 // ── normalização ───────────────────────────────────────────
 const espacos = s => s.replace(/\s+/g, ' ').trim().toLowerCase();
 const semSchema = s => s.replace(/public\./g, '');
@@ -118,6 +126,7 @@ export function esperados() {
     // CREATE OR REPLACE FUNCTION public.NOME(args) … $function$ corpo $function$;
     for (const [, nome, args, cabecalho, corpo] of
          sql.matchAll(/CREATE OR REPLACE FUNCTION public\.([a-z_]+)\(([^)]*)\)\n([\s\S]*?)AS \$function\$([\s\S]*?)\$function\$;/g)) {
+      if (SUBSTITUIDAS.has(nome)) continue;   // a migration é a dona — ver SUBSTITUIDAS
       const f = `fn:${nome}`;
       add(f, 'assinatura', normPadrao(args));
       add(f, 'linguagem',  normPadrao((cabecalho.match(/LANGUAGE (\w+)/) || [])[1] || '?'));

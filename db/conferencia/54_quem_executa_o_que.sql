@@ -16,8 +16,7 @@ precisam_de_anon as (
     'rpc_buscar_paciente_por_codigo',
     'rpc_salvar_respostas',
     'rpc_marcar_completo',
-    'validar_codigo_convite',
-    'registrar_uso_codigo'
+    'validar_codigo_convite'
   ]) as funcao
 )
 select

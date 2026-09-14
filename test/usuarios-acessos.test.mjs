@@ -448,7 +448,12 @@ grupo('etapa 3 · não atravessa o escopo da etapa', () => {
 
   teste('o fluxo de cadastro do proprietário continua intacto', () => {
     contem(HTML, 'const validacao = await validarCodigoConvite(codigo);');
-    contem(HTML, 'await registrarUsoCodigo(codigo, data.user.id, email);');
+    // O consumo do convite saiu do front: o convite viaja no metadata do
+    // signUp, e o gatilho do cadastro cria organização + vínculo + consumo
+    // na mesma transação (db/onboarding_saas.sql). A RPC antiga ficou sem
+    // chamador e foi fechada — um front que a chamasse daria erro.
+    contem(HTML, 'await criarConta({ nome, email, senha, convite: codigo });');
+    ok(!HTML.includes('registrarUsoCodigo'), 'o front não pode mais chamar registrar_uso_codigo');
   });
 });
 

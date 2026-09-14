@@ -21,12 +21,16 @@ export async function fazerLogin(email, senha) {
  * Cria conta nova de nutricionista
  * @returns {Promise<{user, session}>}
  */
-export async function criarConta({ nome, email, senha }) {
+export async function criarConta({ nome, email, senha, convite = null }) {
+  // O convite do SaaS vai no METADATA, e é isso que faz o gatilho do cadastro
+  // criar organização + vínculo na mesma transação da conta
+  // (db/onboarding_saas.sql). Sem convite — o caminho EVL-, que entra numa
+  // organização que já existe — o metadata fica como sempre foi.
   const { data, error } = await sb.auth.signUp({
     email,
     password: senha,
     options: {
-      data: { nome }
+      data: convite ? { nome, convite } : { nome }
     }
   });
   if (error) throw error;
@@ -40,19 +44,6 @@ export async function validarCodigoConvite(codigo) {
   const { data, error } = await sb.rpc('validar_codigo_convite', { p_codigo: codigo });
   if (error) throw error;
   return data; // { valido, erro?, codigo_id?, descricao? }
-}
-
-/**
- * Registra uso do código DEPOIS do cadastro bem-sucedido
- */
-export async function registrarUsoCodigo(codigo, nutriId, email) {
-  const { data, error } = await sb.rpc('registrar_uso_codigo', {
-    p_codigo: codigo,
-    p_nutri_id: nutriId,
-    p_email: email
-  });
-  if (error) throw error;
-  return data;
 }
 
 /**

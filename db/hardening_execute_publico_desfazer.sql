@@ -14,9 +14,10 @@
 --
 --   grant execute on function public.NOME(ARGS) to anon;
 --
--- As cinco que o script original devolve a anon sao:
+-- As quatro que o script original devolve a anon sao:
 --   rpc_buscar_paciente_por_codigo, rpc_salvar_respostas, rpc_marcar_completo,
---   validar_codigo_convite, registrar_uso_codigo
+--   validar_codigo_convite
+-- (registrar_uso_codigo saiu com db/onboarding_saas.sql — ficou sem chamador.)
 --
 -- Rodar no SQL Editor do Supabase.
 -- ===========================================================================

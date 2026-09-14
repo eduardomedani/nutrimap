@@ -48,10 +48,14 @@ const RPCS = [
 ];
 
 // RPCS é a lista de auth_legacy_rpcs_baseline.sql; FUNCOES é tudo o que a
-// conferência 70 confere. As duas separadas de propósito: o teste do
-// `$function$` conta as marcas DAQUELE arquivo, e somar handle_new_user ali
-// faria a conta dar errado por um motivo que não tem nada a ver com ele.
-const FUNCOES = [...RPCS, 'handle_new_user'];
+// conferência 70 confere.
+//
+// `handle_new_user` SAIU desta lista quando ganhou dona: a migration
+// db/onboarding_saas.sql a substituiu de propósito (organização + vínculo no
+// cadastro). O baseline continua como retrato de 11/08; a 70 deixou de
+// comparar a função — senão ficaria vermelha para sempre —, e a 141 assumiu.
+// Ver SUBSTITUIDAS em test/gerar-conferencia-legado.mjs.
+const FUNCOES = [...RPCS];
 
 const TRIGGERS = ['on_auth_user_created', 'trg_avaliacoes_atualizado'];
 
@@ -290,6 +294,19 @@ grupo('etapa 1b · a conferência cobre tudo o que o baseline declara', () => {
 
   teste('os triggers legados entram na conferência', () => {
     igual([...inventario().triggers].sort(), [...TRIGGERS].sort());
+  });
+
+  teste('função substituída por migration sai da 70, e só ela', async () => {
+    // O gatilho on_auth_user_created NÃO muda e continua conferido acima; o
+    // que mudou foi o corpo da função, e esse passou a ser da migration.
+    const { SUBSTITUIDAS } = await import('./gerar-conferencia-legado.mjs');
+    igual([...SUBSTITUIDAS.keys()], ['handle_new_user']);
+    igual(SUBSTITUIDAS.get('handle_new_user'), 'onboarding_saas.sql');
+    ok(!inventario().funcoes.includes('handle_new_user'), 'a 70 ainda compara handle_new_user');
+    // O retrato continua lá — substituir não é apagar a história.
+    contem(ler('auth_signup_baseline.sql'), 'CREATE OR REPLACE FUNCTION public.handle_new_user()');
+    ok(ler('onboarding_saas.sql').includes('create or replace function public.handle_new_user()'),
+       'a dona declarada não define a função');
   });
 
   teste('cada tabela é conferida em profundidade, não só citada', () => {

@@ -3,6 +3,13 @@
 -- ---------------------------------------------------------------------------
 -- NAO E MIGRATION. NAO EXECUTE ESTE ARQUIVO CEGAMENTE.
 --
+-- SUBSTITUIDO. Desde db/onboarding_saas.sql, a fonte da verdade de
+-- handle_new_user() e a migration: o cadastro pelo convite do SaaS cria
+-- organizacao + vinculo na mesma transacao. Este arquivo CONTINUA como o
+-- retrato de 11/08/2026 — substituir nao e apagar a historia. A conferencia
+-- 70 deixou de comparar a funcao (a 141 assumiu); o gatilho
+-- on_auth_user_created nao mudou e continua comparado pela 70.
+--
 -- Retrato fiel de public.handle_new_user() e do gatilho on_auth_user_created,
 -- lidos do banco em 11/08/2026 com pg_get_functiondef e pg_get_triggerdef
 -- (db/conferencia/81_signup_e_pedcrm.sql, blocos A e B). Copiado, nao

@@ -55,11 +55,6 @@ with esperado(objeto, item, valor) as (
     ('fn:gerar_codigo_paciente', 'security', 'invoker'),
     ('fn:gerar_codigo_paciente', 'search_path', '(sem set)'),
     ('fn:gerar_codigo_paciente', 'corpo', 'declare alfabeto text := ''abcdefghjkmnpqrstuvwxyz23456789''; novo_codigo text; i int; tentativas int := 0; begin loop novo_codigo := ''''; for i in 1..6 loop novo_codigo := novo_codigo || substr(alfabeto, floor(random() * length(alfabeto) + 1)::int, 1); end loop; -- verifica se já existe (referência explícita à tabela) if not exists (select 1 from public.pacientes p where p.codigo = novo_codigo) then return novo_codigo; end if; tentativas := tentativas + 1; if tentativas > 20 then raise exception ''não foi possível gerar código único''; end if; end loop; end;'),
-    ('fn:handle_new_user', 'assinatura', ''),
-    ('fn:handle_new_user', 'linguagem', 'plpgsql'),
-    ('fn:handle_new_user', 'security', 'definer'),
-    ('fn:handle_new_user', 'search_path', '(sem set)'),
-    ('fn:handle_new_user', 'corpo', 'begin insert into public.nutricionistas (id, nome, email) values ( new.id, coalesce(new.raw_user_meta_data->>''nome'', new.email), new.email ); return new; end;'),
     ('trg:on_auth_user_created', 'definicao', 'create trigger on_auth_user_created after insert on auth.users for each row execute function handle_new_user()'),
     ('trg:on_auth_user_created', 'enabled', 'habilitado'),
     ('avaliacoes', 'coluna:01', 'id uuid not null default gen_random_uuid()'),
@@ -252,7 +247,7 @@ with esperado(objeto, item, valor) as (
     ('pacientes', 'policy:pacientes_self_read:check', '(nenhum)')
 ),
 tabelas(nome) as (values ('avaliacoes'), ('codigos_convite'), ('codigos_uso'), ('exames'), ('nutricionistas'), ('pacientes'), ('recordatorio_calc'), ('respostas')),
-funcoes(nome) as (values ('gerar_codigo_paciente'), ('handle_new_user'), ('registrar_uso_codigo'), ('rpc_buscar_paciente_por_codigo'), ('rpc_marcar_completo'), ('rpc_salvar_respostas'), ('validar_codigo_convite')),
+funcoes(nome) as (values ('gerar_codigo_paciente'), ('registrar_uso_codigo'), ('rpc_buscar_paciente_por_codigo'), ('rpc_marcar_completo'), ('rpc_salvar_respostas'), ('validar_codigo_convite')),
 gatilhos(nome) as (values ('on_auth_user_created'), ('trg_avaliacoes_atualizado')),
 
 reg as (select t.nome, to_regclass('public.' || t.nome) as rel from tabelas t),
