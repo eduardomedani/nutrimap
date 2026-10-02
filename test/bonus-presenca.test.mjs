@@ -79,6 +79,33 @@ grupo('espelho de ponto · as marcações', () => {
     igual(a.funcao, 'Estagiária');
     igual(a.turnos.length, 1, 'dia sem marcação não vira turno, e a linha de totais não é data');
   });
+
+  teste('FORMATO DE SETEMBRO/2026: data em série e uma coluna por batida', () => {
+    // O arquivo de setembro trouxe 6 colaboradores e zero turnos com o leitor
+    // antigo — o bônus saiu R$ 0,00 para todos sem erro nenhum na tela.
+    const linhas = [
+      { celulas: ['Colaborador:', 'Mateus Loureiro Chagas'] },
+      { celulas: ['Função:', 'Estagiário'] },
+      { celulas: [null, null, 'Marcações', null, 'Jornada de trabalho'] },
+      { celulas: ['Data', 'Dia', 'Ent.1', 'Saí.1', 'Ent.2', 'Saí.2', 'Previstas', 'Diurnas'] },
+      { celulas: [46266, 'Ter', 0.322916666666667, 0.395833333333333, 0.625, 0.75, 0.2083, 0.07] },
+      { celulas: [46267, 'Qua', null, null, null, null, 0.1666, 0] },
+      { celulas: [46268, 'Qui', 0.333333333333333, null, null, null, 0.2083, 0] },
+      { celulas: ['Total Horas Previstas:', 4.58333333333333] },
+    ];
+    const a = lerAba(linhas);
+    igual(a.turnos.length, 2, 'dois pares no dia 1º; dia de falta não vira turno');
+    igual(a.turnos[0], { dia: '2026-09-01', de: 465, ate: 570 });
+    igual(a.turnos[1], { dia: '2026-09-01', de: 900, ate: 1080 });
+    igual(a.impares.length, 1, 'entrada sem saída continua sendo batida ímpar');
+    igual(a.impares[0].dia, '2026-09-03');
+  });
+
+  teste('fração do dia vira minuto; número fora do dia não', () => {
+    igual(minutoDe(0.322916666666667), 465);
+    igual(minutoDe(0), 0);
+    igual(minutoDe(4.58), null, 'total de horas não é horário');
+  });
 });
 
 // ── um mês de mentira, com os casos que importam ──────────────────────────

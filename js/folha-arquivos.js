@@ -180,6 +180,10 @@ export function traduzirErroArquivo(msg = '') {
     return 'Esta planilha não tem abas de colaborador. Envie o espelho de ponto em .xlsx, '
       + 'com uma aba por pessoa.';
   }
+  if (/espelho_sem_marcacoes/.test(m)) {
+    return 'Achei os colaboradores do espelho de ponto, mas nenhuma marcação de entrada e saída. '
+      + 'O formato da planilha pode ter mudado — o bônus por presença não foi calculado.';
+  }
   if (/planilha_sem_presencas/.test(m)) {
     return 'A planilha abriu, mas nenhuma linha tem Cliente e Data. '
       + 'Confira se é o relatório de presenças.';

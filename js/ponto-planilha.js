@@ -17,11 +17,23 @@
 //                                         "Função:"      | "Estagiária"
 //   depois a tabela:  Data | Dia | Marcações | Previstas | Trabalhadas | ...
 //   e as marcações vêm como "08:03 | 09:31", às vezes com "*" de ajuste manual.
+//
+// O FORMATO MUDOU EM SETEMBRO/2026, e o arquivo novo não trazia nenhum turno:
+//
+//   Data | Dia | Ent.1 | Saí.1 | Ent.2 | Saí.2 | Previstas | ...
+//   46266 | "Ter" | 0.3229 | 0.3958 | ...
+//
+// A data virou número de série do Excel e cada batida ganhou coluna própria,
+// em fração do dia. Os dois formatos são aceitos: a coluna é achada pelo nome
+// no cabeçalho, e o valor é lido seja texto, seja número.
 
-import { abrirZip, lerSharedStrings, lerLinhas } from './planilha.js';
+import { abrirZip, lerSharedStrings, lerLinhas, serialParaISO } from './planilha.js';
 
-/** "08:03" e "08:03*" → 483 minutos. */
+/** "08:03", "08:03*" e 0.3354 (fração do dia, como o Excel guarda) → 483 minutos. */
 export function minutoDe(hhmm) {
+  if (typeof hhmm === 'number') {
+    return hhmm >= 0 && hhmm < 1 ? Math.round(hhmm * 1440) : null;
+  }
   const m = String(hhmm ?? '').replace(/\*/g, '').trim().match(/^(\d{1,2}):(\d{2})$/);
   return m ? Number(m[1]) * 60 + Number(m[2]) : null;
 }
@@ -41,8 +53,11 @@ export function textoDoMinuto(min) {
  * devolvido à parte, para a tela mostrar e alguém corrigir.
  */
 export function turnosDoDia(marcacoes, dia) {
-  const batidas = String(marcacoes || '')
-    .split('|').map(s => s.trim()).filter(Boolean)
+  // Texto "08:03 | 09:31" no formato antigo; lista de células no novo.
+  const brutas = Array.isArray(marcacoes)
+    ? marcacoes
+    : String(marcacoes || '').split('|').map(s => s.trim()).filter(Boolean);
+  const batidas = brutas
     .map(minutoDe).filter(m => m !== null)
     .sort((a, b) => a - b);
 
@@ -56,9 +71,16 @@ export function turnosDoDia(marcacoes, dia) {
   return { turnos, impar };
 }
 
-/** '01/08/2026' → '2026-08-01'. Devolve null para o que não é data. */
-function diaIso(texto) {
-  const m = String(texto || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+/**
+ * '01/08/2026' e 46266 (série do Excel) → data ISO. Devolve null para o que não
+ * é data. A série só vale numa faixa plausível (2000 a 2100): a linha de totais
+ * também traz números, e eles não podem virar dia.
+ */
+function diaIso(valor) {
+  if (typeof valor === 'number') {
+    return Number.isInteger(valor) && valor > 36526 && valor < 73051 ? serialParaISO(valor) : null;
+  }
+  const m = String(valor || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
 }
 
@@ -71,12 +93,20 @@ export function lerAba(linhas = []) {
   const cabecalho = linhas.findIndex(x => String(x.celulas?.[0] || '').trim() === 'Data');
   if (cabecalho < 0) return null;
 
+  // Uma coluna "Marcações" (formato antigo) ou várias "Ent.N"/"Saí.N" (novo).
+  const nomes = (linhas[cabecalho].celulas || []).map(c => String(c ?? '').trim());
+  const iMarcacoes = nomes.indexOf('Marcações');
+  const iBatidas = nomes.flatMap((n, i) => (/^(Ent|Sa[ií])\.\s*\d+$/i.test(n) ? [i] : []));
+  const marcacoesDa = l => (iBatidas.length
+    ? iBatidas.map(i => l.celulas?.[i]).filter(v => v !== null && v !== undefined && v !== '')
+    : l.celulas?.[iMarcacoes >= 0 ? iMarcacoes : 2]);
+
   const turnos = [];
   const impares = [];
   for (const l of linhas.slice(cabecalho + 1)) {
     const dia = diaIso(l.celulas?.[0]);
     if (!dia) continue;
-    const r = turnosDoDia(l.celulas?.[2], dia);
+    const r = turnosDoDia(marcacoesDa(l), dia);
     turnos.push(...r.turnos);
     if (r.impar) impares.push(r.impar);
   }
@@ -117,5 +147,11 @@ export async function lerEspelhoDePonto(file) {
     if (pessoa?.nome) pessoas.push(pessoa);
   }
   if (!pessoas.length) throw new Error('espelho_sem_colaborador');
+  // Achar as pessoas e nenhuma batida é sinal de formato que este leitor não
+  // conhece — foi assim que o arquivo de setembro/2026 zerou o bônus de todo
+  // mundo sem erro nenhum na tela. Recusar é melhor que calcular zero.
+  if (!pessoas.some(p => p.turnos.length || p.impares.length)) {
+    throw new Error('espelho_sem_marcacoes');
+  }
   return pessoas;
 }
