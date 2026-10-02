@@ -35,6 +35,20 @@ export const EMPRESA = {
  * demais são os adicionais, com a descrição que foi escrita na folha — é ela
  * que explica o valor para quem recebe.
  */
+/**
+ * A hora extra de feriado vem da folha como uma frase só
+ * ("Horas extras feriado 07/09 — 5:53 × R$ 13,00 (100%)", js/feriado.js), e
+ * aqui as horas vão para a coluna de referência — a mesma das horas
+ * trabalhadas —, para quem recebe conferir as duas do mesmo jeito.
+ *
+ * Por padrão de texto, e não por import de js/feriado.js: este arquivo também
+ * roda no app do colaborador, e cada import é mais um arquivo no offline.
+ */
+export function horaExtraDeFeriado(descricao) {
+  const m = /^(Horas extras feriado \d{2}\/\d{2}) — (\d+:\d{2}) × (R\$ [\d.,]+) \((\d+%)\)$/.exec(String(descricao || ''));
+  return m ? { descricao: `${m[1]} (${m[4]}) · ${m[3]}/h`, horas: m[2] } : null;
+}
+
 export function linhasDoContracheque(item) {
   if (!item) return [];
   const linhas = [];
@@ -57,9 +71,10 @@ export function linhasDoContracheque(item) {
   }
 
   for (const a of item.adicionais || []) {
+    const he = horaExtraDeFeriado(a.descricao);
     linhas.push({
-      descricao: a.descricao || (Number(a.valor) < 0 ? 'Desconto' : 'Adicional'),
-      referencia: '',
+      descricao: he ? he.descricao : (a.descricao || (Number(a.valor) < 0 ? 'Desconto' : 'Adicional')),
+      referencia: he ? he.horas : '',
       valor: Number(a.valor) || 0,
     });
   }

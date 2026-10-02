@@ -51,6 +51,10 @@ let _turnos = null;
 // e não lança.
 let _arquivos = [];
 let _bonus = null;
+// O espelho de ponto em planilha, já lido — o bônus e o feriado usam o mesmo.
+// Guardado com o id do arquivo: reimportar troca o id, e o cache cai sozinho.
+let _espelho = null;          // { id, pessoas }
+let _feriadoDia = '';         // 'AAAA-MM-DD' escolhido na seção do feriado
 
 /** As planilhas do bônus guardadas neste mês, e o cálculo que elas permitem.
  *  Falha em silêncio pelo mesmo motivo dos documentos: sem a tabela instalada,
@@ -171,6 +175,8 @@ async function abrirCompetencia(competencia, { criar = true } = {}) {
   // O mês escolhido vale para a sessão inteira: Ponto e Documentos abrem no
   // mesmo mês, sem a pessoa ter que reencontrá-lo em cada aba.
   definirCompetencia(competencia);
+  // O feriado é de um mês só: levado para outra competência, cairia fora dela.
+  if (_folha?.competencia !== competencia) _feriadoDia = '';
 
   try {
     if (criar) {
@@ -343,6 +349,7 @@ function render() {
 
     ${resumoTurnosHtml()}
     ${bonusPresencaHtml(_bonus, _itens)}
+    <div id="fpFeriado"></div>
 
     ${fechada
       ? `<div class="fp-aviso"><i data-lucide="check-circle-2"></i>
@@ -580,9 +587,28 @@ function linhaHtml(item) {
 // ───────────────────────────────────────────────────────────
 // EVENTOS
 // ───────────────────────────────────────────────────────────
+/**
+ * Preenche a seção do feriado depois do render: ela pode precisar baixar o
+ * espelho de ponto, e o render é síncrono. Quem chegar depois (troca de
+ * competência no meio) não escreve em cima da tela nova.
+ */
+async function pintarFeriado() {
+  const folha = _folha;
+  const html = await feriadoHtml().catch(() => '');
+  const box = document.getElementById('fpFeriado');
+  if (!box || folha !== _folha) return;
+  box.innerHTML = html;
+  box.querySelector('#fpFeriadoDia')?.addEventListener('change', (e) => {
+    _feriadoDia = e.target.value || '';
+    pintarFeriado();
+  });
+  box.querySelector('[data-fp-lancar-feriado]')?.addEventListener('click', () => lancarFeriado());
+}
+
 function ligar() {
   const cont = document.getElementById(_container);
   const ao = (id, evento, fn) => document.getElementById(id)?.addEventListener(evento, fn);
+  pintarFeriado();
 
   ao('fpSeletor', 'change', (e) => abrirCompetencia(e.target.value, { criar: false }));
   ao('fpAbrir', 'click', () => {
@@ -1287,6 +1313,25 @@ async function importarPlanilhasDoBonus(arquivos) {
  * confiar no que está gravado. Reler os dois é uma requisição a mais e uma
  * dúvida a menos.
  */
+/** Baixa um arquivo guardado do mês. */
+async function baixarRegistro(registro) {
+  const { urlDoArquivoDoMes } = await import('./folha-arquivos.js');
+  const url = await urlDoArquivoDoMes(registro.caminho_storage);
+  const resp = await fetch(url);
+  return new File([await resp.blob()], registro.nome_arquivo);
+}
+
+/** As pessoas do espelho de ponto guardado no mês, ou null se não houver. */
+async function espelhoDoMes() {
+  const ponto = _arquivos.find(a => a.tipo === 'ponto');
+  if (!ponto) { _espelho = null; return null; }
+  if (_espelho?.id === ponto.id) return _espelho.pessoas;
+  const { lerEspelhoDePonto } = await import('./ponto-planilha.js');
+  const pessoas = await lerEspelhoDePonto(await baixarRegistro(ponto));
+  _espelho = { id: ponto.id, pessoas };
+  return pessoas;
+}
+
 async function recalcularBonusDePresenca() {
   _bonus = null;
   const presencas = _arquivos.find(a => a.tipo === 'presencas');
@@ -1294,17 +1339,10 @@ async function recalcularBonusDePresenca() {
   if (!presencas || !ponto) return;
 
   try {
-    const [{ urlDoArquivoDoMes }, { lerPrimeiraAba }, { lerPresencas },
-           { lerEspelhoDePonto }, { calcularBonus }] = await Promise.all([
-      import('./folha-arquivos.js'), import('./planilha.js'), import('./frequencia.js'),
-      import('./ponto-planilha.js'), import('./bonus-presenca.js'),
+    const [{ lerPrimeiraAba }, { lerPresencas }, { calcularBonus }] = await Promise.all([
+      import('./planilha.js'), import('./frequencia.js'), import('./bonus-presenca.js'),
     ]);
-    const baixar = async (registro) => {
-      const url = await urlDoArquivoDoMes(registro.caminho_storage);
-      const resp = await fetch(url);
-      return new File([await resp.blob()], registro.nome_arquivo);
-    };
-    const [fPres, fPonto] = await Promise.all([baixar(presencas), baixar(ponto)]);
+    const [fPres, pessoas] = await Promise.all([baixarRegistro(presencas), espelhoDoMes()]);
 
     // DESCONTO NÃO BARRA A PRESENÇA. Decidido em 02/10/2026: o teto de 10% de
     // desconto vale só para o bônus por aluno ativo (Diurno/Noturno). Aqui toda
@@ -1312,7 +1350,7 @@ async function recalcularBonusDePresenca() {
     // desconto dá o mesmo trabalho. De 05/09 a 02/10 a régua valia para os dois.
     _bonus = calcularBonus(
       lerPresencas(await lerPrimeiraAba(fPres)),
-      await lerEspelhoDePonto(fPonto),
+      pessoas,
       { ate: diaDaContagem(_folha.competencia) },
     );
   } catch (e) {
@@ -1320,6 +1358,110 @@ async function recalcularBonusDePresenca() {
     // servindo para lançar horas e fechar o mês.
     _bonus = null;
   }
+}
+
+// ───────────────────────────────────────────────────────────
+// FERIADO TRABALHADO — hora extra de 100% (regras em js/feriado.js)
+// ───────────────────────────────────────────────────────────
+
+/** O primeiro e o último dia do mês que a folha paga — os limites do campo. */
+function limitesDoMesTrabalhado() {
+  const fim = diaDaContagem(_folha?.competencia);   // último dia do mês anterior
+  return /^\d{4}-\d{2}-\d{2}$/.test(fim) ? { min: fim.slice(0, 8) + '01', max: fim } : { min: '', max: '' };
+}
+
+/**
+ * A seção do feriado. Sem espelho de ponto em planilha não há de onde tirar as
+ * horas do dia — e a seção diz isso, em vez de sumir e deixar a pessoa
+ * procurando onde se lança feriado.
+ */
+async function feriadoHtml() {
+  if (!_folha || trava()) return '';
+  const { min, max } = limitesDoMesTrabalhado();
+  const topo = `
+    <div class="fp-bp-topo">
+      <div>
+        <h3>Feriado trabalhado</h3>
+        <p>Hora de feriado vale dobrado. As horas do dia já estão nas horas da folha;
+           aqui entra a outra metade, como <b>hora extra (100%)</b> no contracheque.</p>
+      </div>
+      <label class="fp-feriado-dia">
+        <span>Dia do feriado</span>
+        <input type="date" class="np-input" id="fpFeriadoDia" value="${esc(_feriadoDia)}"
+               min="${esc(min)}" max="${esc(max)}">
+      </label>
+    </div>`;
+
+  let pessoas = null;
+  try { pessoas = await espelhoDoMes(); } catch { pessoas = null; }
+  if (!pessoas) {
+    return `<section class="fp-bp fp-feriado">${topo}
+      <p class="fp-feriado-nota">Importe o <b>espelho de ponto em planilha (.xlsx)</b> do mês:
+        é dele que saem as horas de cada pessoa no dia.</p></section>`;
+  }
+  if (!_feriadoDia) return `<section class="fp-bp fp-feriado">${topo}</section>`;
+
+  const { linhasDoFeriado, diaCurto } = await import('./feriado.js');
+  const linhas = linhasDoFeriado(pessoas, _itens, _feriadoDia);
+  const aLancar = linhas.filter(l => l.valor && !l.jaLancado);
+
+  const corpo = linhas.length
+    ? `<table class="fp-bp-tab">
+        <thead><tr><th>Colaborador</th><th class="fp-num">Horas no dia</th>
+          <th class="fp-num">Valor/hora</th><th class="fp-num">Hora extra</th></tr></thead>
+        <tbody>${linhas.map(l => `
+          <tr${l.item ? '' : ' class="fp-bp-sem-linha"'}>
+            <td>${esc(l.nome)}
+              ${!l.item ? '<span class="fp-bp-aviso">não está nesta folha</span>'
+                : l.jaLancado ? '<span class="fp-bp-aviso">já lançado</span>'
+                : l.impar ? '<span class="fp-bp-aviso">batida sem saída no dia</span>'
+                : l.item && !l.valorHora ? '<span class="fp-bp-aviso">sem valor/hora — lance à mão</span>' : ''}
+            </td>
+            <td class="fp-num">${esc(textoDeMinutos(l.minutos) || '0:00')}</td>
+            <td class="fp-num">${l.valorHora ? esc(formatarBRL(l.valorHora)) : '—'}</td>
+            <td class="fp-num"><strong>${l.valor ? esc(formatarBRL(l.valor)) : '—'}</strong></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`
+    : `<p class="fp-feriado-nota">Ninguém bateu ponto em ${esc(diaCurto(_feriadoDia))}.</p>`;
+
+  return `
+    <section class="fp-bp fp-feriado">
+      ${topo}
+      ${corpo}
+      ${aLancar.length ? `
+        <div class="fp-feriado-acao">
+          <button class="btn primary" data-fp-lancar-feriado>
+            <i data-lucide="plus"></i> Lançar ${aLancar.length} ${aLancar.length === 1 ? 'hora extra' : 'horas extras'}
+          </button>
+        </div>` : ''}
+    </section>`;
+}
+
+/** Lança a hora extra do feriado como adicional na linha de cada pessoa. */
+async function lancarFeriado() {
+  if (!_feriadoDia || trava()) return;
+  const pessoas = await espelhoDoMes();
+  const { linhasDoFeriado } = await import('./feriado.js');
+  const aLancar = linhasDoFeriado(pessoas, _itens, _feriadoDia).filter(l => l.valor && !l.jaLancado);
+  if (!aLancar.length) return;
+
+  if (!(await confirmar({
+    titulo: `Lançar ${aLancar.length} ${aLancar.length === 1 ? 'hora extra' : 'horas extras'}`,
+    mensagem: aLancar.map(l => `${l.nome} — ${l.descricao} = ${formatarBRL(l.valor)}`).join('\n'),
+    textoOk: 'Lançar',
+  }))) return;
+
+  await comErro(async () => {
+    for (const l of aLancar) {
+      await adicionarAdicional(l.item.id, {
+        descricao: l.descricao, valor: l.valor, ordem: (l.item.adicionais?.length || 0),
+      });
+    }
+    _itens = await carregarFolha(_folha.id);
+    render();
+    mostrarToast(`✓ ${aLancar.length} ${aLancar.length === 1 ? 'hora extra lançada' : 'horas extras lançadas'}`);
+  });
 }
 
 /** Lança o bônus apurado como adicional na linha de cada pessoa. */

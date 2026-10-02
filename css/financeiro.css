@@ -2344,6 +2344,12 @@ tbody tr.dsp-linha:focus-visible { outline: 2px solid var(--primary); outline-of
   font-weight: 700; padding-top: 11px;
 }
 
+/* ── Feriado trabalhado — o mesmo quadro do bônus, com o dia no topo ──── */
+.fp-feriado-dia { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.fp-feriado-dia .np-input { min-width: 170px; }
+.fp-feriado-nota { margin: 0; font-size: 13px; color: var(--text-secondary); }
+.fp-feriado-acao { display: flex; justify-content: flex-end; margin-top: 12px; }
+
 /* Quem o cálculo achou mas a folha não tem. Não some da lista: a pessoa
    precisa saber que existe bônus apurado para alguém que ela ainda não
    adicionou — some, o valor sumiria com ele. */
