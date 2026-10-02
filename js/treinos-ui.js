@@ -1067,11 +1067,22 @@ function renderDia() {
   const unidades = unidadesDoDia();
   const nEx = _itens.filter(it => it.dia === _diaSel).length;
 
+  // Um botão só, que inverte conforme o estado: se algum bloco está aberto, a
+  // ação útil é fechar todos para enxergar a sequência inteira. Fica ao lado
+  // do "Adicionar", onde a mão já está ao montar o dia.
+  const algumAberto = unidades.some(u => !_recolhidos.has(u.a.id));
+  const botaoTodos = unidades.length > 1
+    ? `<button class="btn tr-recolher-todos" id="trRecolherTodos" type="button">
+         <i data-lucide="${algumAberto ? 'chevrons-down-up' : 'chevrons-up-down'}"></i>
+         ${algumAberto ? 'Recolher todos' : 'Expandir todos'}</button>`
+    : '';
+
   // Dropdown de adicionar exercício — busca no banco conforme digita (não pré-carrega a biblioteca).
   let addBox;
   if (_bibVazia) {
     addBox = `<div class="form-warn">Sua biblioteca está vazia. Cadastre exercícios em
-      <strong>Exercícios</strong> (menu lateral) antes de montar o treino.</div>`;
+      <strong>Exercícios</strong> (menu lateral) antes de montar o treino.</div>
+      ${botaoTodos ? `<div class="tr-add-row">${botaoTodos}</div>` : ''}`;
   } else {
     addBox = `
       <div class="tr-add-row">
@@ -1082,6 +1093,7 @@ function renderDia() {
           <div class="tr-ac-list" id="trAcList" hidden></div>
         </div>
         <button class="btn primary" id="trAddBtn"><i data-lucide="plus"></i> Adicionar</button>
+        ${botaoTodos}
       </div>`;
   }
 
@@ -1091,17 +1103,8 @@ function renderDia() {
         : itemHtml(u.a, i, unidades.length)).join('')
     : `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="inbox"></i></div>Nenhum exercício no Dia ${_diaSel} ainda.</div>`;
 
-  // Um botão só, que inverte conforme o estado: se algum bloco está aberto, a
-  // ação útil é fechar todos para enxergar a sequência inteira.
-  const algumAberto = unidades.some(u => !_recolhidos.has(u.a.id));
-  const botaoTodos = unidades.length > 1
-    ? `<button class="btn tr-recolher-todos" id="trRecolherTodos" type="button">
-         <i data-lucide="${algumAberto ? 'chevrons-down-up' : 'chevrons-up-down'}"></i>
-         ${algumAberto ? 'Recolher todos' : 'Expandir todos'}</button>`
-    : '';
-
   cont.innerHTML = `
-    <div class="tr-dia-head"><span>Dia <em>${_diaSel}</em> — ${nEx} exercício(s)</span>${botaoTodos}</div>
+    <div class="tr-dia-head">Dia <em>${_diaSel}</em> — ${nEx} exercício(s)</div>
     ${addBox}
     <div class="tr-ex-list">${linhas}</div>
   `;
