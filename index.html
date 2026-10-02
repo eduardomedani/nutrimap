@@ -329,6 +329,9 @@
   .list-title em { color: var(--moss); font-style: italic; }
   .search-box { background: var(--bg-card); border: 1.5px solid var(--line); border-radius: 100px; padding: 10px 18px; display: flex; align-items: center; gap: 10px; width: 320px; max-width: 100%; }
   .search-box input { border: none; background: none; outline: none; font-family: var(--font-sans); font-size: 14px; color: var(--ink); width: 100%; }
+  /* A busca de clientes ocupa a linha inteira, abaixo do título: é a primeira
+     coisa que se usa na tela, e 320px no canto cortava nomes compostos. */
+  .search-box-inteira { flex: 1 1 100%; width: 100%; }
 
   .patients-grid { display: flex; flex-direction: column; gap: 10px; }
   .patient-row { background: var(--bg-card); border-radius: 14px; padding: 18px 22px; display: flex; align-items: center; gap: 18px; box-shadow: var(--shadow); transition: all 0.2s; border: 1.5px solid transparent; flex-wrap: wrap; }
@@ -2117,7 +2120,7 @@
 
       <div class="list-header">
         <div class="list-title">Seus <em>clientes</em></div>
-        <div class="search-box"><i data-lucide="search"></i> <input type="text" id="searchInput" placeholder="Buscar por nome ou código..." /></div>
+        <div class="search-box search-box-inteira"><i data-lucide="search"></i> <input type="text" id="searchInput" placeholder="Buscar por nome ou código..." /></div>
       </div>
       <div id="patientsContainer"><div class="loading"><div class="spinner"></div>Carregando clientes...</div></div>
     </div>
