@@ -612,6 +612,14 @@
     font-size: 17px; line-height: 1; opacity: .75;
   }
   .tr-dia-mover:hover { background: rgba(255,255,255,.22); opacity: 1; }
+  /* A chave de ativo/inativo REUSA o `.di-switch` da Dieta — o css/dieta.css já
+     é carregado aqui, e um segundo switch com outro nome daria duas aparências
+     para o mesmo gesto. Estas três linhas só reencaixam o componente: ele foi
+     desenhado para bloco de formulário (alinhado ao topo, texto em duas linhas)
+     e aqui vive numa fileira de botões. */
+  .tr-ativo { align-items: center; gap: 8px; flex: 0 0 auto; margin-right: 4px; }
+  .tr-ativo .di-switch-txt b { font-size: 12px; font-weight: 700; white-space: nowrap; }
+  @media (max-width: 640px) { .tr-ativo .di-switch-txt { display: none; } }
   .tr-dia-head { font-family: var(--font-sans); font-size: 17px; color: var(--moss-deep); margin: 18px 0 14px; font-weight: 600; }
   .tr-dia-head em { color: var(--moss); font-style: italic; font-weight: 700; }
   .tr-add-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
@@ -634,6 +642,25 @@
   .tr-ex-nome { font-family: var(--font-sans); font-size: 15.5px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 9px; }
   .tr-ex-num { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; background: linear-gradient(135deg, var(--sage), var(--moss-light)); color: var(--cream); border-radius: 8px; font-size: 12px; font-weight: 700; flex-shrink: 0; }
   .tr-ex-grupo { color: var(--ink-mute); font-weight: 400; font-size: 13px; }
+  /* Recolhido: só a linha do número e do nome. Sem a borda e o respiro do
+     cabeçalho, que separavam o nome dos campos que agora não estão lá. */
+  .tr-ex-card.recolhido:not(.tr-biset-card) { padding: 10px 14px; }
+  .tr-ex-card.recolhido:not(.tr-biset-card) .tr-ex-head { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+  .tr-ex-titulo[data-recolher] { cursor: pointer; }
+  .tr-ex-nome .tr-biset-toggle { margin-left: -4px; }
+  /* A alça é o único aviso de que dá para arrastar — e o único ponto de onde o
+     arrasto começa, para selecionar texto num campo continuar sendo só isso. */
+  .tr-ex-alca { display: inline-flex; color: var(--ink-mute); cursor: grab; padding: 2px; border-radius: 6px; }
+  .tr-ex-alca:hover { color: var(--moss); background: var(--bg-warm); }
+  .tr-ex-alca:active { cursor: grabbing; }
+  .tr-ex-alca svg { width: 18px; height: 18px; }
+  /* O mesmo vocabulário das abas dos dias: o bloco em trânsito fica pela
+     metade, e o destino se anuncia por uma barra na borda onde ele vai cair. */
+  .tr-ex-arrastando { opacity: .4; }
+  .tr-ex-alvo-antes { box-shadow: 0 -3px 0 0 var(--moss); }
+  .tr-ex-alvo-depois { box-shadow: 0 3px 0 0 var(--moss); }
+  .tr-dia-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .tr-recolher-todos { font-size: 13px; padding: 6px 12px; }
   .tr-ex-btns { display: flex; gap: 6px; flex-shrink: 0; }
   .tr-ex-btns .patient-action[disabled] { opacity: 0.35; cursor: not-allowed; }
   .tr-ex-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }

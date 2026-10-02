@@ -12,7 +12,7 @@
 import {
   listarTreinosDoPaciente, criarTreino, atualizarTreino, excluirTreino,
   listarItensDoTreino, adicionarExercicioAoTreino, atualizarItem, excluirItem,
-  reordenarDias,
+  reordenarDias, reordenarBlocos,
   listarExercicios, buscarExercicioPorNome,
   listarProgressao, registrarProgressao, excluirProgressao,
   listarModelos, prescreverModeloParaPaciente, salvarComoModelo,
@@ -75,8 +75,11 @@ const DROP_OPCOES = [
 const ehDropSet = (metodo) => String(metodo || '').trim().toLowerCase() === 'drop-set';
 const ehBiset   = (metodo) => String(metodo || '').trim().toLowerCase() === 'bi-set';
 
-// Cards de Bi-set recolhidos (guarda o id do exercício âncora A).
-const _bisetRecolhidos = new Set();
+// Cards recolhidos — exercício ou Bi-set (guarda o id do âncora A). Recolhido,
+// o card mostra só o número e o nome: é como se reordena um dia de dez
+// exercícios sem rolar três telas a cada movimento.
+const _recolhidos = new Set();
+let _arrastandoEx = null;   // índice do bloco de exercício sendo arrastado
 
 // Acha o exercício B (parceiro) de um âncora, ou null.
 function membroB(ancora) {
@@ -203,11 +206,7 @@ async function renderLista() {
           : `início ${fmtData(t.data_inicio)}`;
         const meta = ehModelo
           ? `${esc(divisaoLabel(t.divisao))} · <span style="color:var(--ink-mute)">modelo reutilizável</span>`
-          : `${esc(divisaoLabel(t.divisao))} ·
-              ${t.ativo
-                ? '<span style="color:var(--moss)"><i data-lucide="circle-check"></i> Ativo</span>'
-                : '<span style="color:var(--ink-mute)"><i data-lucide="circle"></i> Inativo</span>'} ·
-              ${periodo}`;
+          : `${esc(divisaoLabel(t.divisao))} · ${periodo}`;
         return `
         <div class="patient-row">
           <div class="patient-avatar"><i data-lucide="dumbbell"></i></div>
@@ -215,6 +214,19 @@ async function renderLista() {
             <div class="patient-name">${esc(t.nome || '(sem nome)')}</div>
             <div class="patient-meta">${meta}</div>
           </div>
+          ${/* A CHAVE É O COMPONENTE DA DIETA (`di-switch`), não um novo. O
+                css/dieta.css já é carregado no painel, e um segundo switch com
+                outro nome faria duas aparências para o mesmo gesto.
+
+                Ela substitui o texto "Ativo/Inativo" que ficava na meta — dois
+                indicadores do mesmo estado, um deles clicável, fariam a pessoa
+                procurar qual dos dois manda. Só no modo paciente: `ativo` não
+                significa nada num modelo da biblioteca, que aluno nenhum vê. */''}
+          ${ehModelo ? '' : `<label class="di-switch tr-ativo" title="${t.ativo ? 'O aluno vê este treino no app' : 'O aluno não vê este treino'}">
+            <input type="checkbox" data-tr-ativo="${t.id}" ${t.ativo ? 'checked' : ''}>
+            <span class="di-switch-ui" aria-hidden="true"></span>
+            <span class="di-switch-txt"><b>${t.ativo ? 'Ativo' : 'Inativo'}</b></span>
+          </label>`}
           <button class="patient-action primary" data-tr-edit="${t.id}"><i data-lucide="pencil"></i> Abrir</button>
           ${ehModelo ? '' : `<button class="patient-action" data-tr-lib="${t.id}" data-tr-nome="${esc(t.nome || '')}" title="Salvar na biblioteca como modelo"><i data-lucide="copy-plus"></i></button>`}
           <button class="patient-action" data-tr-dup="${t.id}" data-tr-nome="${esc(t.nome || '')}" title="Duplicar"><i data-lucide="copy"></i></button>
@@ -246,7 +258,22 @@ async function renderLista() {
          </div>
        </div>`;
 
-  _mountEl.innerHTML = `${header}<div class="patients-grid">${linhas}</div>`;
+  // MAIS DE UM ATIVO NÃO É ERRO, mas quase sempre é engano. O app do aluno
+  // lista TODOS os ativos (js/paciente-data.js), então ele vê dois treinos um
+  // embaixo do outro sem saber qual seguir. Avisamos em vez de desativar
+  // sozinho: manter dois no ar é decisão legítima — treino de academia e treino
+  // de casa, ou uma semana de transição — e desligar por conta própria seria
+  // decidir pelo professor.
+  const nAtivos = _modo === 'paciente' ? treinos.filter(t => t.ativo).length : 0;
+  const aviso = nAtivos > 1
+    ? `<div class="form-warn" style="margin-top:14px;">
+         <i data-lucide="triangle-alert"></i>
+         <span><b>${nAtivos} treinos ativos.</b> O aluno vê todos no app, um embaixo do outro.
+         Se a ideia era substituir, desative o antigo na chave da linha.</span>
+       </div>`
+    : '';
+
+  _mountEl.innerHTML = `${header}${aviso}<div class="patients-grid">${linhas}</div>`;
 
   document.getElementById('trBtnNovo').addEventListener('click', () => abrirEditor(null));
   const bModelo = document.getElementById('trBtnModelo');
@@ -256,10 +283,39 @@ async function renderLista() {
     b.addEventListener('click', () => abrirEditor(treinos.find(t => t.id === b.dataset.trEdit))));
   _mountEl.querySelectorAll('[data-tr-del]').forEach(b =>
     b.addEventListener('click', () => removerTreino(b.dataset.trDel, b.dataset.trNome)));
+  _mountEl.querySelectorAll('[data-tr-ativo]').forEach(c =>
+    c.addEventListener('change', () => alternarAtivo(c.dataset.trAtivo, c.checked, c)));
   _mountEl.querySelectorAll('[data-tr-dup]').forEach(b =>
     b.addEventListener('click', () => duplicarEsteTreino(b.dataset.trDup, b.dataset.trNome, b)));
   _mountEl.querySelectorAll('[data-tr-lib]').forEach(b =>
     b.addEventListener('click', () => salvarTreinoNaBiblioteca(b.dataset.trLib, b.dataset.trNome, b)));
+}
+
+/**
+ * Liga e desliga um treino.
+ *
+ * `ativo` decide se o aluno vê o treino no app — o PWA lista todos os ativos
+ * (js/paciente-data.js). Não é rótulo de organização interna: é o interruptor
+ * do que aparece no celular dele.
+ *
+ * A CHAVE JÁ VIROU quando esta função roda; o navegador não espera ninguém. Se
+ * o banco recusar, ela volta à posição anterior — sem isso a tela ficaria
+ * afirmando um estado que não foi gravado, e é o tipo de mentira que só se
+ * descobre quando o aluno reclama que o treino sumiu.
+ *
+ * A lista é redesenhada no sucesso porque o aviso de "mais de um ativo" depende
+ * da contagem, e ele é metade do motivo desta funcionalidade existir.
+ */
+async function alternarAtivo(id, ativo, campo) {
+  if (campo) campo.disabled = true;
+  try {
+    await atualizarTreino(id, { ativo });
+    mostrarToast(ativo ? '✓ Treino ativado' : '✓ Treino desativado');
+    await renderLista();
+  } catch (e) {
+    if (campo) { campo.checked = !ativo; campo.disabled = false; }
+    mostrarErro('Não foi possível alterar: ' + e.message);
+  }
 }
 
 /**
@@ -1035,8 +1091,17 @@ function renderDia() {
         : itemHtml(u.a, i, unidades.length)).join('')
     : `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="inbox"></i></div>Nenhum exercício no Dia ${_diaSel} ainda.</div>`;
 
+  // Um botão só, que inverte conforme o estado: se algum bloco está aberto, a
+  // ação útil é fechar todos para enxergar a sequência inteira.
+  const algumAberto = unidades.some(u => !_recolhidos.has(u.a.id));
+  const botaoTodos = unidades.length > 1
+    ? `<button class="btn tr-recolher-todos" id="trRecolherTodos" type="button">
+         <i data-lucide="${algumAberto ? 'chevrons-down-up' : 'chevrons-up-down'}"></i>
+         ${algumAberto ? 'Recolher todos' : 'Expandir todos'}</button>`
+    : '';
+
   cont.innerHTML = `
-    <div class="tr-dia-head">Dia <em>${_diaSel}</em> — ${nEx} exercício(s)</div>
+    <div class="tr-dia-head"><span>Dia <em>${_diaSel}</em> — ${nEx} exercício(s)</span>${botaoTodos}</div>
     ${addBox}
     <div class="tr-ex-list">${linhas}</div>
   `;
@@ -1075,8 +1140,11 @@ function renderDia() {
     b.addEventListener('click', () => excluirBiset(b.dataset.bisetDel)));
   cont.querySelectorAll('[data-biset-remb]').forEach(b =>
     b.addEventListener('click', () => removerBDoBiset(b.dataset.bisetRemb)));
-  cont.querySelectorAll('[data-biset-toggle]').forEach(b =>
-    b.addEventListener('click', () => toggleRecolherBiset(b.dataset.bisetToggle)));
+  cont.querySelectorAll('[data-recolher]').forEach(b =>
+    b.addEventListener('click', () => toggleRecolher(b.dataset.recolher)));
+  document.getElementById('trRecolherTodos')
+    ?.addEventListener('click', () => recolherTodos(algumAberto));
+  ligarArrastoDosExercicios(cont);
   cont.querySelectorAll('[data-biset-trocar]').forEach(b =>
     b.addEventListener('click', () => {
       const inp = cont.querySelector(`[data-biset-b-input="${b.dataset.bisetTrocar}"]`);
@@ -1180,9 +1248,41 @@ function cadenciaPreviewHtml(cad) {
   return `${linhas}<span class="tr-cad-tec">${esc(cad.tec)}</span>`;
 }
 
+// A alça de arrastar e o botão de recolher — os mesmos no exercício e no Bi-set.
+function alcaHtml() {
+  return `<span class="tr-ex-alca" data-ex-alca title="Arraste para mudar a posição"
+    aria-hidden="true"><i data-lucide="grip-vertical"></i></span>`;
+}
+function botaoRecolherHtml(id, recolhido) {
+  return `<button class="tr-biset-toggle" data-recolher="${id}" type="button" title="${recolhido ? 'Expandir' : 'Recolher'}"
+    aria-expanded="${recolhido ? 'false' : 'true'}"><i data-lucide="${recolhido ? 'chevron-right' : 'chevron-down'}"></i></button>`;
+}
+
 function itemHtml(it, i, total) {
   const nome = it.exercicio?.nome || '(exercício)';
   const grupo = it.exercicio?.grupo_muscular ? ` · ${esc(it.exercicio.grupo_muscular)}` : '';
+  const recolhido = _recolhidos.has(it.id);
+
+  const head = `
+      <div class="tr-ex-head">
+        <div class="tr-ex-nome">
+          ${alcaHtml()}
+          ${botaoRecolherHtml(it.id, recolhido)}
+          <span class="tr-ex-num">${i + 1}</span>
+          <span class="tr-ex-titulo" ${recolhido ? `data-recolher="${it.id}"` : ''}>${esc(nome)}<span class="tr-ex-grupo">${grupo}</span></span>
+        </div>
+        <div class="tr-ex-btns">
+          ${_modo === 'paciente' && !recolhido ? `<button class="patient-action" data-item-prog="${it.id}" title="Progressão de carga"><i data-lucide="chart-line"></i></button>` : ''}
+          <button class="patient-action" data-item-up="${it.id}" ${i === 0 ? 'disabled' : ''} title="Subir"><i data-lucide="chevron-up"></i></button>
+          <button class="patient-action" data-item-down="${it.id}" ${i === total - 1 ? 'disabled' : ''} title="Descer"><i data-lucide="chevron-down"></i></button>
+          <button class="patient-action patient-action-danger" data-item-del="${it.id}" title="Remover"><i data-lucide="trash-2"></i></button>
+        </div>
+      </div>`;
+
+  if (recolhido) {
+    return `<div class="av-form-card tr-ex-card recolhido" data-bloco-idx="${i}">${head}</div>`;
+  }
+
   const mi = metodoInfo(it.metodo);
   const campos = camposHtml(it,
     ['series', 'repeticoes', 'carga', 'descanso', 'descanso_final', 'rir_modo', 'metodo']);
@@ -1197,16 +1297,8 @@ function itemHtml(it, i, total) {
       <select data-item-campo="drop_ultimas" data-item-id="${it.id}" class="np-input">${dropOps}</select></div>`;
 
   return `
-    <div class="av-form-card tr-ex-card">
-      <div class="tr-ex-head">
-        <div class="tr-ex-nome"><span class="tr-ex-num">${i + 1}</span> ${esc(nome)}<span class="tr-ex-grupo">${grupo}</span></div>
-        <div class="tr-ex-btns">
-          ${_modo === 'paciente' ? `<button class="patient-action" data-item-prog="${it.id}" title="Progressão de carga"><i data-lucide="chart-line"></i></button>` : ''}
-          <button class="patient-action" data-item-up="${it.id}" ${i === 0 ? 'disabled' : ''} title="Subir"><i data-lucide="chevron-up"></i></button>
-          <button class="patient-action" data-item-down="${it.id}" ${i === total - 1 ? 'disabled' : ''} title="Descer"><i data-lucide="chevron-down"></i></button>
-          <button class="patient-action patient-action-danger" data-item-del="${it.id}" title="Remover"><i data-lucide="trash-2"></i></button>
-        </div>
-      </div>
+    <div class="av-form-card tr-ex-card" data-bloco-idx="${i}">
+      ${head}
       <div class="av-grid tr-ex-grid">${campos}${dropCampo}</div>
       ${cadenciaHtml(it)}
       <div class="tr-metodo-desc" data-metodo-desc="${it.id}"${mi ? '' : ' style="display:none"'}>${mi ? `<i data-lucide="lightbulb"></i> <strong>${esc(mi.nome)}</strong> — ${esc(mi.desc)}` : ''}</div>
@@ -1518,7 +1610,7 @@ async function excluirBiset(anchorId) {
   try {
     if (b) await excluirItem(b.id);
     await excluirItem(a.id);
-    _bisetRecolhidos.delete(a.id);
+    _recolhidos.delete(a.id);
     _itens = await listarItensDoTreino(_treino.id);
     renderDia();
   } catch (e) { mostrarErro('Erro ao excluir: ' + e.message); }
@@ -1537,10 +1629,101 @@ async function removerBDoBiset(anchorId) {
   } catch (e) { mostrarErro('Erro: ' + e.message); }
 }
 
-function toggleRecolherBiset(anchorId) {
-  if (_bisetRecolhidos.has(anchorId)) _bisetRecolhidos.delete(anchorId);
-  else _bisetRecolhidos.add(anchorId);
+function toggleRecolher(anchorId) {
+  if (_recolhidos.has(anchorId)) _recolhidos.delete(anchorId);
+  else _recolhidos.add(anchorId);
   renderDia();
+}
+
+// Recolhe (ou expande) todos os blocos do dia de uma vez.
+function recolherTodos(recolher) {
+  for (const u of unidadesDoDia()) {
+    if (recolher) _recolhidos.add(u.a.id); else _recolhidos.delete(u.a.id);
+  }
+  renderDia();
+}
+
+// Grava a ordem depois de arrastar um bloco de `de` para `para`.
+async function moverBloco(de, para) {
+  const mudancas = reordenarBlocos(unidadesDoDia().map(u => u.a), de, para);
+  if (!mudancas.length) return;
+  try {
+    await Promise.all(mudancas.map(m => atualizarItem(m.id, { ordem: m.ordem })));
+  } catch (e) {
+    mostrarErro('Erro ao reordenar: ' + e.message);
+  }
+  // Recarrega mesmo na falha: se só parte das linhas gravou, a tela tem de
+  // mostrar a ordem que ficou no banco, e não a que se tentou gravar.
+  _itens = await listarItensDoTreino(_treino.id);
+  renderDia();
+}
+
+/**
+ * Arrastar pela ALÇA, não pelo card inteiro. O card é cheio de campos, e com
+ * `draggable` nele todo, selecionar o texto de um campo vira arrastar o
+ * exercício. A alça liga o `draggable` só enquanto está pressionada.
+ *
+ * As setas continuam: o arrasto nativo não dispara em toque, e no tablet elas
+ * são o único jeito de mudar a ordem — o mesmo motivo das abas dos dias.
+ */
+function ligarArrastoDosExercicios(cont) {
+  const cards = [...cont.querySelectorAll('[data-bloco-idx]')];
+  const limpar = () => cards.forEach(c =>
+    c.classList.remove('tr-ex-arrastando', 'tr-ex-alvo-antes', 'tr-ex-alvo-depois'));
+
+  // Antes ou depois do card sob o cursor, pela metade da altura.
+  const destino = (card, ev) => {
+    const idx = Number(card.dataset.blocoIdx);
+    const r = card.getBoundingClientRect();
+    const depois = ev.clientY > r.top + r.height / 2;
+    let para = depois ? idx + 1 : idx;
+    if (_arrastandoEx < para) para--;   // a saída do próprio bloco puxa os de baixo
+    return { para, depois };
+  };
+
+  for (const card of cards) {
+    const alca = card.querySelector('[data-ex-alca]');
+    // Solta o botão sem arrastar (dentro ou fora da alça): o card volta a não
+    // ser arrastável, senão o próximo clique-e-arrasto num campo moveria o card.
+    alca?.addEventListener('mousedown', () => {
+      card.draggable = true;
+      window.addEventListener('mouseup', () => { card.draggable = false; }, { once: true });
+    });
+
+    card.addEventListener('dragstart', (ev) => {
+      if (!card.draggable) return;
+      _arrastandoEx = Number(card.dataset.blocoIdx);
+      ev.dataTransfer.effectAllowed = 'move';
+      // Firefox só inicia o arrasto se algo for escrito no dataTransfer.
+      ev.dataTransfer.setData('text/plain', card.dataset.blocoIdx);
+      card.classList.add('tr-ex-arrastando');
+    });
+    card.addEventListener('dragend', () => {
+      card.draggable = false;
+      _arrastandoEx = null;
+      limpar();
+    });
+    card.addEventListener('dragover', (ev) => {
+      if (_arrastandoEx === null) return;
+      ev.preventDefault();                       // sem isto o drop não dispara
+      ev.dataTransfer.dropEffect = 'move';
+      const { depois } = destino(card, ev);
+      cards.forEach(c => { if (c !== card) c.classList.remove('tr-ex-alvo-antes', 'tr-ex-alvo-depois'); });
+      card.classList.toggle('tr-ex-alvo-antes', !depois);
+      card.classList.toggle('tr-ex-alvo-depois', depois);
+    });
+    card.addEventListener('dragleave', (ev) => {
+      if (!card.contains(ev.relatedTarget)) card.classList.remove('tr-ex-alvo-antes', 'tr-ex-alvo-depois');
+    });
+    card.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      if (_arrastandoEx === null) return;
+      const de = _arrastandoEx;
+      const { para } = destino(card, ev);
+      limpar();
+      moverBloco(de, para);
+    });
+  }
 }
 
 // Avisos (não bloqueiam o salvamento — os campos salvam incrementalmente).
@@ -1580,7 +1763,7 @@ function grupoResumoHtml(u) {
   const repsB = b ? (b.repeticoes || '—') : '—';
   const desc = a.descanso ? `descanso ${esc(a.descanso)}` : 'sem descanso definido';
   return `
-    <div class="tr-biset-resumo" data-biset-toggle="${a.id}">
+    <div class="tr-biset-resumo" data-recolher="${a.id}">
       <div class="tr-biset-resumo-exs">
         <span class="tr-biset-resumo-ex"><span class="tr-biset-mark sm">A</span> ${esc(nomeA)}</span>
         <i data-lucide="arrow-down" class="tr-biset-resumo-seta"></i>
@@ -1593,13 +1776,13 @@ function grupoResumoHtml(u) {
 // Card completo do Bi-set (A + conector + B + descanso do conjunto).
 function grupoCardHtml(u, i, total) {
   const { a, b } = u;
-  const recolhido = _bisetRecolhidos.has(a.id);
+  const recolhido = _recolhidos.has(a.id);
 
   const header = `
     <div class="tr-ex-head tr-biset-head">
       <div class="tr-biset-title">
-        <button class="tr-biset-toggle" data-biset-toggle="${a.id}" title="${recolhido ? 'Expandir' : 'Recolher'}"
-          aria-expanded="${recolhido ? 'false' : 'true'}"><i data-lucide="${recolhido ? 'chevron-right' : 'chevron-down'}"></i></button>
+        ${alcaHtml()}
+        ${botaoRecolherHtml(a.id, recolhido)}
         <span class="tr-biset-selo"><i data-lucide="repeat-2"></i> Bi-set</span>
         <span class="tr-ex-num">${i + 1}</span>
       </div>
@@ -1611,7 +1794,7 @@ function grupoCardHtml(u, i, total) {
     </div>`;
 
   if (recolhido) {
-    return `<div class="av-form-card tr-ex-card tr-biset-card recolhido">${header}${grupoResumoHtml(u)}</div>`;
+    return `<div class="av-form-card tr-ex-card tr-biset-card recolhido" data-bloco-idx="${i}">${header}${grupoResumoHtml(u)}</div>`;
   }
 
   const nomeA = a.exercicio?.nome || '(exercício A)';
@@ -1683,7 +1866,7 @@ function grupoCardHtml(u, i, total) {
         value="${esc(a.grupo_obs ?? '')}" data-item-campo="grupo_obs" data-item-id="${a.id}" class="np-input"></div>`;
 
   return `
-    <div class="av-form-card tr-ex-card tr-biset-card">
+    <div class="av-form-card tr-ex-card tr-biset-card" data-bloco-idx="${i}">
       ${header}
       <div class="tr-biset-desc">Dois exercícios em sequência, sem descanso entre eles.</div>
       <div class="tr-biset-avisos" data-biset-avisos="${a.id}">${avisosBisetItems(u)}</div>

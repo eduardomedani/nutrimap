@@ -440,6 +440,29 @@ export async function atualizarItem(id, dados) {
   return data;
 }
 
+/**
+ * A nova `ordem` de cada bloco depois de arrastar um deles de `de` para `para`
+ * (índices na lista do dia). Devolve só quem MUDOU: arrastar o 8º para o 7º
+ * grava duas linhas, não o dia inteiro.
+ *
+ * O índice vira a ordem, como no mover por setas — numerar de novo do zero é
+ * o que desfaz empates herdados (dois itens com ordem 0 vindos da IA ou de uma
+ * cópia), que de outra forma trocariam de lugar a cada recarga.
+ *
+ * @param {{id: string, ordem: number|null}[]} blocos  na ordem exibida
+ * @returns {{id: string, ordem: number}[]}
+ */
+export function reordenarBlocos(blocos, de, para) {
+  if (de === para || de < 0 || para < 0 || de >= blocos.length || para >= blocos.length) return [];
+  const lista = blocos.slice();
+  const [movido] = lista.splice(de, 1);
+  lista.splice(para, 0, movido);
+  return lista
+    .map((b, i) => ({ id: b.id, ordem: i, antes: b.ordem }))
+    .filter(b => b.antes !== b.ordem)
+    .map(({ id, ordem }) => ({ id, ordem }));
+}
+
 /** Exclui item. Cascade remove a progressão vinculada. */
 export async function excluirItem(id) {
   const { error } = await sb.from('treino_exercicios').delete().eq('id', id);
