@@ -150,6 +150,49 @@ export function medidaDoItem(medidas, item) {
   return { n: arredonda(gramas / g, 2), medida: nome, gramas };
 }
 
+/** Erro máximo aceito na conversão aproximada: 130 g de arroz que viram
+ *  "5 colheres de sopa" (125 g) erram 4%; acima de 20% a medida engana mais
+ *  do que ajuda, e o peso fica sozinho. */
+export const ERRO_MAXIMO_APROXIMADA = 0.2;
+
+/**
+ * A medida caseira mais próxima de um peso PRESCRITO EM GRAMAS — para o aluno
+ * que não tem balança enxergar "≈ 5 colheres de sopa" ao lado de "130 g".
+ *
+ * É LEITURA, NÃO PRESCRIÇÃO. Nada é gravado: o peso continua sendo o que o
+ * profissional prescreveu, e a medida aparece marcada como aproximada.
+ *
+ * O número vai em passos de meia medida até 4 ("1,5 colher") e de uma inteira
+ * acima disso: "7,5 colheres" é precisão que a colher não tem. Entre medidas
+ * que acertam igual, vale a contagem confortável (1 a 6) e, depois, a ordem
+ * definida para o alimento.
+ *
+ * @returns {{n: number, medida: string, gramas: number, erro: number} | null}
+ */
+export function medidaAproximada(medidas, gramas) {
+  const g = Number(gramas) || 0;
+  if (g <= 0) return null;
+
+  let melhor = null;
+  (medidas || []).forEach((m, ordem) => {
+    const mg = Number(m?.gramas) || 0;
+    if (mg <= 0 || !m.descricao) return;
+    const bruto = g / mg;
+    const passo = bruto < 4 ? 0.5 : 1;
+    const n = Math.round(bruto / passo) * passo;
+    if (n < 0.5 || n > 12) return;
+    const erro = Math.abs(n * mg - g) / g;
+    if (erro > ERRO_MAXIMO_APROXIMADA) return;
+    const nota = erro + (n > 6 ? 0.05 : 0) + (n < 1 ? 0.03 : 0) + ordem * 0.001;
+    if (!melhor || nota < melhor.nota) {
+      melhor = { n, medida: m.descricao, gramas: arredonda(n * mg, 1), erro: arredonda(erro, 3), nota };
+    }
+  });
+  if (!melhor) return null;
+  const { nota, ...saida } = melhor;
+  return saida;
+}
+
 // ───────────────────────────────────────────────────────────
 // FORMATAÇÃO (pt-BR)
 // ───────────────────────────────────────────────────────────

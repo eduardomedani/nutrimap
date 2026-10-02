@@ -135,16 +135,42 @@ export function resumoHtml(refeicoes) {
     </div>`;
 }
 
+// ───────────────────────────────────────────────────────────
+// MEDIDA CASEIRA — o botão que traduz gramas
+// ───────────────────────────────────────────────────────────
+// A escolha é do aluno e fica no aparelho dele: é preferência de leitura, não
+// dado do plano. O botão só aparece quando há o que traduzir.
+
+const CHAVE_MEDIDA = 'evollo.dieta.medidaCaseira';
+
+export function lerPreferenciaMedida() {
+  try { return localStorage.getItem(CHAVE_MEDIDA) === '1'; } catch { return false; }
+}
+function gravarPreferenciaMedida(ligada) {
+  try { localStorage.setItem(CHAVE_MEDIDA, ligada ? '1' : '0'); } catch { /* aba privada: vale só agora */ }
+}
+
+/** Algum alimento (ou alternativa) tem tradução para medida caseira? */
+export function temMedidaAproximada(refeicoes = []) {
+  return refeicoes.some(r =>
+    r.alimentos.some(a => a.aproximada)
+    || (r.alternativas || []).some(alt => alt.alimentos.some(a => a.aproximada)));
+}
+
+export function botaoMedidaHtml(ligada) {
+  return `
+    <button class="dt-medida-btn" type="button" id="dtMedida" aria-pressed="${ligada}">
+      <i data-lucide="${ligada ? 'scale' : 'utensils'}"></i>
+      <span>${ligada ? 'Ver só em gramas' : 'Ver em medida caseira'}</span>
+    </button>`;
+}
+
 export function alimentoHtml(a) {
   return `
     <li class="dt-item">
       <div class="dt-item-info">
         <div class="dt-item-nome">${esc(a.nome)}</div>
-        <div class="dt-item-porcao">
-          ${a.medida ? `<span class="dt-item-qtd">${esc(a.medida)}</span>` : ''}
-          ${a.peso ? `<span class="dt-item-peso${a.medida ? '' : ' dt-item-peso-unico'}">${
-            esc(a.peso)}</span>` : ''}
-        </div>
+        <div class="dt-item-porcao">${linhaPorcao(a)}</div>
         ${a.observacao ? `<div class="dt-item-obs">${esc(a.observacao)}</div>` : ''}
       </div>
       ${a.temSubstituicoes ? `
@@ -217,15 +243,17 @@ export function refeicaoHtml(r, estado = 'futura', aberta = false) {
  *  TODAS FECHADAS. A refeição do horário ganha destaque visual, mas continua
  *  recolhida: abrir sozinha decidiria pelo paciente o que ele quer ver, e
  *  quebraria a visão limpa da rotina inteira que é o motivo de ser accordion. */
-export function telaHtml(dieta, agora = '') {
+export function telaHtml(dieta, agora = '', medidaCaseira = false) {
   if (!dieta) return vazioHtml();
 
   const idAtual = refeicaoAtual(dieta.refeicoes, agora);
   const idProxima = proximaRefeicao(dieta.refeicoes, agora);
+  const temAprox = temMedidaAproximada(dieta.refeicoes);
   return `
-    <div class="dt">
+    <div class="dt${temAprox && medidaCaseira ? ' dt-caseira' : ''}">
       ${cabecalhoHtml(dieta.plano)}
       ${resumoHtml(dieta.refeicoes)}
+      ${temAprox ? botaoMedidaHtml(medidaCaseira) : ''}
       <div class="dt-lista">
         ${dieta.refeicoes.map(r =>
           refeicaoHtml(r, estadoDaRefeicao(r, idAtual, agora, idProxima), false)).join('')}
@@ -337,8 +365,8 @@ export async function renderDietaPaciente(alvo, opcoes = {}) {
     // Só aqui o vazio pode aparecer: antes disso não se sabe se há plano, e
     // mostrar "sua dieta está a caminho" para quem tem dieta é pior que
     // demorar meio segundo.
-    cx.innerHTML = telaHtml(dieta, opcoes.agora ?? horaAgora());
-    if (dieta) ligarAccordion(cx, dieta);
+    cx.innerHTML = telaHtml(dieta, opcoes.agora ?? horaAgora(), lerPreferenciaMedida());
+    if (dieta) { ligarAccordion(cx, dieta); ligarBotaoMedida(cx); }
   } catch (e) {
     console.error('Dieta do paciente:', e);
     cx.innerHTML = erroHtml();
@@ -416,11 +444,36 @@ function desfazerTroca(li, alimento) {
   li.querySelector('.dt-troca-nota')?.remove();
 }
 
-/** Os dois spans da porção. Existe para a troca e o desfazer redesenharem
+/**
+ * Liga o botão de medida caseira.
+ *
+ * TROCA UMA CLASSE, NÃO REDESENHA. As duas leituras já estão na marcação — a
+ * medida aproximada fica escondida até a classe `dt-caseira` aparecer. Redesenhar
+ * a tela fecharia as refeições que o aluno abriu e desfaria as substituições
+ * que ele escolheu.
+ */
+function ligarBotaoMedida(cx) {
+  const botao = cx.querySelector('#dtMedida');
+  const raiz = cx.querySelector('.dt');
+  if (!botao || !raiz) return;
+  botao.addEventListener('click', () => {
+    const ligada = !raiz.classList.contains('dt-caseira');
+    raiz.classList.toggle('dt-caseira', ligada);
+    gravarPreferenciaMedida(ligada);
+    botao.outerHTML = botaoMedidaHtml(ligada);
+    ligarBotaoMedida(cx);
+  });
+}
+
+/** Os spans da porção. Existe para a troca e o desfazer redesenharem
  *  exatamente o que `alimentoHtml` desenha — duas versões da mesma linha
- *  divergiriam na primeira mudança de estilo. */
+ *  divergiriam na primeira mudança de estilo.
+ *
+ *  A medida aproximada vai SEMPRE na marcação e o CSS decide se aparece; ver
+ *  `ligarBotaoMedida`. */
 function linhaPorcao(x) {
   return (x?.medida ? `<span class="dt-item-qtd">${esc(x.medida)}</span>` : '') +
+         (x?.aproximada ? `<span class="dt-item-qtd dt-item-aprox">${esc(x.aproximada)}</span>` : '') +
          (x?.peso ? `<span class="dt-item-peso${x.medida ? '' : ' dt-item-peso-unico'}">${
            esc(x.peso)}</span>` : '');
 }

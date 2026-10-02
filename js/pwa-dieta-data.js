@@ -24,7 +24,7 @@ import { sb } from './supabase.js';
 // painel no primeiro arredondamento — e foi exatamente o que aconteceu na
 // primeira versão desta tela, que imprimiu o multiplicador cru: "0,45" onde o
 // paciente deveria ler "45 g".
-import { medidaDoItem, fmtQtd, fmtG, MEDIDA_GRAMAS } from './dieta-calc.js';
+import { medidaDoItem, medidaAproximada, fmtQtd, fmtG, MEDIDA_GRAMAS } from './dieta-calc.js';
 
 // ───────────────────────────────────────────────────────────
 // FORMATAÇÃO pt-BR
@@ -46,6 +46,15 @@ const PLURAIS = [
   [/^filé(s)?$/i,                 'filé',                'filés'],
   [/^dente(s)?$/i,                'dente',               'dentes'],
   [/^pacote(s)?$/i,               'pacote',              'pacotes'],
+  // As medidas da carga padrão (db/food_measures_padrao.sql).
+  [/^escumadeira(s)?$/i,          'escumadeira',         'escumadeiras'],
+  [/^pegador(es)?$/i,             'pegador',             'pegadores'],
+  [/^bife(s)?$/i,                 'bife',                'bifes'],
+  [/^lata(s)?$/i,                 'lata',                'latas'],
+  [/^pote(s)?$/i,                 'pote',                'potes'],
+  [/^scoop(s)?$/i,                'scoop',               'scoops'],
+  [/^quadrado(s)?$/i,             'quadrado',            'quadrados'],
+  [/^peda[çc]o(s)?$/i,            'pedaço',              'pedaços'],
 ];
 
 /** Unidades de medida real: não pluralizam nem ganham espaço extra. */
@@ -115,6 +124,10 @@ export function pesoDaPorcao(item) {
 export function formatarPorcaoPaciente(item, medidas = []) {
   const sel = medidaDoItem(medidas, item);
   const emGramas = sel.medida === MEDIDA_GRAMAS;
+  // Só para o que foi PRESCRITO EM GRAMAS: o que já veio em medida caseira
+  // não precisa de tradução, e traduzir de novo trocaria a medida escolhida
+  // pelo profissional por outra.
+  const aprox = emGramas ? medidaAproximada(medidas, sel.gramas) : null;
 
   return {
     // `null` quando não há medida caseira: a tela decide se omite a linha, em
@@ -122,7 +135,20 @@ export function formatarPorcaoPaciente(item, medidas = []) {
     medida: emGramas ? null : porcao(sel.n, sel.medida),
     peso: sel.gramas > 0 ? `${fmtG(sel.gramas)} g` : '',
     gramas: sel.gramas,
+    // "≈ 5 colheres de sopa" — mostrada só quando o aluno pede (botão da tela).
+    aproximada: aprox ? `≈ ${porcao(aprox.n, aprox.medida)}` : null,
   };
+}
+
+/**
+ * Só as medidas que o profissional do plano enxerga: as globais (carga
+ * padrão, `nutri_id` nulo) e as dele. A policy do aluno libera TODA medida dos
+ * alimentos do plano, inclusive a "1 concha" que outro profissional cadastrou
+ * para o mesmo feijão — e o aluno veria uma medida que quem prescreveu nunca
+ * escolheu.
+ */
+export function medidasDoProfissional(medidas = [], nutriId = null) {
+  return medidas.filter(m => m.nutri_id == null || (nutriId && m.nutri_id === nutriId));
 }
 
 /** Rótulo de PESO já pronto: "45g", "200 ml", "1,5kg". O gerador de dieta
@@ -272,6 +298,7 @@ export function montarPlano({ plano, refeicoes = [], itens = [], nomes = new Map
         medida: p.medida,
         peso: p.peso,
         gramas: p.gramas,
+        aproximada: p.aproximada,
         observacao: i.observacao || null,
         substituicoes: subs,
         temSubstituicoes: subs.length > 0,
@@ -369,7 +396,7 @@ export async function carregarDieta(pacienteId = null) {
 
   const { data: planos, error: e1 } = await sb
     .from('planos_alimentares')
-    .select('id, nome, objetivo, data_inicio, data_fim, observacoes, criado_em, ativo, paciente_id')
+    .select('id, nome, objetivo, data_inicio, data_fim, observacoes, criado_em, ativo, paciente_id, nutri_id')
     .eq('paciente_id', meu)
     .eq('ativo', true)
     .order('criado_em', { ascending: false })
@@ -403,7 +430,7 @@ export async function carregarDieta(pacienteId = null) {
   // celular em rede ruim é a diferença entre abrir e desistir.
   const [nomes, medidas] = await Promise.all([
     nomesDosAlimentos(itens),
-    medidasDosAlimentos(itens),
+    medidasDosAlimentos(itens, plano.nutri_id),
   ]);
   return montarPlano({ plano, refeicoes: refeicoes || [], itens, nomes, medidas });
 }
@@ -411,18 +438,18 @@ export async function carregarDieta(pacienteId = null) {
 /** food_measures de todos os alimentos do plano, em uma consulta.
  *  Sem elas, `medidaDoItem` cai para gramas e a medida caseira some — que é
  *  justamente o que torna a porção executável para quem não tem balança. */
-async function medidasDosAlimentos(itens) {
+async function medidasDosAlimentos(itens, nutriId = null) {
   const porFood = new Map();
   const ids = [...new Set(itens.map(i => i.food_id).filter(Boolean))];
   if (!ids.length) return porFood;
 
   const { data } = await sb
     .from('food_measures')
-    .select('food_id, descricao, gramas, ordem')
+    .select('food_id, nutri_id, descricao, gramas, ordem')
     .in('food_id', ids)
     .order('ordem', { ascending: true });
 
-  for (const m of data || []) {
+  for (const m of medidasDoProfissional(data || [], nutriId)) {
     const lista = porFood.get(m.food_id) || [];
     lista.push(m);
     porFood.set(m.food_id, lista);

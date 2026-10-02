@@ -495,6 +495,28 @@ body.dt-travado { overflow: hidden; }
    cor de quem manda na linha, em vez de continuar como nota de rodapé. */
 .dt-item-peso-unico { font-size: var(--pa-fs-sub); font-weight: 700; color: var(--moss); }
 
+/* ── Medida caseira aproximada (botão "Ver em medida caseira") ──────────────
+   A tradução vai sempre na marcação e só aparece com `.dt-caseira` na raiz:
+   ligar e desligar não redesenha a tela nem fecha as refeições abertas.
+   Ligada, a medida assume a linha e o peso volta a ser conferência — o mesmo
+   papel que ele tem quando o profissional prescreve em medida caseira. */
+.dt-item-aprox { display: none; }
+.dt-caseira .dt-item-aprox { display: inline; }
+.dt-caseira .dt-item-aprox + .dt-item-peso-unico {
+  font-size: var(--pa-fs-meta); font-weight: 400; color: var(--ink-mute);
+}
+
+.dt-medida-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  align-self: flex-start;
+  min-height: 40px; padding: 8px 14px;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--bg-card, transparent); color: var(--moss);
+  font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.dt-medida-btn svg { width: 16px; height: 16px; }
+.dt-medida-btn[aria-pressed="true"] { background: var(--moss); border-color: var(--moss); color: var(--cream); }
+
 .dt-sheet-x {
   width: 40px; height: 40px; flex-shrink: 0;
   border: 1px solid var(--line); border-radius: 12px;

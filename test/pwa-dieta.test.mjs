@@ -15,7 +15,9 @@ import {
   porcao, numeroBR, hora, dataBR, ordenarRefeicoes, refeicaoAtual,
   estadoDaRefeicao, normalizarSubstituicoes, montarPlano, resumoDoDia,
   proximaRefeicao, formatarPorcaoPaciente, formatarSubstitutoPaciente, textoDaPorcao,
+  medidasDoProfissional,
 } from '../js/pwa-dieta-data.js';
+import { medidaAproximada } from '../js/dieta-calc.js';
 import { sheetHtml } from '../js/pwa-dieta-ui.js';
 import {
   telaHtml, vazioHtml, erroHtml, esqueletoHtml, refeicaoHtml, alimentoHtml,
@@ -114,7 +116,8 @@ grupo('dieta · o valor interno NUNCA chega ao paciente', () => {
   teste('o item usa a medida caseira quando ela existe', () => {
     const p = formatarPorcaoPaciente({ quantidade: 0.45, medida: 'fatia' },
                                      [{ descricao: 'fatia', gramas: 45 }]);
-    igual(p, { medida: '1 fatia', peso: '45 g', gramas: 45 });
+    igual(p, { medida: '1 fatia', peso: '45 g', gramas: 45, aproximada: null },
+      'prescrito em medida caseira não ganha tradução por cima');
     igual(textoDaPorcao(p), '1 fatia • 45 g');
   });
 
@@ -601,5 +604,82 @@ grupo('dieta · o RLS é a segunda camada, nunca a primeira', () => {
 
   teste('a casca entrega o id que já tem, para não repetir a consulta', () => {
     contem(casca, 'pacienteId: _paciente?.id');
+  });
+});
+
+// ── medida caseira aproximada (botão "Ver em medida caseira") ─────────────
+grupo('dieta · gramas traduzidas em medida caseira', () => {
+  const ARROZ = [
+    { descricao: 'colher de sopa', gramas: 25 },
+    { descricao: 'escumadeira', gramas: 90 },
+  ];
+
+  teste('130 g de arroz viram cerca de 5 colheres de sopa', () => {
+    const m = medidaAproximada(ARROZ, 130);
+    igual(m.medida, 'colher de sopa');
+    igual(m.n, 5);
+    igual(m.gramas, 125);
+  });
+
+  teste('meia medida até 4; inteira acima disso', () => {
+    igual(medidaAproximada([{ descricao: 'colher de sopa', gramas: 15 }], 22).n, 1.5);
+    igual(medidaAproximada([{ descricao: 'colher de sopa', gramas: 25 }], 190).n, 8,
+      '"7,5 colheres" é precisão que a colher não tem');
+  });
+
+  teste('longe demais de qualquer medida, não inventa', () => {
+    // 4 g de azeite numa colher de 13 g: meia colher erra 62%.
+    igual(medidaAproximada([{ descricao: 'colher de sopa', gramas: 13 }], 4), null);
+    igual(medidaAproximada([], 130), null);
+    igual(medidaAproximada(ARROZ, 0), null);
+  });
+
+  teste('a tradução só existe para o que foi prescrito em GRAMAS', () => {
+    const emGramas = formatarPorcaoPaciente({ quantidade: 1.3, medida: null }, ARROZ);
+    igual(emGramas.aproximada, '≈ 5 colheres de sopa');
+    igual(emGramas.peso, '130 g', 'o peso prescrito continua o mesmo — nada é regravado');
+    const emMedida = formatarPorcaoPaciente({ quantidade: 0.9, medida: 'escumadeira' }, ARROZ);
+    igual(emMedida.aproximada, null);
+  });
+
+  teste('o aluno só vê medidas do profissional do plano e as globais', () => {
+    const todas = [
+      { descricao: 'concha', nutri_id: null },
+      { descricao: 'concha do Eduardo', nutri_id: 'eduardo' },
+      { descricao: 'concha de outro nutri', nutri_id: 'outro' },
+    ];
+    igual(medidasDoProfissional(todas, 'eduardo').map(m => m.descricao),
+      ['concha', 'concha do Eduardo']);
+  });
+
+  teste('o botão só aparece quando há o que traduzir', () => {
+    const comArroz = montarPlano({
+      plano: PLANO,
+      refeicoes: [{ id: 'r1', nome: 'Almoço', horario: '12:00:00', ordem: 0 }],
+      itens: [{ id: 'i1', refeicao_id: 'r1', food_id: 'arroz', quantidade: 1.3, medida: null }],
+      nomes: new Map([['arroz', 'Arroz']]),
+      medidas: new Map([['arroz', ARROZ]]),
+    });
+    contem(telaHtml(comArroz, '10:00'), 'id="dtMedida"');
+    contem(telaHtml(comArroz, '10:00'), '≈ 5 colheres de sopa',
+      'a tradução vai na marcação; o CSS decide se aparece');
+    naoContem(telaHtml(comArroz, '10:00'), 'class="dt dt-caseira"');
+    contem(telaHtml(comArroz, '10:00', true), 'class="dt dt-caseira"');
+
+    const semMedida = montarPlano({
+      plano: PLANO,
+      refeicoes: [{ id: 'r1', nome: 'Almoço', horario: '12:00:00', ordem: 0 }],
+      itens: [{ id: 'i1', refeicao_id: 'r1', food_id: 'x', quantidade: 1, medida: null }],
+      nomes: new Map([['x', 'Alimento']]),
+    });
+    naoContem(telaHtml(semMedida, '10:00', true), 'id="dtMedida"');
+    naoContem(telaHtml(semMedida, '10:00', true), 'dt-caseira');
+  });
+
+  teste('as medidas da carga padrão pluralizam', () => {
+    igual(porcao(2, 'escumadeira'), '2 escumadeiras');
+    igual(porcao(1, 'bife'), '1 bife');
+    igual(porcao(2, 'scoop'), '2 scoops');
+    igual(porcao(1.5, 'pote'), '1,5 potes');
   });
 });
