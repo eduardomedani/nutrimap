@@ -72,14 +72,10 @@ export function calcularBonus(presencas = [], pessoas = [], {
   let semDono = 0, semPlano = 0, divididas = 0, comDesconto = 0;
 
   for (const v of visitas(presencas)) {
-    // DESCONTO ALTO NÃO GERA BÔNUS, a mesma régua do bônus por aluno ativo
-    // (`DESCONTO_MAXIMO`, hoje 10%). Quem decide é quem chama: aqui só se sabe
-    // o nome que veio na planilha, e o desconto mora na assinatura.
-    //
-    // Sem a lista, ninguém é barrado. É de propósito: se a consulta ao banco
-    // falhar, o mês fecha pagando a mais — que se corrige — em vez de fechar
-    // pagando zero para todo mundo, que ninguém percebe até o estagiário
-    // reclamar.
+    // FILTRO OPCIONAL DE ALUNO. Quem decide é quem chama: aqui só se sabe o
+    // nome que veio na planilha. A folha NÃO passa filtro desde 02/10/2026 —
+    // o teto de desconto ficou só no bônus por aluno ativo, e aqui toda
+    // presença conta. Sem filtro, ninguém é barrado.
     if (alunoElegivel && !alunoElegivel(v.cliente)) { comDesconto++; continue; }
 
     const pct = pctDoAluno.get(v.cliente);

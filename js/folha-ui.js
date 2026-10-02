@@ -21,7 +21,6 @@ import {
   traduzirErroFolha, traduzirErroLancamento,
   lancarFolhaNoFinanceiro, descricaoDespesaDaFolha,
   alunosPorTurno, diaDaContagem, mesTrabalhado, TURNOS_COM_BONUS, rotuloDoBonus, turnoDoBonus, valorDoBonus,
-  alunosDoBonus, nomeParaBusca,
   DESCONTO_MAXIMO,
   BONUS_POR_ALUNO,
 } from './folha.js';
@@ -1307,23 +1306,14 @@ async function recalcularBonusDePresenca() {
     };
     const [fPres, fPonto] = await Promise.all([baixar(presencas), baixar(ponto)]);
 
-    // QUEM TEM DESCONTO DEMAIS NÃO GERA BÔNUS — a mesma régua do bônus por
-    // aluno ativo. A lista vem do banco porque o desconto mora na assinatura, e
-    // as duas planilhas não sabem nada sobre contrato.
-    //
-    // Falhar aqui devolve `null`, e `null` significa "não barre ninguém". É
-    // deliberado: sem a lista, o mês fecha pagando a mais — erro que aparece na
-    // conferência e se corrige — em vez de fechar pagando zero para todo mundo,
-    // que só se descobre quando o estagiário reclama.
-    const elegiveis = await alunosDoBonus(_folha.competencia).catch(() => null);
-
+    // DESCONTO NÃO BARRA A PRESENÇA. Decidido em 02/10/2026: o teto de 10% de
+    // desconto vale só para o bônus por aluno ativo (Diurno/Noturno). Aqui toda
+    // presença conta — o que se paga é o atendimento na sala, e o aluno com
+    // desconto dá o mesmo trabalho. De 05/09 a 02/10 a régua valia para os dois.
     _bonus = calcularBonus(
       lerPresencas(await lerPrimeiraAba(fPres)),
       await lerEspelhoDePonto(fPonto),
-      {
-        ate: diaDaContagem(_folha.competencia),
-        alunoElegivel: elegiveis ? (nome => elegiveis.has(nomeParaBusca(nome))) : null,
-      },
+      { ate: diaDaContagem(_folha.competencia) },
     );
   } catch (e) {
     // Falhar aqui não pode derrubar a folha: sem o bônus a tela continua

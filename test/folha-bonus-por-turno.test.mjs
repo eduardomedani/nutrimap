@@ -41,24 +41,14 @@ grupo('bônus por turno · a conta', () => {
            'p_desconto_maximo: DESCONTO_MAXIMO');
   });
 
-  teste('O MESMO TETO VALE PARA OS DOIS BÔNUS', () => {
-    // Ate 05/09/2026 so o bonus POR ALUNO olhava desconto; o de PRESENCA
-    // pagava por qualquer um que entrasse na sala, cortesia inclusive. Duas
-    // reguas para a mesma pergunta, e so uma respondendo.
-    const folha = readFileSync(new URL('../js/folha.js', import.meta.url), 'utf8');
+  teste('O TETO DE DESCONTO NÃO BARRA O BÔNUS POR PRESENÇA', () => {
+    // De 05/09 a 02/10/2026 a mesma regua valia para os dois bonus. Em
+    // 02/10 ficou decidido: o teto e so do bonus por aluno ativo; no de
+    // presenca, toda presenca conta. Se o corte voltar por engano, o bonus
+    // de setembro cai de novo sem nada na tela explicar.
     const ui = readFileSync(new URL('../js/folha-ui.js', import.meta.url), 'utf8');
-    // As duas RPCs recebem o MESMO valor, e na MESMA data de corte.
-    igual((folha.match(/p_desconto_maximo: DESCONTO_MAXIMO/g) || []).length, 2);
-    igual((folha.match(/p_ref: diaDaContagem\(competencia\)/g) || []).length, 2);
-    contem(ui, 'alunoElegivel:');
-  });
-
-  teste('sem a lista do banco, NINGUÉM é barrado', () => {
-    // Falhar fechando a folha com bonus zerado para todo mundo e pior que
-    // fechar pagando a mais: o excesso aparece na conferencia, a falta so
-    // aparece quando o estagiario reclama.
-    contem(readFileSync(new URL('../js/folha-ui.js', import.meta.url), 'utf8'),
-           'alunosDoBonus(_folha.competencia).catch(() => null)');
+    naoContem(ui, 'alunoElegivel:');
+    naoContem(ui, 'alunosDoBonus(');
   });
 
   teste('zero alunos vale zero — é resposta', () => {
