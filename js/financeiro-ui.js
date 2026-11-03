@@ -31,6 +31,7 @@ import {
   somar, porCategoria, porAno, pendencias, serieAnual, totaisDoAno, anosDisponiveis,
   fluxoDeCaixa, forasDoFluxo, separarFolha, recorteFinanceiro, contaNoTotal,
   linhasDeCaixa, folhaDeCaixa, serieDeCaixa, paginaDaLista, rolarParaInicio,
+  datasDoLancamento,
   anoDa, dataBR, formatarBRL, nomeCompetencia, valorDeTexto, SEM_CATEGORIA,
 } from './financeiro.js';
 import {
@@ -1039,7 +1040,7 @@ function desenharLista() {
       <table class="fp-tabela fx-tabela">
         <thead>
           <tr>
-            <th class="fx-c">Data</th><th>Descrição</th><th class="fx-c">Categoria</th>
+            <th class="fx-c">Pagamento ou vencimento</th><th>Descrição</th><th class="fx-c">Categoria</th>
             <th class="fx-c">Valor</th><th class="fx-c">Pago</th><th></th>
           </tr>
         </thead>
@@ -1091,6 +1092,18 @@ function desenharLista() {
     b.addEventListener('click', () => apagar(b.dataset.lancExcluir)));
 }
 
+/** A data principal, com o que ela significa, e as outras em letra menor. */
+function datasHtml(l) {
+  const { principal, apoio } = datasDoLancamento(l);
+  return `
+    <div class="fx-datas">
+      <span class="fx-data-rot">${esc(principal.rotulo)}</span>
+      ${principal.data ? `<strong class="fx-data-val">${esc(dataBR(principal.data))}</strong>` : ''}
+      ${apoio.map(a => `<span class="fx-data-apoio">${esc(a.rotulo)} ${esc(a.texto || dataBR(a.data))}${
+        a.nota ? ` · ${esc(a.nota)}` : ''}</span>`).join('')}
+    </div>`;
+}
+
 function linhaHtml(l) {
   const semValor = l.valor === null || l.valor === undefined;
   const cats = _cache.categorias.filter(c => c.tipo === l.tipo);
@@ -1099,7 +1112,7 @@ function linhaHtml(l) {
   return `
     <tr${classes} data-editar="${l.id}" tabindex="0" role="button"
         aria-label="Abrir ${esc(l.descricao)} para editar ou dar baixa">
-      <td class="fp-data fx-c" data-rot="Data">${esc(dataBR(l.data))}</td>
+      <td class="fp-data fx-c" data-rot="Datas">${datasHtml(l)}</td>
       <td data-rot="Descrição">
         ${esc(l.descricao)}
         ${l.observacoes ? `<div class="fp-nome-sub">${esc(l.observacoes)}</div>` : ''}

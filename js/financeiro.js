@@ -558,6 +558,48 @@ export function dataBR(iso) {
 }
 
 /**
+ * As datas que uma linha da aba Receitas mostra. Só apresentação: não muda nenhuma conta.
+ *
+ * `data` NÃO é a data do pagamento: numa cobrança ela é o vencimento, que costuma ficar
+ * 30 dias depois. Mostrada sob o título "Data", ela fazia um pix de outubro parecer
+ * receita de novembro. Por isso a data principal depende da situação:
+ *
+ *   pago       -> quando o dinheiro entrou (`pago_em`)
+ *   em aberto  -> quando deve entrar (`vencimento`)
+ *   cancelado  -> nunca "pago em", mesmo que a linha guarde um `pago_em` antigo
+ *
+ * Arquivado leva o aviso no rótulo: é duplicata ou desfeito, e não dinheiro que entrou.
+ */
+export function datasDoLancamento(l) {
+  const status = l?.status || (l?.pago ? 'pago' : 'pendente');
+  const prefixo = l?.arquivado_em ? 'Arquivado · ' : '';
+  const apoio = [];
+  let principal;
+
+  if (status === 'pago') {
+    principal = l?.pago_em
+      ? { rotulo: `${prefixo}Pago em`, data: l.pago_em }
+      : { rotulo: `${prefixo}Pago, sem data informada`, data: null };
+    if (l?.vencimento) {
+      const depois = l.pago_em && String(l.pago_em).slice(0, 10) > String(l.vencimento).slice(0, 10);
+      apoio.push({ rotulo: depois ? 'Venceu em' : 'Vencimento', data: l.vencimento, nota: depois ? 'pago depois' : '' });
+    }
+  } else {
+    const inicio = status === 'cancelado' ? 'Cancelado · ' : prefixo;
+    principal = l?.vencimento
+      ? { rotulo: `${inicio}Vencimento`, data: l.vencimento }
+      : { rotulo: `${inicio}Sem vencimento`, data: null };
+    // Sem vencimento, a data do registro é o único marco que resta para localizar a linha.
+    if (!l?.vencimento && l?.data) apoio.push({ rotulo: 'Registrado em', data: l.data });
+  }
+
+  const comp = /^(\d{4})-(\d{2})/.exec(String(l?.competencia || ''));
+  if (comp) apoio.push({ rotulo: 'Competência', texto: `${comp[2]}/${comp[1]}` });
+
+  return { principal, apoio };
+}
+
+/**
  * Hoje em 'YYYY-MM-DD' pelo relógio LOCAL.
  *
  * `toISOString()` devolve UTC: entre 21h e meia-noite no horário de Brasília

@@ -10,7 +10,8 @@ import { grupo, teste, ok, igual, contem } from './runner.mjs';
 import { rpc, tabela, limpar, chamadas } from './duble-supabase.mjs';
 import { limparPermissoes, carregarPermissoes } from '../js/permissoes.js';
 import { initFinanceiroUI, abrirSecao } from '../js/financeiro-ui.js';
-import { rolarParaInicio, serieDeCaixa, serieAnual } from '../js/financeiro.js';
+import { rolarParaInicio, serieDeCaixa, serieAnual, datasDoLancamento,
+  linhasDeCaixa, recorteFinanceiro, somar } from '../js/financeiro.js';
 import { graficoReceitaDespesa, tamanhoDoGrafico } from '../js/financeiro-grafico.js';
 
 const INDEX = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
@@ -181,6 +182,97 @@ grupo('financeiro · gráfico em tela pequena', () => {
 
   teste('largura mínima para os doze meses caberem', () => {
     igual(tamanhoDoGrafico(200).largura, 280);
+  });
+});
+
+grupo('financeiro · as datas da aba Receitas', () => {
+  // O caso real que motivou a mudança: o pix de outubro aparecia como 25/11.
+  const FERNANDA = {
+    id: 'f', tipo: 'receita', status: 'pago', pago: true, valor: 385,
+    pago_em: '2026-10-26', vencimento: '2026-11-25', data: '2026-11-25', competencia: '2026-09-01',
+  };
+
+  teste('pago: a data principal é a do pagamento, não o vencimento', () => {
+    const { principal, apoio } = datasDoLancamento(FERNANDA);
+    igual(principal, { rotulo: 'Pago em', data: '2026-10-26' });
+    igual(apoio[0].rotulo, 'Vencimento');
+    igual(apoio[0].data, '2026-11-25');
+    igual(apoio[1], { rotulo: 'Competência', texto: '09/2026' });
+  });
+
+  teste('a mudança é só visual: a Fernanda continua no caixa de outubro', () => {
+    const out = recorteFinanceiro([FERNANDA], [], { criterio: 'caixa', mes: '2026-10-01' });
+    igual(somar(out.linhas), 385);
+    igual(linhasDeCaixa([FERNANDA])[0].competencia, '2026-10-01');
+    const nov = recorteFinanceiro([FERNANDA], [], { criterio: 'caixa', mes: '2026-11-01' });
+    igual(somar(nov.linhas), 385, 'novembro não existe nesse critério: o recorte volta a todos');
+    igual(nov.mes, '');
+  });
+
+  teste('a função não altera o lançamento', () => {
+    const copia = { ...FERNANDA };
+    datasDoLancamento(FERNANDA);
+    igual(FERNANDA, copia);
+  });
+
+  teste('em aberto: a data principal é o vencimento', () => {
+    const { principal, apoio } = datasDoLancamento({ status: 'pendente', vencimento: '2026-12-10', competencia: '2026-11-01' });
+    igual(principal, { rotulo: 'Vencimento', data: '2026-12-10' });
+    igual(apoio.map(a => a.rotulo), ['Competência']);
+  });
+
+  teste('em aberto sem vencimento não inventa data, e mostra o registro', () => {
+    const { principal, apoio } = datasDoLancamento({ status: 'pendente', data: '2024-03-15', competencia: '2024-03-01' });
+    igual(principal, { rotulo: 'Sem vencimento', data: null });
+    igual(apoio[0], { rotulo: 'Registrado em', data: '2024-03-15' });
+  });
+
+  teste('cancelado nunca aparece como "Pago em"', () => {
+    const { principal } = datasDoLancamento({ status: 'cancelado', pago_em: '2026-10-09', vencimento: '2026-11-11' });
+    igual(principal, { rotulo: 'Cancelado · Vencimento', data: '2026-11-11' });
+  });
+
+  teste('cancelado sem vencimento', () => {
+    igual(datasDoLancamento({ status: 'cancelado' }).principal, { rotulo: 'Cancelado · Sem vencimento', data: null });
+  });
+
+  teste('arquivado leva o aviso no rótulo', () => {
+    const { principal } = datasDoLancamento({ ...FERNANDA, arquivado_em: '2026-11-03T18:48:00Z' });
+    igual(principal, { rotulo: 'Arquivado · Pago em', data: '2026-10-26' });
+    igual(datasDoLancamento({ status: 'pendente', vencimento: '2026-12-01', arquivado_em: 'x' }).principal.rotulo,
+      'Arquivado · Vencimento');
+  });
+
+  teste('pago depois do vencimento fica identificado', () => {
+    const { apoio } = datasDoLancamento({ status: 'pago', pago_em: '2026-08-10', vencimento: '2026-08-09' });
+    igual(apoio[0], { rotulo: 'Venceu em', data: '2026-08-09', nota: 'pago depois' });
+  });
+
+  teste('pago no dia ou antes do vencimento não leva a nota', () => {
+    for (const pago_em of ['2026-08-09', '2026-08-01']) {
+      igual(datasDoLancamento({ status: 'pago', pago_em, vencimento: '2026-08-09' }).apoio[0].nota, '');
+    }
+  });
+
+  teste('pago sem data não inventa uma', () => {
+    igual(datasDoLancamento({ status: 'pago', data: '2024-01-01' }).principal, { rotulo: 'Pago, sem data informada', data: null });
+  });
+
+  teste('linha sem `status` segue o booleano, como no resto do módulo', () => {
+    igual(datasDoLancamento({ pago: true, pago_em: '2024-05-01' }).principal.rotulo, 'Pago em');
+    igual(datasDoLancamento({ pago: false, vencimento: '2024-05-01' }).principal.rotulo, 'Vencimento');
+  });
+
+  teste('o título genérico "Data" saiu da aba Receitas', () => {
+    contem(UI, 'Pagamento ou vencimento');
+    ok(!UI.includes('<th class="fx-c">Data</th>'));
+    ok(!UI.includes('data-rot="Data"'));
+  });
+
+  teste('a lista mantém a ordem de produção, e o total sai da lista inteira', () => {
+    contem(UI, 'const total = somar(lista);');
+    contem(UI, 'paginaDaLista(lista, _paginaLista)');
+    ok(!UI.includes('ordenarPorDataExibida'), 'a ordem continua a de listarLancamentos');
   });
 });
 
