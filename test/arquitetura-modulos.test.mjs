@@ -500,7 +500,7 @@ grupo('arquitetura · Documentos separa estado de leitura', () => {
 grupo('arquitetura · navegação ativa e ícones', () => {
   teste('os dois itens do menu usam ícones distintos', () => {
     const icone = (pagina) => new RegExp(
-      `data-page="${pagina}"><span class="nav-icon"><i data-lucide="([\\w-]+)"`).exec(index)?.[1];
+      `data-page="${pagina}"[^>]*><span class="nav-icon"><i data-lucide="([\\w-]+)"`).exec(index)?.[1];
     const fin = icone('financeiro');
     const eq = icone('equipe');
     const cli = icone('pacientes');

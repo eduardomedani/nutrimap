@@ -218,7 +218,7 @@ grupo('gráfico · a altura da barra significa o valor', () => {
     // mostrar: qual dos dois é maior.
     const { barras } = graficoReceitaDespesa(MESES);
     const fev = barras[1];
-    ok(Math.abs(fev.receita.altura - fev.custo.altura) < 0.05,
+    ok(Math.abs(fev.barraReceita.altura - fev.barraCusto.altura) < 0.05,
        'receita 600 e custo 600 têm que desenhar a mesma altura');
   });
 
@@ -230,8 +230,8 @@ grupo('gráfico · a altura da barra significa o valor', () => {
   teste('receita à esquerda, custo à direita, sem sobrepor', () => {
     const { barras } = graficoReceitaDespesa(MESES);
     const jan = barras[0];
-    ok(jan.receita.x + jan.largura <= jan.custo.x, 'as duas barras do mês se sobrepõem');
-    ok(jan.receita.x < jan.centro && jan.custo.x >= jan.centro, 'as barras não ladeiam o centro do mês');
+    ok(jan.barraReceita.x + jan.largura <= jan.barraCusto.x, 'as duas barras do mês se sobrepõem');
+    ok(jan.barraReceita.x < jan.centro && jan.barraCusto.x >= jan.centro, 'as barras não ladeiam o centro do mês');
   });
 
   teste('a despesa é empilhada: o segmento da folha fica por cima', () => {
@@ -240,7 +240,7 @@ grupo('gráfico · a altura da barra significa o valor', () => {
     contem(svg, 'fg-folha');
     // Uma barra só de "despesa" apagaria de onde cada pedaço veio.
     const { barras } = graficoReceitaDespesa(MESES);
-    ok(barras[0].custo.altura > 0);
+    ok(barras[0].barraCusto.altura > 0);
   });
 
   teste('mês zerado não desenha retângulo', () => {

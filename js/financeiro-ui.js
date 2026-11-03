@@ -30,12 +30,14 @@ import {
   salvarLancamento, criarLancamento, excluirLancamento, fundirCategorias,
   somar, porCategoria, porAno, pendencias, serieAnual, totaisDoAno, anosDisponiveis,
   fluxoDeCaixa, forasDoFluxo, separarFolha, recorteFinanceiro, contaNoTotal,
-  linhasDeCaixa, folhaDeCaixa, serieDeCaixa, paginaDaLista,
+  linhasDeCaixa, folhaDeCaixa, serieDeCaixa, paginaDaLista, rolarParaInicio,
   anoDa, dataBR, formatarBRL, nomeCompetencia, valorDeTexto, SEM_CATEGORIA,
 } from './financeiro.js';
 import {
   graficoReceitaDespesa, legendaHtml, seriesDoCriterio, graficoFluxo, legendaFluxoHtml, SERIES, brl,
+  tamanhoDoGrafico,
 } from './financeiro-grafico.js';
+import { carregarPermissoes, pode } from './permissoes.js';
 
 const SECOES = [
   { id: 'visao-geral', rotulo: 'Visão geral', icone: 'layout-dashboard',
@@ -90,6 +92,17 @@ const _filtro = { ano: '', categoria: '', busca: '', pendencia: '' };
 
 export { SECOES };
 
+/** Conforto, não segurança: quem barra de verdade é a RLS (ver js/permissoes.js).
+ *  Existe porque ela devolve as cobranças a quem tem `comercial.visualizar`, e a
+ *  tela somaria essas linhas como se fossem o caixa da empresa. */
+const PERMISSAO_DO_MODULO = 'financeiro.visualizar';
+
+const BLOQUEADO_HTML = `
+  <div class="us-bloqueado"><i data-lucide="lock"></i>
+    <h2>Você não tem acesso a esta área.</h2>
+    <p>Fale com o proprietário da conta se precisar deste módulo.</p>
+  </div>`;
+
 export async function initFinanceiroUI(secao = 'visao-geral', opcoes = {}) {
   _aoAbrirEquipe = opcoes.aoAbrirEquipe || null;
   _cache = null;
@@ -98,6 +111,15 @@ export async function initFinanceiroUI(secao = 'visao-geral', opcoes = {}) {
 
   const page = document.getElementById('page-financeiro');
   if (!page) return;
+
+  // Antes de qualquer leitura: o dado não pode passar pela rede para depois ser
+  // escondido. A rota já barra; esta trava cobre quem chamar o módulo por outro lado.
+  await carregarPermissoes();
+  if (!pode(PERMISSAO_DO_MODULO)) {
+    page.innerHTML = BLOQUEADO_HTML;
+    window.renderIcons?.();
+    return;
+  }
 
   const alvo = SECOES.find(s => s.id === secao) || SECOES[0];
 
@@ -153,6 +175,14 @@ async function montarSecao(id) {
 
   const miolo = document.getElementById(MIOLO);
   if (!miolo) return;
+
+  // Troca de aba também passa aqui, inclusive depois que a sessão mudou.
+  if (!pode(PERMISSAO_DO_MODULO)) {
+    _cache = null;
+    miolo.innerHTML = BLOQUEADO_HTML;
+    window.renderIcons?.();
+    return;
+  }
 
   if (id === 'visao-geral')  { await montarVisaoGeral(miolo); return; }
   if (id === 'despesas')     { await montarDespesas(miolo, 'despesas'); return; }
@@ -396,7 +426,8 @@ function desenharGrafico() {
     ? serieDeCaixa(_cache.lancamentos, _cache.folha, _anoGrafico)
     : serieAnual(_cache.lancamentos, _cache.folha, _anoGrafico);
   const t = totaisDoAno(meses);
-  const { svg, barras } = graficoReceitaDespesa(meses);
+  const { svg, barras } = graficoReceitaDespesa(meses, tamanhoDoGrafico(larguraUtil(bloco)));
+  vigiarLarguraDosGraficos();
 
   bloco.innerHTML = `
     <div class="fx-bloco-topo">
@@ -444,18 +475,82 @@ function desenharGrafico() {
   ligarHoverGrafico(barras);
 }
 
-/** O alvo do hover é a faixa inteira do mês, não o retângulo da barra: um mês
- *  de valor baixo tem barra de 3px e mirar nela é impossível. */
+/** A largura de dentro do bloco, sem o respiro: é nela que o SVG vai caber. */
+function larguraUtil(el) {
+  const s = getComputedStyle(el);
+  return el.clientWidth - (parseFloat(s.paddingLeft) || 0) - (parseFloat(s.paddingRight) || 0);
+}
+
+/** Girar o celular muda a largura e o gráfico tem que ser redesenhado para ela.
+ *  Só redesenha se a largura mudou mesmo: em celular a barra de endereço some ao
+ *  rolar e dispara `resize`, e redesenhar ali fecharia o balão sem motivo. */
+let _vigiandoLargura = false;
+let _larguraVista = null;
+function vigiarLarguraDosGraficos() {
+  _larguraVista = window.innerWidth;
+  if (_vigiandoLargura) return;
+  _vigiandoLargura = true;
+  window.addEventListener('resize', debounce(() => {
+    if (window.innerWidth === _larguraVista) return;
+    _larguraVista = window.innerWidth;
+    if (document.getElementById('fxGraficoBloco')) desenharGrafico();
+    if (document.getElementById('fxFluxoBloco')) desenharFluxo();
+  }, 200));
+}
+
+/**
+ * O balão dos dois gráficos. O alvo é a faixa inteira do mês, não o retângulo da
+ * barra: um mês de valor baixo tem barra de 3px e mirar nela é impossível.
+ *
+ * MOUSE E TOQUE SÃO CAMINHOS DIFERENTES. O toque não tem `mousemove` confiável nem
+ * `mouseleave`: abre pelo `click` e fecha tocando fora do gráfico. O ouvinte fica
+ * no documento, então cada desenho troca o anterior em vez de acumular.
+ */
+let _fecharBalaoAoTocarFora = null;
+function ligarBalao(plot, tip, conteudoDoMes) {
+  const mostrar = (i, evento) => {
+    const html = conteudoDoMes(i);
+    if (!html) return;
+    tip.innerHTML = html;
+    tip.hidden = false;
+
+    const caixa = plot.getBoundingClientRect();
+    const x = evento.clientX - caixa.left;
+    // Perto da borda direita o balão vira para a esquerda, senão sai da tela.
+    const largura = tip.offsetWidth || 200;
+    tip.style.left = `${Math.max(8, Math.min(x + 14, caixa.width - largura - 8))}px`;
+    tip.style.top = `${Math.max(8, evento.clientY - caixa.top - 12)}px`;
+  };
+
+  const meses = [...plot.querySelectorAll('[data-fg-mes]')];
+  const fechar = () => { meses.forEach(g => g.classList.remove('on')); tip.hidden = true; };
+
+  meses.forEach(g => {
+    const i = Number(g.dataset.fgMes);
+    g.addEventListener('mousemove', e => { g.classList.add('on'); mostrar(i, e); });
+    g.addEventListener('mouseleave', fechar);
+    g.addEventListener('click', e => {
+      meses.forEach(o => o.classList.toggle('on', o === g));
+      mostrar(i, e);
+    });
+  });
+  plot.addEventListener('mouseleave', fechar);
+
+  if (_fecharBalaoAoTocarFora) document.removeEventListener('click', _fecharBalaoAoTocarFora);
+  _fecharBalaoAoTocarFora = e => { if (!e.target?.closest?.('[data-fg-mes]')) fechar(); };
+  document.addEventListener('click', _fecharBalaoAoTocarFora);
+}
+
 function ligarHoverGrafico(barras) {
   const plot = document.getElementById('fxPlot');
   const tip = document.getElementById('fxTip');
   if (!plot || !tip) return;
 
-  const mostrar = (i, evento) => {
+  ligarBalao(plot, tip, i => {
     const m = barras[i];
-    if (!m) return;
+    if (!m) return '';
     const series = seriesDoCriterio(_criterio);
-    tip.innerHTML = `
+    return `
       <div class="rs-tip-tit">${esc(nomeCompetencia(m.competencia))}</div>
       <div class="rs-tip-linha"><i style="background:${series[0].cor}"></i>
         ${esc(series[0].rotulo)}<b>${esc(brl(m.receita))}</b></div>
@@ -464,22 +559,7 @@ function ligarHoverGrafico(barras) {
       <div class="rs-tip-linha"><i style="background:${series[2].cor}"></i>
         ${esc(series[2].rotulo)}<b>${esc(brl(m.folha))}</b></div>
       <div class="rs-tip-total">Resultado<b>${esc(brl(m.resultado))}</b></div>`;
-    tip.hidden = false;
-
-    const caixa = plot.getBoundingClientRect();
-    const x = evento.clientX - caixa.left;
-    // Perto da borda direita o balão vira para a esquerda, senão sai da tela.
-    const largura = tip.offsetWidth || 200;
-    tip.style.left = `${Math.min(Math.max(8, x + 14), caixa.width - largura - 8)}px`;
-    tip.style.top = `${Math.max(8, evento.clientY - caixa.top - 12)}px`;
-  };
-
-  plot.querySelectorAll('[data-fg-mes]').forEach(g => {
-    const i = Number(g.dataset.fgMes);
-    g.addEventListener('mousemove', e => { g.classList.add('on'); mostrar(i, e); });
-    g.addEventListener('mouseleave', () => { g.classList.remove('on'); tip.hidden = true; });
   });
-  plot.addEventListener('mouseleave', () => { tip.hidden = true; });
 }
 
 /**
@@ -613,7 +693,8 @@ function desenharFluxo() {
 
   const meses = fluxoDeCaixa(_cache.lancamentos, _cache.folha, _anoFluxo);
   const fora = forasDoFluxo(_cache.lancamentos);
-  const { svg, barras } = graficoFluxo(meses);
+  const { svg, barras } = graficoFluxo(meses, tamanhoDoGrafico(larguraUtil(bloco)));
+  vigiarLarguraDosGraficos();
 
   const entrou = somarCampo(meses, 'entrou');
   const saiu = somarCampo(meses, 'saiu');
@@ -731,10 +812,10 @@ function ligarHoverFluxo(barras) {
   const tip = document.getElementById('fxFluxoTip');
   if (!plot || !tip) return;
 
-  const mostrar = (i, evento) => {
+  ligarBalao(plot, tip, i => {
     const m = barras[i];
-    if (!m) return;
-    tip.innerHTML = `
+    if (!m) return '';
+    return `
       <div class="rs-tip-tit">${esc(nomeCompetencia(m.competencia))}</div>
       <div class="rs-tip-linha"><i style="background:${SERIES[0].cor}"></i>
         Entrou<b>${esc(brl(m.entrou))}</b></div>
@@ -745,21 +826,7 @@ function ligarHoverFluxo(barras) {
       <div class="rs-tip-total">Saldo<b>${esc(brl(m.saldo))}</b></div>
       <div class="rs-tip-pe">Acumulado ${esc(brl(m.acumulado))}${
         m.aPagar || m.aReceber ? ` · em aberto ${esc(brl(m.aReceber - m.aPagar))}` : ''}</div>`;
-    tip.hidden = false;
-
-    const caixa = plot.getBoundingClientRect();
-    const x = evento.clientX - caixa.left;
-    const largura = tip.offsetWidth || 200;
-    tip.style.left = `${Math.min(Math.max(8, x + 14), caixa.width - largura - 8)}px`;
-    tip.style.top = `${Math.max(8, evento.clientY - caixa.top - 12)}px`;
-  };
-
-  plot.querySelectorAll('[data-fg-mes]').forEach(g => {
-    const i = Number(g.dataset.fgMes);
-    g.addEventListener('mousemove', e => { g.classList.add('on'); mostrar(i, e); });
-    g.addEventListener('mouseleave', () => { g.classList.remove('on'); tip.hidden = true; });
   });
-  plot.addEventListener('mouseleave', () => { tip.hidden = true; });
 }
 
 // ───────────────────────────────────────────────────────────
@@ -995,8 +1062,9 @@ function desenharLista() {
 
   ligarLimparPendencia();
 
-  alvo.querySelector('#fxPagAnt')?.addEventListener('click', () => { _paginaLista--; desenharLista(); });
-  alvo.querySelector('#fxPagProx')?.addEventListener('click', () => { _paginaLista++; desenharLista(); });
+  const trocarPagina = delta => { _paginaLista += delta; desenharLista(); rolarParaInicio(alvo); };
+  alvo.querySelector('#fxPagAnt')?.addEventListener('click', () => trocarPagina(-1));
+  alvo.querySelector('#fxPagProx')?.addEventListener('click', () => trocarPagina(1));
 
   // A LINHA INTEIRA ABRE O LANÇAMENTO — é como se dá baixa: abrir, mudar a
   // situação para Recebido e informar a data. Os controles de dentro (o select

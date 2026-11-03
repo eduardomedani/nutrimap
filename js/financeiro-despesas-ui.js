@@ -15,7 +15,7 @@
 import {
   listarLancamentos, listarCategorias, listarCentrosCusto,
   marcarComoPaga, cancelarDespesa, excluirLancamento,
-  somar, pendencias, contasAPagar, contaNoTotal, ehDespesaDeFolha,
+  somar, pendencias, contasAPagar, contaNoTotal, ehDespesaDeFolha, rolarParaInicio,
   anoDa, dataBR, hojeISO, formatarBRL, nomeCompetencia, SEM_CATEGORIA,
 } from './financeiro.js';
 import { abrirLancamento, despesaDoBanco } from './financeiro-lancamento-form.js';
@@ -279,9 +279,9 @@ function lista() {
     b.addEventListener('click', e => { e.stopPropagation(); abrirMenu(b, b.dataset.menu, hoje); }));
 
   const ant = cx.querySelector('#dspAnt');
-  if (ant) ant.addEventListener('click', () => { _pagina--; lista(); });
+  if (ant) ant.addEventListener('click', () => { _pagina--; lista(); rolarParaInicio(cx); });
   const prox = cx.querySelector('#dspProx');
-  if (prox) prox.addEventListener('click', () => { _pagina++; lista(); });
+  if (prox) prox.addEventListener('click', () => { _pagina++; lista(); rolarParaInicio(cx); });
 }
 
 function linha(l, hoje, nomeCat, nomeCC) {

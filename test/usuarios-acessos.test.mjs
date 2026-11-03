@@ -267,13 +267,14 @@ grupo('etapa 3 · permissões no frontend', () => {
        'não se busca dado para depois escondê-lo');
   });
 
-  teste('só usuarios exige permissão nesta etapa', () => {
-    // Esconder Financeiro ou Equipe agora, com as policies antigas ainda em
-    // nutri_id = auth.uid(), tiraria módulo do proprietário sem motivo.
+  teste('as rotas protegidas são usuarios e financeiro', () => {
+    // Equipe e os demais módulos ainda não entraram: escondê-los é decisão
+    // própria de cada um, com a RLS dele conferida antes.
     const i = HTMLC.indexOf('const EXIGE_PERMISSAO');
     const bloco = HTMLC.slice(i, HTMLC.indexOf('}', i) + 1);
-    igual((bloco.match(/:/g) || []).length, 1, 'só uma rota protegida na Etapa 3');
-    contem(bloco, 'usuarios');
+    igual((bloco.match(/:/g) || []).length, 2, 'duas rotas protegidas');
+    contem(bloco, "usuarios: 'usuarios.visualizar'");
+    contem(bloco, "financeiro: 'financeiro.visualizar'");
   });
 
   teste('as permissões carregam antes de restaurar a rota', () => {

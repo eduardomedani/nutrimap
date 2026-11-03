@@ -2051,7 +2051,7 @@
       <div class="nav-group">
         <div class="nav-group-title">Administração</div>
         <div class="nav-item" data-page="comercial"><span class="nav-icon"><i data-lucide="handshake"></i></span><span>Comercial</span></div>
-        <div class="nav-item" data-page="financeiro"><span class="nav-icon"><i data-lucide="wallet"></i></span><span>Financeiro</span></div>
+        <div class="nav-item" data-page="financeiro" data-exige="financeiro.visualizar" hidden><span class="nav-icon"><i data-lucide="wallet"></i></span><span>Financeiro</span></div>
         <!-- id-card, e não users-round: "Clientes" logo acima já usa gente, e
              dois desenhos de pessoas na mesma barra se leem como o mesmo item. -->
         <div class="nav-item" data-page="equipe"><span class="nav-icon"><i data-lucide="id-card"></i></span><span>Equipe</span></div>
@@ -2306,11 +2306,14 @@
   // a tela e só então esconder o conteúdo deixaria o dado passar pela rede e
   // pelo DOM antes de alguém decidir que não podia.
   //
-  // Só `usuarios` exige permissão nesta etapa. Os outros módulos entram um a
-  // um na Etapa 4 — começar a esconder Financeiro e Equipe agora, com as
-  // policies antigas ainda em `nutri_id = auth.uid()`, esconderia o menu do
-  // proprietário sem motivo.
-  const EXIGE_PERMISSAO = { usuarios: 'usuarios.visualizar' };
+  // Financeiro entrou aqui porque a RLS devolve a quem tem só `comercial.visualizar`
+  // as cobranças de assinatura: a tela abriria com totais parciais e sem aviso.
+  // `pode()` lê as permissões efetivas, então a exceção individual continua valendo.
+  // Os outros módulos ainda entram um a um.
+  const EXIGE_PERMISSAO = {
+    usuarios: 'usuarios.visualizar',
+    financeiro: 'financeiro.visualizar',
+  };
 
   function podeAbrir(pagina) {
     const chave = EXIGE_PERMISSAO[pagina];

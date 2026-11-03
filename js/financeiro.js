@@ -369,6 +369,12 @@ export function paginaDaLista(lista, pagina = 0, porPagina = 50) {
   return { linhas: itens.slice(atual * porPagina, (atual + 1) * porPagina), pagina: atual, paginas };
 }
 
+/** Depois de trocar de página, volta ao começo da lista: sem isso a pessoa fica no
+ *  fim da página nova, e no celular são milhares de pixels até a primeira linha. */
+export function rolarParaInicio(elemento) {
+  elemento?.scrollIntoView?.({ block: 'start' });
+}
+
 /** Os doze meses do gráfico no critério de caixa, tirados do próprio fluxo: o
  *  gráfico e a aba de fluxo não podem discordar sobre o mesmo mês. */
 export function serieDeCaixa(lancamentos, folha, ano) {

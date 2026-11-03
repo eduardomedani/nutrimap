@@ -2093,6 +2093,25 @@ tbody tr.dsp-linha:focus-visible { outline: 2px solid var(--primary); outline-of
 .fx-sel-criterio { width: auto; min-width: 140px; }
 .fx-nota-criterio { margin: 0 0 14px; max-width: none; text-align: right; }
 
+/* Depois de trocar de página, a lista para abaixo do botão flutuante do menu. */
+#fxLista, #dspLista { scroll-margin-top: 72px; }
+
+/* O balão abre por toque: sem isto o iOS não entrega o clique a um <g> de SVG, e o
+   toque duplo daria zoom em vez de trocar de mês. */
+.fg-mes { cursor: pointer; }
+.rs-plot { touch-action: manipulation; }
+.dsp-paginacao span { white-space: nowrap; }
+
+@media (max-width: 640px) {
+  .fx-nota-criterio { text-align: left; }
+  /* 16px: abaixo disso o iOS dá zoom ao tocar no seletor. */
+  .fx-sel-criterio, .fx-sel-mes { flex: 1 1 130px; min-width: 0; min-height: 44px; font-size: 16px; }
+  /* A página em cima, os dois botões embaixo: lado a lado não cabem em 360px. */
+  .dsp-paginacao { flex-wrap: wrap; gap: 8px; }
+  .dsp-paginacao span { order: -1; flex: 0 0 100%; text-align: center; }
+  .dsp-paginacao .btn { flex: 1 1 0; justify-content: center; min-height: 44px; }
+}
+
 /* AS COLUNAS CENTRALIZADAS. Data, categoria, valor e situação são campos
    curtos e de largura parecida: centrados, a coluna se lê como coluna. A
    descrição fica à esquerda — texto longo centralizado obriga o olho a

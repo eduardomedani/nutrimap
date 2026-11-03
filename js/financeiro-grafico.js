@@ -97,10 +97,12 @@ export function graficoReceitaDespesa(meses, opcoes = {}) {
     // 2px de superfície entre os segmentos empilhados, como entre as barras.
     const vao = alturaFolha > 3 && (base - yDesp) > 3 ? 2 : 0;
 
+    // A geometria tem nome próprio. Quando se chamava `receita` e `custo`, ela
+    // apagava os valores vindos de `...m`, e o balão mostrava R$ 0,00 em todo mês.
     barras.push({
       ...m, indice: i, centro,
-      receita: { x: xR, y: yR, altura: base - yR },
-      custo:   { x: xD, y: yFolha, altura: base - yFolha },
+      barraReceita: { x: xR, y: yR, altura: base - yR },
+      barraCusto:   { x: xD, y: yFolha, altura: base - yFolha },
       largura: larguraBarra,
     });
 
@@ -251,6 +253,18 @@ export function legendaFluxoHtml() {
 
 /** A legenda. Sai daqui, e não da tela, para série e cor nunca se separarem:
  *  legenda escrita à mão continua verde depois que o gráfico virou azul. */
+/**
+ * As medidas do desenho para a largura disponível.
+ *
+ * O SVG é escalado para caber: em 343px, os 720 de sempre encolhiam o texto de
+ * 10,5 para 5px e a altura para 124px. Abaixo do limite, o desenho nasce na largura
+ * real, e o texto sai no tamanho escrito. Sem largura conhecida, vale o padrão.
+ */
+export function tamanhoDoGrafico(larguraDisponivel) {
+  if (!(larguraDisponivel > 0) || larguraDisponivel >= 560) return {};
+  return { largura: Math.max(280, Math.round(larguraDisponivel)), altura: 240, margemEsq: 48 };
+}
+
 /** No caixa as mesmas três barras dizem outra coisa: o que entrou e o que saiu,
  *  não o que pertence ao mês. A legenda e o balão têm que acompanhar. */
 const SERIES_CAIXA = [
