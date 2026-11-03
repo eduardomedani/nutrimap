@@ -307,6 +307,82 @@ export function doMes(lista, mes) {
 }
 
 /**
+ * O CRITÉRIO DE CAIXA, nas mesmas regras de `fluxoDeCaixa`: só o que foi pago,
+ * no mês do `pago_em`. Pendente e cancelado ficam fora, e pago sem data também,
+ * porque não há como saber quando o dinheiro andou (`forasDoFluxo` os denuncia).
+ *
+ * A competência da linha devolvida é o MÊS DO PAGAMENTO. Assim os mesmos
+ * agrupamentos servem aos dois critérios, sem nenhum deles conhecer o outro.
+ * É uma cópia só para a conta: nada disso volta para o banco.
+ */
+export function linhasDeCaixa(lancamentos) {
+  return somaveis(lancamentos)
+    .filter(l => (l.status || (l.pago ? 'pago' : 'pendente')) === 'pago' && l.pago_em)
+    .map(l => ({ ...l, competencia: `${mesDe(l.pago_em)}-01` }));
+}
+
+/** A folha no critério de caixa: a lançada pelo pagamento, a só apurada pela
+ *  competência, que na convenção do projeto já é o mês em que ela é paga. */
+export function folhaDeCaixa(lancamentos, folha) {
+  const acc = new Map();
+  const juntar = (mes, valor, lancado) => {
+    const atual = acc.get(mes) || { cents: 0, lancado: false };
+    atual.cents += emCentavos(valor);
+    atual.lancado = atual.lancado || lancado;
+    acc.set(mes, atual);
+  };
+
+  for (const l of linhasDeCaixa(lancamentos)) {
+    if (l.tipo === 'despesa' && ehDespesaDeFolha(l)) juntar(mesDe(l.competencia), l.valor, true);
+  }
+  for (const f of folhaDoPeriodo(lancamentos, folha)) {
+    if (!f.lancado) juntar(mesDe(f.competencia), f.total, false);
+  }
+
+  return [...acc.entries()]
+    .map(([mes, a]) => ({ competencia: `${mes}-01`, total: a.cents / 100, lancado: a.lancado }))
+    .sort((a, b) => a.competencia.localeCompare(b.competencia));
+}
+
+/** O que a Visão geral mostra num critério e num mês. Mês que não existe naquele
+ *  critério volta para "todos", em vez de abrir uma tela zerada. */
+export function recorteFinanceiro(lancamentos, folha, { criterio = 'competencia', mes = '' } = {}) {
+  const caixa = criterio === 'caixa';
+  const linhas = caixa ? linhasDeCaixa(lancamentos) : (lancamentos || []);
+  const folhaMeses = caixa ? folhaDeCaixa(lancamentos, folha) : folhaDoPeriodo(lancamentos, folha);
+  const meses = mesesDisponiveis(linhas, folhaMeses);
+  const mesValido = meses.includes(mes) ? mes : '';
+  return {
+    mes: mesValido,
+    meses,
+    linhas: doMes(linhas, mesValido),
+    folhaMeses: doMes(folhaMeses, mesValido),
+  };
+}
+
+/** Uma fatia da lista para desenhar. Página fora do intervalo (o filtro encolheu
+ *  a lista, ou a última linha da página foi apagada) cai na última que existe. */
+export function paginaDaLista(lista, pagina = 0, porPagina = 50) {
+  const itens = lista || [];
+  const paginas = Math.max(1, Math.ceil(itens.length / porPagina));
+  const atual = Math.min(Math.max(0, pagina), paginas - 1);
+  return { linhas: itens.slice(atual * porPagina, (atual + 1) * porPagina), pagina: atual, paginas };
+}
+
+/** Os doze meses do gráfico no critério de caixa, tirados do próprio fluxo: o
+ *  gráfico e a aba de fluxo não podem discordar sobre o mesmo mês. */
+export function serieDeCaixa(lancamentos, folha, ano) {
+  return fluxoDeCaixa(lancamentos, folha, ano).map(m => ({
+    competencia: m.competencia,
+    receita: m.entrou,
+    despesa: m.saiuLancado,
+    folha: m.folha,
+    custo: m.saiu,
+    resultado: m.saldo,
+  }));
+}
+
+/**
  * Os doze meses de um ano, com receita, despesa e folha.
  *
  * SEMPRE DOZE, mesmo os vazios. Desenhar só os meses com movimento comprime o
@@ -507,25 +583,53 @@ export async function listarCategorias(tipo = null) {
 /**
  * Lançamentos do período. `de` e `ate` são competências ('2026-01-01').
  *
- * O limite alto é intencional: são 310 linhas de três anos e a tela agrupa
- * todas. Paginar aqui obrigaria a somar por páginas, e soma parcial exibida
- * como total é o defeito que este módulo existe para não ter.
+ * LÊ EM BLOCOS PORQUE O SERVIDOR CORTA EM 1000 LINHAS, por mais que se peça: um
+ * `.limit(3000)` devolvia 1000 sem erro nenhum, e os anos antigos sumiam dos
+ * totais com cara de número fechado. O `id` na ordenação é o que impede uma
+ * linha de cair em dois blocos, ou em nenhum, quando várias têm a mesma data.
+ *
+ * A contagem do banco confere o resultado: se o que chegou não bate (alguém
+ * lançou algo durante a leitura), lê de novo; se ainda não bater, FALHA. Um
+ * total parcial exibido como total é o defeito que este módulo não pode ter.
+ * O filtro de organização continua a cargo do RLS, em cada bloco.
  */
 const CAMPOS = 'id, tipo, data, competencia, descricao, valor, pago, status, vencimento, ' +
   'pago_em, categoria_id, centro_custo_id, fornecedor, forma_pagamento, documento, ' +
   'observacoes, origem, origem_linha, metadata, arquivado_em';
 
-export async function listarLancamentos({ de = null, ate = null, tipo = null, limite = 3000 } = {}) {
-  let q = sb.from('financeiro_lancamentos')
-    .select(CAMPOS)
-    .order('data', { ascending: false })
-    .limit(limite);
-  if (de)   q = q.gte('competencia', de);
-  if (ate)  q = q.lte('competencia', ate);
-  if (tipo) q = q.eq('tipo', tipo);
-  const { data, error } = await q;
-  if (error) throw error;
-  return data || [];
+const LINHAS_POR_BLOCO = 1000;
+
+export async function listarLancamentos({ de = null, ate = null, tipo = null } = {}) {
+  const bloco = (inicio, opcoes) => {
+    let q = sb.from('financeiro_lancamentos')
+      .select(CAMPOS, opcoes)
+      .order('data', { ascending: false })
+      .order('id', { ascending: true })
+      .range(inicio, inicio + LINHAS_POR_BLOCO - 1);
+    if (de)   q = q.gte('competencia', de);
+    if (ate)  q = q.lte('competencia', ate);
+    if (tipo) q = q.eq('tipo', tipo);
+    return q;
+  };
+
+  for (let tentativa = 0; tentativa < 2; tentativa++) {
+    const primeiro = await bloco(0, { count: 'exact' });
+    if (primeiro.error) throw primeiro.error;
+    const total = primeiro.count ?? 0;
+
+    // O primeiro bloco já disse o total, então os outros podem vir juntos.
+    const inicios = [];
+    for (let i = LINHAS_POR_BLOCO; i < total; i += LINHAS_POR_BLOCO) inicios.push(i);
+    const demais = await Promise.all(inicios.map(i => bloco(i)));
+
+    const porId = new Map();
+    for (const r of [primeiro, ...demais]) {
+      if (r.error) throw r.error;
+      for (const l of r.data || []) porId.set(l.id, l);
+    }
+    if (porId.size === total) return [...porId.values()];
+  }
+  throw new Error('A leitura dos lançamentos veio incompleta. Recarregue a página.');
 }
 
 /** O resumo agregado no banco — para quando a tela quiser só os totais. */

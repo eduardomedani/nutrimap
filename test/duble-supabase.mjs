@@ -23,6 +23,14 @@ export const chamadas = [];     // histórico, para asserção de "o que foi cha
 const _objetos = new Map();     // `${bucket}/${caminho}` -> { contentType }
 const _errosStorage = new Map();// 'upload' | 'remove' -> mensagem
 
+const _errosDeBloco = new Map();
+/** Faz falhar só o bloco que começa em `de`: o caso do meio da leitura. */
+export function falharBloco(nomeTabela, de, mensagem) { _errosDeBloco.set(`${nomeTabela}:${de}`, mensagem); }
+
+let _tetoDeLinhas = null;
+/** Imita o teto do servidor (1000 linhas por resposta). Passe null para desligar. */
+export function tetoDeLinhas(n) { _tetoDeLinhas = n; }
+
 /** Popula uma tabela. `tabela('foods', [...])` */
 export function tabela(nome, linhas) { _tabelas.set(nome, linhas || []); }
 
@@ -55,6 +63,8 @@ export function objetos(bucket = null) {
 export function limpar() {
   _tabelas.clear(); _rpcs.clear(); _erros.clear(); chamadas.length = 0;
   _objetos.clear(); _errosStorage.clear();
+  _tetoDeLinhas = null;
+  _errosDeBloco.clear();
 }
 
 function cadeia(tabelaNome, operacao, payload) {
@@ -62,6 +72,8 @@ function cadeia(tabelaNome, operacao, payload) {
   chamadas.push(registro);
 
   const resolver = () => {
+    const doBloco = _errosDeBloco.get(`${tabelaNome}:${registro.faixa?.de}`);
+    if (doBloco) return { data: null, error: { message: doBloco } };
     const programado = _erros.get(tabelaNome);
     if (programado && (!programado.operacao || programado.operacao === operacao)) {
       _erros.delete(tabelaNome);
@@ -86,12 +98,21 @@ function cadeia(tabelaNome, operacao, payload) {
       if (f.tipo === 'not-null') linhas = linhas.filter(l => l[f.coluna] != null);
       if (f.tipo === 'null') linhas = linhas.filter(l => l[f.coluna] == null);
     }
+    const contagem = registro.contar ? linhas.length : null;
+    // Como o servidor real: um bloco nunca passa do teto, peça-se o que se pedir.
+    if (registro.faixa) linhas = linhas.slice(registro.faixa.de, registro.faixa.ate + 1);
     if (registro.limite != null) linhas = linhas.slice(0, registro.limite);
-    return { data: linhas, error: null };
+    if (_tetoDeLinhas != null) linhas = linhas.slice(0, _tetoDeLinhas);
+    return { data: linhas, error: null, count: contagem };
   };
 
   const api = {
-    select(colunas) { registro.colunas = colunas; return api; },
+    select(colunas, opcoes) {
+      registro.colunas = colunas;
+      registro.contar = opcoes?.count === 'exact';
+      return api;
+    },
+    range(de, ate) { registro.faixa = { de, ate }; return api; },
     eq(coluna, valor) { registro.filtros.push({ tipo: 'eq', coluna, valor }); return api; },
     // `neq` entrou com o update que aposenta a versão anterior do arquivo do
     // mês: sem ele o update pegaria também a linha recém-criada, e a
@@ -124,7 +145,7 @@ function cadeia(tabelaNome, operacao, payload) {
 export const sb = {
   from(nome) {
     return {
-      select: (colunas) => cadeia(nome, 'select').select(colunas),
+      select: (colunas, opcoes) => cadeia(nome, 'select').select(colunas, opcoes),
       insert: (linhas) => cadeia(nome, 'insert', linhas),
       update: (linhas) => cadeia(nome, 'update', linhas),
       upsert: (linhas) => cadeia(nome, 'upsert', linhas),

@@ -251,8 +251,20 @@ export function legendaFluxoHtml() {
 
 /** A legenda. Sai daqui, e não da tela, para série e cor nunca se separarem:
  *  legenda escrita à mão continua verde depois que o gráfico virou azul. */
-export function legendaHtml() {
+/** No caixa as mesmas três barras dizem outra coisa: o que entrou e o que saiu,
+ *  não o que pertence ao mês. A legenda e o balão têm que acompanhar. */
+const SERIES_CAIXA = [
+  { chave: 'receita', rotulo: 'Recebido',         cor: CORES.receita },
+  { chave: 'despesa', rotulo: 'Despesas pagas',   cor: CORES.despesa },
+  { chave: 'folha',   rotulo: 'Folha da equipe',  cor: CORES.folha },
+];
+
+export function seriesDoCriterio(criterio = 'competencia') {
+  return criterio === 'caixa' ? SERIES_CAIXA : SERIES;
+}
+
+export function legendaHtml(criterio = 'competencia') {
   return `<div class="rs-legenda">
-    ${SERIES.map(s => `<span class="rs-leg"><i class="fg-ponto fg-ponto-${s.chave}"></i>${s.rotulo}</span>`).join('')}
+    ${seriesDoCriterio(criterio).map(s =>`<span class="rs-leg"><i class="fg-ponto fg-ponto-${s.chave}"></i>${s.rotulo}</span>`).join('')}
   </div>`;
 }

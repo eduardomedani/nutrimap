@@ -23,11 +23,13 @@ import {
   somar, porCategoria, porAno, porCompetencia, pendencias, custoDoMes,
   anoDa, dataBR, hojeISO, SEM_CATEGORIA,
   serieAnual, totaisDoAno, anosDisponiveis, fluxoDeCaixa, forasDoFluxo,
-  mesesDisponiveis, doMes,
+  mesesDisponiveis, doMes, linhasDeCaixa, folhaDeCaixa, recorteFinanceiro, serieDeCaixa,
+  listarLancamentos, paginaDaLista,
 } from '../js/financeiro.js';
+import { tabela, limpar, tetoDeLinhas, falharBloco, chamadas } from './duble-supabase.mjs';
 
 import {
-  graficoReceitaDespesa, legendaHtml, SERIES, graficoFluxo, legendaFluxoHtml, SERIES_FLUXO,
+  graficoReceitaDespesa, legendaHtml, seriesDoCriterio, SERIES, graficoFluxo, legendaFluxoHtml, SERIES_FLUXO,
 } from '../js/financeiro-grafico.js';
 import { lerValor, lerData, ehFolha, lerCsv, montarSql, centroUnificado } from '../db/gerador_custos.mjs';
 
@@ -665,5 +667,161 @@ grupo('financeiro · filtro de mês da visão geral', () => {
 
   teste('sem mês, a lista continua inteira', () => {
     igual(doMes(LINHAS, '').length, LINHAS.length);
+  });
+});
+
+grupo('financeiro · competência e caixa não se misturam', () => {
+  const MOV = [
+    // Despesa de outubro paga em novembro: o caso que motivou o seletor.
+    { id: 'a', tipo: 'despesa', competencia: '2026-10-01', pago_em: '2026-11-03', valor: 1000, status: 'pago' },
+    { id: 'b', tipo: 'despesa', competencia: '2026-11-01', pago_em: '2026-11-03', valor: 2640, status: 'pago' },
+    { id: 'c', tipo: 'despesa', competencia: '2026-11-01', vencimento: '2026-11-20', valor: 70, status: 'pendente' },
+    { id: 'd', tipo: 'despesa', competencia: '2026-11-01', pago_em: '2026-11-04', valor: 500, status: 'cancelado' },
+    { id: 'e', tipo: 'despesa', competencia: '2026-11-01', valor: 30, status: 'pago' },
+    { id: 'f', tipo: 'receita', competencia: '2026-09-01', pago_em: '2026-11-02', valor: 385, status: 'pago' },
+    { id: 'g', tipo: 'despesa', competencia: '2026-11-01', pago_em: '2026-11-03', valor: 8000, status: 'pago', origem: 'folha' },
+    { id: 'h', tipo: 'despesa', competencia: '2026-11-01', pago_em: '2026-11-03', valor: 9, status: 'pago', arquivado_em: '2026-11-03' },
+  ];
+  const FOLHA = [{ competencia: '2026-12-01', total: 700 }];
+  const ids = lista => lista.map(l => l.id);
+
+  teste('caixa traz só o pago, no mês do pagamento', () => {
+    igual(ids(recorteFinanceiro(MOV, [], { criterio: 'caixa', mes: '2026-11-01' }).linhas),
+      ['a', 'b', 'f', 'g']);
+  });
+
+  teste('pendente, cancelado, arquivado e pago sem data ficam fora do caixa', () => {
+    const c = ids(linhasDeCaixa(MOV));
+    for (const fora of ['c', 'd', 'e', 'h']) ok(!c.includes(fora), `${fora} não anda no caixa`);
+  });
+
+  teste('competência é o padrão, e nela a despesa fica no mês dela', () => {
+    igual(ids(recorteFinanceiro(MOV, [], { mes: '2026-10-01' }).linhas), ['a']);
+  });
+
+  teste('o caixa não altera a linha original', () => {
+    linhasDeCaixa(MOV);
+    igual(MOV[0].competencia, '2026-10-01');
+  });
+
+  teste('folha: a lançada pelo pagamento, a só apurada pela competência', () => {
+    igual(folhaDeCaixa(MOV, FOLHA), [
+      { competencia: '2026-11-01', total: 8000, lancado: true },
+      { competencia: '2026-12-01', total: 700, lancado: false },
+    ]);
+  });
+
+  teste('mês inexistente no critério volta para todos', () => {
+    const r = recorteFinanceiro(MOV, [], { criterio: 'caixa', mes: '2026-10-01' });
+    igual(r.mes, '');
+  });
+
+  teste('o recorte de caixa fecha com o fluxo de caixa, mês a mês', () => {
+    const mes = serieDeCaixa(MOV, FOLHA, '2026').find(m => m.competencia === '2026-11-01');
+    const r = recorteFinanceiro(MOV, FOLHA, { criterio: 'caixa', mes: '2026-11-01' });
+    igual(mes.receita, somar(r.linhas.filter(l => l.tipo === 'receita')));
+    igual(mes.despesa, somar(r.linhas.filter(l => l.tipo === 'despesa' && l.origem !== 'folha')));
+    igual(mes.folha, r.folhaMeses.reduce((s, f) => s + f.total, 0));
+  });
+});
+
+grupo('financeiro · leitura completa dos lançamentos', () => {
+  const linhas = n => Array.from({ length: n }, (_, i) => ({ id: `id${i}`, tipo: 'despesa', valor: 1 }));
+
+  teste('2817 linhas com o teto de 1000 do servidor: chegam todas, sem repetir', async () => {
+    limpar();
+    tabela('financeiro_lancamentos', linhas(2817));
+    tetoDeLinhas(1000);
+    const r = await listarLancamentos({});
+    igual(r.length, 2817);
+    igual(new Set(r.map(l => l.id)).size, 2817);
+    igual(chamadas.filter(c => c.tabela === 'financeiro_lancamentos').length, 3, 'três blocos');
+  });
+
+  teste('total exato em múltiplo do bloco não pede um bloco vazio', async () => {
+    limpar();
+    tabela('financeiro_lancamentos', linhas(2000));
+    igual((await listarLancamentos({})).length, 2000);
+    igual(chamadas.filter(c => c.tabela === 'financeiro_lancamentos').length, 2);
+  });
+
+  teste('tabela vazia devolve lista vazia', async () => {
+    limpar();
+    tabela('financeiro_lancamentos', []);
+    igual(await listarLancamentos({}), []);
+  });
+
+  teste('leitura incompleta falha em vez de mostrar total parcial', async () => {
+    // Um teto menor que o bloco deixa buracos entre os blocos: tem que ser erro.
+    limpar();
+    tabela('financeiro_lancamentos', linhas(1500));
+    tetoDeLinhas(500);
+    let erro = null;
+    try { await listarLancamentos({}); } catch (e) { erro = e; }
+    ok(erro, 'não pode devolver parte como se fosse tudo');
+    ok(String(erro.message).includes('incompleta'), erro.message);
+  });
+
+  for (const de of [0, 1000, 2000]) {
+    teste(`falha no bloco que começa em ${de}: erro, nunca as linhas dos outros blocos`, async () => {
+      limpar();
+      tabela('financeiro_lancamentos', linhas(2817));
+      tetoDeLinhas(1000);
+      falharBloco('financeiro_lancamentos', de, 'rede caiu');
+      let erro = null, devolvido = null;
+      try { devolvido = await listarLancamentos({}); } catch (e) { erro = e; }
+      igual(devolvido, null, 'nenhuma lista parcial pode sair daqui');
+      igual(erro?.message, 'rede caiu');
+    });
+  }
+});
+
+grupo('financeiro · paginação da lista de Receitas', () => {
+  const itens = n => Array.from({ length: n }, (_, i) => ({ id: i, valor: 1 }));
+
+  teste('2404 lançamentos viram 49 páginas, e a página tem no máximo 50', () => {
+    const r = paginaDaLista(itens(2404), 0);
+    igual(r.paginas, 49);
+    igual(r.linhas.length, 50);
+  });
+
+  teste('as páginas cobrem a lista inteira, sem repetir nem pular', () => {
+    const lista = itens(2404);
+    const vistos = [];
+    for (let p = 0; p < 49; p++) vistos.push(...paginaDaLista(lista, p).linhas.map(l => l.id));
+    igual(vistos, lista.map(l => l.id));
+  });
+
+  teste('a página não muda a soma de quem pagina: a soma é da lista inteira', () => {
+    const lista = itens(120);
+    igual(somar(lista), 120);
+    igual(paginaDaLista(lista, 2).linhas.length, 20);
+  });
+
+  teste('página além do fim cai na última; antes do começo, na primeira', () => {
+    igual(paginaDaLista(itens(120), 99).pagina, 2);
+    igual(paginaDaLista(itens(120), -3).pagina, 0);
+  });
+
+  teste('lista vazia não quebra', () => {
+    igual(paginaDaLista([], 4), { linhas: [], pagina: 0, paginas: 1 });
+  });
+});
+
+grupo('financeiro · a legenda acompanha o critério', () => {
+  teste('competência continua como era', () => {
+    igual(seriesDoCriterio(), SERIES);
+    contem(legendaHtml(), 'Despesas lançadas');
+    naoContem(legendaHtml(), 'Despesas pagas');
+  });
+
+  teste('caixa diz o que entrou e o que saiu', () => {
+    contem(legendaHtml('caixa'), 'Recebido');
+    contem(legendaHtml('caixa'), 'Despesas pagas');
+    naoContem(legendaHtml('caixa'), 'Despesas lançadas');
+  });
+
+  teste('as cores não mudam entre critérios', () => {
+    igual(seriesDoCriterio('caixa').map(s => s.cor), SERIES.map(s => s.cor));
   });
 });

@@ -29,11 +29,12 @@ import {
   listarCategorias, listarLancamentos, folhaPorCompetencia,
   salvarLancamento, criarLancamento, excluirLancamento, fundirCategorias,
   somar, porCategoria, porAno, pendencias, serieAnual, totaisDoAno, anosDisponiveis,
-  fluxoDeCaixa, forasDoFluxo, separarFolha, folhaDoPeriodo, mesesDisponiveis, doMes,
+  fluxoDeCaixa, forasDoFluxo, separarFolha, recorteFinanceiro, contaNoTotal,
+  linhasDeCaixa, folhaDeCaixa, serieDeCaixa, paginaDaLista,
   anoDa, dataBR, formatarBRL, nomeCompetencia, valorDeTexto, SEM_CATEGORIA,
 } from './financeiro.js';
 import {
-  graficoReceitaDespesa, legendaHtml, graficoFluxo, legendaFluxoHtml, SERIES, brl,
+  graficoReceitaDespesa, legendaHtml, seriesDoCriterio, graficoFluxo, legendaFluxoHtml, SERIES, brl,
 } from './financeiro-grafico.js';
 
 const SECOES = [
@@ -76,7 +77,9 @@ let _aoAbrirEquipe = null;
 let _cache = null;
 let _tipo = 'despesa';
 let _anoGrafico = null;
-let _mesVisao = '';   // competência escolhida na Visão geral; '' = todos os meses
+let _mesVisao = '';   // mês escolhido na Visão geral; '' = todos os meses
+let _criterio = 'competencia';   // 'competencia' | 'caixa'
+let _paginaLista = 0;            // página da lista de Receitas
 // Armado pelos atalhos de pendência, consumido pela aba que abrir em seguida.
 // GUARDA A SEÇÃO JUNTO porque a pendência pode ser de receita ou de despesa, e
 // mandar as duas para a mesma lista foi exatamente o defeito de 05/09/2026: o
@@ -90,6 +93,8 @@ export { SECOES };
 export async function initFinanceiroUI(secao = 'visao-geral', opcoes = {}) {
   _aoAbrirEquipe = opcoes.aoAbrirEquipe || null;
   _cache = null;
+  _criterio = 'competencia';
+  _mesVisao = '';
 
   const page = document.getElementById('page-financeiro');
   if (!page) return;
@@ -152,7 +157,9 @@ async function montarSecao(id) {
   if (id === 'visao-geral')  { await montarVisaoGeral(miolo); return; }
   if (id === 'despesas')     { await montarDespesas(miolo, 'despesas'); return; }
   if (id === 'contas-pagar') { await montarDespesas(miolo, 'contas-pagar'); return; }
-  if (id === 'receitas')     { await montarLista(miolo, 'receita'); return; }
+  // A página zera ao ABRIR a aba, não em `montarLista`: ela também roda depois de
+  // salvar um lançamento, e quem editou algo na página 7 tem que continuar lá.
+  if (id === 'receitas')     { _paginaLista = 0; await montarLista(miolo, 'receita'); return; }
   if (id === 'fluxo-caixa')  { await montarFluxo(miolo); return; }
   if (id === 'categorias')   { await montarCategorias(miolo); return; }
   if (id === 'investimento') { await montarInvestimento(miolo); return; }
@@ -212,20 +219,24 @@ async function montarVisaoGeral(miolo) {
   // despesas e no tile do custo da equipe, logo ao lado.
   if (!d.lancamentos.length) { miolo.innerHTML = vazioHtml('despesa'); ligarAcoes(miolo); return; }
 
-  // Um mês que sumiu (o último lançamento dele foi apagado) volta para "todos",
-  // em vez de deixar o seletor apontando para algo que não está na lista.
-  const mesesDoSeletor = mesesDisponiveis(d.lancamentos, d.folha);
-  if (_mesVisao && !mesesDoSeletor.includes(_mesVisao)) _mesVisao = '';
+  // Tudo abaixo sai deste recorte, e é o que impede a tela de misturar critérios.
+  const emCaixa = _criterio === 'caixa';
+  const recorte = recorteFinanceiro(d.lancamentos, d.folha, { criterio: _criterio, mes: _mesVisao });
+  _mesVisao = recorte.mes;
+  const mesesDoSeletor = recorte.meses;
 
-  const lancamentosDoPeriodo = doMes(d.lancamentos, _mesVisao);
+  // Cancelado e arquivado não entram nem na soma nem na contagem do tile.
+  const lancamentosDoPeriodo = recorte.linhas.filter(contaNoTotal);
   const { operacao: despesas } = separarFolha(doTipo(lancamentosDoPeriodo, 'despesa'));
   const receitas = doTipo(lancamentosDoPeriodo, 'receita');
 
-  // Uma fonte por competência: onde há lançamento, ele manda; onde não há,
-  // vale a apuração da folha. Ver `folhaDoPeriodo` em js/financeiro.js.
-  // Calculada sobre tudo e só depois recortada: é a mesma regra nos dois casos.
-  const folhaMeses = doMes(folhaDoPeriodo(d.lancamentos, d.folha), _mesVisao);
+  // Uma fonte por mês: onde há lançamento, ele manda; onde não há, vale a
+  // apuração da folha. Ver `folhaDoPeriodo` e `folhaDeCaixa` em js/financeiro.js.
+  const folhaMeses = recorte.folhaMeses;
   const lancadas = folhaMeses.filter(f => f.lancado).length;
+  const rotuloMeses = emCaixa
+    ? `${folhaMeses.length} ${folhaMeses.length === 1 ? 'mês' : 'meses'}`
+    : `${folhaMeses.length} ${folhaMeses.length === 1 ? 'competência' : 'competências'}`;
 
   const totalDespesas = somar(despesas);
   const totalReceitas = somar(receitas);
@@ -235,12 +246,16 @@ async function montarVisaoGeral(miolo) {
   const pend = pendencias(d.lancamentos);
   const anos = porAno(despesas);
   const cats = porCategoria(despesas, d.categorias);
-  const meses = d.lancamentos.map(l => l.competencia).sort();
+  const meses = lancamentosDoPeriodo.map(l => l.competencia).filter(Boolean).sort();
 
   const maiorAno = Math.max(...anos.map(a => a.total), 1);
 
   miolo.innerHTML = `
     <div class="fx-acoes-topo">
+      <select class="fp-select fx-sel-criterio" id="fxCriterio" aria-label="Critério dos valores">
+        <option value="competencia"${emCaixa ? '' : ' selected'}>Competência</option>
+        <option value="caixa"${emCaixa ? ' selected' : ''}>Caixa</option>
+      </select>
       <select class="fp-select fx-sel-mes" id="fxMesVisao" aria-label="Mês da visão geral">
         <option value="">Todos os meses</option>
         ${mesesDoSeletor.map(m => `<option value="${esc(m)}"${m === _mesVisao ? ' selected' : ''}>${esc(nomeCompetencia(m))}</option>`).join('')}
@@ -250,33 +265,42 @@ async function montarVisaoGeral(miolo) {
       </button>
     </div>
 
+    <p class="fe-nota fx-nota-criterio">
+      ${emCaixa
+        ? 'Caixa: receitas pela data do recebimento e despesas pela data do pagamento. Só o que já foi pago entra. Não é o saldo bancário.'
+        : 'Competência: receitas e despesas pelo mês a que pertencem, pagas ou não.'}
+      Este seletor vale só para a Visão geral: as abas Receitas e Despesas continuam com os filtros próprios.
+    </p>
+
     <div class="rs-tiles">
       <div class="rs-tile">
-        <div class="rs-tile-rot">Despesas lançadas</div>
+        <div class="rs-tile-rot">${emCaixa ? 'Despesas pagas' : 'Despesas lançadas'}</div>
         <div class="rs-tile-val">${esc(formatarBRL(totalDespesas))}</div>
-        <div class="rs-tile-sub">${despesas.length} lançamentos, sem a folha</div>
+        <div class="rs-tile-sub">${despesas.length} ${despesas.length === 1 ? 'lançamento' : 'lançamentos'}, sem a folha</div>
       </div>
       <div class="rs-tile">
         <div class="rs-tile-rot">Custo da equipe</div>
         <div class="rs-tile-val">${esc(formatarBRL(totalFolha))}</div>
-        <div class="rs-tile-sub">${folhaMeses.length} ${folhaMeses.length === 1 ? 'competência' : 'competências'} · ${
+        <div class="rs-tile-sub">${rotuloMeses} · ${
           lancadas ? `${lancadas} já ${lancadas === 1 ? 'lançada' : 'lançadas'} no caixa` : 'apurado na folha'}</div>
       </div>
       <div class="rs-tile">
-        <div class="rs-tile-rot">Custo total</div>
+        <div class="rs-tile-rot">${emCaixa ? 'Pago no total' : 'Custo total'}</div>
         <div class="rs-tile-val">${esc(formatarBRL(totalDespesas + totalFolha))}</div>
         <div class="rs-tile-sub">despesas + folha</div>
       </div>
       <div class="rs-tile">
-        <div class="rs-tile-rot">${receitas.length ? 'Receitas lançadas' : 'Período'}</div>
+        <div class="rs-tile-rot">${receitas.length ? (emCaixa ? 'Receitas recebidas' : 'Receitas lançadas') : 'Período'}</div>
         ${receitas.length
           ? `<div class="rs-tile-val">${esc(formatarBRL(totalReceitas))}</div>
-             <div class="rs-tile-sub">${receitas.length} lançamentos</div>`
+             <div class="rs-tile-sub">${receitas.length} ${receitas.length === 1 ? 'lançamento' : 'lançamentos'}</div>`
           : _mesVisao
             ? `<div class="rs-tile-val fx-tile-txt">${esc(nomeCompetencia(_mesVisao))}</div>
                <div class="rs-tile-sub">sem receitas neste mês</div>`
-            : `<div class="rs-tile-val fx-tile-txt">${esc(nomeCompetencia(meses[0]))}</div>
-               <div class="rs-tile-sub">até ${esc(nomeCompetencia(meses[meses.length - 1]))}</div>`}
+            : meses.length
+              ? `<div class="rs-tile-val fx-tile-txt">${esc(nomeCompetencia(meses[0]))}</div>
+                 <div class="rs-tile-sub">até ${esc(nomeCompetencia(meses[meses.length - 1]))}</div>`
+              : '<div class="rs-tile-val fx-tile-txt">—</div>'}
       </div>
     </div>
 
@@ -316,7 +340,7 @@ async function montarVisaoGeral(miolo) {
               <td class="fx-num" data-rot="Participação">${(c.total / (totalDespesas || 1) * 100).toFixed(1)}%</td>
             </tr>`).join('')}
         </tbody>
-      </table>` : '<p class="fe-nota">Nenhuma despesa de operação neste mês.</p>'}
+      </table>` : `<p class="fe-nota">${emCaixa ? 'Nenhuma despesa de operação paga neste período.' : 'Nenhuma despesa de operação neste período.'}</p>`}
     </div>
 
     <div class="fe-ponte">
@@ -339,6 +363,10 @@ async function montarVisaoGeral(miolo) {
     if (_mesVisao) _anoGrafico = anoDa(_mesVisao);
     montarVisaoGeral(miolo);
   });
+  document.getElementById('fxCriterio')?.addEventListener('change', (e) => {
+    _criterio = e.target.value;
+    montarVisaoGeral(miolo);
+  });
 
   desenharGrafico();
   ligarAcoes(miolo);
@@ -354,20 +382,25 @@ function desenharGrafico() {
   const bloco = document.getElementById('fxGraficoBloco');
   if (!bloco || !_cache) return;
 
-  const anos = anosDisponiveis(_cache.lancamentos, _cache.folha);
+  const emCaixa = _criterio === 'caixa';
+  const anos = emCaixa
+    ? anosDisponiveis(linhasDeCaixa(_cache.lancamentos), folhaDeCaixa(_cache.lancamentos, _cache.folha))
+    : anosDisponiveis(_cache.lancamentos, _cache.folha);
   if (!anos.length) { bloco.innerHTML = ''; return; }
 
   // Abre no ano mais recente com movimento, não no ano do relógio: em janeiro,
   // o ano corrente ainda está quase vazio e o gráfico abriria em branco.
   if (!_anoGrafico || !anos.includes(_anoGrafico)) _anoGrafico = anos[0];
 
-  const meses = serieAnual(_cache.lancamentos, _cache.folha, _anoGrafico);
+  const meses = emCaixa
+    ? serieDeCaixa(_cache.lancamentos, _cache.folha, _anoGrafico)
+    : serieAnual(_cache.lancamentos, _cache.folha, _anoGrafico);
   const t = totaisDoAno(meses);
   const { svg, barras } = graficoReceitaDespesa(meses);
 
   bloco.innerHTML = `
     <div class="fx-bloco-topo">
-      <div class="fx-bloco-tit"><i data-lucide="chart-column-big"></i> Receita × Despesa</div>
+      <div class="fx-bloco-tit"><i data-lucide="chart-column-big"></i> Receita × Despesa${emCaixa ? ' · caixa' : ''}</div>
       <select class="fp-select fx-sel-ano" id="fxAnoGrafico" aria-label="Ano do gráfico">
         ${anos.map(a => `<option value="${a}"${a === _anoGrafico ? ' selected' : ''}>${a}</option>`).join('')}
       </select>
@@ -375,18 +408,18 @@ function desenharGrafico() {
 
     <div class="rs-tiles fx-tiles-ano">
       <div class="rs-tile">
-        <div class="rs-tile-rot">Receita em ${esc(_anoGrafico)}</div>
+        <div class="rs-tile-rot">${emCaixa ? 'Recebido' : 'Receita'} em ${esc(_anoGrafico)}</div>
         <div class="rs-tile-val">${esc(formatarBRL(t.receita))}</div>
       </div>
       <div class="rs-tile">
-        <div class="rs-tile-rot">Custo total</div>
+        <div class="rs-tile-rot">${emCaixa ? 'Pago no total' : 'Custo total'}</div>
         <div class="rs-tile-val">${esc(formatarBRL(t.custo))}</div>
-        <div class="rs-tile-sub">${esc(formatarBRL(t.despesa))} lançados + ${esc(formatarBRL(t.folha))} de folha</div>
+        <div class="rs-tile-sub">${esc(formatarBRL(t.despesa))} ${emCaixa ? 'pagos' : 'lançados'} + ${esc(formatarBRL(t.folha))} de folha</div>
       </div>
       <div class="rs-tile">
         <div class="rs-tile-rot">Resultado</div>
         <div class="rs-tile-val ${t.resultado < 0 ? 'fx-negativo' : 'fx-positivo'}">${esc(formatarBRL(t.resultado))}</div>
-        <div class="rs-tile-sub">receita − custo total</div>
+        <div class="rs-tile-sub">${emCaixa ? 'recebido − pago' : 'receita − custo total'}</div>
       </div>
     </div>
 
@@ -395,12 +428,13 @@ function desenharGrafico() {
       <div class="rs-tip" id="fxTip" hidden></div>
     </div>
 
-    ${legendaHtml()}
+    ${legendaHtml(_criterio)}
 
     <p class="fe-nota">
       Os doze meses aparecem sempre, inclusive os vazios: mês sem receita é um
       fato sobre o negócio, não falta de dado. A folha continua sendo parcela
       própria, esteja ela lançada no caixa ou ainda só apurada em Equipe.
+      ${emCaixa ? 'Aqui, cada valor está no mês em que o dinheiro entrou ou saiu.' : ''}
     </p>
   `;
 
@@ -420,14 +454,15 @@ function ligarHoverGrafico(barras) {
   const mostrar = (i, evento) => {
     const m = barras[i];
     if (!m) return;
+    const series = seriesDoCriterio(_criterio);
     tip.innerHTML = `
       <div class="rs-tip-tit">${esc(nomeCompetencia(m.competencia))}</div>
-      <div class="rs-tip-linha"><i style="background:${SERIES[0].cor}"></i>
-        ${esc(SERIES[0].rotulo)}<b>${esc(brl(m.receita))}</b></div>
-      <div class="rs-tip-linha"><i style="background:${SERIES[1].cor}"></i>
-        ${esc(SERIES[1].rotulo)}<b>${esc(brl(m.despesa))}</b></div>
-      <div class="rs-tip-linha"><i style="background:${SERIES[2].cor}"></i>
-        ${esc(SERIES[2].rotulo)}<b>${esc(brl(m.folha))}</b></div>
+      <div class="rs-tip-linha"><i style="background:${series[0].cor}"></i>
+        ${esc(series[0].rotulo)}<b>${esc(brl(m.receita))}</b></div>
+      <div class="rs-tip-linha"><i style="background:${series[1].cor}"></i>
+        ${esc(series[1].rotulo)}<b>${esc(brl(m.despesa))}</b></div>
+      <div class="rs-tip-linha"><i style="background:${series[2].cor}"></i>
+        ${esc(series[2].rotulo)}<b>${esc(brl(m.folha))}</b></div>
       <div class="rs-tip-total">Resultado<b>${esc(brl(m.resultado))}</b></div>`;
     tip.hidden = false;
 
@@ -852,13 +887,13 @@ async function montarLista(miolo, tipo) {
   `;
 
   miolo.querySelector('#fxBusca').addEventListener('input', debounce(e => {
-    _filtro.busca = e.target.value; desenharLista();
+    _filtro.busca = e.target.value; _paginaLista = 0; desenharLista();
   }, 200));
   miolo.querySelector('#fxAno').addEventListener('change', e => {
-    _filtro.ano = e.target.value; desenharLista();
+    _filtro.ano = e.target.value; _paginaLista = 0; desenharLista();
   });
   miolo.querySelector('#fxCat').addEventListener('change', e => {
-    _filtro.categoria = e.target.value; desenharLista();
+    _filtro.categoria = e.target.value; _paginaLista = 0; desenharLista();
   });
   miolo.querySelector('#fxNovo').addEventListener('click', () => novoLancamento(tipo).catch(console.error));
 
@@ -885,7 +920,7 @@ function filtrar(lancamentos) {
  *  porque os dois caminhos — lista cheia e lista vazia — desenham o botão. */
 function ligarLimparPendencia() {
   const b = document.getElementById('fxLimparPend');
-  if (b) b.addEventListener('click', () => { _filtro.pendencia = ''; desenharLista(); });
+  if (b) b.addEventListener('click', () => { _filtro.pendencia = ''; _paginaLista = 0; desenharLista(); });
 }
 
 function desenharLista() {
@@ -914,6 +949,11 @@ function desenharLista() {
   // este chip, a lista fica curta sem explicação e não há como voltar ao todo.
   const rotuloPend = { 'sem-valor': 'sem valor', 'sem-categoria': 'sem categoria' };
 
+  // Só o desenho é paginado. A contagem e o total acima saem da lista filtrada
+  // inteira, e não desta fatia: é o total do filtro, em qualquer página.
+  const { linhas, pagina, paginas } = paginaDaLista(lista, _paginaLista);
+  _paginaLista = pagina;
+
   alvo.innerHTML = `
     <div class="dsp-resumo">
       <span class="dsp-resumo-n">${lista.length} de ${doLado.length} lançamentos</span>
@@ -937,13 +977,26 @@ function desenharLista() {
           </tr>
         </thead>
         <tbody>
-          ${lista.map(l => linhaHtml(l)).join('')}
+          ${linhas.map(l => linhaHtml(l)).join('')}
         </tbody>
       </table>
     </div>
+
+    ${paginas > 1 ? `<div class="dsp-paginacao">
+      <button class="btn" id="fxPagAnt" type="button"${pagina === 0 ? ' disabled' : ''}>
+        <i data-lucide="chevron-left"></i> Anterior
+      </button>
+      <span>Página ${pagina + 1} de ${paginas}</span>
+      <button class="btn" id="fxPagProx" type="button"${pagina >= paginas - 1 ? ' disabled' : ''}>
+        Próxima <i data-lucide="chevron-right"></i>
+      </button>
+    </div>` : ''}
   `;
 
   ligarLimparPendencia();
+
+  alvo.querySelector('#fxPagAnt')?.addEventListener('click', () => { _paginaLista--; desenharLista(); });
+  alvo.querySelector('#fxPagProx')?.addEventListener('click', () => { _paginaLista++; desenharLista(); });
 
   // A LINHA INTEIRA ABRE O LANÇAMENTO — é como se dá baixa: abrir, mudar a
   // situação para Recebido e informar a data. Os controles de dentro (o select
