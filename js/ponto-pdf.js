@@ -13,7 +13,14 @@
 // gerador imprimir o total de Previstas. Aqui a coluna é encontrada pelo X do
 // cabeçalho "Diurnas" e o valor é o que estiver embaixo dela.
 //
-// Se o layout mudar a ponto de não haver cabeçalho "Diurnas", a leitura FALHA
+// O FORMATO NOVO (a partir de outubro/2026): a coluna "Diurnas" virou "Normais",
+// a linha "Total:" sumiu e os totais foram para um rodapé de rótulo e valor
+// ("Previstas: 105:00 Normais: 70,12 Faltas: -35,05"). As horas agora vêm em
+// DECIMAL: 70,12 são 70h07, não 70h12 — trocar a vírgula por dois-pontos pagaria
+// minutos a mais. O "Previstas" do mesmo rodapé continua em h:mm, por isso quem
+// lê um valor olha o formato dele, e não o do relatório.
+//
+// Se o layout mudar a ponto de não haver coluna de horas, a leitura FALHA
 // com mensagem clara em vez de devolver o número errado — numa folha de
 // pagamento, um valor plausível e errado é pior que nenhum valor.
 
@@ -50,20 +57,27 @@ async function paraBytes(a) {
 export function interpretarGrade(celulas) {
   const linhas = agruparEmLinhas(celulas);
 
-  const cabecalho = linhas.find(l => l.some(c => /^Diurnas$/i.test(c.texto)));
+  const cabecalho = linhas.find(l => l.some(c => /^(Diurnas|Normais)$/i.test(c.texto)));
   if (!cabecalho) throw new Error('ponto_pdf_sem_coluna_diurnas');
 
-  const colDiurnas = cabecalho.find(c => /^Diurnas$/i.test(c.texto));
+  const colDiurnas = cabecalho.find(c => /^(Diurnas|Normais)$/i.test(c.texto));
   const colNoturnas = cabecalho.find(c => /^Noturnas$/i.test(c.texto));
 
   const linhaTotal = linhas.find(l => l.some(c => /^Total:?$/i.test(c.texto)));
-  if (!linhaTotal) throw new Error('ponto_pdf_sem_total');
+  const rodape = linhas.find(l => l.some(c => /^(Diurnas|Normais):$/i.test(c.texto)));
+  if (!linhaTotal && !rodape) throw new Error('ponto_pdf_sem_total');
 
-  const minutosDiurnas = valorNaColuna(linhaTotal, colDiurnas.x);
+  const minutosDiurnas = linhaTotal
+    ? valorNaColuna(linhaTotal, colDiurnas.x)
+    : valorDoRotulo(rodape, /^(Diurnas|Normais):$/i);
   if (minutosDiurnas === null) throw new Error('ponto_pdf_total_diurnas_ilegivel');
 
+  let minutosNoturnas = null;
+  if (linhaTotal) minutosNoturnas = colNoturnas ? valorNaColuna(linhaTotal, colNoturnas.x) : null;
+  else minutosNoturnas = valorDoRotulo(rodape, /^Noturnas:$/i);
+
   const texto = celulas.map(c => c.texto).join('\n');
-  const periodo = /(\d{2}\/\d{2}\/\d{4})\s*[-–]\s*(\d{2}\/\d{2}\/\d{4})/.exec(texto);
+  const periodo = /(\d{2}\/\d{2}\/\d{4})\s*(?:[-–]|a|até)\s*(\d{2}\/\d{2}\/\d{4})/.exec(texto);
 
   return {
     nome: campo(texto, /Colaborador:\s*(.+)/) || campo(texto, /Colaborador\s*\n(.+)/),
@@ -73,7 +87,7 @@ export function interpretarGrade(celulas) {
     periodo: periodo ? { inicio: periodo[1], fim: periodo[2] } : null,
     competencia: periodo ? competenciaDoPeriodo(periodo[1]) : null,
     minutosDiurnas,
-    minutosNoturnas: colNoturnas ? valorNaColuna(linhaTotal, colNoturnas.x) : null,
+    minutosNoturnas,
     colunas: cabecalho.map(c => c.texto),
   };
 }
@@ -98,9 +112,22 @@ function valorNaColuna(linha, x, tolerancia = 26) {
   let melhor = null, dist = Infinity;
   for (const c of linha) {
     const d = Math.abs(c.x - x);
-    if (d < dist && minutosDeHhmm(c.texto) !== null) { melhor = c; dist = d; }
+    if (d < dist && minutosDeHoras(c.texto) !== null) { melhor = c; dist = d; }
   }
-  return melhor && dist <= tolerancia ? minutosDeHhmm(melhor.texto) : null;
+  return melhor && dist <= tolerancia ? minutosDeHoras(melhor.texto) : null;
+}
+
+/**
+ * O valor impresso logo à direita de um rótulo do rodapé. Só a célula vizinha
+ * conta: se ela não for um número, é ilegível — pular adiante leria o total de
+ * outro rótulo. A linha vem ordenada por X, e o desenho duplicado de cada célula
+ * cai no mesmo X do rótulo, então "x maior" já é a vizinha de verdade.
+ */
+function valorDoRotulo(linha, rotulo) {
+  const r = linha.find(c => rotulo.test(c.texto));
+  if (!r) return null;
+  const vizinha = linha.find(c => c.x > r.x);
+  return vizinha ? minutosDeHoras(vizinha.texto) : null;
 }
 
 function campo(texto, re) {
@@ -120,6 +147,14 @@ export function minutosDeHhmm(txt) {
   if (!m) return null;
   const v = Number(m[2]) * 60 + Number(m[3]);
   return m[1] === '-' ? -v : v;
+}
+
+/** Aceita os dois formatos: '48:41' → 2921 e '70,12' (decimal) → 4207. */
+export function minutosDeHoras(txt) {
+  const hhmm = minutosDeHhmm(txt);
+  if (hhmm !== null) return hhmm;
+  const m = /^-?\d{1,4},\d{1,2}$/.exec(String(txt ?? '').trim());
+  return m ? Math.round(Number(m[0].replace(',', '.')) * 60) : null;
 }
 
 // ───────────────────────────────────────────────────────────
@@ -307,10 +342,10 @@ function bytesParaTexto(bytes) {
 export function traduzirErroPonto(msg) {
   const m = String(msg || '');
   if (m.includes('sem_coluna_diurnas')) {
-    return 'Não achei a coluna "Diurnas" neste PDF. Ele é mesmo um espelho de ponto?';
+    return 'Não achei a coluna "Normais" nem "Diurnas" neste PDF. Ele é mesmo um espelho de ponto?';
   }
-  if (m.includes('sem_total')) return 'Não achei a linha "Total:" neste PDF.';
-  if (m.includes('total_diurnas_ilegivel')) return 'A linha "Total:" existe, mas o total de diurnas não está legível.';
+  if (m.includes('sem_total')) return 'Não achei os totais neste PDF ("Total:" ou "Normais:").';
+  if (m.includes('total_diurnas_ilegivel')) return 'Os totais existem, mas o total de horas normais não está legível.';
   if (m.includes('sem_texto')) return 'Este PDF não tem texto — parece ser digitalizado (imagem).';
   if (m.includes('sem_descompressor')) return 'Este navegador não consegue abrir o PDF. Use Chrome, Edge ou Firefox atualizados.';
   if (m.includes('entrada_invalida')) return 'Arquivo inválido.';
