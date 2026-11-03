@@ -307,11 +307,23 @@ grupo('4B fase 1 · excluir paciente continua fora do alcance', () => {
     // filtro por organização aqui daria à Recepção uma exclusão que a Fase 2
     // teria de tirar de volta.
     preparar();
+    tabela('pacientes', [{ id: 'p1' }]);
     await excluirPaciente('p1');
     const reg = ultima('pacientes');
     igual(reg.operacao, 'delete');
     igual(filtroDe(reg, 'nutri_id'), undefined);
     igual(filtroDe(reg, 'id'), 'p1');
+  });
+
+  teste('zero linhas apagadas vira erro, não "excluído"', async () => {
+    // Para quem não é proprietário, o banco recusa a linha sem erro nenhum. Foi
+    // assim que a Administradora "excluía" um cadastro e ele continuava lá.
+    preparar();
+    tabela('pacientes', []);
+    let erro = null;
+    try { await excluirPaciente('p1'); } catch (e) { erro = e; }
+    ok(erro, 'a exclusão sem efeito tem que falhar');
+    ok(String(erro.message).includes('proprietário'), erro.message);
   });
 
   teste('o Comercial não apaga paciente', () => {

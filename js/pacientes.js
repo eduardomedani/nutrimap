@@ -150,12 +150,17 @@ export async function marcarComoCompleto(codigo) {
  * Exclui um paciente (CASCADE apaga respostas e exames)
  */
 export async function excluirPaciente(id) {
-  const { error } = await sb
+  // O .select() é o que revela a exclusão que não aconteceu: a regra do banco só
+  // deixa o proprietário excluir, e para os demais (até Administrador) o DELETE
+  // responde "ok" com zero linhas. Sem conferir isso, a tela dizia "excluído".
+  const { data, error } = await sb
     .from('pacientes')
     .delete()
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
 
   if (error) throw error;
+  if (!data?.length) throw new Error('Este cliente não foi excluído. Só o proprietário da conta pode excluir clientes.');
   return true;
 }
 

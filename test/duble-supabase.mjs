@@ -67,6 +67,13 @@ function cadeia(tabelaNome, operacao, payload) {
       _erros.delete(tabelaNome);
       return { data: null, error: programado.erro };
     }
+    // delete().select() devolve as linhas apagadas, como o Supabase: é assim que
+    // quem chama descobre que a exclusão não apagou nada.
+    if (operacao === 'delete' && registro.colunas) {
+      const linhas = (_tabelas.get(tabelaNome) || []).filter(l =>
+        registro.filtros.every(f => f.tipo !== 'eq' || l[f.coluna] === f.valor));
+      return { data: linhas, error: null };
+    }
     if (operacao !== 'select') return { data: payload ?? null, error: null };
 
     let linhas = [..._tabelas.get(tabelaNome) || []];
