@@ -29,7 +29,7 @@ import {
   listarCategorias, listarLancamentos, folhaPorCompetencia,
   salvarLancamento, criarLancamento, excluirLancamento, fundirCategorias,
   somar, porCategoria, porAno, pendencias, serieAnual, totaisDoAno, anosDisponiveis,
-  fluxoDeCaixa, forasDoFluxo, separarFolha, folhaDoPeriodo,
+  fluxoDeCaixa, forasDoFluxo, separarFolha, folhaDoPeriodo, mesesDisponiveis, doMes,
   anoDa, dataBR, formatarBRL, nomeCompetencia, valorDeTexto, SEM_CATEGORIA,
 } from './financeiro.js';
 import {
@@ -76,6 +76,7 @@ let _aoAbrirEquipe = null;
 let _cache = null;
 let _tipo = 'despesa';
 let _anoGrafico = null;
+let _mesVisao = '';   // competência escolhida na Visão geral; '' = todos os meses
 // Armado pelos atalhos de pendência, consumido pela aba que abrir em seguida.
 // GUARDA A SEÇÃO JUNTO porque a pendência pode ser de receita ou de despesa, e
 // mandar as duas para a mesma lista foi exatamente o defeito de 05/09/2026: o
@@ -209,19 +210,28 @@ async function montarVisaoGeral(miolo) {
   // db/financeiro_folha_despesa.sql a folha fechada tem linha própria no caixa
   // — e somá-la aqui a faria aparecer duas vezes na mesma tela: no tile das
   // despesas e no tile do custo da equipe, logo ao lado.
-  const { operacao: despesas } = separarFolha(doTipo(d.lancamentos, 'despesa'));
-  const receitas = doTipo(d.lancamentos, 'receita');
-
   if (!d.lancamentos.length) { miolo.innerHTML = vazioHtml('despesa'); ligarAcoes(miolo); return; }
+
+  // Um mês que sumiu (o último lançamento dele foi apagado) volta para "todos",
+  // em vez de deixar o seletor apontando para algo que não está na lista.
+  const mesesDoSeletor = mesesDisponiveis(d.lancamentos, d.folha);
+  if (_mesVisao && !mesesDoSeletor.includes(_mesVisao)) _mesVisao = '';
+
+  const lancamentosDoPeriodo = doMes(d.lancamentos, _mesVisao);
+  const { operacao: despesas } = separarFolha(doTipo(lancamentosDoPeriodo, 'despesa'));
+  const receitas = doTipo(lancamentosDoPeriodo, 'receita');
 
   // Uma fonte por competência: onde há lançamento, ele manda; onde não há,
   // vale a apuração da folha. Ver `folhaDoPeriodo` em js/financeiro.js.
-  const folhaMeses = folhaDoPeriodo(d.lancamentos, d.folha);
+  // Calculada sobre tudo e só depois recortada: é a mesma regra nos dois casos.
+  const folhaMeses = doMes(folhaDoPeriodo(d.lancamentos, d.folha), _mesVisao);
   const lancadas = folhaMeses.filter(f => f.lancado).length;
 
   const totalDespesas = somar(despesas);
   const totalReceitas = somar(receitas);
   const totalFolha = somar(folhaMeses.map(f => ({ valor: f.total })));
+  // As pendências continuam de todos os meses: os atalhos delas abrem as listas
+  // sem recorte de mês, e um número menor que a lista pareceria erro.
   const pend = pendencias(d.lancamentos);
   const anos = porAno(despesas);
   const cats = porCategoria(despesas, d.categorias);
@@ -231,6 +241,10 @@ async function montarVisaoGeral(miolo) {
 
   miolo.innerHTML = `
     <div class="fx-acoes-topo">
+      <select class="fp-select fx-sel-mes" id="fxMesVisao" aria-label="Mês da visão geral">
+        <option value="">Todos os meses</option>
+        ${mesesDoSeletor.map(m => `<option value="${esc(m)}"${m === _mesVisao ? ' selected' : ''}>${esc(nomeCompetencia(m))}</option>`).join('')}
+      </select>
       <button class="btn primary" id="fxNovaDespesa">
         <i data-lucide="plus"></i> Nova despesa
       </button>
@@ -245,7 +259,7 @@ async function montarVisaoGeral(miolo) {
       <div class="rs-tile">
         <div class="rs-tile-rot">Custo da equipe</div>
         <div class="rs-tile-val">${esc(formatarBRL(totalFolha))}</div>
-        <div class="rs-tile-sub">${folhaMeses.length} competências · ${
+        <div class="rs-tile-sub">${folhaMeses.length} ${folhaMeses.length === 1 ? 'competência' : 'competências'} · ${
           lancadas ? `${lancadas} já ${lancadas === 1 ? 'lançada' : 'lançadas'} no caixa` : 'apurado na folha'}</div>
       </div>
       <div class="rs-tile">
@@ -258,8 +272,11 @@ async function montarVisaoGeral(miolo) {
         ${receitas.length
           ? `<div class="rs-tile-val">${esc(formatarBRL(totalReceitas))}</div>
              <div class="rs-tile-sub">${receitas.length} lançamentos</div>`
-          : `<div class="rs-tile-val fx-tile-txt">${esc(nomeCompetencia(meses[0]))}</div>
-             <div class="rs-tile-sub">até ${esc(nomeCompetencia(meses[meses.length - 1]))}</div>`}
+          : _mesVisao
+            ? `<div class="rs-tile-val fx-tile-txt">${esc(nomeCompetencia(_mesVisao))}</div>
+               <div class="rs-tile-sub">sem receitas neste mês</div>`
+            : `<div class="rs-tile-val fx-tile-txt">${esc(nomeCompetencia(meses[0]))}</div>
+               <div class="rs-tile-sub">até ${esc(nomeCompetencia(meses[meses.length - 1]))}</div>`}
       </div>
     </div>
 
@@ -267,7 +284,7 @@ async function montarVisaoGeral(miolo) {
 
     <div class="fx-bloco" id="fxGraficoBloco"></div>
 
-    <div class="fx-bloco">
+    ${_mesVisao ? '' : `<div class="fx-bloco">
       <div class="fx-bloco-tit"><i data-lucide="calendar-range"></i> Despesas por ano</div>
       <div class="fx-barras">
         ${anos.map(a => `
@@ -283,11 +300,12 @@ async function montarVisaoGeral(miolo) {
         Só despesas de operação. A folha fechada tem lançamento próprio no caixa
         e é contada no custo da equipe — aqui ela ficaria pela segunda vez.
       </p>
-    </div>
+    </div>`}
 
     <div class="fx-bloco">
-      <div class="fx-bloco-tit"><i data-lucide="tags"></i> Para onde foi o dinheiro</div>
-      <table class="fp-tabela fx-tabela">
+      <div class="fx-bloco-tit"><i data-lucide="tags"></i> Para onde foi o dinheiro${
+        _mesVisao ? ` · ${esc(nomeCompetencia(_mesVisao))}` : ''}</div>
+      ${cats.length ? `<table class="fp-tabela fx-tabela">
         <thead><tr><th>Categoria</th><th class="fx-num">Lançamentos</th><th class="fx-num">Total</th><th class="fx-num">%</th></tr></thead>
         <tbody>
           ${cats.map(c => `
@@ -298,7 +316,7 @@ async function montarVisaoGeral(miolo) {
               <td class="fx-num" data-rot="Participação">${(c.total / (totalDespesas || 1) * 100).toFixed(1)}%</td>
             </tr>`).join('')}
         </tbody>
-      </table>
+      </table>` : '<p class="fe-nota">Nenhuma despesa de operação neste mês.</p>'}
     </div>
 
     <div class="fe-ponte">
@@ -313,6 +331,14 @@ async function montarVisaoGeral(miolo) {
       </button>
     </div>
   `;
+
+  // O gráfico continua mostrando os doze meses, mas acompanha o ano do mês
+  // escolhido: outubro/2025 ao lado do gráfico de 2026 pareceria número errado.
+  document.getElementById('fxMesVisao')?.addEventListener('change', (e) => {
+    _mesVisao = e.target.value;
+    if (_mesVisao) _anoGrafico = anoDa(_mesVisao);
+    montarVisaoGeral(miolo);
+  });
 
   desenharGrafico();
   ligarAcoes(miolo);

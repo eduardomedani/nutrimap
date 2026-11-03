@@ -289,6 +289,23 @@ export function anosDisponiveis(lancamentos, folha = []) {
   return [...anos].sort().reverse();
 }
 
+/** Meses com movimento, do mais recente para o mais antigo, como 'AAAA-MM-01'.
+ *  Lançamento cancelado não abre mês: escolhê-lo mostraria uma tela zerada. A
+ *  folha entra pelo mesmo motivo de `anosDisponiveis`. */
+export function mesesDisponiveis(lancamentos, folha = []) {
+  const meses = new Set();
+  for (const l of somaveis(lancamentos)) { const m = mesDe(l.competencia); if (m) meses.add(m); }
+  for (const f of folha || [])           { const m = mesDe(f.competencia); if (m) meses.add(m); }
+  return [...meses].sort().reverse().map(m => `${m}-01`);
+}
+
+/** Só as linhas da competência pedida. Sem mês, devolve a lista inteira. */
+export function doMes(lista, mes) {
+  if (!mes) return lista || [];
+  const alvo = mesDe(mes);
+  return (lista || []).filter(l => mesDe(l.competencia) === alvo);
+}
+
 /**
  * Os doze meses de um ano, com receita, despesa e folha.
  *

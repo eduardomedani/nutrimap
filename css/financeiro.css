@@ -2088,7 +2088,8 @@ tbody tr.dsp-linha:focus-visible { outline: 2px solid var(--primary); outline-of
 .dsp-menu button:hover { background: var(--surface-2, rgba(127, 127, 127, .1)); }
 .dsp-menu-danger { color: var(--error, #C0392B); }
 
-.fx-acoes-topo { display: flex; justify-content: flex-end; margin-bottom: 16px; }
+.fx-acoes-topo { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.fx-sel-mes { min-width: 180px; }
 
 /* AS COLUNAS CENTRALIZADAS. Data, categoria, valor e situação são campos
    curtos e de largura parecida: centrados, a coluna se lê como coluna. A

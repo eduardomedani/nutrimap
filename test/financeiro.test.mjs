@@ -23,7 +23,9 @@ import {
   somar, porCategoria, porAno, porCompetencia, pendencias, custoDoMes,
   anoDa, dataBR, hojeISO, SEM_CATEGORIA,
   serieAnual, totaisDoAno, anosDisponiveis, fluxoDeCaixa, forasDoFluxo,
+  mesesDisponiveis, doMes,
 } from '../js/financeiro.js';
+
 import {
   graficoReceitaDespesa, legendaHtml, SERIES, graficoFluxo, legendaFluxoHtml, SERIES_FLUXO,
 } from '../js/financeiro-grafico.js';
@@ -633,5 +635,35 @@ grupo('financeiro · o atalho da pendência leva onde a linha está', () => {
     // Receita em aberto é contas a receber, que é outra pergunta e tem aba
     // própria — contá-la aqui mandaria a pessoa para a lista errada de novo.
     contem(ui, 'naoPagosDespesa');
+  });
+});
+
+grupo('financeiro · filtro de mês da visão geral', () => {
+  const LINHAS = [
+    { id: 'a', competencia: '2026-09-01', valor: 100, status: 'pago' },
+    { id: 'b', competencia: '2026-10-01', valor: 40, status: 'pago' },
+    { id: 'c', competencia: '2026-10-01', valor: 60, status: 'aberto' },
+    { id: 'd', competencia: '2026-07-01', valor: 999, status: 'cancelado' },
+  ];
+
+  teste('os meses vêm do mais recente para o mais antigo', () => {
+    igual(mesesDisponiveis(LINHAS), ['2026-10-01', '2026-09-01']);
+  });
+
+  teste('mês só com lançamento cancelado não entra na lista', () => {
+    ok(!mesesDisponiveis(LINHAS).includes('2026-07-01'));
+  });
+
+  teste('mês só de folha entra na lista', () => {
+    igual(mesesDisponiveis([], [{ competencia: '2026-08-01', total: 500 }]), ['2026-08-01']);
+  });
+
+  teste('o recorte traz só a competência pedida', () => {
+    igual(doMes(LINHAS, '2026-10-01').map(l => l.id), ['b', 'c']);
+    igual(somar(doMes(LINHAS, '2026-10-01')), 100);
+  });
+
+  teste('sem mês, a lista continua inteira', () => {
+    igual(doMes(LINHAS, '').length, LINHAS.length);
   });
 });
