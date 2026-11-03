@@ -599,6 +599,63 @@ export function datasDoLancamento(l) {
   return { principal, apoio };
 }
 
+const ehDia = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''));
+
+/**
+ * O lançamento cai no período de/até (os dois dias entram)? Só filtra a lista.
+ *
+ * Vale a mesma data principal de `datasDoLancamento`: pago pelo pagamento, em aberto pelo
+ * vencimento. Assim uma despesa de outubro paga em 03/11 aparece em novembro, como no Caixa.
+ * Sem nenhuma das duas, vale a data do registro; sem data alguma, fica fora do período.
+ * Dias invertidos são lidos na ordem certa: a lista vazia pareceria "não há lançamentos".
+ */
+export function dentroDoPeriodo(l, de = '', ate = '') {
+  let inicio = ehDia(de) ? de : '';
+  let fim = ehDia(ate) ? ate : '';
+  if (!inicio && !fim) return true;
+  if (inicio && fim && inicio > fim) [inicio, fim] = [fim, inicio];
+
+  const dia = String(datasDoLancamento(l).principal.data || l?.data || '').slice(0, 10);
+  if (!dia) return false;
+  return (!inicio || dia >= inicio) && (!fim || dia <= fim);
+}
+
+/**
+ * Em palavras, o que está recortando a lista. Vazio quando nada está: o aviso só aparece
+ * quando o total e a contagem da tela não são os de tudo. `outros` traz o que só uma das
+ * abas tem, já com o nome legível (situação, centro, categoria).
+ */
+export function descricaoDoFiltro({ de = '', ate = '', ano = '', busca = '', outros = [] } = {}) {
+  let inicio = ehDia(de) ? de : '';
+  let fim = ehDia(ate) ? ate : '';
+  if (inicio && fim && inicio > fim) [inicio, fim] = [fim, inicio];
+
+  const partes = [];
+  if (inicio && fim) partes.push(inicio === fim ? `dia ${dataBR(inicio)}` : `período de ${dataBR(inicio)} a ${dataBR(fim)}`);
+  else if (inicio) partes.push(`a partir de ${dataBR(inicio)}`);
+  else if (fim) partes.push(`até ${dataBR(fim)}`);
+  if (ano) partes.push(`competência de ${ano}`);
+  const termo = String(busca || '').trim();
+  if (termo) partes.push(`busca "${termo}"`);
+  partes.push(...(outros || []).filter(Boolean));
+  return partes.join(' · ');
+}
+
+/** Os dois campos do período, iguais em Despesas e Receitas. */
+export function periodoHtml(prefixo, de = '', ate = '') {
+  const valor = v => (ehDia(v) ? v : '');
+  const ajuda = 'Pagos pela data do pagamento. Em aberto pelo vencimento.';
+  return `
+    <div class="dsp-periodo" role="group" aria-label="Período" title="${ajuda}">
+      <label class="dsp-periodo-rot" for="${prefixo}De">De</label>
+      <input class="fp-in dsp-periodo-in" id="${prefixo}De" type="date" value="${valor(de)}"
+             aria-label="Dia inicial. ${ajuda}">
+      <label class="dsp-periodo-rot" for="${prefixo}Ate">até</label>
+      <input class="fp-in dsp-periodo-in" id="${prefixo}Ate" type="date" value="${valor(ate)}"
+             aria-label="Dia final. ${ajuda}">
+    </div>`;
+}
+
 /**
  * Hoje em 'YYYY-MM-DD' pelo relógio LOCAL.
  *

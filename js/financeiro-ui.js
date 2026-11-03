@@ -31,7 +31,7 @@ import {
   somar, porCategoria, porAno, pendencias, serieAnual, totaisDoAno, anosDisponiveis,
   fluxoDeCaixa, forasDoFluxo, separarFolha, recorteFinanceiro, contaNoTotal,
   linhasDeCaixa, folhaDeCaixa, serieDeCaixa, paginaDaLista, rolarParaInicio,
-  datasDoLancamento,
+  datasDoLancamento, dentroDoPeriodo, periodoHtml, descricaoDoFiltro,
   anoDa, dataBR, formatarBRL, nomeCompetencia, valorDeTexto, SEM_CATEGORIA,
 } from './financeiro.js';
 import {
@@ -89,7 +89,7 @@ let _paginaLista = 0;            // página da lista de Receitas
 // alerta contava "6 sem valor" (receitas da importação de vendas), o botão
 // abria Despesas, e a lista vinha vazia — o número parecia mentira.
 let _filtroPendencia = null;     // { secao, filtro }
-const _filtro = { ano: '', categoria: '', busca: '', pendencia: '' };
+const _filtro = { ano: '', categoria: '', busca: '', pendencia: '', de: '', ate: '' };
 
 export { SECOES };
 
@@ -904,7 +904,7 @@ async function montarLista(miolo, tipo) {
   // esconderia parte das seis, e o número da Visão geral pareceria errado de
   // novo — por outro motivo.
   if (_filtroPendencia?.secao === 'receitas' && tipo === 'receita') {
-    Object.assign(_filtro, { ano: '', categoria: '', busca: '' }, _filtroPendencia.filtro);
+    Object.assign(_filtro, { ano: '', categoria: '', busca: '', de: '', ate: '' }, _filtroPendencia.filtro);
     _filtroPendencia = null;
   } else {
     _filtro.pendencia = '';
@@ -930,6 +930,7 @@ async function montarLista(miolo, tipo) {
         <input class="fp-in dsp-busca" id="fxBusca" type="search"
                placeholder="Buscar ${tipo === 'receita' ? 'receitas' : 'despesas'}"
                value="${esc(_filtro.busca)}" aria-label="Buscar na descrição">
+        ${periodoHtml('fx', _filtro.de, _filtro.ate)}
         <div class="dsp-filtros-campos">
           <select class="fp-select dsp-f dsp-f-ano" id="fxAno" aria-label="Ano">
             <option value="">Todos os anos</option>
@@ -957,6 +958,12 @@ async function montarLista(miolo, tipo) {
   miolo.querySelector('#fxBusca').addEventListener('input', debounce(e => {
     _filtro.busca = e.target.value; _paginaLista = 0; desenharLista();
   }, 200));
+  miolo.querySelector('#fxDe').addEventListener('change', e => {
+    _filtro.de = e.target.value; _paginaLista = 0; desenharLista();
+  });
+  miolo.querySelector('#fxAte').addEventListener('change', e => {
+    _filtro.ate = e.target.value; _paginaLista = 0; desenharLista();
+  });
   miolo.querySelector('#fxAno').addEventListener('change', e => {
     _filtro.ano = e.target.value; _paginaLista = 0; desenharLista();
   });
@@ -972,6 +979,7 @@ function filtrar(lancamentos) {
   const termo = _filtro.busca.trim().toLowerCase();
   return lancamentos.filter(l => {
     if (_filtro.ano && anoDa(l.competencia) !== _filtro.ano) return false;
+    if (!dentroDoPeriodo(l, _filtro.de, _filtro.ate)) return false;
     if (_filtro.categoria === 'sem' && l.categoria_id) return false;
     if (_filtro.categoria && _filtro.categoria !== 'sem' && l.categoria_id !== _filtro.categoria) return false;
     // O recorte que o atalho da Visão geral arma. Sem ele, clicar em
@@ -999,13 +1007,14 @@ function desenharLista() {
   const lista = filtrar(doLado);
   const total = somar(lista);
   const semValor = lista.filter(l => l.valor === null || l.valor === undefined).length;
+  const foraDoTotal = lista.filter(l => !contaNoTotal(l)).length;
 
   if (!lista.length) {
     alvo.innerHTML = `<div class="fe-vazio fe-vazio-topo">
       <div class="fe-vazio-tit">Nenhum lançamento neste filtro</div>
       <div class="fe-vazio-sub">${_filtro.pendencia
         ? 'Nada aqui está nessa situação — o que a Visão geral contou pode ser do outro lado do caixa.'
-        : 'Ajuste o ano, a categoria ou o texto da busca.'}</div>
+        : 'Ajuste o período, o ano, a categoria ou o texto da busca.'}</div>
       ${_filtro.pendencia ? '<div class="fe-vazio-acoes"><button class="btn" id="fxLimparPend">Ver todos</button></div>' : ''}
     </div>`;
     ligarLimparPendencia();
@@ -1029,12 +1038,15 @@ function desenharLista() {
       <strong>${esc(formatarBRL(total))}</strong>
       ${semValor ? `<span class="dsp-resumo-sep">·</span>
         <span class="fx-alerta">${semValor} sem valor, fora do total</span>` : ''}
+      ${foraDoTotal ? `<span class="dsp-resumo-sep">·</span>
+        <span class="dsp-mudo">${foraDoTotal} cancelada(s) ou arquivada(s), fora do total</span>` : ''}
       ${_filtro.pendencia ? `<span class="dsp-resumo-sep">·</span>
         <button class="fx-chip-filtro" id="fxLimparPend" type="button">
           só ${esc(rotuloPend[_filtro.pendencia] || _filtro.pendencia)}
           <i data-lucide="x"></i>
         </button>` : ''}
     </div>
+    ${avisoDoFiltroDaLista()}
 
     <div class="fp-tabela-wrap">
       <table class="fp-tabela fx-tabela">
@@ -1090,6 +1102,16 @@ function desenharLista() {
   });
   alvo.querySelectorAll('[data-lanc-excluir]').forEach(b =>
     b.addEventListener('click', () => apagar(b.dataset.lancExcluir)));
+}
+
+/** Deixa claro que o total e a contagem acima são só os do recorte. A pendência já tem chip. */
+function avisoDoFiltroDaLista() {
+  const categoria = _filtro.categoria === 'sem' ? SEM_CATEGORIA.toLowerCase()
+    : _filtro.categoria ? `categoria ${_cache.categorias.find(c => c.id === _filtro.categoria)?.nome || ''}` : '';
+  const texto = descricaoDoFiltro({
+    de: _filtro.de, ate: _filtro.ate, ano: _filtro.ano, busca: _filtro.busca, outros: [categoria],
+  });
+  return texto ? `<div class="dsp-resumo-filtro">Total e contagem só deste filtro: ${esc(texto)}</div>` : '';
 }
 
 /** A data principal, com o que ela significa, e as outras em letra menor. */

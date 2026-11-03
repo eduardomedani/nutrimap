@@ -16,6 +16,7 @@ import {
   listarLancamentos, listarCategorias, listarCentrosCusto,
   marcarComoPaga, cancelarDespesa, excluirLancamento,
   somar, pendencias, contasAPagar, contaNoTotal, ehDespesaDeFolha, rolarParaInicio,
+  dentroDoPeriodo, periodoHtml, descricaoDoFiltro,
   anoDa, dataBR, hojeISO, formatarBRL, nomeCompetencia, SEM_CATEGORIA,
 } from './financeiro.js';
 import { abrirLancamento, despesaDoBanco } from './financeiro-lancamento-form.js';
@@ -28,7 +29,7 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '
 // pergunta que de fato se faz — "o que ainda não classifiquei" — e não "me
 // mostre só a categoria X", que a busca já resolve.
 const FILTRO_VAZIO = {
-  busca: '', ano: '', status: '', centro: '', pendencia: '',
+  busca: '', de: '', ate: '', ano: '', status: '', centro: '', pendencia: '',
 };
 
 let _dados = null;
@@ -95,6 +96,7 @@ export function filtrar(lancamentos, filtro, hoje) {
 
   return (lancamentos || []).filter(l => {
     if (filtro.ano && anoDa(l.competencia) !== filtro.ano) return false;
+    if (!dentroDoPeriodo(l, filtro.de, filtro.ate)) return false;
 
     if (filtro.centro === 'sem' && l.centro_custo_id) return false;
     if (filtro.centro && filtro.centro !== 'sem' && l.centro_custo_id !== filtro.centro) return false;
@@ -152,6 +154,7 @@ function desenhar(alvo) {
         <input class="fp-in dsp-busca" id="dspBusca" type="search"
                placeholder="Buscar despesas" value="${esc(_filtro.busca)}"
                aria-label="Buscar na descrição, fornecedor ou observação">
+        ${periodoHtml('dsp', _filtro.de, _filtro.ate)}
 
         <button class="btn dsp-filtros-btn" id="dspFiltrosToggle" type="button"
                 aria-expanded="false" aria-controls="dspFiltrosCampos">
@@ -195,6 +198,17 @@ function desenhar(alvo) {
 
   const on = (id, ev, fn) => { const el = alvo.querySelector('#' + id); if (el) el.addEventListener(ev, fn); };
   on('dspBusca', 'input', debounce(e => { _filtro.busca = e.target.value; _pagina = 0; lista(); }, 200));
+  // O Limpar nasce desligado sem filtro ativo: o período precisa religá-lo aqui, senão não
+  // haveria como desfazer as duas datas de uma vez.
+  const trocarPeriodo = campo => e => {
+    _filtro[campo] = e.target.value;
+    _pagina = 0;
+    const limpar = alvo.querySelector('#dspLimpar');
+    if (limpar) limpar.disabled = !contarFiltros();
+    lista();
+  };
+  on('dspDe', 'change', trocarPeriodo('de'));
+  on('dspAte', 'change', trocarPeriodo('ate'));
   on('dspFAno', 'change', e => { _filtro.ano = e.target.value; _pagina = 0; lista(); });
   on('dspFStatus', 'change', e => { _filtro.status = e.target.value; _pagina = 0; lista(); });
   on('dspFCentro', 'change', e => { _filtro.centro = e.target.value; _pagina = 0; lista(); });
@@ -246,8 +260,9 @@ function lista() {
       ${semValor ? `<span class="dsp-resumo-sep">·</span>
         <span class="fx-alerta">${semValor} sem valor, fora do total</span>` : ''}
       ${cancel ? `<span class="dsp-resumo-sep">·</span>
-        <span class="dsp-mudo">${cancel} cancelada(s), fora do total</span>` : ''}
+        <span class="dsp-mudo">${cancel} cancelada(s) ou arquivada(s), fora do total</span>` : ''}
     </div>
+    ${avisoDoFiltro()}
 
     <div class="fp-tabela-wrap">
       <table class="fp-tabela fx-tabela dsp-tabela">
@@ -282,6 +297,20 @@ function lista() {
   if (ant) ant.addEventListener('click', () => { _pagina--; lista(); rolarParaInicio(cx); });
   const prox = cx.querySelector('#dspProx');
   if (prox) prox.addEventListener('click', () => { _pagina++; lista(); rolarParaInicio(cx); });
+}
+
+const SITUACAO_DO_FILTRO = { aberto: 'em aberto', vencido: 'vencidas', pago: 'pagas', cancelado: 'canceladas' };
+
+/** Deixa claro que o total e a contagem acima são só os do recorte. */
+function avisoDoFiltro() {
+  const centro = _filtro.centro === 'sem' ? 'sem centro de custo'
+    : _filtro.centro ? `centro ${_dados.centros.find(c => c.id === _filtro.centro)?.nome || ''}` : '';
+  const pendencia = { 'sem-valor': 'sem valor', 'sem-categoria': 'sem categoria' }[_filtro.pendencia] || '';
+  const texto = descricaoDoFiltro({
+    de: _filtro.de, ate: _filtro.ate, ano: _filtro.ano, busca: _filtro.busca,
+    outros: [SITUACAO_DO_FILTRO[_filtro.status], centro, pendencia],
+  });
+  return texto ? `<div class="dsp-resumo-filtro">Total e contagem só deste filtro: ${esc(texto)}</div>` : '';
 }
 
 function linha(l, hoje, nomeCat, nomeCC) {

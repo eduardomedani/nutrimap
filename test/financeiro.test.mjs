@@ -24,8 +24,9 @@ import {
   anoDa, dataBR, hojeISO, SEM_CATEGORIA,
   serieAnual, totaisDoAno, anosDisponiveis, fluxoDeCaixa, forasDoFluxo,
   mesesDisponiveis, doMes, linhasDeCaixa, folhaDeCaixa, recorteFinanceiro, serieDeCaixa,
-  listarLancamentos, paginaDaLista,
+  listarLancamentos, paginaDaLista, dentroDoPeriodo, periodoHtml, descricaoDoFiltro, contaNoTotal,
 } from '../js/financeiro.js';
+import { filtrar, FILTRO_VAZIO, contarFiltros } from '../js/financeiro-despesas-ui.js';
 import { tabela, limpar, tetoDeLinhas, falharBloco, chamadas } from './duble-supabase.mjs';
 
 import {
@@ -823,5 +824,191 @@ grupo('financeiro · a legenda acompanha o critério', () => {
 
   teste('as cores não mudam entre critérios', () => {
     igual(seriesDoCriterio('caixa').map(s => s.cor), SERIES.map(s => s.cor));
+  });
+});
+
+grupo('financeiro · filtro de dia inicial a dia final', () => {
+  // A Fernanda: pix de outubro, com vencimento em novembro.
+  const FERNANDA = { id: 'f', tipo: 'receita', status: 'pago', pago: true, valor: 385,
+    pago_em: '2026-10-26', vencimento: '2026-11-25', data: '2026-11-25', competencia: '2026-09-01' };
+  // Despesa de outubro paga em novembro: o caso que motivou o critério de Caixa.
+  const DESPESA = { id: 'd', tipo: 'despesa', status: 'pago', valor: 2000,
+    pago_em: '2026-11-03', vencimento: '2026-10-20', data: '2026-10-20', competencia: '2026-10-01' };
+  const ABERTA = { id: 'a', tipo: 'despesa', status: 'pendente', valor: 70,
+    vencimento: '2026-11-20', data: '2026-11-20', competencia: '2026-11-01' };
+
+  teste('pago conta pela data do pagamento, não pelo vencimento', () => {
+    ok(dentroDoPeriodo(FERNANDA, '2026-10-01', '2026-10-31'));
+    ok(!dentroDoPeriodo(FERNANDA, '2026-11-01', '2026-11-30'));
+    ok(dentroDoPeriodo(DESPESA, '2026-11-01', '2026-11-30'));
+    ok(!dentroDoPeriodo(DESPESA, '2026-10-01', '2026-10-31'));
+  });
+
+  teste('em aberto conta pelo vencimento', () => {
+    ok(dentroDoPeriodo(ABERTA, '2026-11-01', '2026-11-30'));
+    ok(!dentroDoPeriodo(ABERTA, '2026-12-01', '2026-12-31'));
+  });
+
+  teste('o primeiro e o último dia entram', () => {
+    ok(dentroDoPeriodo(FERNANDA, '2026-10-26', '2026-10-26'));
+    ok(!dentroDoPeriodo(FERNANDA, '2026-10-27', '2026-10-31'));
+    ok(!dentroDoPeriodo(FERNANDA, '2026-10-01', '2026-10-25'));
+  });
+
+  teste('só o dia inicial ou só o dia final também filtra', () => {
+    ok(dentroDoPeriodo(FERNANDA, '2026-10-01', ''));
+    ok(!dentroDoPeriodo(FERNANDA, '2026-10-27', ''));
+    ok(dentroDoPeriodo(FERNANDA, '', '2026-10-31'));
+    ok(!dentroDoPeriodo(FERNANDA, '', '2026-10-25'));
+  });
+
+  teste('sem período, nada é filtrado', () => {
+    ok(dentroDoPeriodo(FERNANDA));
+    ok(dentroDoPeriodo({ status: 'pendente' }, '', ''));
+  });
+
+  teste('dias invertidos são lidos na ordem certa', () => {
+    ok(dentroDoPeriodo(FERNANDA, '2026-10-31', '2026-10-01'));
+  });
+
+  teste('sem pagamento nem vencimento, vale a data do registro', () => {
+    const semVenc = { status: 'pendente', data: '2024-03-15' };
+    ok(dentroDoPeriodo(semVenc, '2024-03-01', '2024-03-31'));
+    ok(!dentroDoPeriodo(semVenc, '2024-04-01', '2024-04-30'));
+  });
+
+  teste('sem data nenhuma, fica fora de qualquer período', () => {
+    ok(!dentroDoPeriodo({ status: 'pendente' }, '2024-01-01', '2024-12-31'));
+  });
+
+  teste('valor que não é dia é ignorado', () => {
+    ok(dentroDoPeriodo(FERNANDA, 'abc', '"><x'));
+  });
+
+  teste('cancelado conta pelo vencimento, nunca pelo pagamento antigo', () => {
+    const c = { status: 'cancelado', pago_em: '2026-10-09', vencimento: '2026-11-11' };
+    ok(!dentroDoPeriodo(c, '2026-10-01', '2026-10-31'));
+    ok(dentroDoPeriodo(c, '2026-11-01', '2026-11-30'));
+  });
+
+  teste('a lista de Despesas respeita o período, somado aos outros filtros', () => {
+    const lista = [DESPESA, ABERTA];
+    const hoje = '2026-11-03';
+    const nov = filtrar(lista, { ...FILTRO_VAZIO, de: '2026-11-01', ate: '2026-11-10' }, hoje);
+    igual(nov.map(l => l.id), ['d']);
+    igual(somar(nov), 2000, 'o total da tela é o do período');
+    igual(filtrar(lista, { ...FILTRO_VAZIO, de: '2026-11-01', ate: '2026-11-30', status: 'aberto' }, hoje).map(l => l.id), ['a']);
+    igual(filtrar(lista, { ...FILTRO_VAZIO }, hoje).length, 2);
+  });
+
+  teste('o período entra na contagem de filtros ativos', () => {
+    igual(contarFiltros({ ...FILTRO_VAZIO }), 0);
+    igual(contarFiltros({ ...FILTRO_VAZIO, de: '2026-11-01', ate: '2026-11-30' }), 2);
+  });
+
+  teste('os campos saem com os valores, e valor inválido não vai para o HTML', () => {
+    const h = periodoHtml('dsp', '2026-11-01', '2026-11-30');
+    contem(h, 'id="dspDe"');
+    contem(h, 'id="dspAte"');
+    contem(h, 'value="2026-11-01"');
+    contem(h, 'value="2026-11-30"');
+    naoContem(periodoHtml('fx', '"><script>', ''), '<script>');
+  });
+
+  teste('o período fica junto da busca nas duas abas, fora do painel do celular', () => {
+    const ui = readFileSync(new URL('../js/financeiro-ui.js', import.meta.url), 'utf8');
+    const desp = readFileSync(new URL('../js/financeiro-despesas-ui.js', import.meta.url), 'utf8');
+    for (const [fonte, busca, painel, chamada] of [
+      [ui, 'id="fxBusca"', 'dsp-filtros-campos', "periodoHtml('fx'"],
+      [desp, 'id="dspBusca"', 'id="dspFiltrosCampos"', "periodoHtml('dsp'"],
+    ]) {
+      const b = fonte.indexOf(busca), p = fonte.indexOf(chamada), c = fonte.indexOf(painel, b);
+      ok(b > 0 && p > b && p < c, 'depois da busca e antes do painel de filtros');
+    }
+  });
+
+  teste('o filtro de período não entra nas contas da Visão geral', () => {
+    const ui = readFileSync(new URL('../js/financeiro-ui.js', import.meta.url), 'utf8');
+    const visao = ui.slice(ui.indexOf('async function montarVisaoGeral'), ui.indexOf('function desenharGrafico'));
+    ok(!visao.includes('dentroDoPeriodo'));
+  });
+});
+
+grupo('financeiro · o aviso de filtro ativo', () => {
+  teste('sem filtro não há aviso', () => {
+    igual(descricaoDoFiltro({}), '');
+    igual(descricaoDoFiltro({ de: '', ate: '', ano: '', busca: '   ', outros: ['', undefined] }), '');
+  });
+
+  teste('período completo, um dia só, e só uma das datas', () => {
+    igual(descricaoDoFiltro({ de: '2026-11-01', ate: '2026-11-30' }), 'período de 01/11/2026 a 30/11/2026');
+    igual(descricaoDoFiltro({ de: '2026-10-26', ate: '2026-10-26' }), 'dia 26/10/2026');
+    igual(descricaoDoFiltro({ de: '2026-11-01' }), 'a partir de 01/11/2026');
+    igual(descricaoDoFiltro({ ate: '2026-11-30' }), 'até 30/11/2026');
+  });
+
+  teste('datas invertidas aparecem na ordem em que o filtro as usa', () => {
+    igual(descricaoDoFiltro({ de: '2026-11-30', ate: '2026-11-01' }), 'período de 01/11/2026 a 30/11/2026');
+  });
+
+  teste('junta os filtros combinados', () => {
+    igual(descricaoDoFiltro({ de: '2026-11-01', ate: '2026-11-30', ano: '2026', busca: ' luz ', outros: ['pagas'] }),
+      'período de 01/11/2026 a 30/11/2026 · competência de 2026 · busca "luz" · pagas');
+  });
+
+  teste('o aviso aparece nas duas telas, e o texto da busca passa por esc', () => {
+    const ui = readFileSync(new URL('../js/financeiro-ui.js', import.meta.url), 'utf8');
+    const desp = readFileSync(new URL('../js/financeiro-despesas-ui.js', import.meta.url), 'utf8');
+    for (const f of [ui, desp]) contem(f, 'Total e contagem só deste filtro: ${esc(texto)}');
+  });
+
+  teste('a busca deixou de ter o limite de 120px', () => {
+    const css = readFileSync(new URL('../css/financeiro.css', import.meta.url), 'utf8');
+    contem(css, '.dsp-busca { max-width: none;');
+  });
+});
+
+grupo('financeiro · cancelados e arquivados nas listas filtradas', () => {
+  const NOV = { competencia: '2026-11-01', vencimento: '2026-11-10', tipo: 'despesa' };
+  const LISTA = [
+    { ...NOV, id: 'pago', status: 'pago', pago_em: '2026-11-03', valor: 100 },
+    { ...NOV, id: 'aberto', status: 'pendente', valor: 20 },
+    { ...NOV, id: 'cancelado', status: 'cancelado', valor: 500 },
+    { ...NOV, id: 'arquivado', status: 'pago', pago_em: '2026-11-04', valor: 900, arquivado_em: '2026-11-05T10:00:00Z' },
+  ];
+  const hoje = '2026-11-03';
+  const noPeriodo = filtrar(LISTA, { ...FILTRO_VAZIO, de: '2026-11-01', ate: '2026-11-30' }, hoje);
+
+  teste('aparecem na lista do período', () => {
+    igual(noPeriodo.map(l => l.id), ['pago', 'aberto', 'cancelado', 'arquivado']);
+  });
+
+  teste('não entram no total', () => {
+    igual(somar(noPeriodo), 120);
+  });
+
+  teste('a contagem "fora do total" pega os dois, e só os dois', () => {
+    igual(noPeriodo.filter(l => !contaNoTotal(l)).map(l => l.id), ['cancelado', 'arquivado']);
+  });
+
+  teste('as duas telas somam com a mesma função', () => {
+    const ui = readFileSync(new URL('../js/financeiro-ui.js', import.meta.url), 'utf8');
+    const desp = readFileSync(new URL('../js/financeiro-despesas-ui.js', import.meta.url), 'utf8');
+    contem(ui, 'const total = somar(lista);');
+    contem(desp, 'const total = somar(todas);');
+    contem(ui, '!contaNoTotal(l)');
+    contem(desp, '!contaNoTotal(l)');
+  });
+
+  teste('período, ano, situação e busca funcionam juntos', () => {
+    const base = [
+      { id: 'a', descricao: 'Energia', status: 'pago', pago_em: '2026-11-03', competencia: '2026-10-01', valor: 1 },
+      { id: 'b', descricao: 'Energia', status: 'pago', pago_em: '2026-11-03', competencia: '2025-10-01', valor: 1 },
+      { id: 'c', descricao: 'Aluguel', status: 'pago', pago_em: '2026-11-03', competencia: '2026-10-01', valor: 1 },
+      { id: 'd', descricao: 'Energia', status: 'pendente', vencimento: '2026-11-20', competencia: '2026-10-01', valor: 1 },
+      { id: 'e', descricao: 'Energia', status: 'pago', pago_em: '2026-12-03', competencia: '2026-10-01', valor: 1 },
+    ];
+    const r = filtrar(base, { ...FILTRO_VAZIO, de: '2026-11-01', ate: '2026-11-30', ano: '2026', status: 'pago', busca: 'energia' }, hoje);
+    igual(r.map(l => l.id), ['a']);
   });
 });
