@@ -5,10 +5,12 @@
 // Plugado no index.html via initExerciciosUI(nutriId).
 
 import {
-  listarExercicios, criarExercicio, atualizarExercicio, excluirExercicio
+  listarExercicios, criarExercicio, atualizarExercicio, excluirExercicio,
+  listarTodosExercicios, obterInventarioAcademia,
 } from './treinos.js';
 import { mostrarToast, mostrarErro, confirmar } from './utils.js';
 import { abrirMinhaAcademia } from './academia-ui.js';
+import { recursosDisponiveis, cabeNaAcademia } from './academia-compat.js';
 
 let _nutriId = null;
 let _exercicios = [];      // acumulado na tela (cresce a cada "carregar mais")
@@ -19,6 +21,22 @@ let _carregando = false;   // trava contra requisições concorrentes
 let _editandoId = null;    // id do exercício em edição (ou null = novo)
 
 const PAGINA = 40;         // itens por lote
+
+// Filtro "Todos" × "Minha academia". "Todos" pagina no banco (como sempre);
+// "Minha academia" precisa da biblioteca inteira para decidir o que cabe no
+// inventário (academia-compat.js), então carrega tudo uma vez e pagina aqui.
+const CHAVE_FILTRO = 'evollo.exercicios.filtro';
+let _filtro = 'todos';     // 'todos' | 'academia'
+let _cacheTodos = null;    // biblioteca inteira (só no modo academia)
+let _disp = null;          // Set de recursos disponíveis (null = sem inventário)
+let _mostrar = PAGINA;     // quantos do recorte local estão na tela
+
+function lerFiltro() {
+  try { return localStorage.getItem(CHAVE_FILTRO) === 'academia' ? 'academia' : 'todos'; } catch { return 'todos'; }
+}
+function gravarFiltro(f) {
+  try { localStorage.setItem(CHAVE_FILTRO, f); } catch {}
+}
 
 // Debounce simples: só dispara `fn` depois de `ms` sem novas chamadas.
 function debounce(fn, ms) {
@@ -50,6 +68,9 @@ export async function initExerciciosUI(nutriId) {
   _exercicios = [];
   _temMais = false;
   _editandoId = null;
+  _filtro = lerFiltro();
+  _cacheTodos = null;
+  _disp = null;
   const page = document.getElementById('page-exercicios');
   if (!page) return;
 
@@ -62,11 +83,16 @@ export async function initExerciciosUI(nutriId) {
     <div class="list-header">
       <div class="list-title">Biblioteca de <em>exercícios</em></div>
       <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <div class="ex-filtro" role="group" aria-label="Filtrar biblioteca">
+          <button type="button" class="ex-filtro-btn" data-ex-filtro="todos"><i data-lucide="list"></i> Todos</button>
+          <button type="button" class="ex-filtro-btn" data-ex-filtro="academia"><i data-lucide="warehouse"></i> Minha academia</button>
+        </div>
         <div class="search-box"><i data-lucide="search"></i> <input type="text" id="exSearch" placeholder="Buscar por nome ou grupo..." /></div>
-        <button class="btn" id="exBtnAcademia" title="Aparelhos e puxadores que o gerador de treinos pode usar"><i data-lucide="warehouse"></i> Minha academia</button>
+        <button class="btn" id="exBtnInventario" title="Aparelhos e puxadores da sua academia"><i data-lucide="settings-2"></i> Inventário</button>
         <button class="btn primary" id="exBtnNovo"><i data-lucide="plus"></i> Novo exercício</button>
       </div>
     </div>
+    <div id="exResumo"></div>
 
     <div id="exFormWrap"></div>
     <div id="exContainer"><div class="loading"><div class="spinner"></div>Carregando exercícios...</div></div>
@@ -76,8 +102,19 @@ export async function initExerciciosUI(nutriId) {
   `;
 
   document.getElementById('exBtnNovo').addEventListener('click', () => abrirForm(null));
-  document.getElementById('exBtnAcademia').addEventListener('click', () =>
-    abrirMinhaAcademia(document.getElementById('exFormWrap'), _nutriId));
+  // Salvar o inventário muda o que cabe: no modo academia, refiltra na hora.
+  document.getElementById('exBtnInventario').addEventListener('click', () =>
+    abrirMinhaAcademia(document.getElementById('exFormWrap'), _nutriId, {
+      aoSalvar: () => { _disp = null; if (_filtro === 'academia') recarregar(); },
+    }));
+  page.querySelectorAll('[data-ex-filtro]').forEach(b => b.addEventListener('click', () => {
+    if (_filtro === b.dataset.exFiltro) return;
+    _filtro = b.dataset.exFiltro;
+    gravarFiltro(_filtro);
+    marcarFiltro();
+    recarregar();
+  }));
+  marcarFiltro();
 
   // Debounce: espera ~300ms sem digitar antes de consultar o banco.
   const buscar = debounce(() => {
@@ -94,8 +131,57 @@ async function recarregar() {
   _offset = 0;
   _exercicios = [];
   _temMais = false;
-  await carregarPagina(true);
+  _mostrar = PAGINA;
+  if (_filtro === 'academia') await carregarAcademia();
+  else { renderResumo(''); await carregarPagina(true); }
 }
+
+function marcarFiltro() {
+  document.querySelectorAll('[data-ex-filtro]').forEach(b =>
+    b.classList.toggle('active', b.dataset.exFiltro === _filtro));
+}
+
+function renderResumo(html) {
+  const el = document.getElementById('exResumo');
+  if (el) el.innerHTML = html;
+}
+
+// Modo "Minha academia": biblioteca inteira (cacheada) × inventário, filtrada
+// e paginada aqui. `_disp` só é reaproveitado quando já é um Set.
+async function carregarAcademia() {
+  const cont = document.getElementById('exContainer');
+  // Spinner só quando há o que buscar no banco: busca e "carregar mais" são
+  // locais e não podem piscar a lista (a rolagem pularia para o topo).
+  if (cont && (!_cacheTodos || !(_disp instanceof Set))) {
+    cont.innerHTML = `<div class="loading"><div class="spinner"></div>Conferindo o que cabe na sua academia...</div>`;
+  }
+  try {
+    if (!_cacheTodos) _cacheTodos = await listarTodosExercicios();
+    if (!(_disp instanceof Set)) _disp = recursosDisponiveis(await obterInventarioAcademia());
+  } catch (e) {
+    if (cont) cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="triangle-alert"></i></div>Erro ao carregar: ${esc(e.message)}</div>`;
+    return;
+  }
+  if (!_disp) {
+    renderResumo('');
+    if (cont) cont.innerHTML = `<div class="empty-state"><div class="empty-state-icon"><i data-lucide="warehouse"></i></div>
+      Sem inventário da academia (ou nada marcado como disponível).<br>
+      <button class="btn primary" id="exAbrirInv" style="margin-top:12px"><i data-lucide="settings-2"></i> Cadastrar inventário</button></div>`;
+    document.getElementById('exAbrirInv')?.addEventListener('click', () => document.getElementById('exBtnInventario').click());
+    return;
+  }
+  const cabem = _cacheTodos.filter(e => cabeNaAcademia(e, _disp));
+  const t = norm(_termo);
+  const recorte = t ? cabem.filter(e => norm(e.nome).includes(t) || norm(e.grupo_muscular).includes(t)) : cabem;
+  _exercicios = recorte.slice(0, _mostrar);
+  _temMais = recorte.length > _mostrar;
+  renderResumo(`<div class="ex-resumo"><i data-lucide="warehouse"></i>
+    <span><b>${cabem.length}</b> de ${_cacheTodos.length} exercícios cabem na sua academia${t ? ` · ${recorte.length} com "${esc(_termo)}"` : ''}.
+    Exercício que pede algo "A confirmar" (ex.: banco móvel) aparece quando você marcar como disponível.</span></div>`);
+  renderLista();
+}
+
+const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 // Busca um lote no banco e acrescenta ao acumulado. `primeira` = mostra spinner e substitui.
 async function carregarPagina(primeira = false) {
@@ -147,7 +233,8 @@ function renderLista() {
   if (maisEl) maisEl.addEventListener('click', async () => {
     maisEl.disabled = true;
     maisEl.innerHTML = 'Carregando...';
-    await carregarPagina(false);
+    if (_filtro === 'academia') { _mostrar += PAGINA; await carregarAcademia(); }
+    else await carregarPagina(false);
   });
 
   cont.querySelectorAll('[data-ex-edit]').forEach(b =>
@@ -248,6 +335,7 @@ async function salvar() {
     else await criarExercicio(_nutriId, dados);
     mostrarToast('✓ Exercício salvo');
     document.getElementById('exFormWrap').innerHTML = '';
+    _cacheTodos = null;   // nome/equipamento mudou: o filtro da academia relê
     await recarregar();
   } catch (e) {
     mostrarErro('Erro ao salvar: ' + e.message);
@@ -264,6 +352,7 @@ async function remover(id, nome) {
   try {
     await excluirExercicio(id);
     mostrarToast('✓ Exercício excluído');
+    _cacheTodos = null;
     await recarregar();
   } catch (e) {
     // FK restrict: exercício em uso por algum treino

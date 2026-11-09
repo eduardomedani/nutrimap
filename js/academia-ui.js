@@ -13,6 +13,7 @@
 
 import { obterInventarioAcademia, salvarInventarioAcademia, SITUACOES_INVENTARIO } from './treinos.js';
 import { mostrarToast, mostrarErro, confirmar } from './utils.js';
+import { RECURSOS, recursosDoItem } from './academia-compat.js';
 
 const ROTULO_SITUACAO = { disponivel: 'Disponível', pendente: 'A confirmar', indisponivel: 'Indisponível' };
 const PREFIXO = { equipamento: 'EQ', puxador: 'PG' };
@@ -24,10 +25,13 @@ let _itens = [];
 let _sujo = false;
 let _editId = null;
 let _existe = false;
+let _aoSalvar = null;
 
-export async function abrirMinhaAcademia(wrap, nutriId) {
+/** `opts.aoSalvar` — chamado depois de salvar (a lista "Minha academia" refiltra). */
+export async function abrirMinhaAcademia(wrap, nutriId, opts = {}) {
   _wrap = wrap;
   _nutriId = nutriId;
+  _aoSalvar = typeof opts.aoSalvar === 'function' ? opts.aoSalvar : null;
   _editId = null;
   _sujo = false;
   _wrap.innerHTML = `<div class="av-form-card"><div class="loading"><div class="spinner"></div>Carregando inventário...</div></div>`;
@@ -99,6 +103,7 @@ function linhaItem(i) {
         ${meta ? `<div class="acad-meta">${esc(meta)}</div>` : ''}
         ${i.exercicios ? `<div class="acad-meta">${esc(i.exercicios)}</div>` : ''}
         ${i.obs ? `<div class="acad-obs">${esc(i.obs)}</div>` : ''}
+        ${fornece(i)}
       </div>
       <select class="np-input acad-sit" data-acad-sit="${esc(i.id)}">${opcoes}</select>
       <button type="button" class="patient-action" data-acad-edit="${esc(i.id)}" title="Editar"><i data-lucide="pencil"></i></button>
@@ -121,6 +126,10 @@ function formItem(i) {
           ${campo('acadGrupos', puxador ? 'Pegada' : 'Grupos musculares', i.grupos, puxador ? 'Ex.: Neutra, fechada' : 'Ex.: Quadríceps, glúteos')}
           ${campo('acadEx', 'Exercícios possíveis', i.exercicios, puxador ? 'Ex.: Remada baixa; puxada fechada' : 'Ex.: Leg press; variação de pés')}
           ${campo('acadObs', 'Observações / restrições', i.obs, 'Ex.: confirmar regulagem; não é barra de carga', true)}
+        </div>
+        <label class="ia-label" style="margin-top:10px">O que este item permite fazer (filtro "Minha academia")</label>
+        <div class="acad-recursos">${Object.entries(RECURSOS).map(([k, rot]) => `
+          <label class="acad-rec"><input type="checkbox" data-acad-rec="${k}" ${recursosDoItem(i).includes(k) ? 'checked' : ''}> ${esc(rot)}</label>`).join('')}
         </div>
         <div class="av-actions" style="margin-top:8px">
           <button type="button" class="btn" id="acadItemCancelar">Cancelar</button>
@@ -186,6 +195,9 @@ function ligar() {
     if (!v('acadNome')) { mostrarToast('Informe o nome do item.'); return; }
     Object.assign(it, { nome: v('acadNome'), categoria: v('acadCat'), grupos: v('acadGrupos'),
                         exercicios: v('acadEx'), obs: v('acadObs') });
+    // Marcado à mão vale mais que o inferido do nome; nada marcado = volta a inferir.
+    const recs = [..._wrap.querySelectorAll('[data-acad-rec]:checked')].map(c => c.dataset.acadRec);
+    if (recs.length) it.recursos = recs; else delete it.recursos;
     delete it._novo;
     _editId = null;
     marcarSujo();
@@ -212,6 +224,7 @@ async function salvar() {
     _sujo = false;
     mostrarToast('✓ Inventário salvo — o gerador de treinos já usa esta versão');
     render();
+    _aoSalvar?.();
   } catch (e) {
     mostrarErro('Erro ao salvar o inventário: ' + e.message);
     btn.disabled = false;
@@ -231,6 +244,12 @@ async function fechar() {
 // HELPERS
 // ───────────────────────────────────────────────────────────
 function tipoDe(i) { return i.tipo === 'puxador' ? 'puxador' : 'equipamento'; }
+
+function fornece(i) {
+  const recs = recursosDoItem(i);
+  if (!recs.length) return `<div class="acad-fornece acad-fornece-vazio">Não libera exercício no filtro — edite e marque o que ele permite fazer.</div>`;
+  return `<div class="acad-fornece">Libera: ${recs.map(r => esc(RECURSOS[r] || r)).join(', ')}</div>`;
+}
 
 /** Próximo id livre do tipo: EQ36, PG13... (nunca reaproveita um id em uso). */
 export function proximoId(tipo, itens = _itens) {

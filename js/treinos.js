@@ -46,6 +46,23 @@ export async function listarExercicios({ termo = '', limite = 40, offset = 0 } =
 }
 
 /**
+ * A biblioteca inteira (em blocos de 1000 — o teto do PostgREST). Usada pelo
+ * filtro "Minha academia", que decide no navegador o que cabe no inventário.
+ */
+export async function listarTodosExercicios() {
+  let todos = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await sb
+      .from('exercicios').select('*')
+      .order('nome', { ascending: true })
+      .range(offset, offset + 999);
+    if (error) throw error;
+    todos = todos.concat(data || []);
+    if (!data || data.length < 1000) return todos;
+  }
+}
+
+/**
  * Resolve um nome digitado/escolhido para o exercício da biblioteca (match
  * exato case-insensitive). Usado ao adicionar exercício ao treino, já que a
  * biblioteca inteira não fica mais carregada em memória.

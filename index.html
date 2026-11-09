@@ -866,6 +866,19 @@
   .acad-obs { font-size: 12px; color: var(--ink-mute); font-style: italic; }
   .acad-sit { width: auto; min-width: 130px; flex-shrink: 0; }
   .acad-vazio { font-size: 13px; color: var(--ink-mute); padding: 8px 0; }
+  .acad-fornece { font-size: 11.5px; color: var(--moss); margin-top: 3px; }
+  .acad-fornece-vazio { color: var(--ink-mute); }
+  .acad-recursos { display: flex; flex-wrap: wrap; gap: 6px; }
+  .acad-rec { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 100px; font-size: 12px; color: var(--ink-soft); background: var(--bg); cursor: pointer; }
+  .acad-rec input { accent-color: var(--moss); margin: 0; }
+  .acad-rec:has(input:checked) { border-color: var(--sage); color: var(--moss-deep); background: color-mix(in srgb, var(--color-primary-400) 12%, transparent); }
+  /* Biblioteca de exercícios: filtro Todos × Minha academia */
+  .ex-filtro { display: inline-flex; padding: 3px; border: 1.5px solid var(--line); border-radius: 100px; background: var(--bg); }
+  .ex-filtro-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border: 0; border-radius: 100px; background: transparent; color: var(--ink-soft); font-family: var(--font-sans); font-size: 13px; font-weight: 700; cursor: pointer; }
+  .ex-filtro-btn svg { width: 15px; height: 15px; }
+  .ex-filtro-btn.active { background: linear-gradient(135deg, var(--olive), var(--sage)); color: var(--cream); }
+  .ex-resumo { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; background: color-mix(in srgb, var(--color-primary-400) 12%, transparent); color: var(--moss-deep); font-size: 13px; line-height: 1.45; }
+  .ex-resumo svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
   @media (max-width: 640px) {
     .acad-item:not(.acad-editando) { flex-wrap: wrap; }
     .acad-item:not(.acad-editando) .acad-info { flex-basis: calc(100% - 60px); }

@@ -13,12 +13,13 @@ import {
   listarTreinosDoPaciente, criarTreino, atualizarTreino, excluirTreino,
   listarItensDoTreino, adicionarExercicioAoTreino, atualizarItem, excluirItem,
   reordenarDias, reordenarBlocos,
-  listarExercicios, buscarExercicioPorNome,
+  listarExercicios, buscarExercicioPorNome, listarTodosExercicios,
   listarProgressao, registrarProgressao, excluirProgressao,
   listarModelos, prescreverModeloParaPaciente, salvarComoModelo,
   duplicarTreino,
   obterInventarioAcademia, inventarioParaIA,
 } from './treinos.js';
+import { recursosDisponiveis, cabeNaAcademia } from './academia-compat.js';
 import { sb } from './supabase.js';
 import { registrarEvento } from './timeline.js';
 import { mostrarToast, mostrarErro, confirmar } from './utils.js';
@@ -50,6 +51,7 @@ let _arrastando = null;     // índice da aba sendo arrastada (null = nenhuma)
 let _diaSel     = 'A';      // dia selecionado
 let _progAbertas = new Set(); // ids de treino_exercicio com o painel de progressão aberto
 let _invIA       = null;     // recorte do inventário da academia para o gerador (null = sem restrição)
+let _invRecursos = null;     // Set de recursos disponíveis (academia-compat.js) — pré-filtra a biblioteca
 
 const LETRAS = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];      // até 7 dias
 const MIN_DIAS = 2, MAX_DIAS = 7;
@@ -504,6 +506,7 @@ async function renderGeradorIA() {
   let inv = null;
   try { inv = await obterInventarioAcademia(); } catch {}
   _invIA = inventarioParaIA(inv);
+  _invRecursos = _invIA ? recursosDisponiveis(inv) : null;
   const nEst = _invIA ? _invIA.disponiveis.filter(i => i.tipo !== 'puxador').length : 0;
   const nPux = _invIA ? _invIA.disponiveis.length - nEst : 0;
   const avisoInventario = _invIA
@@ -698,14 +701,19 @@ async function gerarTreinoIA() {
   btn.disabled = true;
   res.innerHTML = `<div class="loading" style="padding:24px;"><div class="spinner"></div>A IA está montando o treino... (pode levar alguns segundos)</div>`;
   try {
-    const todos = await listarExercicios({ termo: '', limite: 500 });
+    // A biblioteca INTEIRA: com `limite: 500` em ordem alfabética, tudo depois
+    // de ~"Pa…" (remadas, roscas, supinos, tríceps) nunca chegava à IA.
+    const todos = await listarTodosExercicios();
     if (!todos.length) {
       res.innerHTML = `<div class="ia-erro"><i data-lucide="triangle-alert"></i> Sua biblioteca de exercícios está vazia. Cadastre exercícios em <b>Exercícios</b> antes de gerar.</div>`;
       return;
     }
     // A caixa permite gerar uma vez sem a trava (ex.: aluno que treina em casa).
     const inv = _invIA && document.getElementById('iaUsarInv')?.checked ? _invIA : null;
-    const bib = bibliotecaCompacta(todos, gruposAlvo, !!inv);
+    // Com inventário, a IA só vê o que cabe na academia (mesmo filtro da
+    // biblioteca "Minha academia"). O servidor continua conferindo a estação.
+    const candidatos = inv && _invRecursos ? todos.filter(e => cabeNaAcademia(e, _invRecursos)) : todos;
+    const bib = bibliotecaCompacta(candidatos, gruposAlvo, !!inv);
     payload.exercicios = bib;
     if (inv) payload.inventario = inv;
     const resp = await fetch('/api/gerar-treino', {
