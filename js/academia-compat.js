@@ -34,6 +34,7 @@ export const RECURSOS = {
   supino_declinado_maquina: 'Supino declinado (máquina)', remada_maquina: 'Remada apoiada (máquina)',
   elevacao_lateral_maquina: 'Elevação de ombro (máquina)', panturrilha_maquina: 'Panturrilha (máquina)',
   triceps_maquina: 'Tríceps (máquina)', rosca_maquina: 'Rosca (máquina)', abdominal_maquina: 'Abdominal (máquina)',
+  graviton: 'Graviton (barra assistida)', gluteo_4_apoios: 'Glúteo 4 apoios (máquina)',
   scott: 'Banco Scott', step: 'Step / caixote baixo', espaldar: 'Espaldar', colchonete: 'Colchonete',
   barra_fixa: 'Barra fixa', paralelas: 'Paralelas', fitas: 'Fitas de suspensão', elastico: 'Elástico',
   bola_suica: 'Bola suíça', rolo: 'Rolo de espuma', medicine_ball: 'Medicine ball',
@@ -62,7 +63,9 @@ const INFERE_ITEM = [
   [/hack/, ['hack']],
   [/pendulo/, ['pendulo']],
   [/leg press/, ['leg_press']],
-  [/elevacao pelvica|gluteo/, ['gluteo_maquina']],
+  [/4 apoios|kickback/, ['gluteo_4_apoios']],
+  [/elevacao pelvica|gluteo(?! 4)/, ['gluteo_maquina']],
+  [/graviton|barra assistida/, ['graviton']],
   [/adutora|abdutora/, ['adutora_abdutora']],
   [/cross ?over/, ['cross', 'polia']],
   [/smith|guiad/, ['smith']],
@@ -134,6 +137,7 @@ function exigeBancoHalter(n) {
   if (/no solo/.test(n)) return [['halter']];
   if (/scott/.test(n)) return [['halter', 'scott']];
   if (/subida no banco/.test(n)) return [['halter', 'step'], ['halter', 'banco']];
+  if (/bulgaro/.test(n)) return [['halter', 'banco'], ['halter', 'step']];   // pé de trás apoiado
   if (/\bbanco\b/.test(n)) return [['halter', 'banco']];   // "em pé ... no banco inclinado" ainda usa banco
   if (/em pe/.test(n)) return [['halter']];
   return BANCO_NO_NOME.test(n) ? [['halter', 'banco']] : [['halter']];
@@ -152,7 +156,7 @@ function exigeBarra(n, equip) {
   if (/rosca|punho|triceps|jm press|elevacao frontal|remada alta|rotac/.test(n)) return com(leves);
   if (/no solo/.test(n)) return [['barra_carga']];
   // Agachamento, supino, desenvolvimento em pé e afins partem do suporte.
-  if (/agachamento|supino|desenvolvimento|bom dia|rack pull|squat jerk|afundo/.test(n)) {
+  if (/agachamento|supino|desenvolvimento|bom dia|rack pull|squat jerk|afundo|push press/.test(n)) {
     return com([['barra_carga', 'rack']]);
   }
   return com([['barra_carga']]);
@@ -165,6 +169,9 @@ function exigeSmith(n) {
 
 function exigePolia(n) {
   if (/bosu/.test(n)) return IMPOSSIVEL;
+  // Coice de GLÚTEO e adução/abdução prendem o cabo no tornozelo; o coice de
+  // tríceps usa a pegada da própria estação.
+  if (/triceps coice|coice.*triceps/.test(n)) return [['polia']];
   if (/coice|aducao de quadril|abducao de quadril|abdominal invertido/.test(n)) return [['polia', 'tornozeleira']];
   if (/corda|face pull|pull through/.test(n)) return [['polia', 'corda']];
   if (/barra v|triangulo|neutra fechada/.test(n)) {
@@ -185,6 +192,10 @@ function exigePolia(n) {
 
 function exigeMaquina(n) {
   if (/smith/.test(n)) return exigeSmith(n);
+  if (/graviton/.test(n)) return [['graviton']];
+  if (/4 apoios/.test(n)) return [['gluteo_4_apoios']];
+  if (/elevacao pelvica/.test(n)) return [['gluteo_maquina']];
+  if (/elevacao lateral/.test(n)) return [['elevacao_lateral_maquina']];
   if (/panturrilha.*leg press|leg press/.test(n)) return [['leg_press']];
   if (/hack/.test(n)) return [['hack']];
   if (/cadeira extensora/.test(n)) return [['extensora']];
@@ -243,6 +254,9 @@ export function requisitosDoExercicio(ex) {
   const tem = p => partes.includes(p);
 
   if (/goblet/.test(n)) return [['kettlebell'], ['halter']];
+  // Cardio (esteira/bike/elíptico) não está no inventário de musculação:
+  // não trava o treino por isso.
+  if (/^cardio/.test(n)) return NADA;
   if (/smith/.test(n)) return exigeSmith(n);
 
   if (tem('maquina')) return exigeMaquina(n);

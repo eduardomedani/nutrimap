@@ -16,6 +16,86 @@
 // Bi-set entra porque o app grava o par (A + B) — ver `par` no formato. Tri-set
 // e super-set continuam fora: o app não tem como montá-los a partir da IA.
 import { familiaDe } from '../js/treino-ia-biblioteca.js';
+import BASE_EVOLLO from './_dados/base-evollo.js';
+import { escolherModelo, converterModelo, cortarPorTempo, orientacoes, recursosDoInventario, NIVEL_NUM } from './_lib/base-evollo.js';
+import { requisitosDoExercicio } from '../js/academia-compat.js';
+
+const AVISO_BASE = 'Este treino é uma sugestão geral. Consulte um médico antes de começar e, se possível, um profissional de Educação Física para acompanhar a execução.';
+
+/**
+ * Criar do zero pela Base de Treinos Evollo. Devolve:
+ *   plano      — pronto para a tela (sem IA)
+ *   precisaIA  — há lesão/observação ou músculo priorizado para adaptar
+ *   contexto   — o texto do modo para a IA (quando precisa)
+ *   permitidos — exercícios que a IA pode usar: os do modelo + os substitutos
+ *                da base que cabem (mesmas regras de grupo/tipo/nível)
+ */
+export function montarDaBase(biblioteca, criterios, inventario, sortear = Math.random) {
+  const nivel = NIVEL_NUM[criterios.nivel] ? criterios.nivel : 'Iniciante';
+  const { modelo, notas } = escolherModelo(BASE_EVOLLO, {
+    nivel, objetivo: criterios.objetivo, dias: criterios.dias, enfase: criterios.enfase, tempoMin: criterios.tempoMin,
+  }, sortear);
+  const conv = converterModelo(BASE_EVOLLO, modelo, { biblioteca, inventario, nivel });
+  const cortes = cortarPorTempo(conv.dias, criterios.tempoMin);
+
+  const nomeDe = new Map(biblioteca.map(e => [e.id, e.nome]));
+  const limpar = e => Object.fromEntries(Object.entries(e).filter(([k]) => !k.startsWith('_')));
+  const dias = conv.dias.filter(d => d.exercicios.length).map(d => ({ dia: d.dia, foco: d.foco, exercicios: d.exercicios.map(limpar) }));
+
+  const adaptacoes = [...notas, ...conv.trocas, ...conv.faltas, ...cortes];
+  const plano = {
+    nome: modelo.nome,
+    objetivo: modelo.objetivo,
+    base: { id: modelo.id, nome: modelo.nome, agenda: modelo.agenda, duracao: modelo.duracao, nivel: modelo.nivel },
+    dias,
+    relatorio: {
+      base: `${modelo.id} — ${modelo.nome} (${modelo.nivel}, ${modelo.freq}x/semana, ~${modelo.duracao} min)`,
+      estrutura: `${modelo.descricao}\nAgenda sugerida: ${modelo.agenda}`,
+      adaptacoes: adaptacoes.length ? adaptacoes.join('\n') : 'Nenhuma: o treino segue o modelo da base.',
+      orientacoes: orientacoes(nivel),
+      aviso: AVISO_BASE,
+    },
+  };
+
+  const obs = String(criterios.obs || '').trim();
+  const musculos = criterios.musculos || [];
+  const precisaIA = !!obs || musculos.length > 0;
+
+  // Substitutos: exercícios da base (≤ nível) que existem na biblioteca e cabem.
+  const recursos = recursosDoInventario(inventario);
+  const porNome = new Map(biblioteca.map(e => [String(e.nome).trim().toLowerCase(), e]));
+  const nivelNum = NIVEL_NUM[nivel];
+  const permitidos = new Map();
+  for (const [id, e] of Object.entries(BASE_EVOLLO.exercicios)) {
+    const lib = porNome.get(String(e.b).trim().toLowerCase());
+    if (!lib || e.nm > nivelNum) continue;
+    if (recursos && !requisitosDoExercicio(lib).some(a => a.every(r => recursos.has(r)))) continue;
+    permitidos.set(lib.id, { id: lib.id, nome: lib.nome, grupo: `${e.g} · ${e.t === 'C' ? 'multiarticular' : 'isolado'}`, equipamento: lib.equipamento || '' });
+  }
+  dias.forEach(d => d.exercicios.forEach(x => [x, x.par].filter(Boolean).forEach(y => {
+    if (!permitidos.has(y.exercicio_id)) permitidos.set(y.exercicio_id, { id: y.exercicio_id, nome: nomeDe.get(y.exercicio_id), grupo: '', equipamento: '' });
+  })));
+
+  const linha = x => [`${x.series}x ${x.repeticoes}`, x.descanso && `descanso ${x.descanso}`, x.metodo !== 'Normal' && x.metodo,
+    x.observacao && `obs: ${x.observacao}`, x.equipamento_id && `estação ${x.equipamento_id}${x.acessorio_id ? '+' + x.acessorio_id : ''}`].filter(Boolean).join(' · ');
+  const texto = dias.map(d => `Dia ${d.dia} — ${d.foco}:\n` + d.exercicios.map((x, i) => x.par
+    ? `  ${i + 1}. Bi-set: A) [${x.exercicio_id}] ${nomeDe.get(x.exercicio_id)} — ${linha(x)}\n     B) [${x.par.exercicio_id}] ${nomeDe.get(x.par.exercicio_id)} — ${x.series}x ${x.par.repeticoes}`
+    : `  ${i + 1}. [${x.exercicio_id}] ${nomeDe.get(x.exercicio_id)} — ${linha(x)}`).join('\n')).join('\n');
+
+  const contexto = `MODO: ADAPTAR UM TREINO-MODELO DA BASE EVOLLO.
+O sistema já escolheu e converteu o modelo ${modelo.id} — ${modelo.nome}. ${modelo.descricao}
+Sua função é SÓ adaptar ao aluno, mantendo a lógica do modelo (não monte outro treino):
+- Troca (lesão ou preferência): use outro da lista com o MESMO grupo e o MESMO tipo (multiarticular/isolado). Mantenha séries, repetições e descanso. Não repita exercício no dia.
+- Lesões: evite exercícios que carreguem a região afetada (dor lombar → evite levantamento terra, bom dia, stiff com barra e remada curvada; dor no ombro → evite desenvolvimento por trás, paralelas/mergulho e supino com barra pesado) e recomende liberação médica nas adaptações.
+- Músculos prioritários (se houver): no máximo 1 exercício isolado a mais por dia, do grupo prioritário, se o tempo permitir.
+- Não altere séries, repetições, descanso, bi-sets e técnicas sem motivo. Exercício que a lesão/preferência não afeta fica EXATAMENTE igual.
+- Mantenha os mesmos dias (${dias.map(d => d.dia).join(', ')}) e a ordem dos exercícios.
+${musculos.length ? `Músculos prioritários: ${musculos.map(m => `${m.grupo} (${m.prioridade})`).join(', ')}\n` : ''}
+TREINO-MODELO CONVERTIDO (ids entre colchetes são da lista abaixo):
+${texto}`;
+
+  return { plano, precisaIA, contexto, permitidos: [...permitidos.values()] };
+}
 
 export const MAX_TOKENS = 12000;
 
@@ -36,6 +116,10 @@ const REL_EVOLUIR = `"relatorio": {
     "progressoes": "aumentos de carga/séries, mudanças de faixa de reps/intensidade/técnica e por quê",
     "melhorias": "o que melhorou, por quê, e como contribui para o objetivo do aluno",
     "sugestoes": "oportunidades extras NÃO aplicadas (ex.: mudar a frequência) — apenas sugestão; vazio se não houver"
+  }`;
+
+const REL_BASE = `"relatorio": {
+    "adaptacoes": "cada mudança feita no modelo e o motivo, uma por linha ('Antigo → Novo: motivo'); 'Nenhuma' se o modelo ficou igual"
   }`;
 
 const REL_PADRAO = `"relatorio": {
@@ -65,7 +149,7 @@ function formato(modo, comInventario) {
       ]
     }
   ],
-  ${modo === 'evoluir' ? REL_EVOLUIR : REL_PADRAO}
+  ${modo === 'evoluir' ? REL_EVOLUIR : modo === 'base' ? REL_BASE : REL_PADRAO}
 }
 
 TAMANHO (a resposta tem limite e é cortada se passar): JSON compacto, sem espaços/quebras de linha desnecessários. OMITA campos vazios ("cadencia", "rir", "observacao", "acessorio_id" sem valor não entram). "observacao" no máximo 80 caracteres e só quando acrescenta algo. Cada campo do "relatorio" com no máximo 400 caracteres, em frases curtas; em listas (ex.: "alteracoes"), uma linha curta por item.
@@ -179,12 +263,31 @@ ${treino}`;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY não configurada na Vercel' });
 
   try {
-    const { modo = 'criar', criterios = {}, exercicios, treinoAtualTexto, progressaoTexto, instrucao } = req.body || {};
-    const inventario = lerInventario((req.body || {}).inventario);
+    const corpo = req.body || {};
+    const { modo = 'criar', criterios = {}, treinoAtualTexto, progressaoTexto, instrucao } = corpo;
+    let { exercicios } = corpo;
+    const inventario = lerInventario(corpo.inventario);
+
+    // ── BASE EVOLLO (Criar do zero) ──────────────────────────
+    // O modelo e a conversão são regra (api/_lib/base-evollo.js). Sem
+    // lesão/observação nem músculo priorizado, o treino sai SEM IA.
+    let daBase = null;
+    if (modo === 'criar' && corpo.base) {
+      if (!Array.isArray(corpo.biblioteca) || !corpo.biblioteca.length) {
+        return res.status(400).json({ error: 'Envie a biblioteca de exercícios (não vazia).' });
+      }
+      daBase = montarDaBase(corpo.biblioteca, criterios, inventario);
+      if (!daBase.plano.dias.length) {
+        return res.status(422).json({ error: 'Nenhum exercício do modelo coube na biblioteca/inventário. Confira o inventário em Exercícios → Inventário.' });
+      }
+      if (!daBase.precisaIA) return res.status(200).json(daBase.plano);
+      exercicios = daBase.permitidos;
+    }
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY não configurada na Vercel' });
     if (!Array.isArray(exercicios) || !exercicios.length) {
       return res.status(400).json({ error: 'Envie a biblioteca de exercícios (não vazia).' });
     }
@@ -197,7 +300,8 @@ export default async function handler(req, res) {
 
     const dias = Math.max(2, Math.min(7, Number(criterios.dias) || 3));
     let contexto;
-    if (modo === 'evoluir') contexto = contextoEvoluir(treinoAtualTexto, progressaoTexto, criterios.musculos);
+    if (daBase) contexto = daBase.contexto;
+    else if (modo === 'evoluir') contexto = contextoEvoluir(treinoAtualTexto, progressaoTexto, criterios.musculos);
     else if (modo === 'ajustar') contexto = contextoAjustar(treinoAtualTexto, instrucao);
     else contexto = contextoCriar(criterios, dias);
 
@@ -226,9 +330,9 @@ ${bib}
 
 Se faltar exercício para um grupo, use o mais próximo disponível e comente no relatório.
 
-${REGRAS_SELECAO}
+${daBase ? '' : REGRAS_SELECAO}
 
-${formato(modo, !!inventario)}`;
+${formato(daBase ? 'base' : modo, !!inventario)}`;
 
     const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -274,10 +378,17 @@ ${formato(modo, !!inventario)}`;
     const estacoes = new Set((inventario?.disponiveis || []).filter(i => i.tipo !== 'puxador').map(i => i.id));
     const puxadores = new Set((inventario?.disponiveis || []).filter(i => i.tipo === 'puxador').map(i => i.id));
     const descartados = [];
+    const exPorId = new Map(exercicios.map(e => [e.id, e]));
     const cabeNaAcademia = ex => {
       if (!inventario) return true;
       const eq = String(ex.equipamento_id || '').trim().toUpperCase();
       const pg = String(ex.acessorio_id || '').trim().toUpperCase();
+      // Peso corporal / cardio não têm estação: sem equipamento_id, vale se as
+      // regras do filtro dizem que o exercício não exige nada.
+      if (!eq && !pg) {
+        const lib = exPorId.get(ex.exercicio_id);
+        if (lib && requisitosDoExercicio(lib).some(alt => alt.length === 0)) { ex.equipamento_id = ''; ex.acessorio_id = ''; return true; }
+      }
       if (!estacoes.has(eq)) return false;
       if (pg && !puxadores.has(pg)) return false;
       ex.equipamento_id = eq;
@@ -336,7 +447,8 @@ ${formato(modo, !!inventario)}`;
       });
       const porFamilia = {};
       [...vistos].forEach(id => { const f = familiaDe(nomePorId.get(id)); if (f) (porFamilia[f] ||= []).push(nomePorId.get(id)); });
-      Object.entries(porFamilia).filter(([, l]) => l.length >= 3)
+      // Na base, a variedade é a do modelo (prescrito por profissional): não avisa.
+      if (!daBase) Object.entries(porFamilia).filter(([, l]) => l.length >= 3)
         .forEach(([f, l]) => variedade.push(`Dia ${d.dia || '?'}: ${l.length}× ${f} (${l.join('; ')})`));
     });
     plano.dias = (plano.dias || []).filter(d => d.exercicios.length);
@@ -351,6 +463,21 @@ ${formato(modo, !!inventario)}`;
       return res.status(502).json({ error: inventario
         ? 'A IA não conseguiu montar o treino com a sua biblioteca dentro do inventário da academia. Confira o inventário em Exercícios → Minha academia e tente de novo.'
         : 'A IA não conseguiu montar o treino com a sua biblioteca. Cadastre mais exercícios e tente de novo.' });
+    }
+    if (daBase) {
+      // A IA adaptou um modelo: nome, base e orientações são do modelo, e as
+      // adaptações da regra (trocas por inventário, cortes de tempo) vêm antes
+      // das dela.
+      const r = plano.relatorio || {};
+      plano.nome = daBase.plano.nome;
+      plano.objetivo = daBase.plano.objetivo;
+      plano.base = daBase.plano.base;
+      plano.relatorio = {
+        ...daBase.plano.relatorio,
+        adaptacoes: [daBase.plano.relatorio.adaptacoes, r.adaptacoes && !/^nenhuma/i.test(r.adaptacoes) ? `IA: ${r.adaptacoes}` : '']
+          .filter(Boolean).join('\n'),
+        ...(r.descartados ? { descartados: r.descartados } : {}),
+      };
     }
     return res.status(200).json(plano);
   } catch (e) {

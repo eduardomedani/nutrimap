@@ -166,6 +166,9 @@ export function inventarioParaIA(inv) {
   const enxuto = i => ({
     id: i.id, tipo: i.tipo === 'puxador' ? 'puxador' : 'equipamento', nome: i.nome,
     categoria: i.categoria || '', grupos: i.grupos || '', exercicios: i.exercicios || '', obs: i.obs || '',
+    // Recursos marcados à mão na tela "Minha academia": o servidor (Base
+    // Evollo) usa para decidir o que cabe — sem isto, só o inferido do nome.
+    ...(Array.isArray(i.recursos) ? { recursos: i.recursos } : {}),
   });
   return {
     disponiveis: disponiveis.map(enxuto),

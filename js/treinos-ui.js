@@ -66,7 +66,11 @@ const METODOS = [
 
 // ── Gerador de treino por IA ──
 const GRUPOS_MUSC = ['Peitoral', 'Costas', 'Quadríceps', 'Posterior', 'Ombros', 'Bíceps', 'Tríceps', 'Glúteos', 'Panturrilhas', 'Abdômen'];
-const OBJETIVOS = ['Hipertrofia', 'Força', 'Emagrecimento', 'Resistência'];
+// "Adaptação" é objetivo da Base Evollo (só iniciante; nos outros níveis a
+// base usa Hipertrofia). Emagrecimento e Resistência caem no mesmo grupo da
+// base ("Emagrecimento/Resistência") — ver api/_lib/base-evollo.js.
+const OBJETIVOS = ['Hipertrofia', 'Força', 'Emagrecimento', 'Resistência', 'Adaptação'];
+const ENFASES = [['equilibrado', 'Equilibrado'], ['inferiores', 'Inferiores e glúteos'], ['superiores', 'Superiores']];
 const NIVEIS = ['Iniciante', 'Intermediário', 'Avançado'];
 const PRIO = { '': { label: '', cls: '' }, alta: { label: 'Alta', cls: 'prio-alta' }, media: { label: 'Média', cls: 'prio-media' }, baixa: { label: 'Baixa', cls: 'prio-baixa' } };
 const PRIO_NEXT = { '': 'alta', alta: 'media', media: 'baixa', baixa: '' };
@@ -572,7 +576,7 @@ async function renderGeradorIA() {
       </div>
 
       <div data-ia-bloco="criar">
-        <p class="ia-hint">Escolha os <b>músculos prioritários</b> (clique para alternar Alta → Média → Baixa) e os dias por semana. A IA monta a divisão, o volume e escolhe os exercícios da sua biblioteca.</p>
+        <p class="ia-hint">O treino parte da <b>Base de Treinos Evollo</b> (150 modelos por nível, objetivo, frequência e ênfase): o sistema escolhe o modelo, troca o que não cabe na academia e ajusta ao tempo. Com <b>lesões/observações</b> ou <b>músculos prioritários</b>, a IA adapta o modelo; sem eles, o treino segue o modelo.</p>
       </div>
 
       <div data-ia-bloco="base" hidden>
@@ -585,7 +589,7 @@ async function renderGeradorIA() {
       </div>
 
       <div data-ia-bloco="musculos">
-        <label class="ia-label">Músculos-alvo e prioridade<span data-ia-so="evoluir" style="text-transform:none; font-weight:600"> · opcional</span></label>
+        <label class="ia-label">Músculos-alvo e prioridade<span style="text-transform:none; font-weight:600"> · opcional</span></label>
         <div class="ia-muscs">${chips}</div>
       </div>
 
@@ -597,6 +601,7 @@ async function renderGeradorIA() {
 
       <div class="tr-form-linha" data-ia-bloco="params" style="margin-top:16px;">
         <div class="av-field" data-ia-so="criar"><label>Dias por semana</label><select id="iaDias" class="np-input">${[2, 3, 4, 5, 6, 7].map(n => `<option value="${n}" ${n === 4 ? 'selected' : ''}>${n} dias</option>`).join('')}</select></div>
+        <div class="av-field" data-ia-so="criar"><label>Ênfase</label><select id="iaEnfase" class="np-input">${ENFASES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></div>
         <div class="av-field"><label>Objetivo</label><select id="iaObj" class="np-input">${OBJETIVOS.map(o => `<option>${o}</option>`).join('')}</select></div>
         <div class="av-field"><label>Nível</label><select id="iaNivel" class="np-input">${NIVEIS.map((o, i) => `<option ${i === 1 ? 'selected' : ''}>${o}</option>`).join('')}</select></div>
         <div class="av-field"><label>Tempo/sessão (min)</label><input type="number" id="iaTempo" class="np-input" placeholder="ex.: 60"></div>
@@ -677,11 +682,14 @@ async function gerarTreinoIA() {
 
   try {
     if (modo === 'criar') {
+      // Base Evollo: músculos são OPCIONAIS (o modelo já define a divisão);
+      // marcados, a IA adapta o modelo dando preferência a eles.
       const musculos = [...document.querySelectorAll('.ia-musc')]
         .filter(b => b.dataset.prio).map(b => ({ grupo: b.dataset.musc, prioridade: b.dataset.prio }));
-      if (!musculos.length) { mostrarToast('Escolha ao menos um músculo prioritário.'); return; }
-      criterios.musculos = musculos;
+      if (musculos.length) criterios.musculos = musculos;
       criterios.dias = Number(document.getElementById('iaDias').value);
+      criterios.enfase = document.getElementById('iaEnfase')?.value || 'equilibrado';
+      payload.base = true;
       gruposAlvo = musculos.map(m => m.grupo);
     } else {
       const treinoId = document.getElementById('iaTreinoBase')?.value;
@@ -710,7 +718,8 @@ async function gerarTreinoIA() {
   } catch (e) { mostrarToast('Erro ao preparar: ' + e.message); return; }
 
   btn.disabled = true;
-  res.innerHTML = `<div class="loading" style="padding:24px;"><div class="spinner"></div>A IA está montando o treino... (pode levar alguns segundos)</div>`;
+  res.innerHTML = `<div class="loading" style="padding:24px;"><div class="spinner"></div>${modo === 'criar'
+    ? 'Montando o treino a partir da Base Evollo...' : 'A IA está montando o treino... (pode levar alguns segundos)'}</div>`;
   try {
     // A biblioteca INTEIRA: com `limite: 500` em ordem alfabética, tudo depois
     // de ~"Pa…" (remadas, roscas, supinos, tríceps) nunca chegava à IA.
@@ -726,8 +735,13 @@ async function gerarTreinoIA() {
     const candidatos = inv && _invRecursos ? todos.filter(e => cabeNaAcademia(e, _invRecursos)) : todos;
     // Do treino atual entra só o que cabe na academia (com inventário); o que
     // não cabe a IA tem de trocar, e por isso não pode estar na lista.
-    const bib = bibliotecaCompacta(candidatos, gruposAlvo, { comInventario: !!inv, obrigatorios: idsBase });
-    payload.exercicios = bib;
+    // Base Evollo: o servidor precisa da biblioteca INTEIRA para achar os
+    // exercícios do modelo pelo nome (o filtro do inventário ele aplica lá).
+    const enxuto = e => ({ id: e.id, nome: e.nome, grupo: e.grupo_muscular || '', equipamento: e.equipamento || '' });
+    const bib = payload.base
+      ? todos.map(enxuto)
+      : bibliotecaCompacta(candidatos, gruposAlvo, { comInventario: !!inv, obrigatorios: idsBase });
+    if (payload.base) payload.biblioteca = bib; else payload.exercicios = bib;
     if (inv) payload.inventario = inv;
     const resp = await fetch('/api/gerar-treino', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -766,6 +780,7 @@ function renderPreviewIA(plano, bib, inv = null) {
             <span class="ia-ex-nome">${esc(nomeDe(ex.exercicio_id))}</span>
             <span class="ia-ex-spec">${esc(String(ex.series ?? ''))}×${esc(ex.repeticoes || '')}${ex.descanso ? ` · ${esc(ex.descanso)}${ex.par ? ' após o par' : ''}` : ''}${ex.metodo && ex.metodo !== 'Normal' ? ` · <b>${esc(ex.metodo)}</b>` : ''}</span>
             ${estacaoHtml(ex)}
+            ${ex.observacao ? `<span class="ia-ex-estacao" style="color:var(--ink-mute)">${esc(ex.observacao)}</span>` : ''}
             ${ex.par ? `
             <div class="ia-ex-par">
               <span class="ia-ex-nome">+ ${esc(nomeDe(ex.par.exercicio_id))}</span>
@@ -783,14 +798,17 @@ function renderPreviewIA(plano, bib, inv = null) {
     alteracoes: 'Exercícios alterados', progressoes: 'Progressões', melhorias: 'Melhorias',
     justificativa: 'Justificativa', tempo_estimado: 'Tempo estimado', sugestoes: 'Sugestões',
     descartados: 'Ajustes feitos pelo sistema',
+    // Base Evollo (Criar do zero): de qual modelo veio e o que mudou nele.
+    base: 'Modelo da Base Evollo', adaptacoes: 'Adaptações ao aluno', orientacoes: 'Orientações', aviso: 'Aviso',
   };
   // `descartados` é escrito pelo SERVIDOR (api/gerar-treino.js), não pela IA:
   // exercício amarrado a estação inexistente e bi-set com par inválido.
   // Vai em destaque, no topo.
-  const ORDEM = ['descartados', 'estrutura', 'mantidos', 'alteracoes', 'progressoes', 'melhorias', 'volume', 'justificativa', 'tempo_estimado', 'sugestoes'];
+  const ORDEM = ['descartados', 'base', 'adaptacoes', 'estrutura', 'mantidos', 'alteracoes', 'progressoes', 'melhorias', 'volume', 'justificativa', 'tempo_estimado', 'sugestoes', 'orientacoes', 'aviso'];
+  const DESTAQUE = new Set(['sugestoes', 'descartados', 'adaptacoes']);
   const r = plano.relatorio || {};
   const relatorio = ORDEM.filter(k => r[k])
-    .map(k => `<div class="ia-rel-item${k === 'sugestoes' || k === 'descartados' ? ' ia-rel-sugestao' : ''}"><b>${ROTULOS[k]}</b><span>${esc(String(r[k]))}</span></div>`)
+    .map(k => `<div class="ia-rel-item${DESTAQUE.has(k) ? ' ia-rel-sugestao' : ''}"><b>${ROTULOS[k]}</b><span>${esc(String(r[k]))}</span></div>`)
     .join('');
 
   const res = document.getElementById('iaResultado');
@@ -799,7 +817,9 @@ function renderPreviewIA(plano, bib, inv = null) {
       <div class="ia-preview-head">
         <div>
           <div class="ia-preview-nome">${esc(plano.nome || 'Treino gerado')}</div>
-          <div class="ia-preview-sub">${(plano.dias || []).length} dias · gerado por IA — revise antes de criar</div>
+          <div class="ia-preview-sub">${plano.base
+            ? `${(plano.dias || []).length} treinos · Base ${esc(plano.base.id)} · ${esc(plano.base.agenda || '')} — revise antes de criar`
+            : `${(plano.dias || []).length} dias · gerado por IA — revise antes de criar`}</div>
         </div>
         <button class="btn primary" id="iaCriar"><i data-lucide="check"></i> Criar treino</button>
       </div>
@@ -853,6 +873,8 @@ async function criarTreinoDaIA(plano) {
           descanso: ex.descanso || null,
           rir: ex.rir || null,
           metodo: ex.par ? 'Bi-set' : (ex.metodo === 'Bi-set' ? 'Normal' : ex.metodo || null),
+          // Drop-set da Base Evollo vem com quantas séries finais levam o drop.
+          ...(ex.drop_ultimas ? { drop_ultimas: Number(ex.drop_ultimas) || 0 } : {}),
           observacao: obs(ex),
         });
         // Bi-set: mesma estrutura do editor (escolherB) — o A vira âncora e o
