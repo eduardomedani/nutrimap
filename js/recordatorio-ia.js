@@ -4,6 +4,23 @@
 // ═══════════════════════════════════════════════════════════
 
 import { sb } from './supabase.js';
+import { escaparHtml as esc } from './html-seguro.js';
+
+// SEGURANÇA: descrição e horário das refeições são texto livre do paciente
+// (anamnese, gravada por RPC anônima), e `observacao` é texto da IA produzido
+// A PARTIR desse texto — instrução embutida no recordatório pode fazer a IA
+// devolver marcação. Os três passam por esc().
+//
+// O rótulo da refeição é a única exceção: relatorio.js o monta com um ícone
+// (`<i data-lucide="coffee"></i> Café da manhã`). Ele chega aqui depois de ida
+// e volta por um atributo `data-*`, então não é aceito por confiança: só passa
+// cru se tiver EXATAMENTE a forma ícone + texto sem marcação. Qualquer outra
+// coisa é escapada.
+const ROTULO_COM_ICONE = /^<i data-lucide="[a-z0-9-]+"><\/i> [^<>&"']+$/;
+export function rotuloDaRefeicao(rotulo) {
+  const s = String(rotulo ?? '');
+  return ROTULO_COM_ICONE.test(s) ? s : esc(s);
+}
 
 // Hash simples do texto do recordatório (pra saber se mudou e recalcular)
 function hashTexto(txt) {
@@ -148,7 +165,7 @@ export async function processarRecordatorioIA(pacienteId) {
     // Substitui o container inteiro pelo card final (com relato + estimativa)
     cont.outerHTML = renderCardRecordatorio(calc, refeicoes);
   } catch (e) {
-    cont.innerHTML = `<i data-lucide="triangle-alert"></i> Não foi possível calcular agora (${e.message}). Reabra o relatório para tentar de novo.`;
+    cont.innerHTML = `<i data-lucide="triangle-alert"></i> Não foi possível calcular agora (${esc(e.message)}). Reabra o relatório para tentar de novo.`;
   }
 }
 
@@ -165,8 +182,8 @@ export function renderCardRecordatorio(calc, refeicoes) {
       .filter(r => (r[1] || '').toLowerCase() !== 'não' && r[2])
       .map(r => `
         <div class="rec-refeicao">
-          <div class="rec-refeicao-nome">${r[0]}${r[3] ? ` <span class="rec-refeicao-hora">${r[3]}</span>` : ''}</div>
-          <div class="rec-refeicao-desc">${r[2]}</div>
+          <div class="rec-refeicao-nome">${rotuloDaRefeicao(r[0])}${r[3] ? ` <span class="rec-refeicao-hora">${esc(r[3])}</span>` : ''}</div>
+          <div class="rec-refeicao-desc">${esc(r[2])}</div>
         </div>`).join('');
     relato = linhas || '<div class="rec-vazio">Sem refeições relatadas.</div>';
   } else {
@@ -207,7 +224,7 @@ export function renderCardRecordatorio(calc, refeicoes) {
             <div class="rec-macro"><div class="rec-macro-v">${Math.round(calc.gord_g)}g</div><div class="rec-macro-l">Gordura</div></div>
           </div>
           ${comparacao}
-          <div class="rec-calc-aviso"><i data-lucide="triangle-alert"></i> Estimativa aproximada a partir de texto livre. ${calc.observacao || ''} Não substitui pesagem de alimentos.</div>
+          <div class="rec-calc-aviso"><i data-lucide="triangle-alert"></i> Estimativa aproximada a partir de texto livre. ${esc(calc.observacao || '')} Não substitui pesagem de alimentos.</div>
         </div>
       </div>
     </div>`;

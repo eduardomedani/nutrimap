@@ -5,6 +5,13 @@
 
 import { buscarPacientePorId } from './pacientes.js';
 import { buscarRespostas } from './respostas.js';
+import { escaparHtml as esc } from './html-seguro.js';
+
+// SEGURANÇA: tudo que vem de `respostas` e de `pacientes` é escrito pelo
+// paciente (a anamnese é gravada por RPC anônima) e é escapado com esc() no
+// ponto em que entra no HTML. Os ÚNICOS trechos de HTML cru deste arquivo são
+// literais do próprio código (ícones, títulos, condutas). Ver
+// test/xss-anamnese.test.mjs, que preenche cada campo com carga maliciosa.
 
 // ═══════════════════════════════════════════════════════════
 // MAPEAMENTO DE CHAVES — NutriMap (curtas) → Dashboard antigo (semânticas)
@@ -498,12 +505,14 @@ function cardConduta(label, valor, sub, cor, conduta) {
   `;
 }
 
+// `valor` e `sub` podem trazer dado do paciente (ex.: o peso digitado); `label`
+// e `cor` são sempre literais de quem chama.
 function metricCard(label, valor, sub, cor) {
   return `
     <div class="metric-card">
       <div class="metric-label">${label}</div>
-      <div class="metric-value" style="color: ${cor};">${valor}</div>
-      ${sub ? `<div class="metric-sub">${sub}</div>` : ''}
+      <div class="metric-value" style="color: ${cor};">${esc(valor)}</div>
+      ${sub ? `<div class="metric-sub">${esc(sub)}</div>` : ''}
     </div>
   `;
 }
@@ -511,10 +520,10 @@ function metricCard(label, valor, sub, cor) {
 // Card clicável (abre modal com conduta). Usado por PSQI e Cronotipo.
 function metricCardBotao(label, valor, sub, cor, tipoModal, chave) {
   return `
-    <div class="metric-card metric-card-btn" data-modal="${tipoModal}" data-chave="${chave || ''}" role="button" tabindex="0">
+    <div class="metric-card metric-card-btn" data-modal="${esc(tipoModal)}" data-chave="${esc(chave || '')}" role="button" tabindex="0">
       <div class="metric-label">${label} <span class="metric-info">ⓘ</span></div>
-      <div class="metric-value" style="color: ${cor};">${valor}</div>
-      ${sub ? `<div class="metric-sub">${sub}</div>` : ''}
+      <div class="metric-value" style="color: ${cor};">${esc(valor)}</div>
+      ${sub ? `<div class="metric-sub">${esc(sub)}</div>` : ''}
       <div class="metric-cta">ver conduta</div>
     </div>
   `;
@@ -658,9 +667,10 @@ function gerarIntroPrescricao(mac) {
   if (atual && meta && atual !== meta) {
     const diff = Math.abs(+(atual - meta).toFixed(1));
     const acao = meta < atual ? 'reduzir' : 'ganhar';
-    const prazoTxt = tempo ? ` em <strong>${tempo}</strong>` : '';
+    // `tempo` é texto livre da anamnese (q4_5); atual/meta já são parseFloat.
+    const prazoTxt = tempo ? ` em <strong>${esc(tempo)}</strong>` : '';
     return `<div class="prescricao-intro">
-      Meta: <strong>${acao} ${diff} kg</strong>${prazoTxt} — de ${atual} kg para ${meta} kg.
+      Meta: <strong>${acao} ${diff} kg</strong>${prazoTxt} — de ${esc(atual)} kg para ${esc(meta)} kg.
       Os valores abaixo são o ponto de partida; ajuste conforme a evolução da paciente.
     </div>`;
   }
@@ -684,7 +694,11 @@ function gerarContainerRecordatorio(m) {
   ];
   const refeicoesValidas = refeicoes.filter(r => (r[1]||'').toLowerCase() !== 'não' && (r[2] || r[3]));
   if (refeicoesValidas.length === 0) return '';
-  return `<div class="ia-hint" id="rec-calc-container" data-refeicoes='${encodeURIComponent(JSON.stringify(refeicoesValidas))}'><i data-lucide="atom"></i> Calculando o recordatório por IA...</div>`;
+  // O atributo era delimitado por APÓSTROFO e encodeURIComponent NÃO codifica
+  // o apóstrofo: um `'` no recordatório fechava o atributo e o resto virava
+  // marcação. Agora: aspas duplas + esc() por cima. O navegador desfaz o esc()
+  // ao ler `dataset`, então recordatorio-ia.js recebe exatamente o mesmo texto.
+  return `<div class="ia-hint" id="rec-calc-container" data-refeicoes="${esc(encodeURIComponent(JSON.stringify(refeicoesValidas)))}"><i data-lucide="atom"></i> Calculando o recordatório por IA...</div>`;
 }
 
 function gerarCardMacros(mac, imc) {
@@ -750,7 +764,7 @@ function gerarCardMacros(mac, imc) {
       ${ajustesPat}
       ${alertaPesoAjustado}
 
-      <div class="distrib-section" data-distrib='${JSON.stringify(distribData).replace(/'/g, "&#39;")}'>
+      <div class="distrib-section" data-distrib="${esc(JSON.stringify(distribData))}">
         <div class="distrib-header">
           <div>
             <div class="distrib-titulo">Distribuição nas refeições · <span class="distrib-titulo-crono">Cronotipo ${mac.cronotipoLabel.toLowerCase()}</span></div>
@@ -795,13 +809,15 @@ function gerarLinhasDistrib(data, n) {
   }).join('');
 }
 
+// `titulo` e a chave `k` são literais deste arquivo (o título leva ícone, por
+// isso não passa por esc). O VALOR é sempre resposta do paciente: esc().
 function secaoCard(titulo, pares) {
   const rows = pares
     .filter(([k, v]) => v !== null && v !== undefined && v !== '')
     .map(([k, v]) => `
       <div class="secao-row">
         <span class="secao-key">${k}</span>
-        <span class="secao-val">${v}</span>
+        <span class="secao-val">${esc(v)}</span>
       </div>
     `).join('');
   if (!rows) return '';
@@ -905,8 +921,8 @@ function renderModulosDetalhados(m) {
           gastoSemanalTotal += kcalSemana;
           return `
             <div class="ativ-card">
-              <div class="ativ-card-nome">${nomes[k] || k}</div>
-              <div class="ativ-card-freq">${freq || '?'}x/semana · ${det[k].intensidade || 'intensidade não informada'}</div>
+              <div class="ativ-card-nome">${esc(nomes[k] || k)}</div>
+              <div class="ativ-card-freq">${freq || '?'}x/semana · ${esc(det[k].intensidade || 'intensidade não informada')}</div>
               <div class="ativ-card-linha">Dia: <strong>~${kcalSessao} kcal/sessão</strong></div>
               <div class="ativ-card-linha">Semana: <strong>~${kcalSemana.toLocaleString('pt-BR')} kcal/semana</strong></div>
             </div>`;
@@ -922,9 +938,9 @@ function renderModulosDetalhados(m) {
     html += `<div class="secao-card">
       <div class="secao-title"><i data-lucide="activity"></i> Atividade Física</div>
       <div class="secao-rows">
-        <div class="secao-row"><span class="secao-key">Pratica</span><span class="secao-val">${m.m10.pratica || '—'}</span></div>
-        <div class="secao-row"><span class="secao-key">Nível diário (NEAT)</span><span class="secao-val">${m.m10.nivel_neat || '—'}</span></div>
-        <div class="secao-row"><span class="secao-key">Passos/dia</span><span class="secao-val">${m.m10.passos_dia || '—'}</span></div>
+        <div class="secao-row"><span class="secao-key">Pratica</span><span class="secao-val">${esc(m.m10.pratica || '—')}</span></div>
+        <div class="secao-row"><span class="secao-key">Nível diário (NEAT)</span><span class="secao-val">${esc(m.m10.nivel_neat || '—')}</span></div>
+        <div class="secao-row"><span class="secao-key">Passos/dia</span><span class="secao-val">${esc(m.m10.passos_dia || '—')}</span></div>
       </div>
       ${atividadesHtml ? `<div class="ativ-cards">${atividadesHtml}</div>` : ''}
       ${resumoGasto}
@@ -1011,18 +1027,18 @@ export async function gerarRelatorio(pacienteId) {
     </div>
 
     <div class="rel-hero">
-      <div class="rel-avatar">${iniciais}</div>
+      <div class="rel-avatar">${esc(iniciais)}</div>
       <div class="rel-hero-info">
-        <h1 class="rel-name">${nome}</h1>
+        <h1 class="rel-name">${esc(nome)}</h1>
         <div class="rel-meta">
-          ${idade ? idade + ' anos' : ''} ${sexo ? '· ' + sexo : ''} ${m.m1 && m.m1.q1_6_cidade ? '· ' + m.m1.q1_6_cidade : ''}
+          ${idade ? esc(idade) + ' anos' : ''} ${sexo ? '· ' + esc(sexo) : ''} ${m.m1 && m.m1.q1_6_cidade ? '· ' + esc(m.m1.q1_6_cidade) : ''}
         </div>
-        <div class="rel-code-badge">${paciente.codigo}</div>
+        <div class="rel-code-badge">${esc(paciente.codigo)}</div>
       </div>
       ${m.m2 && m.m2.q2_1_objetivo_principal ? `
       <div class="rel-objetivo">
         <div class="rel-objetivo-label">Objetivo principal</div>
-        <div class="rel-objetivo-value">${m.m2.q2_1_objetivo_principal}</div>
+        <div class="rel-objetivo-value">${esc(m.m2.q2_1_objetivo_principal)}</div>
       </div>` : ''}
     </div>
 
@@ -1031,9 +1047,9 @@ export async function gerarRelatorio(pacienteId) {
       <div class="rel-flags-title"><i data-lucide="triangle-alert"></i> ${redFlags.length} ${redFlags.length === 1 ? 'ponto de atenção' : 'pontos de atenção'}</div>
       <div class="rel-flags-grid">
         ${redFlags.map(f => `
-          <div class="flag-card flag-${f.nivel}">
-            <div class="flag-tipo">${f.tipo}</div>
-            <div class="flag-detalhe">${f.detalhe}</div>
+          <div class="flag-card flag-${esc(f.nivel)}">
+            <div class="flag-tipo">${esc(f.tipo)}</div>
+            <div class="flag-detalhe">${esc(f.detalhe)}</div>
           </div>
         `).join('')}
       </div>

@@ -2265,6 +2265,10 @@
   import { portaoDoPainel } from './js/acesso-painel.js';
   import { listarPacientes, criarPaciente, excluirPaciente, calcularEstatisticas } from './js/pacientes.js';
   import { formatarData, iniciaisDoNome, copiarParaClipboard, mostrarToast, gerarLinkWhatsapp, montarMensagemQuestionario } from './js/utils.js';
+  // Nome, e-mail e telefone do paciente podem vir da anamnese (gatilho
+  // trg_paciente_nome_do_questionario), que é gravada por RPC anônima: são
+  // dado não confiável e passam por esc() antes de entrar em innerHTML.
+  import { escaparHtml as esc } from './js/html-seguro.js';
   import { carregarPermissoes, limparPermissoes, registrarAcesso, pode } from './js/permissoes.js';
   import { limparOrganizacao } from './js/organizacao.js';
   import { abrirUsuarios } from './js/usuarios-ui.js';
@@ -2821,7 +2825,7 @@
     }
     container.innerHTML = '<div class="patients-grid">' + lista.map(p => {
       const status = p.status || 'aguardando';
-      return `<div class="patient-row"><div class="patient-avatar">${iniciaisDoNome(p.nome)}</div><div class="patient-info"><div class="patient-name">${p.nome || '(sem nome)'}</div><div class="patient-meta">Criado em ${formatarData(p.criado_em)}</div></div><button class="patient-code patient-code-link" data-action="link" data-codigo="${p.codigo}" title="Copiar link da anamnese"><i data-lucide="link"></i> ${p.codigo}</button><span class="status-tag status-${status}">${status}</span><button class="patient-action primary" data-action="ver" data-id="${p.id}" title="Abrir e editar o cadastro"><i data-lucide="eye"></i> Ver</button><button class="patient-action" data-action="app" data-codigo="${p.codigo}" title="Copiar link de acesso ao app do aluno"><i data-lucide="smartphone"></i> App</button><button class="patient-action patient-action-danger" data-action="excluir" data-id="${p.id}" data-nome="${(p.nome || p.codigo).replace(/"/g, '&quot;')}"><i data-lucide="trash-2"></i></button></div>`;
+      return `<div class="patient-row"><div class="patient-avatar">${esc(iniciaisDoNome(p.nome))}</div><div class="patient-info"><div class="patient-name">${esc(p.nome || '(sem nome)')}</div><div class="patient-meta">Criado em ${esc(formatarData(p.criado_em))}</div></div><button class="patient-code patient-code-link" data-action="link" data-codigo="${esc(p.codigo)}" title="Copiar link da anamnese"><i data-lucide="link"></i> ${esc(p.codigo)}</button><span class="status-tag status-${esc(status)}">${esc(status)}</span><button class="patient-action primary" data-action="ver" data-id="${esc(p.id)}" title="Abrir e editar o cadastro"><i data-lucide="eye"></i> Ver</button><button class="patient-action" data-action="app" data-codigo="${esc(p.codigo)}" title="Copiar link de acesso ao app do aluno"><i data-lucide="smartphone"></i> App</button><button class="patient-action patient-action-danger" data-action="excluir" data-id="${esc(p.id)}" data-nome="${esc(p.nome || p.codigo)}"><i data-lucide="trash-2"></i></button></div>`;
     }).join('') + '</div>';
 
     container.querySelectorAll('[data-action]').forEach(btn => {
@@ -2975,10 +2979,10 @@
         ].filter(Boolean).join(' · ') || 'sem período definido';
         return `
           <div class="gt-card gt-${s.chave}">
-            <div class="gt-av">${iniciaisDoNome(nome)}</div>
+            <div class="gt-av">${esc(iniciaisDoNome(nome))}</div>
             <div class="gt-info">
-              <div class="gt-nome">${nome}</div>
-              <div class="gt-sub">${t.nome || 'Treino'} <span class="gt-per">· ${periodo}</span></div>
+              <div class="gt-nome">${esc(nome)}</div>
+              <div class="gt-sub">${esc(t.nome || 'Treino')} <span class="gt-per">· ${esc(periodo)}</span></div>
             </div>
             <span class="gt-badge gt-badge-${s.chave}">${(s.chave === 'vencido' || s.chave === 'proximo') ? '<i data-lucide="triangle-alert"></i> ' : ''}${s.label}</span>
             <button class="patient-action primary" data-gt-abrir="${t.paciente_id}"><i data-lucide="dumbbell"></i> Abrir</button>
@@ -2987,7 +2991,7 @@
       lista.querySelectorAll('[data-gt-abrir]').forEach(b =>
         b.addEventListener('click', () => abrirRelatorio(b.dataset.gtAbrir, 'treinos')));
     } catch (e) {
-      lista.innerHTML = `<div class="gt-vazio"><i data-lucide="triangle-alert"></i> Erro ao carregar: ${e.message}</div>`;
+      lista.innerHTML = `<div class="gt-vazio"><i data-lucide="triangle-alert"></i> Erro ao carregar: ${esc(e.message)}</div>`;
     }
   }
 
@@ -3009,7 +3013,7 @@
         <div style="text-align:center; padding: 40px 20px;">
           <div style="font-size:48px; margin-bottom: 12px;"><i data-lucide="triangle-alert"></i></div>
           <div style="font-family: var(--font-sans); font-size:22px; color:var(--moss-deep); margin-bottom: 10px;">Erro ao carregar relatório</div>
-          <div style="font-family:monospace; font-size:12px; color:var(--rose); background:var(--bg-warm); padding:14px; border-radius:10px; max-width:600px; margin:14px auto; text-align:left;">${e.message}<br><br>${(e.stack||'').split('\\n').slice(0,3).join('<br>')}</div>
+          <div style="font-family:monospace; font-size:12px; color:var(--rose); background:var(--bg-warm); padding:14px; border-radius:10px; max-width:600px; margin:14px auto; text-align:left;">${esc(e.message)}<br><br>${(e.stack||'').split('\\n').slice(0,3).map(esc).join('<br>')}</div>
           <button class="btn" data-relatorio-action="voltar" style="margin-top: 16px;"><i data-lucide="arrow-left"></i> Voltar</button>
         </div>
       `;
