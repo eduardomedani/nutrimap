@@ -116,7 +116,9 @@ export async function obterInventarioAcademia() {
     .select('*')
     .maybeSingle();
   if (error) {
-    if (/academia_inventario|42P01|PGRST205|schema cache/i.test(`${error.code} ${error.message}`)) return null;
+    // Só "tabela não existe" vira null. Permissão negada e afins têm de
+    // aparecer — engolidos, viravam um "você não tem inventário" mentiroso.
+    if (error.code === '42P01' || error.code === 'PGRST205') return null;
     throw error;
   }
   if (!data) return null;
