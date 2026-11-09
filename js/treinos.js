@@ -253,6 +253,27 @@ export async function criarTreino(nutriId, dados) {
   return data;
 }
 
+/**
+ * O modelo da Base Evollo viaja com a cópia (db/treino_base_id.sql). Só entra
+ * se a origem tiver `base_id`: antes da migração a coluna não existe, o
+ * `select *` não a traz e o insert segue sem ela.
+ */
+const comBase = origem => (origem && origem.base_id ? { base_id: origem.base_id } : {});
+
+/**
+ * Cria o treino gravando `base_id`; se a coluna ainda não existir no banco
+ * (migração não aplicada), grava sem ela em vez de falhar o treino inteiro.
+ */
+export async function criarTreinoComBase(nutriId, dados, baseId) {
+  if (!baseId) return criarTreino(nutriId, dados);
+  try {
+    return await criarTreino(nutriId, { ...dados, base_id: baseId });
+  } catch (e) {
+    if (/base_id/.test(`${e?.message || ''} ${e?.details || ''}`)) return criarTreino(nutriId, dados);
+    throw e;
+  }
+}
+
 export async function atualizarTreino(id, dados) {
   const { data, error } = await sb
     .from('treinos')
@@ -347,6 +368,7 @@ export async function prescreverModeloParaPaciente(modeloId, pacienteId, extras 
     data_inicio:     extras.data_inicio ?? modelo.data_inicio ?? null,
     ativo:           extras.ativo ?? true,
     paciente_id:     pacienteId,
+    ...comBase(modelo),
   });
 
   await copiarItens(itens, novo.id, modelo.nutri_id);
@@ -370,6 +392,7 @@ export async function salvarComoModelo(treinoId, extras = {}) {
     data_inicio:     null,     // modelo não tem data de início
     ativo:           true,
     paciente_id:     null,     // <- vai para a biblioteca
+    ...comBase(origem),
   });
 
   await copiarItens(itens, modelo.id, origem.nutri_id);
@@ -412,6 +435,7 @@ export async function duplicarTreino(treinoId, extras = {}) {
     data_fim:        origem.data_fim ?? null,
     ativo:           extras.ativo ?? ehModelo,
     paciente_id:     origem.paciente_id ?? null,
+    ...comBase(origem),
   });
 
   // SEM A CARGA. Duplicar um treino é reaproveitar a receita, não o desempenho:

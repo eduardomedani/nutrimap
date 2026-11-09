@@ -76,6 +76,38 @@ export function textoSessao(reg) {
   return '';
 }
 
+// Carga de uma sessão: a maior carga usada e, nela, o total de repetições.
+function cargaDaSessao(reg) {
+  const arr = Array.isArray(reg?.series_realizadas) ? reg.series_realizadas : [];
+  const series = arr.length ? arr.map(s => ({ peso: Number(s.peso), reps: Number(s.reps) }))
+    : (reg?.carga_realizada != null ? [{ peso: Number(reg.carga_realizada), reps: Number(reg.reps_realizadas) }] : []);
+  const validas = series.filter(s => Number.isFinite(s.peso));
+  if (!validas.length) return null;
+  const peso = Math.max(...validas.map(s => s.peso));
+  const reps = validas.filter(s => s.peso === peso).reduce((t, s) => t + (Number.isFinite(s.reps) ? s.reps : 0), 0);
+  return { peso, reps };
+}
+
+/**
+ * Exercícios que ESTÃO EVOLUINDO — usados no "Novo ciclo" para continuar no
+ * treino novo. Compara a sessão mais recente com a mais antiga das últimas
+ * SESSOES_POR_EXERCICIO: subiu a carga, ou fez mais repetições com a mesma
+ * carga. Precisa de pelo menos 2 sessões com carga. Devolve exercicio_id
+ * (da biblioteca), sem repetir.
+ */
+export function exerciciosProgredindo(itens, regsPorItem) {
+  const out = new Set();
+  for (const it of itens) {
+    const sessoes = (regsPorItem.get(it.id) || []).slice(0, SESSOES_POR_EXERCICIO).map(cargaDaSessao).filter(Boolean);
+    if (sessoes.length < 2) continue;
+    const recente = sessoes[0], antiga = sessoes[sessoes.length - 1];
+    if (recente.peso > antiga.peso || (recente.peso === antiga.peso && recente.reps > antiga.reps)) {
+      if (it.exercicio_id) out.add(it.exercicio_id);
+    }
+  }
+  return [...out];
+}
+
 /**
  * Histórico de cargas por exercício (inclui o B dos bi-sets).
  * `regsPorItem`: Map(itemId → registros, mais recente primeiro).

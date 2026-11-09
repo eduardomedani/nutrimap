@@ -16,11 +16,11 @@ import {
   listarExercicios, buscarExercicioPorNome, listarTodosExercicios,
   listarProgressao, registrarProgressao, excluirProgressao,
   listarModelos, prescreverModeloParaPaciente, salvarComoModelo,
-  duplicarTreino,
+  duplicarTreino, criarTreinoComBase,
   obterInventarioAcademia, inventarioParaIA,
 } from './treinos.js';
 import { recursosDisponiveis, cabeNaAcademia } from './academia-compat.js';
-import { montarTextoTreino, montarTextoProgressao as textoProgressao } from './treino-ia-texto.js';
+import { montarTextoTreino, montarTextoProgressao as textoProgressao, exerciciosProgredindo } from './treino-ia-texto.js';
 import { bibliotecaCompacta } from './treino-ia-biblioteca.js';
 import { sb } from './supabase.js';
 import { registrarEvento } from './timeline.js';
@@ -48,6 +48,7 @@ let _bibResultados = [];     // último lote da busca (cache p/ resolver o nome 
 let _exSelecionado = null;   // exercício escolhido no autocomplete (resolve o "Adicionar" na hora)
 let _treino       = null;    // treino em edição (null enquanto não criado)
 let _rascunhoIA   = null;    // id do treino que a IA acabou de gerar (mostra a faixa Publicar/Descartar)
+let _basesIA      = [];      // treinos que podem ser base do Evoluir/Ajustar/Novo ciclo (têm base_id, se vieram da Base Evollo)
 let _itens      = [];       // itens (treino_exercicios) do treino em edição
 let _dias       = [];       // letras dos dias, ex.: ['A','B','C']
 let _arrastando = null;     // índice da aba sendo arrastada (null = nenhuma)
@@ -544,6 +545,7 @@ async function renderGeradorIA() {
       : (await listarTreinosDoPaciente(_paciente.id)).filter(t => t.paciente_id);
   } catch {}
   const temBase = base.length > 0;
+  _basesIA = base;
 
   // Inventário da academia: se existir e estiver ligado, o gerador só prescreve
   // o que cabe nele. Falha de leitura não bloqueia o gerador — só tira a trava.
@@ -573,6 +575,7 @@ async function renderGeradorIA() {
         <button type="button" class="ia-modo active" data-ia-modo="criar"><i data-lucide="plus"></i> Criar do zero</button>
         ${ehBiblioteca ? '' : `<button type="button" class="ia-modo" data-ia-modo="evoluir" ${temBase ? '' : 'disabled'}><i data-lucide="trending-up"></i> Evoluir treino atual</button>`}
         <button type="button" class="ia-modo" data-ia-modo="ajustar" ${temBase ? '' : 'disabled'}><i data-lucide="wrench"></i> Ajustar ${ehBiblioteca ? 'um modelo' : 'treino atual'}</button>
+        ${ehBiblioteca ? '' : `<button type="button" class="ia-modo" data-ia-modo="ciclo" ${temBase ? '' : 'disabled'}><i data-lucide="refresh-cw"></i> Novo ciclo</button>`}
       </div>
 
       <div data-ia-bloco="criar">
@@ -588,6 +591,14 @@ async function renderGeradorIA() {
         <p class="ia-hint">A IA <b>evolui</b> o treino atual a partir das cargas que o aluno registrou: progride carga/séries/repetições onde ele avançou, troca só exercício estagnado, com dor ou sem aparelho na academia, e pode reordenar. <b>Mantém os mesmos dias</b> — mudar a frequência vira só sugestão. Os músculos abaixo são <b>opcionais</b>: marcados, recebem preferência. Um treino novo é gerado (o atual não é apagado).</p>
       </div>
 
+      <div data-ia-bloco="ciclo" hidden>
+        <p class="ia-hint"><b>Novo ciclo</b> ("trocar o treino a cada 6 a 10 semanas"): o sistema escolhe <b>outro modelo</b> da Base Evollo para o aluno e <b>mantém os exercícios que estão evoluindo</b> (carga ou repetições subindo nas últimas sessões), no lugar do equivalente do modelo novo. Um rascunho novo é gerado; o treino atual não é apagado.</p>
+        <label class="ia-inv ia-inv-on" id="iaMesmaCombWrap"><input type="checkbox" id="iaMesmaComb" checked>
+          <span><b>Mesma combinação do modelo atual</b> (<span id="iaBaseAtual">—</span>): nível, objetivo, frequência e ênfase vêm do modelo. Desmarque para usar os campos abaixo.</span></label>
+        <label class="ia-inv ia-inv-on" style="margin-top:8px"><input type="checkbox" id="iaSubirNivel">
+          <span><b>Subir para o próximo nível</b> — quando o aluno já treina com regularidade há tempo suficiente (até 6 meses = Iniciante; 6 meses a 2 anos = Intermediário; mais de 2 anos = Avançado).</span></label>
+      </div>
+
       <div data-ia-bloco="musculos">
         <label class="ia-label">Músculos-alvo e prioridade<span style="text-transform:none; font-weight:600"> · opcional</span></label>
         <div class="ia-muscs">${chips}</div>
@@ -600,8 +611,8 @@ async function renderGeradorIA() {
       </div>
 
       <div class="tr-form-linha" data-ia-bloco="params" style="margin-top:16px;">
-        <div class="av-field" data-ia-so="criar"><label>Dias por semana</label><select id="iaDias" class="np-input">${[2, 3, 4, 5, 6, 7].map(n => `<option value="${n}" ${n === 4 ? 'selected' : ''}>${n} dias</option>`).join('')}</select></div>
-        <div class="av-field" data-ia-so="criar"><label>Ênfase</label><select id="iaEnfase" class="np-input">${ENFASES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></div>
+        <div class="av-field" data-ia-so="criar ciclo"><label>Dias por semana</label><select id="iaDias" class="np-input">${[2, 3, 4, 5, 6, 7].map(n => `<option value="${n}" ${n === 4 ? 'selected' : ''}>${n} dias</option>`).join('')}</select></div>
+        <div class="av-field" data-ia-so="criar ciclo"><label>Ênfase</label><select id="iaEnfase" class="np-input">${ENFASES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></div>
         <div class="av-field"><label>Objetivo</label><select id="iaObj" class="np-input">${OBJETIVOS.map(o => `<option>${o}</option>`).join('')}</select></div>
         <div class="av-field"><label>Nível</label><select id="iaNivel" class="np-input">${NIVEIS.map((o, i) => `<option ${i === 1 ? 'selected' : ''}>${o}</option>`).join('')}</select></div>
         <div class="av-field"><label>Tempo/sessão (min)</label><input type="number" id="iaTempo" class="np-input" placeholder="ex.: 60"></div>
@@ -628,6 +639,7 @@ async function renderGeradorIA() {
   }));
   _mountEl.querySelectorAll('.ia-modo').forEach(b =>
     b.addEventListener('click', () => { if (!b.disabled) aplicarModoIA(b.dataset.iaModo); }));
+  document.getElementById('iaTreinoBase')?.addEventListener('change', atualizarBaseAtual);
   aplicarModoIA('criar');
 }
 
@@ -638,10 +650,27 @@ function aplicarModoIA(modo) {
     criar:   { criar: 1, base: 0, evoluir: 0, ajustar: 0, musculos: 1, params: 1 },
     evoluir: { criar: 0, base: 1, evoluir: 1, ajustar: 0, musculos: 1, params: 1 },
     ajustar: { criar: 0, base: 1, evoluir: 0, ajustar: 1, musculos: 0, params: 0 },
+    ciclo:   { criar: 0, base: 1, evoluir: 0, ajustar: 0, ciclo: 1, musculos: 1, params: 1 },
   }[modo] || {};
   _mountEl.querySelectorAll('[data-ia-bloco]').forEach(el => { el.hidden = !vis[el.dataset.iaBloco]; });
-  _mountEl.querySelectorAll('[data-ia-so]').forEach(el => { el.style.display = el.dataset.iaSo === modo ? '' : 'none'; });
+  // data-ia-so aceita vários modos separados por espaço ("criar ciclo").
+  _mountEl.querySelectorAll('[data-ia-so]').forEach(el => { el.style.display = el.dataset.iaSo.split(' ').includes(modo) ? '' : 'none'; });
   _mountEl.dataset.iaModo = modo;
+  atualizarBaseAtual();
+}
+
+// Novo ciclo: mostra de qual modelo da base o treino escolhido veio. Sem
+// modelo (treino montado à mão ou anterior à base), "mesma combinação" não
+// tem de onde ler — desliga e os campos do formulário mandam.
+function atualizarBaseAtual() {
+  const sel = document.getElementById('iaTreinoBase');
+  const t = _basesIA.find(x => x.id === sel?.value);
+  const rotulo = document.getElementById('iaBaseAtual');
+  const caixa = document.getElementById('iaMesmaComb');
+  if (!rotulo || !caixa) return;
+  rotulo.textContent = t?.base_id ? `modelo ${t.base_id}` : 'este treino não veio da base';
+  caixa.disabled = !t?.base_id;
+  if (!t?.base_id) caixa.checked = false;
 }
 
 // A amostra da biblioteca enviada à IA mora em js/treino-ia-biblioteca.js
@@ -660,9 +689,12 @@ function estacaoDoExercicio(ex, inv) {
 
 // Texto do treino atual e histórico de cargas: js/treino-ia-texto.js (puro,
 // testado). Aqui só a leitura do banco.
-async function montarTextoProgressao(itens) {
+async function lerProgressoes(itens) {
   const regs = await Promise.all(itens.map(it => listarProgressao(it.id).catch(() => [])));
-  return textoProgressao(itens, new Map(itens.map((it, i) => [it.id, regs[i] || []])));
+  return new Map(itens.map((it, i) => [it.id, regs[i] || []]));
+}
+async function montarTextoProgressao(itens) {
+  return textoProgressao(itens, await lerProgressoes(itens));
 }
 
 async function gerarTreinoIA() {
@@ -701,6 +733,21 @@ async function gerarTreinoIA() {
       }
       const itens = await listarItensDoTreino(treinoId);
       idsBase = [...new Set(itens.map(it => it.exercicio_id).filter(Boolean))];
+      // De qual modelo da Base Evollo o treino escolhido veio (null se nenhum).
+      const baseIdAtual = _basesIA.find(x => x.id === treinoId)?.base_id || null;
+      if (modo === 'evoluir' && baseIdAtual) payload.baseId = baseIdAtual;
+      if (modo === 'ciclo') {
+        if (!itens.length) { mostrarToast('O treino base está sem exercícios.'); return; }
+        payload.baseIdAtual = baseIdAtual;
+        payload.progredindo = exerciciosProgredindo(itens, await lerProgressoes(itens));
+        payload.subirNivel = !!document.getElementById('iaSubirNivel')?.checked;
+        payload.mesmaCombinacao = !!(baseIdAtual && document.getElementById('iaMesmaComb')?.checked);
+        criterios.dias = Number(document.getElementById('iaDias').value);
+        criterios.enfase = document.getElementById('iaEnfase')?.value || 'equilibrado';
+        const musculos = [...document.querySelectorAll('.ia-musc')]
+          .filter(b => b.dataset.prio).map(b => ({ grupo: b.dataset.musc, prioridade: b.dataset.prio }));
+        if (musculos.length) criterios.musculos = musculos;
+      }
       if (!itens.length) { mostrarToast('O treino base está sem exercícios.'); return; }
       gruposAlvo = [...new Set(itens.map(it => it.exercicio?.grupo_muscular).filter(Boolean))];
       payload.treinoAtualTexto = montarTextoTreino(itens);
@@ -718,7 +765,7 @@ async function gerarTreinoIA() {
   } catch (e) { mostrarToast('Erro ao preparar: ' + e.message); return; }
 
   btn.disabled = true;
-  res.innerHTML = `<div class="loading" style="padding:24px;"><div class="spinner"></div>${modo === 'criar'
+  res.innerHTML = `<div class="loading" style="padding:24px;"><div class="spinner"></div>${modo === 'criar' || modo === 'ciclo'
     ? 'Montando o treino a partir da Base Evollo...' : 'A IA está montando o treino... (pode levar alguns segundos)'}</div>`;
   try {
     // A biblioteca INTEIRA: com `limite: 500` em ordem alfabética, tudo depois
@@ -737,11 +784,15 @@ async function gerarTreinoIA() {
     // não cabe a IA tem de trocar, e por isso não pode estar na lista.
     // Base Evollo: o servidor precisa da biblioteca INTEIRA para achar os
     // exercícios do modelo pelo nome (o filtro do inventário ele aplica lá).
+    // Novo ciclo também (escolhe e converte um modelo); e o Evoluir de um
+    // treino que veio da base (o servidor converte o modelo de referência).
     const enxuto = e => ({ id: e.id, nome: e.nome, grupo: e.grupo_muscular || '', equipamento: e.equipamento || '' });
-    const bib = payload.base
-      ? todos.map(enxuto)
-      : bibliotecaCompacta(candidatos, gruposAlvo, { comInventario: !!inv, obrigatorios: idsBase });
-    if (payload.base) payload.biblioteca = bib; else payload.exercicios = bib;
+    const inteira = todos.map(enxuto);
+    if (payload.base || modo === 'ciclo') payload.biblioteca = inteira;
+    else {
+      payload.exercicios = bibliotecaCompacta(candidatos, gruposAlvo, { comInventario: !!inv, obrigatorios: idsBase });
+      if (payload.baseId) payload.biblioteca = inteira;
+    }
     if (inv) payload.inventario = inv;
     const resp = await fetch('/api/gerar-treino', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -753,7 +804,8 @@ async function gerarTreinoIA() {
     }
     const data = await resp.json();
     if (!resp.ok || data.error) throw new Error(data.error || ('Falha: ' + resp.status));
-    renderPreviewIA(data, bib, inv);
+    // Nomes pela biblioteca inteira: um substituto da base pode estar fora da amostra.
+    renderPreviewIA(data, inteira, inv);
   } catch (e) {
     res.innerHTML = `<div class="ia-erro"><i data-lucide="triangle-alert"></i> ${esc(e.message)}</div>`;
   } finally {
@@ -800,11 +852,12 @@ function renderPreviewIA(plano, bib, inv = null) {
     descartados: 'Ajustes feitos pelo sistema',
     // Base Evollo (Criar do zero): de qual modelo veio e o que mudou nele.
     base: 'Modelo da Base Evollo', adaptacoes: 'Adaptações ao aluno', orientacoes: 'Orientações', aviso: 'Aviso',
+    ciclo: 'Novo ciclo',
   };
   // `descartados` é escrito pelo SERVIDOR (api/gerar-treino.js), não pela IA:
   // exercício amarrado a estação inexistente e bi-set com par inválido.
   // Vai em destaque, no topo.
-  const ORDEM = ['descartados', 'base', 'adaptacoes', 'estrutura', 'mantidos', 'alteracoes', 'progressoes', 'melhorias', 'volume', 'justificativa', 'tempo_estimado', 'sugestoes', 'orientacoes', 'aviso'];
+  const ORDEM = ['descartados', 'ciclo', 'base', 'adaptacoes', 'estrutura', 'mantidos', 'alteracoes', 'progressoes', 'melhorias', 'volume', 'justificativa', 'tempo_estimado', 'sugestoes', 'orientacoes', 'aviso'];
   const DESTAQUE = new Set(['sugestoes', 'descartados', 'adaptacoes']);
   const r = plano.relatorio || {};
   const relatorio = ORDEM.filter(k => r[k])
@@ -849,12 +902,15 @@ async function criarTreinoDaIA(plano) {
     // treinos ativos (paciente-data.js). Ele é revisado no editor e publicado
     // pela faixa do topo. Modelo nasce ativo: na biblioteca `ativo` não
     // significa nada (ver treinos.js) e o aluno nunca vê modelo.
-    const treino = await criarTreino(nutriId, {
+    // `base_id`: de qual modelo da Base Evollo o treino veio — é o que permite
+    // ao Evoluir usar o modelo como referência e ao Novo ciclo trocar por
+    // OUTRO modelo. Sem a coluna no banco, grava sem (criarTreinoComBase).
+    const treino = await criarTreinoComBase(nutriId, {
       nome: plano.nome || 'Treino gerado por IA',
       paciente_id: _modo === 'modelo' ? null : _paciente.id,
       divisao: LETRAS.slice(0, plano.dias.length).join(''),
       ativo: _modo === 'modelo',
-    });
+    }, plano.base?.id || null);
     for (let di = 0; di < plano.dias.length; di++) {
       const letra = LETRAS[di];
       const exs = plano.dias[di].exercicios || [];

@@ -43,7 +43,9 @@ const ENFASES = {
  * Seção 3. Devolve { modelo, notas } — `notas` explica cada desvio do pedido
  * (ex.: "não há modelo de 5 dias para Intermediário; usado 4").
  */
-export function escolherModelo(base, { nivel, objetivo, dias, enfase, tempoMin }, sortear = Math.random) {
+export const PROXIMO_NIVEL = { 'Iniciante': 'Intermediário', 'Intermediário': 'Avançado', 'Avançado': 'Avançado' };
+
+export function escolherModelo(base, { nivel, objetivo, dias, enfase, tempoMin, excluir = [] }, sortear = Math.random) {
   const notas = [];
   const nv = NIVEL_NUM[nivel] ? nivel : 'Iniciante';
   if (nv !== nivel) notas.push('Nível não informado: usado Iniciante.');
@@ -77,6 +79,14 @@ export function escolherModelo(base, { nivel, objetivo, dias, enfase, tempoMin }
   }
   if (!porEnf.length) porEnf = lista;
   lista = porEnf;
+
+  // Novo ciclo: outro modelo da mesma combinação. Se a combinação só tem o
+  // atual, repete-o e avisa (melhor que trocar de objetivo/frequência).
+  if (excluir.length) {
+    const outros = lista.filter(t => !excluir.includes(t.id));
+    if (outros.length) lista = outros;
+    else notas.push(`Só existe o modelo ${excluir.join(', ')} nessa combinação: mantido.`);
+  }
 
   const tempo = Number(tempoMin) || 0;
   if (tempo) {
@@ -194,7 +204,7 @@ export function converterModelo(base, modelo, { biblioteca, inventario = null, n
         if (a && b) {
           exercicios.push({
             exercicio_id: a.lib.id, series, repeticoes: reps, descanso: descanso(prox[3]), metodo: 'Bi-set',
-            observacao: obsDe('', observacao), _tipo: base.exercicios[a.baseId].t,
+            observacao: obsDe('', observacao), _tipo: base.exercicios[a.baseId].t, _base: a.baseId,
             ...estacaoDoInventario(a.lib, inventario, recursos),
             par: { exercicio_id: b.lib.id, repeticoes: prox[2], observacao: obsDe('', prox[5]), ...estacaoDoInventario(b.lib, inventario, recursos) },
           });
@@ -203,7 +213,7 @@ export function converterModelo(base, modelo, { biblioteca, inventario = null, n
           const s = a || b; const src = a ? d.ex[i - 1] : prox;
           if (s) exercicios.push({
             exercicio_id: s.lib.id, series: src[1], repeticoes: src[2], descanso: descanso(prox?.[3] || src[3]), metodo: 'Normal',
-            observacao: obsDe('', src[5]), _tipo: base.exercicios[s.baseId].t, ...estacaoDoInventario(s.lib, inventario, recursos),
+            observacao: obsDe('', src[5]), _tipo: base.exercicios[s.baseId].t, _base: s.baseId, ...estacaoDoInventario(s.lib, inventario, recursos),
           });
         }
         continue;
@@ -214,7 +224,7 @@ export function converterModelo(base, modelo, { biblioteca, inventario = null, n
       exercicios.push({
         exercicio_id: a.lib.id, series, repeticoes: reps, descanso: descanso(desc),
         metodo: m.metodo === 'Bi-set' ? 'Normal' : m.metodo, ...(m.drop_ultimas ? { drop_ultimas: m.drop_ultimas } : {}),
-        observacao: obsDe(tecnica, observacao), _tipo: base.exercicios[a.baseId].t,
+        observacao: obsDe(tecnica, observacao), _tipo: base.exercicios[a.baseId].t, _base: a.baseId,
         ...(id === 'CARDIO' ? { _cardio: true } : {}),
         ...estacaoDoInventario(a.lib, inventario, recursos),
       });
@@ -276,4 +286,38 @@ export function orientacoes(nivel) {
     ...(nivel === 'Iniciante' ? [] : ['Semana mais leve (deload) a cada 6 a 8 semanas.']),
     'Trocar o treino a cada 6 a 10 semanas.',
   ].join('\n');
+}
+
+/**
+ * NOVO CICLO: o que está evoluindo continua. `progredindo` são ids da
+ * BIBLIOTECA (exercícios do treino atual cuja carga subiu nas últimas
+ * sessões). Para cada dia do modelo novo, um exercício em progressão entra no
+ * lugar do primeiro equivalente — mesmo grupo e mesmo tipo da base —, mantendo
+ * séries/repetições/descanso do modelo novo. Exercício que não existe na base,
+ * que não cabe mais na academia ou que já está no dia não entra.
+ */
+export function manterProgredindo(base, dias, { biblioteca, progredindo = [], inventario = null }) {
+  if (!progredindo.length) return [];
+  const recursos = recursosDoInventario(inventario);
+  const libPorId = new Map(biblioteca.map(e => [e.id, e]));
+  const basePorNome = new Map(Object.entries(base.exercicios).map(([id, e]) => [k(e.b), id]));
+  const notas = [];
+  for (const libId of progredindo) {
+    const lib = libPorId.get(libId);
+    const baseId = lib && basePorNome.get(k(lib.nome));
+    if (!baseId || baseId === 'CARDIO' || !cabe(lib, recursos)) continue;
+    const meta = base.exercicios[baseId];
+    for (const d of dias) {
+      const noDia = new Set(d.exercicios.flatMap(e => [e.exercicio_id, e.par?.exercicio_id].filter(Boolean)));
+      if (noDia.has(libId)) continue;
+      const alvo = d.exercicios.find(e => !e.par && !e._mantido && e._base && e._base !== 'CARDIO'
+        && base.exercicios[e._base].g === meta.g && base.exercicios[e._base].t === meta.t);
+      if (!alvo) continue;
+      const antes = libPorId.get(alvo.exercicio_id)?.nome || alvo.exercicio_id;
+      Object.assign(alvo, { exercicio_id: libId, _base: baseId, _mantido: true, equipamento_id: '', acessorio_id: '' },
+        estacaoDoInventario(lib, inventario, recursos));
+      notas.push(`Dia ${d.dia}: mantido ${lib.nome} (está evoluindo) no lugar de ${antes}`);
+    }
+  }
+  return notas;
 }
