@@ -15,6 +15,8 @@
 
 // Bi-set entra porque o app grava o par (A + B) — ver `par` no formato. Tri-set
 // e super-set continuam fora: o app não tem como montá-los a partir da IA.
+export const MAX_TOKENS = 12000;
+
 const METODOS_PERMITIDOS = ['Normal', 'Bi-set', 'Drop-set', 'Rest-pause', 'Piramidal', 'Isometria', 'Cluster', 'FST-7'];
 
 const REL_EVOLUIR = `"relatorio": {
@@ -47,13 +49,15 @@ function formato(modo, comInventario) {
       "foco": "ex.: Peitoral + Tríceps",
       "exercicios": [
         { "exercicio_id": "id-da-lista"${campoEquip}, "series": 4, "repeticoes": "8-12", "descanso": "90s", "cadencia": "2-0-2", "rir": "1-2", "metodo": "Normal", "observacao": "" },
-        { "exercicio_id": "id-do-A"${campoEquip}, "series": 3, "repeticoes": "10-12", "descanso": "60s", "cadencia": "", "rir": "1", "metodo": "Bi-set", "observacao": "",
-          "par": { "exercicio_id": "id-do-B"${campoEquip}, "repeticoes": "10-12", "cadencia": "", "rir": "1", "observacao": "" } }
+        { "exercicio_id": "id-do-A"${campoEquip}, "series": 3, "repeticoes": "10-12", "descanso": "60s", "rir": "1", "metodo": "Bi-set",
+          "par": { "exercicio_id": "id-do-B"${campoEquip}, "repeticoes": "10-12", "rir": "1" } }
       ]
     }
   ],
   ${modo === 'evoluir' ? REL_EVOLUIR : REL_PADRAO}
 }
+
+TAMANHO (a resposta tem limite e é cortada se passar): JSON compacto, sem espaços/quebras de linha desnecessários. OMITA campos vazios ("cadencia", "rir", "observacao", "acessorio_id" sem valor não entram). "observacao" no máximo 80 caracteres e só quando acrescenta algo. Cada campo do "relatorio" com no máximo 400 caracteres, em frases curtas; em listas (ex.: "alteracoes"), uma linha curta por item.
 
 Regras do JSON: use "dia" A, B, C... na ordem; "series" inteiro; "repeticoes" texto (faixa); "exercicio_id" SEMPRE um id da lista de exercícios disponíveis;${regraEquip} "metodo" um de ${METODOS_PERMITIDOS.join(', ')} (NÃO use tri-set/super-set).
 BI-SET: "metodo": "Bi-set" EXIGE o objeto "par" com o segundo exercício (B), diferente do A; o B faz as mesmas "series" do A e o "descanso" do A é o descanso APÓS o par. Exercício sem bi-set NÃO tem "par". No treino atual, bi-set aparece como bloco "Bi-set: A) … B) …" — mantenha os que estão funcionando; crie novo só com benefício claro (ex.: tempo curto, antagonistas).`;
@@ -216,7 +220,10 @@ ${formato(modo, !!inventario)}`;
     const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 8000, messages: [{ role: 'user', content: prompt }] }),
+      // 12000, não mais: o Evoluir (histórico, bi-set, aparelho) passou dos 8000
+      // e era cortado. Dobrar arriscaria o tempo máximo da função na Vercel —
+      // o grosso da economia vem das regras de TAMANHO no formato().
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: MAX_TOKENS, messages: [{ role: 'user', content: prompt }] }),
     });
 
     if (!aiResp.ok) {
@@ -238,7 +245,9 @@ ${formato(modo, !!inventario)}`;
       const truncado = data.stop_reason === 'max_tokens';
       return res.status(502).json({
         error: truncado
-          ? 'A resposta da IA ficou muito longa e foi cortada. Tente com menos dias/músculos ou gere de novo.'
+          ? (modo === 'criar'
+              ? 'A resposta da IA ficou muito longa e foi cortada. Tente com menos dias/músculos ou gere de novo.'
+              : 'A resposta da IA ficou muito longa e foi cortada. Gere de novo; se repetir, use um treino base com menos exercícios.')
           : 'IA retornou formato inesperado. Tente gerar de novo.',
         bruto: textoIa.slice(0, 400),
       });

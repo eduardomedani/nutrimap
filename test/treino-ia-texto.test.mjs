@@ -138,6 +138,31 @@ grupo('treinos · bi-set gerado pela IA', () => {
   });
 });
 
+grupo('treinos · resposta da IA cabe no limite', () => {
+  teste('o prompt pede JSON enxuto e omite campo vazio', async () => {
+    const { prompt } = await chamar({ modo: 'evoluir', treinoAtualTexto: 'Dia A:\n  1. Leg press', criterios: {}, exercicios: BIB }, plano([{ exercicio_id: 'x1' }]));
+    contem(prompt, 'OMITA campos vazios');
+    contem(prompt, 'no máximo 400 caracteres');
+    ok(!prompt.includes('"cadencia": ""'), 'o exemplo não pode ensinar campo vazio');
+  });
+
+  teste('limite de 12000 tokens', async () => {
+    const { MAX_TOKENS } = await import('../api/gerar-treino.js');
+    igual(MAX_TOKENS, 12000);
+  });
+
+  teste('cortado no Evoluir não manda "usar menos dias"', async () => {
+    process.env.ANTHROPIC_API_KEY = 'teste';
+    const original = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ content: [{ type: 'text', text: '{"nome":"T","dias":[{"dia":"A"' }], stop_reason: 'max_tokens' }) });
+    const res = { status(c) { this.code = c; return this; }, json(d) { this.body = d; return this; } };
+    try { await handler({ method: 'POST', body: { modo: 'evoluir', treinoAtualTexto: 'x', criterios: {}, exercicios: BIB } }, res); }
+    finally { globalThis.fetch = original; }
+    igual(res.code, 502);
+    contem(res.body.error, 'treino base com menos exercícios');
+  });
+});
+
 grupo('treinos · gravação do bi-set gerado', () => {
   const ui = readFileSync(new URL('../js/treinos-ui.js', import.meta.url), 'utf8');
   teste('A vira âncora e B aponta para ele, como no editor', () => {
