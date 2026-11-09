@@ -46,6 +46,7 @@ let _bibVazia     = true;    // biblioteca sem nenhum exercício?
 let _bibResultados = [];     // último lote da busca (cache p/ resolver o nome escolhido)
 let _exSelecionado = null;   // exercício escolhido no autocomplete (resolve o "Adicionar" na hora)
 let _treino       = null;    // treino em edição (null enquanto não criado)
+let _rascunhoIA   = null;    // id do treino que a IA acabou de gerar (mostra a faixa Publicar/Descartar)
 let _itens      = [];       // itens (treino_exercicios) do treino em edição
 let _dias       = [];       // letras dos dias, ex.: ['A','B','C']
 let _arrastando = null;     // índice da aba sendo arrastada (null = nenhuma)
@@ -404,6 +405,43 @@ async function salvarTreinoNaBiblioteca(id, nome, btn) {
   } finally {
     if (btn) btn.disabled = false;
   }
+}
+
+// ── Rascunho gerado pela IA ──
+// Publicar = ativar (o aluno passa a ver) + o mesmo evento de publicação do
+// editor. Na biblioteca, "Concluir" só tira a faixa.
+async function publicarRascunho() {
+  const btn = document.getElementById('trRascPublicar');
+  if (btn) btn.disabled = true;
+  try {
+    if (_modo === 'paciente' && _treino && !_treino.ativo) {
+      const atualizado = await atualizarTreino(_treino.id, { ativo: true });
+      _treino = { ..._treino, ...atualizado };
+      await eventoTreino('WORKOUT_PUBLISHED');
+      mostrarToast('✓ Treino publicado — o aluno já vê no app');
+    }
+    _rascunhoIA = null;
+    await abrirEditor(_treino);
+  } catch (e) {
+    mostrarErro('Erro ao publicar: ' + e.message);
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function descartarRascunho() {
+  const termo = _modo === 'modelo' ? 'modelo' : 'rascunho';
+  if (!_treino || !(await confirmar({
+    titulo: `Descartar ${termo}`,
+    mensagem: `Apagar o ${termo} "${_treino.nome || 'gerado por IA'}" e todos os exercícios dele? O treino atual do aluno não é afetado.`,
+    textoOk: 'Descartar', perigo: true,
+  }))) return;
+  try {
+    await excluirTreino(_treino.id);
+    _rascunhoIA = null;
+    _treino = null;
+    mostrarToast(`✓ ${_modo === 'modelo' ? 'Modelo descartado' : 'Rascunho descartado'}`);
+    await renderLista();
+  } catch (e) { mostrarErro('Erro ao descartar: ' + e.message); }
 }
 
 async function removerTreino(id, nome) {
@@ -797,11 +835,15 @@ async function criarTreinoDaIA(plano) {
     const nutriId = await getNutriId();
     // `paciente_id` é o que decide se o resultado nasce modelo ou prescrição —
     // é a mesma regra do resto do módulo, e não há um terceiro caso.
+    // RASCUNHO: o treino do aluno nasce INATIVO — o app do aluno só lista
+    // treinos ativos (paciente-data.js). Ele é revisado no editor e publicado
+    // pela faixa do topo. Modelo nasce ativo: na biblioteca `ativo` não
+    // significa nada (ver treinos.js) e o aluno nunca vê modelo.
     const treino = await criarTreino(nutriId, {
       nome: plano.nome || 'Treino gerado por IA',
       paciente_id: _modo === 'modelo' ? null : _paciente.id,
       divisao: LETRAS.slice(0, plano.dias.length).join(''),
-      ativo: true,
+      ativo: _modo === 'modelo',
     });
     for (let di = 0; di < plano.dias.length; di++) {
       const letra = LETRAS[di];
@@ -843,7 +885,10 @@ async function criarTreinoDaIA(plano) {
         }
       }
     }
-    mostrarToast('✓ Treino criado! Revise e ajuste abaixo.');
+    _rascunhoIA = treino.id;
+    mostrarToast(_modo === 'modelo'
+      ? '✓ Modelo criado! Revise e ajuste abaixo.'
+      : '✓ Rascunho salvo — o aluno ainda não vê. Revise e publique.');
     await abrirEditor(treino);
   } catch (e) {
     mostrarErro('Erro ao criar o treino: ' + e.message);
@@ -882,8 +927,24 @@ function renderEditor() {
     opcoesDiv.push(`<option value="${n}" ${n === nDefault ? 'selected' : ''}>${label}</option>`);
   }
 
+  // Faixa do rascunho: só para o treino que a IA acabou de gerar. Se o
+  // professor ativar pelo Status e salvar, `ativo` vira true e a faixa some.
+  const ehRascunho = t && _rascunhoIA === t.id && (_modo === 'modelo' || !t.ativo);
+  const faixaRascunho = ehRascunho ? `
+    <div class="tr-rascunho">
+      <div class="tr-rascunho-txt"><i data-lucide="file-pen-line"></i>
+        <span>${_modo === 'modelo'
+          ? '<b>Modelo gerado pela IA.</b> Revise e ajuste os exercícios abaixo.'
+          : '<b>Rascunho gerado pela IA</b> — o aluno ainda <b>não vê</b> este treino. Revise e ajuste abaixo; depois publique.'}</span></div>
+      <div class="tr-rascunho-acoes">
+        <button class="btn" id="trRascDescartar"><i data-lucide="trash-2"></i> Descartar</button>
+        <button class="btn primary" id="trRascPublicar"><i data-lucide="${_modo === 'modelo' ? 'check' : 'send'}"></i> ${_modo === 'modelo' ? 'Concluir' : 'Publicar para o aluno'}</button>
+      </div>
+    </div>` : '';
+
   _mountEl.innerHTML = `
     <span class="ficha-voltar" id="trVoltar"><i data-lucide="arrow-left"></i> Voltar para os treinos</span>
+    ${faixaRascunho}
 
     <div class="av-form-card">
       <div class="av-form-title">${t ? 'Editar' : 'Novo'} ${termo}${t ? ` — <em>${esc(t.nome || '')}</em>` : ''}</div>
@@ -951,6 +1012,8 @@ function renderEditor() {
 
   document.getElementById('trVoltar').addEventListener('click', () => renderLista());
   document.getElementById('trSalvarDados').addEventListener('click', salvarDados);
+  document.getElementById('trRascPublicar')?.addEventListener('click', publicarRascunho);
+  document.getElementById('trRascDescartar')?.addEventListener('click', descartarRascunho);
   ligarAutocalculoDatas(t);
 
   if (t) {

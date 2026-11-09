@@ -28,6 +28,27 @@ grupo('treinos · IA na biblioteca', () => {
     contem(ui, "paciente_id: _modo === 'modelo' ? null : _paciente.id,");
   });
 
+  teste('O TREINO GERADO PARA O ALUNO NASCE RASCUNHO (INATIVO)', () => {
+    // O app do aluno só lista treinos ativos (paciente-data.js). Nascer ativo
+    // publicava a sugestão da IA antes de o professor revisar.
+    contem(ui, "ativo: _modo === 'modelo',");
+    contem(ui, '_rascunhoIA = treino.id;');
+  });
+
+  teste('publicar ativa e registra a publicação; descartar pede confirmação', () => {
+    const ini = ui.indexOf('async function publicarRascunho');
+    const fim = ui.indexOf('async function removerTreino');
+    const bloco = ui.slice(ini, fim);
+    contem(bloco, 'atualizarTreino(_treino.id, { ativo: true })');
+    contem(bloco, "eventoTreino('WORKOUT_PUBLISHED')");
+    contem(bloco, 'await confirmar({');
+    contem(bloco, 'excluirTreino(_treino.id)');
+  });
+
+  teste('a faixa some quando o treino já está ativo', () => {
+    contem(ui, "const ehRascunho = t && _rascunhoIA === t.id && (_modo === 'modelo' || !t.ativo);");
+  });
+
   teste('a base para ajustar muda com o modo', () => {
     // Biblioteca ajusta modelos; paciente ajusta os treinos daquele aluno.
     contem(ui, "const ehBiblioteca = _modo === 'modelo';");
