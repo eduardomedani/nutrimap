@@ -21,6 +21,7 @@ import {
 } from './treinos.js';
 import { recursosDisponiveis, cabeNaAcademia } from './academia-compat.js';
 import { montarTextoTreino, montarTextoProgressao as textoProgressao } from './treino-ia-texto.js';
+import { bibliotecaCompacta } from './treino-ia-biblioteca.js';
 import { sb } from './supabase.js';
 import { registrarEvento } from './timeline.js';
 import { mostrarToast, mostrarErro, confirmar } from './utils.js';
@@ -638,24 +639,9 @@ function aplicarModoIA(modo) {
   _mountEl.dataset.iaModo = modo;
 }
 
-// Reduz a biblioteca enviada à IA: cobre todos os grupos com um teto,
-// dando mais espaço aos grupos-alvo. Corta bastante o custo da entrada.
-// Com inventário, os tetos sobem: parte da biblioteca não cabe na academia
-// (ex.: "com barra" sem barra de carga), e a IA precisa de candidatos
-// executáveis suficientes depois de descartar esses.
-function bibliotecaCompacta(todos, gruposAlvo, comInventario = false) {
-  const alvo = new Set((gruposAlvo || []).map(g => String(g).toLowerCase()));
-  const porGrupo = {};
-  todos.forEach(e => { (porGrupo[e.grupo_muscular || 'outros'] ||= []).push(e); });
-  const out = [];
-  for (const [g, exs] of Object.entries(porGrupo)) {
-    const teto = alvo.has(g.toLowerCase()) ? (comInventario ? 40 : 25) : (comInventario ? 15 : 10);
-    exs.slice(0, teto).forEach(e => out.push({
-      id: e.id, nome: e.nome, grupo: e.grupo_muscular || '', equipamento: e.equipamento || '',
-    }));
-  }
-  return out.slice(0, comInventario ? 320 : 180);
-}
+// A amostra da biblioteca enviada à IA mora em js/treino-ia-biblioteca.js
+// (rodízio por família de movimento — antes era ordem alfabética, e os
+// supinos nunca chegavam).
 
 // Texto da estação para o preview e para a observação do exercício salvo.
 function estacaoDoExercicio(ex, inv) {
@@ -687,6 +673,7 @@ async function gerarTreinoIA() {
   };
   const payload = { modo, criterios };
   let gruposAlvo = [];
+  let idsBase = [];   // exercícios do treino atual: sempre vão para a IA (pode mantê-los)
 
   try {
     if (modo === 'criar') {
@@ -705,6 +692,7 @@ async function gerarTreinoIA() {
         payload.instrucao = instr;
       }
       const itens = await listarItensDoTreino(treinoId);
+      idsBase = [...new Set(itens.map(it => it.exercicio_id).filter(Boolean))];
       if (!itens.length) { mostrarToast('O treino base está sem exercícios.'); return; }
       gruposAlvo = [...new Set(itens.map(it => it.exercicio?.grupo_muscular).filter(Boolean))];
       payload.treinoAtualTexto = montarTextoTreino(itens);
@@ -736,7 +724,9 @@ async function gerarTreinoIA() {
     // Com inventário, a IA só vê o que cabe na academia (mesmo filtro da
     // biblioteca "Minha academia"). O servidor continua conferindo a estação.
     const candidatos = inv && _invRecursos ? todos.filter(e => cabeNaAcademia(e, _invRecursos)) : todos;
-    const bib = bibliotecaCompacta(candidatos, gruposAlvo, !!inv);
+    // Do treino atual entra só o que cabe na academia (com inventário); o que
+    // não cabe a IA tem de trocar, e por isso não pode estar na lista.
+    const bib = bibliotecaCompacta(candidatos, gruposAlvo, { comInventario: !!inv, obrigatorios: idsBase });
     payload.exercicios = bib;
     if (inv) payload.inventario = inv;
     const resp = await fetch('/api/gerar-treino', {

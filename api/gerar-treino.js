@@ -15,7 +15,18 @@
 
 // Bi-set entra porque o app grava o par (A + B) — ver `par` no formato. Tri-set
 // e super-set continuam fora: o app não tem como montá-los a partir da IA.
+import { familiaDe } from '../js/treino-ia-biblioteca.js';
+
 export const MAX_TOKENS = 12000;
+
+// Treino gerado em 09/11 veio com o MESMO pulldown 3x no dia A e três
+// crucifixos sem nenhum supino. Estas regras vão no prompt; a repetição de id
+// também é conferida no servidor (a regra não depende da IA obedecer).
+const REGRAS_SELECAO = `SELEÇÃO DE EXERCÍCIOS (obrigatório):
+- NUNCA repita o mesmo exercicio_id no mesmo dia. Quer mais volume? Aumente as séries do exercício.
+- No mesmo dia, no máximo UM exercício de cada família de movimento (um supino, um crucifixo, uma puxada, uma remada, uma rosca…). Dois só com justificativa clara no relatório.
+- Cada grupo muscular do dia começa por um exercício COMPOSTO/multiarticular antes dos isoladores (peito → um supino; costas → uma puxada E uma remada; pernas → agachamento/leg press/hack; ombro → um desenvolvimento).
+- Pulldown com braços estendidos e crucifixo são ISOLADORES: complementam, nunca substituem supino, puxada ou remada.`;
 
 const METODOS_PERMITIDOS = ['Normal', 'Bi-set', 'Drop-set', 'Rest-pause', 'Piramidal', 'Isometria', 'Cluster', 'FST-7'];
 
@@ -215,6 +226,8 @@ ${bib}
 
 Se faltar exercício para um grupo, use o mais próximo disponível e comente no relatório.
 
+${REGRAS_SELECAO}
+
 ${formato(modo, !!inventario)}`;
 
     const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
@@ -303,8 +316,33 @@ ${formato(modo, !!inventario)}`;
         return out;
       });
     });
+    // Repetição no dia: o mesmo exercício (como A, como B de bi-set ou solto)
+    // só fica na primeira vez. Família com 3+ variações no dia vira aviso —
+    // não é removida, porque pode ser escolha do treino (ex.: dia só de braço).
+    const repetidos = [];
+    const variedade = [];
+    (plano.dias || []).forEach(d => {
+      const vistos = new Set();
+      d.exercicios = (d.exercicios || []).filter(ex => {
+        if (vistos.has(ex.exercicio_id)) { repetidos.push(`Dia ${d.dia || '?'}: ${nomePorId.get(ex.exercicio_id) || ex.exercicio_id}`); return false; }
+        vistos.add(ex.exercicio_id);
+        if (ex.par) {
+          if (vistos.has(ex.par.exercicio_id)) {
+            repetidos.push(`Dia ${d.dia || '?'}: ${nomePorId.get(ex.par.exercicio_id) || ex.par.exercicio_id} (B do bi-set)`);
+            delete ex.par; ex.metodo = 'Normal';
+          } else vistos.add(ex.par.exercicio_id);
+        }
+        return true;
+      });
+      const porFamilia = {};
+      [...vistos].forEach(id => { const f = familiaDe(nomePorId.get(id)); if (f) (porFamilia[f] ||= []).push(nomePorId.get(id)); });
+      Object.entries(porFamilia).filter(([, l]) => l.length >= 3)
+        .forEach(([f, l]) => variedade.push(`Dia ${d.dia || '?'}: ${l.length}× ${f} (${l.join('; ')})`));
+    });
     plano.dias = (plano.dias || []).filter(d => d.exercicios.length);
     const avisos = [];
+    if (repetidos.length) avisos.push(`Exercício repetido no mesmo dia — removido (aumente as séries se quiser mais volume):\n${repetidos.join('\n')}`);
+    if (variedade.length) avisos.push(`Muitas variações do mesmo movimento no dia — revise:\n${variedade.join('\n')}`);
     if (descartados.length) avisos.push(`Removidos por não caberem no inventário da academia (revise o volume desses dias):\n${descartados.join('\n')}`);
     if (desfeitos.length) avisos.push(`Bi-sets desfeitos (o exercício A ficou como normal):\n${desfeitos.join('\n')}`);
     if (avisos.length) plano.relatorio = { ...(plano.relatorio || {}), descartados: avisos.join('\n\n') };

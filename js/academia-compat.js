@@ -39,7 +39,7 @@ export const RECURSOS = {
   bola_suica: 'Bola suíça', rolo: 'Rolo de espuma', medicine_ball: 'Medicine ball',
 };
 
-const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
 // ───────────────────────────────────────────────────────────
 // ITEM → recursos que ele fornece (inferidos do nome)

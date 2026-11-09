@@ -193,7 +193,7 @@ async function carregarAcademia() {
   renderLista();
 }
 
-const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const norm = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
 // Busca um lote no banco e acrescenta ao acumulado. `primeira` = mostra spinner e substitui.
 async function carregarPagina(primeira = false) {
