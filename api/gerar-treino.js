@@ -13,7 +13,9 @@
 // descarte em relatorio.descartados. Sem inventário, comportamento de antes.
 // ═══════════════════════════════════════════════════════════
 
-const METODOS_PERMITIDOS = ['Normal', 'Drop-set', 'Rest-pause', 'Piramidal', 'Isometria', 'Cluster', 'FST-7'];
+// Bi-set entra porque o app grava o par (A + B) — ver `par` no formato. Tri-set
+// e super-set continuam fora: o app não tem como montá-los a partir da IA.
+const METODOS_PERMITIDOS = ['Normal', 'Bi-set', 'Drop-set', 'Rest-pause', 'Piramidal', 'Isometria', 'Cluster', 'FST-7'];
 
 const REL_EVOLUIR = `"relatorio": {
     "mantidos": "exercícios mantidos e por quê (o que já vinha funcionando)",
@@ -44,14 +46,17 @@ function formato(modo, comInventario) {
       "dia": "A",
       "foco": "ex.: Peitoral + Tríceps",
       "exercicios": [
-        { "exercicio_id": "id-da-lista"${campoEquip}, "series": 4, "repeticoes": "8-12", "descanso": "90s", "cadencia": "2-0-2", "rir": "1-2", "metodo": "Normal", "observacao": "" }
+        { "exercicio_id": "id-da-lista"${campoEquip}, "series": 4, "repeticoes": "8-12", "descanso": "90s", "cadencia": "2-0-2", "rir": "1-2", "metodo": "Normal", "observacao": "" },
+        { "exercicio_id": "id-do-A"${campoEquip}, "series": 3, "repeticoes": "10-12", "descanso": "60s", "cadencia": "", "rir": "1", "metodo": "Bi-set", "observacao": "",
+          "par": { "exercicio_id": "id-do-B"${campoEquip}, "repeticoes": "10-12", "cadencia": "", "rir": "1", "observacao": "" } }
       ]
     }
   ],
   ${modo === 'evoluir' ? REL_EVOLUIR : REL_PADRAO}
 }
 
-Regras do JSON: use "dia" A, B, C... na ordem; "series" inteiro; "repeticoes" texto (faixa); "exercicio_id" SEMPRE um id da lista de exercícios disponíveis;${regraEquip} "metodo" um de ${METODOS_PERMITIDOS.join(', ')} (NÃO use bi-set/tri-set/super-set).`;
+Regras do JSON: use "dia" A, B, C... na ordem; "series" inteiro; "repeticoes" texto (faixa); "exercicio_id" SEMPRE um id da lista de exercícios disponíveis;${regraEquip} "metodo" um de ${METODOS_PERMITIDOS.join(', ')} (NÃO use tri-set/super-set).
+BI-SET: "metodo": "Bi-set" EXIGE o objeto "par" com o segundo exercício (B), diferente do A; o B faz as mesmas "series" do A e o "descanso" do A é o descanso APÓS o par. Exercício sem bi-set NÃO tem "par". No treino atual, bi-set aparece como bloco "Bi-set: A) … B) …" — mantenha os que estão funcionando; crie novo só com benefício claro (ex.: tempo curto, antagonistas).`;
 }
 
 // ── INVENTÁRIO DA ACADEMIA ─────────────────────────────────
@@ -119,7 +124,12 @@ ${musculos}
 Distribua os grupos pelos ${dias} dias respeitando recuperação (48h para o mesmo grupo), calcule o volume semanal (mais séries para prioritários, manutenção para secundários, sem concentrar num dia) e só então escolha os exercícios.`;
 }
 
-function contextoEvoluir(treino, progressao) {
+function contextoEvoluir(treino, progressao, musculos) {
+  // Antes a regra abaixo falava em "músculos prioritários" sem nunca dizer
+  // quais eram. Agora vêm da tela (opcional); sem eles, a IA deduz do treino.
+  const prioridades = (musculos || []).length
+    ? musculos.map(m => `- ${m.grupo}: prioridade ${m.prioridade}`).join('\n')
+    : '- (não informados pelo profissional — deduza o foco do treino atual e mantenha-o)';
   return `MODO: EVOLUIR O TREINO ATUAL. Sua função NÃO é criar um treino novo — é evoluir a ficha de um aluno que já treina, como um treinador experiente revisando semanas de acompanhamento.
 
 PRINCÍPIO PRINCIPAL: mantenha tudo que está funcionando; altere SOMENTE o que precisa evoluir, sempre com justificativa técnica. Continuidade e progressão, não um treino diferente.
@@ -130,7 +140,8 @@ PODE evoluir: aumentar carga/reps, mudar faixa de reps, ajustar séries, reorden
 NÃO faça: trocar exercício só para variar; mudar toda a divisão sem necessidade; aumentar volume indiscriminadamente; pôr técnica avançada em tudo; alterar exercícios que estão evoluindo bem.
 
 FREQUÊNCIA: mantenha o MESMO número de dias. Se enxergar ganho em mudar a frequência, coloque isso APENAS em "sugestoes" do relatório — nunca aplique automaticamente.
-MÚSCULOS PRIORITÁRIOS: dê preferência (frequência, volume, posição no treino, qualidade do estímulo), mas nunca aumente volume só por ser prioridade — respeite a recuperação.
+MÚSCULOS PRIORITÁRIOS: dê preferência (frequência, volume, posição no treino, qualidade do estímulo), mas nunca aumente volume só por ser prioridade — respeite a recuperação. Prioridade nova não autoriza refazer a divisão: redistribua dentro dos MESMOS dias.
+${prioridades}
 
 Use as CARGAS REGISTRADAS para decidir a progressão: onde o aluno avançou, progrida; onde estagnou, ajuste ou troque.
 
@@ -171,7 +182,7 @@ export default async function handler(req, res) {
 
     const dias = Math.max(2, Math.min(7, Number(criterios.dias) || 3));
     let contexto;
-    if (modo === 'evoluir') contexto = contextoEvoluir(treinoAtualTexto, progressaoTexto);
+    if (modo === 'evoluir') contexto = contextoEvoluir(treinoAtualTexto, progressaoTexto, criterios.musculos);
     else if (modo === 'ajustar') contexto = contextoAjustar(treinoAtualTexto, instrucao);
     else contexto = contextoCriar(criterios, dias);
 
@@ -251,20 +262,43 @@ ${formato(modo, !!inventario)}`;
       ex.acessorio_id = pg;
       return true;
     };
+    const rotulo = ex => `${nomePorId.get(ex.exercicio_id) || ex.exercicio_id} (${ex.equipamento_id || 'sem estação'}${ex.acessorio_id ? ' + ' + ex.acessorio_id : ''})`;
+    const desfeitos = [];
+    // Bi-set só sobrevive inteiro: par existente na biblioteca, diferente do A
+    // e (com inventário) executável. Par inválido desfaz o bi-set — o A fica
+    // como exercício normal e o motivo vai para o relatório.
+    const normalizarPar = (ex, dia) => {
+      const par = ex.par && typeof ex.par === 'object' ? ex.par : null;
+      const pediuBiset = ex.metodo === 'Bi-set' || !!par;
+      if (!pediuBiset) { delete ex.par; return; }
+      let motivo = '';
+      if (!par || !idsValidos.has(par.exercicio_id)) motivo = 'segundo exercício ausente ou fora da biblioteca';
+      else if (par.exercicio_id === ex.exercicio_id) motivo = 'A e B iguais';
+      else if (!cabeNaAcademia(par)) motivo = `B fora do inventário: ${rotulo(par)}`;
+      if (motivo) {
+        desfeitos.push(`Dia ${dia}: ${nomePorId.get(ex.exercicio_id) || ex.exercicio_id} — ${motivo}`);
+        delete ex.par;
+        ex.metodo = 'Normal';
+        return;
+      }
+      ex.metodo = 'Bi-set';
+    };
     (plano.dias || []).forEach(d => {
       d.exercicios = (d.exercicios || []).filter(ex => idsValidos.has(ex.exercicio_id)).filter(ex => {
         if (cabeNaAcademia(ex)) return true;
-        descartados.push(`Dia ${d.dia || '?'}: ${nomePorId.get(ex.exercicio_id) || ex.exercicio_id} (${ex.equipamento_id || 'sem estação'}${ex.acessorio_id ? ' + ' + ex.acessorio_id : ''})`);
+        descartados.push(`Dia ${d.dia || '?'}: ${rotulo(ex)}`);
         return false;
-      }).map(ex => ({
-        ...ex, metodo: METODOS_PERMITIDOS.includes(ex.metodo) ? ex.metodo : 'Normal',
-      }));
+      }).map(ex => {
+        const out = { ...ex, metodo: METODOS_PERMITIDOS.includes(ex.metodo) ? ex.metodo : 'Normal' };
+        normalizarPar(out, d.dia || '?');
+        return out;
+      });
     });
     plano.dias = (plano.dias || []).filter(d => d.exercicios.length);
-    if (descartados.length) {
-      plano.relatorio = { ...(plano.relatorio || {}),
-        descartados: `Removidos por não caberem no inventário da academia (revise o volume desses dias):\n${descartados.join('\n')}` };
-    }
+    const avisos = [];
+    if (descartados.length) avisos.push(`Removidos por não caberem no inventário da academia (revise o volume desses dias):\n${descartados.join('\n')}`);
+    if (desfeitos.length) avisos.push(`Bi-sets desfeitos (o exercício A ficou como normal):\n${desfeitos.join('\n')}`);
+    if (avisos.length) plano.relatorio = { ...(plano.relatorio || {}), descartados: avisos.join('\n\n') };
 
     if (!plano.dias.length) {
       return res.status(502).json({ error: inventario

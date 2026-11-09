@@ -113,6 +113,27 @@ grupo('treinos · gerador respeita o inventário da academia', () => {
   });
 });
 
+grupo('treinos · evoluir com músculos-alvo', () => {
+  const base = { modo: 'evoluir', treinoAtualTexto: 'Dia A:\n  - Leg press 45°', progressaoTexto: 'x', exercicios: BIB };
+
+  teste('OS MÚSCULOS MARCADOS CHEGAM À IA', async () => {
+    // Antes o prompt dizia "dê preferência aos prioritários" sem dizer quais.
+    const { prompt } = await chamar({ ...base, criterios: { musculos: [{ grupo: 'Glúteos', prioridade: 'alta' }] } }, PLANO());
+    contem(prompt, '- Glúteos: prioridade alta');
+    contem(prompt, 'redistribua dentro dos MESMOS dias');
+  });
+
+  teste('sem marcação, a IA deduz o foco do treino atual', async () => {
+    const { prompt } = await chamar({ ...base, criterios: {} }, PLANO());
+    contem(prompt, 'não informados pelo profissional');
+  });
+
+  teste('a tela mostra os músculos no Evoluir, não no Ajustar', () => {
+    contem(ui, "evoluir: { criar: 0, base: 1, evoluir: 1, ajustar: 0, musculos: 1, params: 1 }");
+    contem(ui, "ajustar: { criar: 0, base: 1, evoluir: 0, ajustar: 1, musculos: 0, params: 0 }");
+  });
+});
+
 grupo('treinos · recorte do inventário para a IA', () => {
   const inv = (over = {}) => ({ ativo: true, itens: [
     { id: 'EQ01', tipo: 'equipamento', nome: 'Halteres', situacao: 'disponivel' },
@@ -149,7 +170,9 @@ grupo('treinos · a tela do gerador e a carga do banco', () => {
 
   teste('o aparelho vai para a observação do exercício salvo', () => {
     // É o que o aluno vê no app: em qual máquina fazer.
-    contem(ui, "ex._estacao ? `Aparelho: ${ex._estacao}` : ''");
+    // A mesma regra vale para o A e para o B do bi-set.
+    contem(ui, "e._estacao ? `Aparelho: ${e._estacao}` : ''");
+    contem(ui, 'observacao: obs(ex.par),');
   });
 
   teste('a carga não sobrescreve o que foi editado pela tela', () => {

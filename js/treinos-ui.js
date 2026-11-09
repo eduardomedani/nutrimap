@@ -20,6 +20,7 @@ import {
   obterInventarioAcademia, inventarioParaIA,
 } from './treinos.js';
 import { recursosDisponiveis, cabeNaAcademia } from './academia-compat.js';
+import { montarTextoTreino, montarTextoProgressao as textoProgressao } from './treino-ia-texto.js';
 import { sb } from './supabase.js';
 import { registrarEvento } from './timeline.js';
 import { mostrarToast, mostrarErro, confirmar } from './utils.js';
@@ -533,8 +534,6 @@ async function renderGeradorIA() {
 
       <div data-ia-bloco="criar">
         <p class="ia-hint">Escolha os <b>músculos prioritários</b> (clique para alternar Alta → Média → Baixa) e os dias por semana. A IA monta a divisão, o volume e escolhe os exercícios da sua biblioteca.</p>
-        <label class="ia-label">Músculos-alvo e prioridade</label>
-        <div class="ia-muscs">${chips}</div>
       </div>
 
       <div data-ia-bloco="base" hidden>
@@ -543,7 +542,12 @@ async function renderGeradorIA() {
       </div>
 
       <div data-ia-bloco="evoluir" hidden>
-        <p class="ia-hint">A IA aplica <b>progressão</b> sobre o treino atual usando as cargas que o aluno registrou — aumenta onde ele avançou, varia exercícios e periodiza. Um treino novo é gerado (o atual não é apagado).</p>
+        <p class="ia-hint">A IA <b>evolui</b> o treino atual a partir das cargas que o aluno registrou: progride carga/séries/repetições onde ele avançou, troca só exercício estagnado, com dor ou sem aparelho na academia, e pode reordenar. <b>Mantém os mesmos dias</b> — mudar a frequência vira só sugestão. Os músculos abaixo são <b>opcionais</b>: marcados, recebem preferência. Um treino novo é gerado (o atual não é apagado).</p>
+      </div>
+
+      <div data-ia-bloco="musculos">
+        <label class="ia-label">Músculos-alvo e prioridade<span data-ia-so="evoluir" style="text-transform:none; font-weight:600"> · opcional</span></label>
+        <div class="ia-muscs">${chips}</div>
       </div>
 
       <div data-ia-bloco="ajustar" hidden>
@@ -587,9 +591,9 @@ async function renderGeradorIA() {
 function aplicarModoIA(modo) {
   _mountEl.querySelectorAll('.ia-modo').forEach(b => b.classList.toggle('active', b.dataset.iaModo === modo));
   const vis = {
-    criar:   { criar: 1, base: 0, evoluir: 0, ajustar: 0, params: 1 },
-    evoluir: { criar: 0, base: 1, evoluir: 1, ajustar: 0, params: 1 },
-    ajustar: { criar: 0, base: 1, evoluir: 0, ajustar: 1, params: 0 },
+    criar:   { criar: 1, base: 0, evoluir: 0, ajustar: 0, musculos: 1, params: 1 },
+    evoluir: { criar: 0, base: 1, evoluir: 1, ajustar: 0, musculos: 1, params: 1 },
+    ajustar: { criar: 0, base: 1, evoluir: 0, ajustar: 1, musculos: 0, params: 0 },
   }[modo] || {};
   _mountEl.querySelectorAll('[data-ia-bloco]').forEach(el => { el.hidden = !vis[el.dataset.iaBloco]; });
   _mountEl.querySelectorAll('[data-ia-so]').forEach(el => { el.style.display = el.dataset.iaSo === modo ? '' : 'none'; });
@@ -625,39 +629,11 @@ function estacaoDoExercicio(ex, inv) {
   return pg ? `${eq} + ${pg}` : eq;
 }
 
-// Texto compacto do treino atual (por dia) para a IA evoluir/ajustar.
-function montarTextoTreino(itens) {
-  const porDia = {};
-  itens.filter(it => it.grupo_pos !== 'B')
-    .sort((a, b) => String(a.dia).localeCompare(String(b.dia)) || (a.ordem ?? 0) - (b.ordem ?? 0))
-    .forEach(it => { (porDia[it.dia] ||= []).push(it); });
-  return Object.keys(porDia).sort().map(dia => {
-    const linhas = porDia[dia].map(it => {
-      const nome = it.exercicio?.nome || '(exercício)';
-      const spec = [it.series ? `${it.series}x` : '', it.repeticoes || '', it.carga || '', it.metodo && it.metodo !== 'Normal' ? it.metodo : '']
-        .filter(Boolean).join(' ');
-      return `  - ${nome}${spec ? ` (${spec})` : ''}`;
-    }).join('\n');
-    return `Dia ${dia}:\n${linhas}`;
-  }).join('\n');
-}
-
-// Resumo das últimas cargas registradas pelo aluno, por exercício.
+// Texto do treino atual e histórico de cargas: js/treino-ia-texto.js (puro,
+// testado). Aqui só a leitura do banco.
 async function montarTextoProgressao(itens) {
-  const principais = itens.filter(it => it.grupo_pos !== 'B');
-  const regs = await Promise.all(principais.map(it => listarProgressao(it.id).catch(() => [])));
-  const linhas = [];
-  principais.forEach((it, i) => {
-    const ult = (regs[i] || [])[0];
-    if (!ult) return;
-    const arr = ult.series_realizadas || [];
-    let txt;
-    if (arr.length) txt = arr.map(s => `${s.peso ?? '–'}x${s.reps ?? '–'}`).join(', ');
-    else if (ult.carga_realizada != null) txt = `${ult.carga_realizada}kg x ${ult.reps_realizadas ?? '–'}`;
-    else return;
-    linhas.push(`  - ${it.exercicio?.nome || '(exercício)'}: última sessão ${txt} (${(regs[i] || []).length} registros)`);
-  });
-  return linhas.length ? linhas.join('\n') : 'O aluno ainda não registrou cargas.';
+  const regs = await Promise.all(itens.map(it => listarProgressao(it.id).catch(() => [])));
+  return textoProgressao(itens, new Map(itens.map((it, i) => [it.id, regs[i] || []])));
 }
 
 async function gerarTreinoIA() {
@@ -694,7 +670,16 @@ async function gerarTreinoIA() {
       if (!itens.length) { mostrarToast('O treino base está sem exercícios.'); return; }
       gruposAlvo = [...new Set(itens.map(it => it.exercicio?.grupo_muscular).filter(Boolean))];
       payload.treinoAtualTexto = montarTextoTreino(itens);
-      if (modo === 'evoluir') payload.progressaoTexto = await montarTextoProgressao(itens);
+      if (modo === 'evoluir') {
+        payload.progressaoTexto = await montarTextoProgressao(itens);
+        // Opcional no Evoluir: sem marcação, a IA deduz o foco do treino atual.
+        const musculos = [...document.querySelectorAll('.ia-musc')]
+          .filter(b => b.dataset.prio).map(b => ({ grupo: b.dataset.musc, prioridade: b.dataset.prio }));
+        if (musculos.length) {
+          criterios.musculos = musculos;
+          gruposAlvo = [...new Set([...gruposAlvo, ...musculos.map(m => m.grupo)])];
+        }
+      }
     }
   } catch (e) { mostrarToast('Erro ao preparar: ' + e.message); return; }
 
@@ -738,7 +723,12 @@ function renderPreviewIA(plano, bib, inv = null) {
   const nomeDe = id => (bib.find(e => e.id === id)?.nome) || '(exercício)';
   // A estação vira texto UMA vez: o preview mostra e o "Criar treino" grava a
   // mesma string na observação — o aluno sabe em qual aparelho fazer.
-  (plano.dias || []).forEach(d => (d.exercicios || []).forEach(ex => { ex._estacao = estacaoDoExercicio(ex, inv); }));
+  (plano.dias || []).forEach(d => (d.exercicios || []).forEach(ex => {
+    ex._estacao = estacaoDoExercicio(ex, inv);
+    if (ex.par) ex.par._estacao = estacaoDoExercicio(ex.par, inv);
+  }));
+  const estacaoHtml = e => e._estacao
+    ? `<span class="ia-ex-estacao">${esc(e.equipamento_id)}${e.acessorio_id ? ' + ' + esc(e.acessorio_id) : ''} · ${esc(e._estacao)}</span>` : '';
   const dias = (plano.dias || []).map(d => `
     <div class="ia-dia">
       <div class="ia-dia-head"><span class="ia-dia-letra">${esc(d.dia || '')}</span> ${esc(d.foco || '')}</div>
@@ -746,8 +736,14 @@ function renderPreviewIA(plano, bib, inv = null) {
         ${(d.exercicios || []).map(ex => `
           <div class="ia-ex">
             <span class="ia-ex-nome">${esc(nomeDe(ex.exercicio_id))}</span>
-            <span class="ia-ex-spec">${esc(String(ex.series ?? ''))}×${esc(ex.repeticoes || '')}${ex.descanso ? ` · ${esc(ex.descanso)}` : ''}${ex.metodo && ex.metodo !== 'Normal' ? ` · <b>${esc(ex.metodo)}</b>` : ''}</span>
-            ${ex._estacao ? `<span class="ia-ex-estacao">${esc(ex.equipamento_id)}${ex.acessorio_id ? ' + ' + esc(ex.acessorio_id) : ''} · ${esc(ex._estacao)}</span>` : ''}
+            <span class="ia-ex-spec">${esc(String(ex.series ?? ''))}×${esc(ex.repeticoes || '')}${ex.descanso ? ` · ${esc(ex.descanso)}${ex.par ? ' após o par' : ''}` : ''}${ex.metodo && ex.metodo !== 'Normal' ? ` · <b>${esc(ex.metodo)}</b>` : ''}</span>
+            ${estacaoHtml(ex)}
+            ${ex.par ? `
+            <div class="ia-ex-par">
+              <span class="ia-ex-nome">+ ${esc(nomeDe(ex.par.exercicio_id))}</span>
+              <span class="ia-ex-spec">${esc(String(ex.series ?? ''))}×${esc(ex.par.repeticoes || ex.repeticoes || '')}</span>
+              ${estacaoHtml(ex.par)}
+            </div>` : ''}
           </div>`).join('')}
       </div>
     </div>`).join('');
@@ -758,10 +754,11 @@ function renderPreviewIA(plano, bib, inv = null) {
     estrutura: 'Estrutura', volume: 'Volume semanal', mantidos: 'Exercícios mantidos',
     alteracoes: 'Exercícios alterados', progressoes: 'Progressões', melhorias: 'Melhorias',
     justificativa: 'Justificativa', tempo_estimado: 'Tempo estimado', sugestoes: 'Sugestões',
-    descartados: 'Fora do inventário',
+    descartados: 'Ajustes feitos pelo sistema',
   };
   // `descartados` é escrito pelo SERVIDOR (api/gerar-treino.js), não pela IA:
-  // exercício que ela amarrou a estação inexistente. Vai em destaque, no topo.
+  // exercício amarrado a estação inexistente e bi-set com par inválido.
+  // Vai em destaque, no topo.
   const ORDEM = ['descartados', 'estrutura', 'mantidos', 'alteracoes', 'progressoes', 'melhorias', 'volume', 'justificativa', 'tempo_estimado', 'sugestoes'];
   const r = plano.relatorio || {};
   const relatorio = ORDEM.filter(k => r[k])
@@ -811,20 +808,39 @@ async function criarTreinoDaIA(plano) {
       const exs = plano.dias[di].exercicios || [];
       for (let oi = 0; oi < exs.length; oi++) {
         const ex = exs[oi];
-        await adicionarExercicioAoTreino(nutriId, {
+        const series = ex.series != null && ex.series !== '' ? parseInt(ex.series, 10) : null;
+        const obs = e => [e._estacao ? `Aparelho: ${e._estacao}` : '', e.observacao || ''].filter(Boolean).join(' · ') || null;
+        const a = await adicionarExercicioAoTreino(nutriId, {
           treino_id: treino.id,
           exercicio_id: ex.exercicio_id,
           dia: letra,
           ordem: oi,
-          series: ex.series != null && ex.series !== '' ? parseInt(ex.series, 10) : null,
+          series,
           repeticoes: ex.repeticoes || null,
           cadencia: ex.cadencia || null,
           descanso: ex.descanso || null,
           rir: ex.rir || null,
-          metodo: ex.metodo || null,
-          observacao: [ex._estacao ? `Aparelho: ${ex._estacao}` : '', ex.observacao || '']
-            .filter(Boolean).join(' · ') || null,
+          metodo: ex.par ? 'Bi-set' : (ex.metodo === 'Bi-set' ? 'Normal' : ex.metodo || null),
+          observacao: obs(ex),
         });
+        // Bi-set: mesma estrutura do editor (escolherB) — o A vira âncora e o
+        // B aponta para ele, na mesma ordem, com as mesmas séries.
+        if (ex.par) {
+          await atualizarItem(a.id, { grupo_id: a.id, grupo_pos: 'A' });
+          await adicionarExercicioAoTreino(nutriId, {
+            treino_id: treino.id,
+            exercicio_id: ex.par.exercicio_id,
+            dia: letra,
+            ordem: oi,
+            series,
+            repeticoes: ex.par.repeticoes || ex.repeticoes || null,
+            cadencia: ex.par.cadencia || null,
+            rir: ex.par.rir || null,
+            observacao: obs(ex.par),
+            grupo_id: a.id,
+            grupo_pos: 'B',
+          });
+        }
       }
     }
     mostrarToast('✓ Treino criado! Revise e ajuste abaixo.');
