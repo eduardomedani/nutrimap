@@ -9,7 +9,7 @@ import {
   listarTodosExercicios, obterInventarioAcademia,
 } from './treinos.js';
 import { mostrarToast, mostrarErro, confirmar } from './utils.js';
-import { abrirMinhaAcademia } from './academia-ui.js';
+import { abrirMinhaAcademia, fecharMinhaAcademia } from './academia-ui.js';
 import { recursosDisponiveis, cabeNaAcademia } from './academia-compat.js';
 
 let _nutriId = null;
@@ -87,10 +87,12 @@ export async function initExerciciosUI(nutriId) {
           <button type="button" class="ex-filtro-btn" data-ex-filtro="todos"><i data-lucide="list"></i> Todos</button>
           <button type="button" class="ex-filtro-btn" data-ex-filtro="academia"><i data-lucide="warehouse"></i> Minha academia</button>
         </div>
-        <div class="search-box"><i data-lucide="search"></i> <input type="text" id="exSearch" placeholder="Buscar por nome ou grupo..." /></div>
         <button class="btn" id="exBtnInventario" title="Aparelhos e puxadores da sua academia"><i data-lucide="settings-2"></i> Inventário</button>
         <button class="btn primary" id="exBtnNovo"><i data-lucide="plus"></i> Novo exercício</button>
       </div>
+    </div>
+    <div class="ex-busca">
+      <div class="search-box search-box-inteira"><i data-lucide="search"></i> <input type="text" id="exSearch" placeholder="Buscar por nome ou grupo..." /></div>
     </div>
     <div id="exResumo"></div>
 
@@ -101,13 +103,23 @@ export async function initExerciciosUI(nutriId) {
     <datalist id="dlEquip">${EQUIPAMENTOS.map(e => `<option value="${esc(e)}">`).join('')}</datalist>
   `;
 
-  document.getElementById('exBtnNovo').addEventListener('click', () => abrirForm(null));
+  document.getElementById('exBtnNovo').addEventListener('click', async () => {
+    if (await fecharMinhaAcademia()) abrirForm(null);
+  });
   // Salvar o inventário muda o que cabe: no modo academia, refiltra na hora.
-  document.getElementById('exBtnInventario').addEventListener('click', () =>
-    abrirMinhaAcademia(document.getElementById('exFormWrap'), _nutriId, {
+  // Já aberto, o botão só leva até ele — reabrir descartaria o que está editado.
+  document.getElementById('exBtnInventario').addEventListener('click', () => {
+    const wrap = document.getElementById('exFormWrap');
+    if (wrap.querySelector('.acad')) { wrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+    abrirMinhaAcademia(wrap, _nutriId, {
       aoSalvar: () => { _disp = null; if (_filtro === 'academia') recarregar(); },
-    }));
-  page.querySelectorAll('[data-ex-filtro]').forEach(b => b.addEventListener('click', () => {
+    });
+  });
+  // Cada botão tem a sua função: os filtros mostram a LISTA, então fecham o
+  // inventário (que mora no mesmo #exFormWrap). Clicar no filtro já ativo
+  // também fecha — é o jeito de "voltar para a lista".
+  page.querySelectorAll('[data-ex-filtro]').forEach(b => b.addEventListener('click', async () => {
+    if (!(await fecharMinhaAcademia())) return;   // editando e preferiu ficar
     if (_filtro === b.dataset.exFiltro) return;
     _filtro = b.dataset.exFiltro;
     gravarFiltro(_filtro);

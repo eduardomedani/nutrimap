@@ -232,12 +232,29 @@ async function salvar() {
 }
 
 async function fechar() {
+  await fecharMinhaAcademia();
+}
+
+/** O painel do inventário está na tela? */
+export function minhaAcademiaAberta() {
+  return !!_wrap?.querySelector('.acad');
+}
+
+/**
+ * Fecha o painel (se aberto). Com alteração não salva, pergunta antes.
+ * Devolve false se a pessoa preferiu continuar editando.
+ */
+export async function fecharMinhaAcademia() {
+  if (!minhaAcademiaAberta()) return true;
   if (_sujo && !(await confirmar({
     titulo: 'Alterações não salvas',
     mensagem: 'Fechar sem salvar o inventário? As alterações serão perdidas.',
     textoOk: 'Fechar sem salvar', perigo: true,
-  }))) return;
+  }))) return false;
+  _sujo = false;
+  _editId = null;
   _wrap.innerHTML = '';
+  return true;
 }
 
 // ───────────────────────────────────────────────────────────
