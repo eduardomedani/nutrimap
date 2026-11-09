@@ -17,6 +17,7 @@ import {
   listarProgressao, registrarProgressao, excluirProgressao,
   listarModelos, prescreverModeloParaPaciente, salvarComoModelo,
   duplicarTreino,
+  obterInventarioAcademia, inventarioParaIA,
 } from './treinos.js';
 import { sb } from './supabase.js';
 import { registrarEvento } from './timeline.js';
@@ -48,6 +49,7 @@ let _dias       = [];       // letras dos dias, ex.: ['A','B','C']
 let _arrastando = null;     // índice da aba sendo arrastada (null = nenhuma)
 let _diaSel     = 'A';      // dia selecionado
 let _progAbertas = new Set(); // ids de treino_exercicio com o painel de progressão aberto
+let _invIA       = null;     // recorte do inventário da academia para o gerador (null = sem restrição)
 
 const LETRAS = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];      // até 7 dias
 const MIN_DIAS = 2, MAX_DIAS = 7;
@@ -497,6 +499,18 @@ async function renderGeradorIA() {
   } catch {}
   const temBase = base.length > 0;
 
+  // Inventário da academia: se existir e estiver ligado, o gerador só prescreve
+  // o que cabe nele. Falha de leitura não bloqueia o gerador — só tira a trava.
+  let inv = null;
+  try { inv = await obterInventarioAcademia(); } catch {}
+  _invIA = inventarioParaIA(inv);
+  const nEst = _invIA ? _invIA.disponiveis.filter(i => i.tipo !== 'puxador').length : 0;
+  const nPux = _invIA ? _invIA.disponiveis.length - nEst : 0;
+  const avisoInventario = _invIA
+    ? `<label class="ia-inv ia-inv-on"><input type="checkbox" id="iaUsarInv" checked>
+         <span><b>Usar o inventário da academia</b> — ${nEst} estações e ${nPux} puxadores disponíveis${_invIA.ausentes.length ? `; ${_invIA.ausentes.length} a confirmar/indisponíveis ficam de fora` : ''}. Editar em <b>Exercícios → Minha academia</b>.</span></label>`
+    : `<div class="ia-inv"><i data-lucide="info"></i><span>${inv && !inv.ativo ? 'Inventário da academia desligado' : 'Sem inventário da academia'}: a IA pode prescrever qualquer equipamento. Cadastre em <b>Exercícios → Minha academia</b>.</span></div>`;
+
   const chips = GRUPOS_MUSC.map(g => `
     <button type="button" class="ia-musc" data-musc="${esc(g)}" data-prio="">
       <span class="ia-musc-nome">${esc(g)}</span><span class="ia-musc-prio"></span>
@@ -546,6 +560,7 @@ async function renderGeradorIA() {
         <label>Observações (equipamentos, lesões, preferências)</label>
         <input type="text" id="iaObs" class="np-input" placeholder="Ex.: sem barra livre; dor no ombro direito; foco em glúteo">
       </div>
+      ${avisoInventario}
       <div class="av-actions">
         <button class="btn primary btn-ia" id="iaGerar"><i data-lucide="sparkles"></i> Gerar treino</button>
       </div>
@@ -580,16 +595,31 @@ function aplicarModoIA(modo) {
 
 // Reduz a biblioteca enviada à IA: cobre todos os grupos com um teto,
 // dando mais espaço aos grupos-alvo. Corta bastante o custo da entrada.
-function bibliotecaCompacta(todos, gruposAlvo) {
+// Com inventário, os tetos sobem: parte da biblioteca não cabe na academia
+// (ex.: "com barra" sem barra de carga), e a IA precisa de candidatos
+// executáveis suficientes depois de descartar esses.
+function bibliotecaCompacta(todos, gruposAlvo, comInventario = false) {
   const alvo = new Set((gruposAlvo || []).map(g => String(g).toLowerCase()));
   const porGrupo = {};
   todos.forEach(e => { (porGrupo[e.grupo_muscular || 'outros'] ||= []).push(e); });
   const out = [];
   for (const [g, exs] of Object.entries(porGrupo)) {
-    const teto = alvo.has(g.toLowerCase()) ? 25 : 10;
-    exs.slice(0, teto).forEach(e => out.push({ id: e.id, nome: e.nome, grupo: e.grupo_muscular || '' }));
+    const teto = alvo.has(g.toLowerCase()) ? (comInventario ? 40 : 25) : (comInventario ? 15 : 10);
+    exs.slice(0, teto).forEach(e => out.push({
+      id: e.id, nome: e.nome, grupo: e.grupo_muscular || '', equipamento: e.equipamento || '',
+    }));
   }
-  return out.slice(0, 180);
+  return out.slice(0, comInventario ? 320 : 180);
+}
+
+// Texto da estação para o preview e para a observação do exercício salvo.
+function estacaoDoExercicio(ex, inv) {
+  if (!inv || !ex.equipamento_id) return '';
+  const nome = id => inv.disponiveis.find(i => i.id === id)?.nome;
+  const eq = nome(ex.equipamento_id);
+  if (!eq) return '';
+  const pg = ex.acessorio_id ? nome(ex.acessorio_id) : '';
+  return pg ? `${eq} + ${pg}` : eq;
 }
 
 // Texto compacto do treino atual (por dia) para a IA evoluir/ajustar.
@@ -673,8 +703,11 @@ async function gerarTreinoIA() {
       res.innerHTML = `<div class="ia-erro"><i data-lucide="triangle-alert"></i> Sua biblioteca de exercícios está vazia. Cadastre exercícios em <b>Exercícios</b> antes de gerar.</div>`;
       return;
     }
-    const bib = bibliotecaCompacta(todos, gruposAlvo);
+    // A caixa permite gerar uma vez sem a trava (ex.: aluno que treina em casa).
+    const inv = _invIA && document.getElementById('iaUsarInv')?.checked ? _invIA : null;
+    const bib = bibliotecaCompacta(todos, gruposAlvo, !!inv);
     payload.exercicios = bib;
+    if (inv) payload.inventario = inv;
     const resp = await fetch('/api/gerar-treino', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -685,7 +718,7 @@ async function gerarTreinoIA() {
     }
     const data = await resp.json();
     if (!resp.ok || data.error) throw new Error(data.error || ('Falha: ' + resp.status));
-    renderPreviewIA(data, bib);
+    renderPreviewIA(data, bib, inv);
   } catch (e) {
     res.innerHTML = `<div class="ia-erro"><i data-lucide="triangle-alert"></i> ${esc(e.message)}</div>`;
   } finally {
@@ -693,8 +726,11 @@ async function gerarTreinoIA() {
   }
 }
 
-function renderPreviewIA(plano, bib) {
+function renderPreviewIA(plano, bib, inv = null) {
   const nomeDe = id => (bib.find(e => e.id === id)?.nome) || '(exercício)';
+  // A estação vira texto UMA vez: o preview mostra e o "Criar treino" grava a
+  // mesma string na observação — o aluno sabe em qual aparelho fazer.
+  (plano.dias || []).forEach(d => (d.exercicios || []).forEach(ex => { ex._estacao = estacaoDoExercicio(ex, inv); }));
   const dias = (plano.dias || []).map(d => `
     <div class="ia-dia">
       <div class="ia-dia-head"><span class="ia-dia-letra">${esc(d.dia || '')}</span> ${esc(d.foco || '')}</div>
@@ -703,6 +739,7 @@ function renderPreviewIA(plano, bib) {
           <div class="ia-ex">
             <span class="ia-ex-nome">${esc(nomeDe(ex.exercicio_id))}</span>
             <span class="ia-ex-spec">${esc(String(ex.series ?? ''))}×${esc(ex.repeticoes || '')}${ex.descanso ? ` · ${esc(ex.descanso)}` : ''}${ex.metodo && ex.metodo !== 'Normal' ? ` · <b>${esc(ex.metodo)}</b>` : ''}</span>
+            ${ex._estacao ? `<span class="ia-ex-estacao">${esc(ex.equipamento_id)}${ex.acessorio_id ? ' + ' + esc(ex.acessorio_id) : ''} · ${esc(ex._estacao)}</span>` : ''}
           </div>`).join('')}
       </div>
     </div>`).join('');
@@ -713,11 +750,14 @@ function renderPreviewIA(plano, bib) {
     estrutura: 'Estrutura', volume: 'Volume semanal', mantidos: 'Exercícios mantidos',
     alteracoes: 'Exercícios alterados', progressoes: 'Progressões', melhorias: 'Melhorias',
     justificativa: 'Justificativa', tempo_estimado: 'Tempo estimado', sugestoes: 'Sugestões',
+    descartados: 'Fora do inventário',
   };
-  const ORDEM = ['estrutura', 'mantidos', 'alteracoes', 'progressoes', 'melhorias', 'volume', 'justificativa', 'tempo_estimado', 'sugestoes'];
+  // `descartados` é escrito pelo SERVIDOR (api/gerar-treino.js), não pela IA:
+  // exercício que ela amarrou a estação inexistente. Vai em destaque, no topo.
+  const ORDEM = ['descartados', 'estrutura', 'mantidos', 'alteracoes', 'progressoes', 'melhorias', 'volume', 'justificativa', 'tempo_estimado', 'sugestoes'];
   const r = plano.relatorio || {};
   const relatorio = ORDEM.filter(k => r[k])
-    .map(k => `<div class="ia-rel-item${k === 'sugestoes' ? ' ia-rel-sugestao' : ''}"><b>${ROTULOS[k]}</b><span>${esc(String(r[k]))}</span></div>`)
+    .map(k => `<div class="ia-rel-item${k === 'sugestoes' || k === 'descartados' ? ' ia-rel-sugestao' : ''}"><b>${ROTULOS[k]}</b><span>${esc(String(r[k]))}</span></div>`)
     .join('');
 
   const res = document.getElementById('iaResultado');
@@ -774,7 +814,8 @@ async function criarTreinoDaIA(plano) {
           descanso: ex.descanso || null,
           rir: ex.rir || null,
           metodo: ex.metodo || null,
-          observacao: ex.observacao || null,
+          observacao: [ex._estacao ? `Aparelho: ${ex._estacao}` : '', ex.observacao || '']
+            .filter(Boolean).join(' · ') || null,
         });
       }
     }

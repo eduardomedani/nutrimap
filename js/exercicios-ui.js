@@ -8,6 +8,7 @@ import {
   listarExercicios, criarExercicio, atualizarExercicio, excluirExercicio
 } from './treinos.js';
 import { mostrarToast, mostrarErro, confirmar } from './utils.js';
+import { abrirMinhaAcademia } from './academia-ui.js';
 
 let _nutriId = null;
 let _exercicios = [];      // acumulado na tela (cresce a cada "carregar mais")
@@ -62,6 +63,7 @@ export async function initExerciciosUI(nutriId) {
       <div class="list-title">Biblioteca de <em>exercícios</em></div>
       <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
         <div class="search-box"><i data-lucide="search"></i> <input type="text" id="exSearch" placeholder="Buscar por nome ou grupo..." /></div>
+        <button class="btn" id="exBtnAcademia" title="Aparelhos e puxadores que o gerador de treinos pode usar"><i data-lucide="warehouse"></i> Minha academia</button>
         <button class="btn primary" id="exBtnNovo"><i data-lucide="plus"></i> Novo exercício</button>
       </div>
     </div>
@@ -74,6 +76,8 @@ export async function initExerciciosUI(nutriId) {
   `;
 
   document.getElementById('exBtnNovo').addEventListener('click', () => abrirForm(null));
+  document.getElementById('exBtnAcademia').addEventListener('click', () =>
+    abrirMinhaAcademia(document.getElementById('exFormWrap'), _nutriId));
 
   // Debounce: espera ~300ms sem digitar antes de consultar o banco.
   const buscar = debounce(() => {

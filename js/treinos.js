@@ -97,6 +97,64 @@ export async function excluirExercicio(id) {
 }
 
 // ───────────────────────────────────────────────────────────
+// INVENTÁRIO DA ACADEMIA  (academia_inventario) — uma linha por nutri
+// ───────────────────────────────────────────────────────────
+// O que o gerador de treinos pode usar. Sem linha = sem restrição (o gerador
+// se comporta como antes). Schema: db/treino_academia_inventario.sql.
+
+/** Situações de um item. Só 'disponivel' entra no gerador. */
+export const SITUACOES_INVENTARIO = ['disponivel', 'pendente', 'indisponivel'];
+
+/**
+ * Lê o inventário do nutri logado. Devolve `null` se não houver — e também se
+ * a tabela ainda não existir no banco (migration não aplicada), para o gerador
+ * não quebrar antes do SQL ser rodado.
+ */
+export async function obterInventarioAcademia() {
+  const { data, error } = await sb
+    .from('academia_inventario')
+    .select('*')
+    .maybeSingle();
+  if (error) {
+    if (/academia_inventario|42P01|PGRST205|schema cache/i.test(`${error.code} ${error.message}`)) return null;
+    throw error;
+  }
+  if (!data) return null;
+  return { ...data, itens: Array.isArray(data.itens) ? data.itens : [] };
+}
+
+/** Grava o inventário inteiro (upsert pela chave nutri_id). */
+export async function salvarInventarioAcademia(nutriId, { ativo, itens }) {
+  const { data, error } = await sb
+    .from('academia_inventario')
+    .upsert({ nutri_id: nutriId, ativo: !!ativo, itens, atualizado_em: new Date().toISOString() },
+            { onConflict: 'nutri_id' })
+    .select().single();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * O recorte que vai para a IA: só o que está DISPONÍVEL, mais os nomes do que
+ * está pendente/indisponível (para ela saber que aquilo NÃO existe, em vez de
+ * presumir). Devolve null se o inventário estiver desligado ou vazio.
+ */
+export function inventarioParaIA(inv) {
+  if (!inv || !inv.ativo) return null;
+  const itens = (inv.itens || []).filter(i => i && i.id && i.nome);
+  const disponiveis = itens.filter(i => i.situacao === 'disponivel');
+  if (!disponiveis.length) return null;
+  const enxuto = i => ({
+    id: i.id, tipo: i.tipo === 'puxador' ? 'puxador' : 'equipamento', nome: i.nome,
+    categoria: i.categoria || '', grupos: i.grupos || '', exercicios: i.exercicios || '', obs: i.obs || '',
+  });
+  return {
+    disponiveis: disponiveis.map(enxuto),
+    ausentes: itens.filter(i => i.situacao !== 'disponivel').map(i => i.nome),
+  };
+}
+
+// ───────────────────────────────────────────────────────────
 // TREINOS  (treinos) — modelos e prescrições
 // ───────────────────────────────────────────────────────────
 
