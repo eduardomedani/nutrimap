@@ -6,6 +6,7 @@
 import { buscarPacientePorId } from './pacientes.js';
 import { buscarRespostas } from './respostas.js';
 import { escaparHtml as esc } from './html-seguro.js';
+import { rotuloRestricao, restricoesDaAnamnese, ALERGENOS } from './dieta-seguranca.js';
 
 // SEGURANÇA: tudo que vem de `respostas` e de `pacientes` é escrito pelo
 // paciente (a anamnese é gravada por RPC anônima) e é escapado com esc() no
@@ -47,7 +48,7 @@ function adaptarRespostas(respostasPorModulo) {
     r.m3.q3_2_detalhe = r.m3.q3_2_detalhe || r.m3.q3_2_det;
     r.m3.q3_3_medicamentos = r.m3.q3_3;
     r.m3.q3_4_deglutição = r.m3.q3_4;
-    r.m3.q3_5_alergias = r.m3.q3_5;
+    r.m3.q3_5_alergias = r.m3.q3_5;   // legado: nenhum formulário grava q3_5
   }
 
   // ─── M4: Antropometria ───
@@ -475,6 +476,26 @@ function detectarRedFlags(m, calc) {
     }
   }
 
+  // Segurança alimentar. "Não informado" é ALERTA, não ausência: toda anamnese
+  // anterior a 09/11/2026 não tinha a pergunta, e silêncio ali parecia "sem
+  // alergia".
+  const seg = restricoesDaAnamnese(m.m3 || {});
+  if (!seg.informado) {
+    flags.push({ tipo: 'Alergias não informadas', detalhe: 'Confirme com o paciente antes de prescrever', nivel: 'alto' });
+  }
+  const alergias = seg.restricoes.filter(x => x.startsWith('alergia:')).map(x => x.split(':')[1]);
+  if (alergias.length) {
+    flags.push({ tipo: 'Alergia alimentar', detalhe: alergias.map(a => ALERGENOS[a] || 'outra (ver detalhe)').join(', '), nivel: 'alto' });
+  }
+  if (seg.restricoes.includes('intolerancia:celiaca')) {
+    flags.push({ tipo: 'Doença celíaca', detalhe: 'Glúten contraindicado', nivel: 'alto' });
+  }
+  for (const c of ['gestante', 'amamentando']) {
+    if (seg.restricoes.includes(`condicao:${c}`)) {
+      flags.push({ tipo: c === 'gestante' ? 'Gestação' : 'Amamentação', detalhe: 'Exige conduta nutricional específica', nivel: 'alto' });
+    }
+  }
+
   if (m.m9) {
     const freqRuim = ['Diariamente', '+1x/dia', '5-6x/sem'];
     if (freqRuim.includes(m.m9.ultraprocessados)) flags.push({ tipo: 'Ultraprocessados frequentes', detalhe: m.m9.ultraprocessados, nivel: 'medio' });
@@ -851,7 +872,26 @@ function renderModulosDetalhados(m) {
       ['Cirurgia prévia', cirurgiaDisplay],
       ['Medicamentos', m.m3.q3_3_medicamentos],
       ['Deglutição', m.m3.q3_4_deglutição || m.m3['q3_4_degluti\u00e7\u00e3o']],
-      ['Alergias/intolerâncias', m.m3.q3_5_alergias]
+      ['Alergias/intolerâncias (formulário antigo)', m.m3.q3_5_alergias]
+    ]);
+    // Códigos do vocabulário viram rótulo; o detalhe livre vai como texto
+    // (escapado em secaoCard, como todo valor).
+    const rotulos = (v) => {
+      const lista = Array.isArray(v) ? v : (v ? [v] : []);
+      return lista.length ? lista.map(rotuloRestricao).join(', ') : null;
+    };
+    html += secaoCard('<i data-lucide="shield-alert"></i> Alergias e restrições alimentares', [
+      ['Alergias', rotulos(m.m3.q3_alergias) || 'NÃO INFORMADO — confirme com o paciente'],
+      ['Alergia (detalhe)', m.m3.q3_alergias_detalhe],
+      ['Intolerâncias', rotulos(m.m3.q3_intolerancias) || 'NÃO INFORMADO'],
+      ['Intolerância (detalhe)', m.m3.q3_intolerancias_detalhe],
+      ['Padrão alimentar', rotulos(m.m3.q3_padrao) || 'NÃO INFORMADO'],
+      ['Restrição (detalhe)', m.m3.q3_padrao_detalhe],
+      ['Gestação / amamentação', rotulos(m.m3.q3_gestacao) || 'NÃO INFORMADO'],
+    ]);
+  } else {
+    html += secaoCard('<i data-lucide="shield-alert"></i> Alergias e restrições alimentares', [
+      ['Alergias', 'NÃO INFORMADO — confirme com o paciente'],
     ]);
   }
 

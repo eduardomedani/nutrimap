@@ -382,9 +382,14 @@ export async function buscarPlano(id) {
  * paciente_id ausente/null => MODELO; preenchido => plano do aluno.
  */
 export async function criarPlano(nutriId, dados) {
+  // PLANO DE PACIENTE NASCE FORA DO APP. Para o paciente, `ativo` = visível
+  // (policy planos_paciente_read), e o default da COLUNA é true: um insert que
+  // esquecesse o campo publicaria sem revisão. Só publicarVersao() ativa.
+  const linha = { ...dados, nutri_id: nutriId };
+  if (linha.paciente_id) linha.ativo = false;
   const { data, error } = await sb
     .from('planos_alimentares')
-    .insert({ ...dados, nutri_id: nutriId })
+    .insert(linha)
     .select().single();
   if (error) throw error;
 
@@ -576,6 +581,8 @@ async function copiarPlano(origemId, destino = {}) {
   const origem    = await buscarPlano(origemId);
   const refeicoes = await listarRefeicoesDoPlano(origemId);
 
+  // Cópia para PACIENTE nasce sempre fora do app (criarPlano também garante);
+  // cópia para a biblioteca não tem paciente, e `ativo` não significa nada lá.
   const novo = await criarPlano(origem.nutri_id, {
     nome:        destino.nome ?? origem.nome,
     objetivo:    origem.objetivo,
@@ -585,45 +592,186 @@ async function copiarPlano(origemId, destino = {}) {
     gord_meta:   origem.gord_meta,
     data_inicio: destino.data_inicio ?? null,
     data_fim:    destino.data_fim ?? null,
-    ativo:       destino.ativo ?? true,
+    ativo:       destino.paciente_id ? false : true,
     observacoes: origem.observacoes,
     paciente_id: destino.paciente_id ?? null,
   });
 
-  for (const r of refeicoes) {
-    const novaRef = await criarRefeicao(origem.nutri_id, {
-      plano_id:   novo.id,
-      nome:       r.nome,
-      horario:    r.horario,
-      ordem:      r.ordem,
-      observacao: r.observacao,
-    });
-    const itens = (r.itens || []).map((it) => ({
-      nutri_id:      origem.nutri_id,
-      refeicao_id:   novaRef.id,
-      food_id:       it.food_id,
-      quantidade:    it.quantidade,
-      medida:        it.medida,
-      ordem:         it.ordem,
-      substituicoes: it.substituicoes,
-      observacao:    it.observacao,
-    }));
-    if (itens.length) {
-      const { error } = await sb.from('refeicao_itens').insert(itens);
-      if (error) throw error;
+  // Principais ANTES das alternativas: a alternativa aponta para a principal
+  // (substitui_refeicao_id), e o id novo da principal só existe depois de
+  // criada. Antes, a cópia descartava o vínculo e a instrução — toda
+  // alternativa do modelo virava uma refeição principal a mais no dia.
+  const ordenadas = [
+    ...refeicoes.filter(r => !r.substitui_refeicao_id),
+    ...refeicoes.filter(r => r.substitui_refeicao_id),
+  ];
+  const idNovo = new Map();
+  try {
+    for (const r of ordenadas) {
+      const novaRef = await criarRefeicao(origem.nutri_id, {
+        plano_id:   novo.id,
+        nome:       r.nome,
+        horario:    r.horario,
+        ordem:      r.ordem,
+        observacao: r.observacao,
+        substitui_refeicao_id: r.substitui_refeicao_id ? (idNovo.get(r.substitui_refeicao_id) ?? null) : null,
+        instrucao:  r.instrucao ?? null,
+      });
+      idNovo.set(r.id, novaRef.id);
+      const itens = (r.itens || []).map((it) => ({
+        nutri_id:      origem.nutri_id,
+        refeicao_id:   novaRef.id,
+        food_id:       it.food_id,
+        alimento_id:   it.alimento_id ?? null,
+        quantidade:    it.quantidade,
+        medida:        it.medida,
+        ordem:         it.ordem,
+        substituicoes: it.substituicoes,
+        observacao:    it.observacao,
+      }));
+      if (itens.length) {
+        const { error } = await sb.from('refeicao_itens').insert(itens);
+        if (error) throw error;
+      }
     }
+  } catch (e) {
+    // Cópia pela metade não pode sobrar com cara de plano inteiro. Ela já
+    // nasceu fora do app, mas o profissional a veria na lista e poderia
+    // publicá-la. Melhor não existir.
+    try { await excluirPlano(novo.id); } catch (_) { /* fica o erro original */ }
+    throw e;
   }
   return novo;
 }
 
-/** Instancia um MODELO como plano de um aluno (copia refeições + itens). */
+/**
+ * Instancia um MODELO como plano de um aluno (copia refeições + itens).
+ * Nasce como RASCUNHO — fora do app do paciente — até o profissional revisar
+ * e publicar (publicarVersao). Não há parâmetro para nascer publicado.
+ */
 export async function prescreverModeloParaPaciente(modeloId, pacienteId, extras = {}) {
   return copiarPlano(modeloId, {
     paciente_id: pacienteId,
     data_inicio: extras.data_inicio ?? null,
     data_fim:    extras.data_fim ?? null,
-    ativo:       extras.ativo ?? true,
   });
+}
+
+// ───────────────────────────────────────────────────────────
+// VERSÕES E PUBLICAÇÃO (contenção no front — ver o aviso abaixo)
+// ───────────────────────────────────────────────────────────
+// Regras desta camada, enquanto o banco só tiver o boolean `ativo`:
+//   . plano de paciente nasce com ativo = false (rascunho, fora do app);
+//   . o plano PUBLICADO (ativo) não é editado no lugar: alterar = criar uma
+//     nova versão, que é uma cópia em rascunho; a publicada continua no app;
+//   . publicar é ação explícita do profissional e troca a versão do app.
+//
+// AVISO: isto é CONTENÇÃO, não controle. As policies atuais
+// (planos_owner: nutri_id = auth.uid()) ainda aceitam um UPDATE direto em
+// `ativo` pela API. O controle de verdade — status, RPC de publicação com
+// permissão, imutabilidade da versão publicada — depende da migration
+// proposta em db/ e só existe depois de aplicada.
+
+/** Cria uma NOVA VERSÃO (rascunho) a partir de um plano do paciente. */
+export async function criarNovaVersao(planoId) {
+  const origem = await buscarPlano(planoId);
+  if (!origem.paciente_id) throw new Error('Modelo da biblioteca não tem versão de paciente.');
+  return copiarPlano(planoId, {
+    paciente_id: origem.paciente_id,
+    nome:        `${origem.nome || 'Plano'} (nova versão)`,
+    data_inicio: origem.data_inicio ?? null,
+    data_fim:    origem.data_fim ?? null,
+  });
+}
+
+/**
+ * Publica uma versão: ela passa a ser a ÚNICA visível no app do paciente.
+ *
+ * Ordem deliberada: primeiro a nova entra, depois as anteriores saem. No
+ * intervalo o app mostra a mais recente (pwa-dieta-data.js ordena por
+ * criado_em), e o paciente nunca fica sem plano. Se a segunda parte falhar, o
+ * erro sobe — a tela avisa que pode haver mais de uma versão no ar.
+ */
+export async function publicarVersao(planoId) {
+  const plano = await buscarPlano(planoId);
+  if (!plano?.paciente_id) throw new Error('Modelo da biblioteca não é publicado para paciente.');
+
+  const refeicoes = await listarRefeicoesDoPlano(planoId);
+  if (!refeicoes.some(r => (r.itens || []).length)) {
+    throw new Error('Um plano sem nenhum alimento não pode ser publicado.');
+  }
+
+  // CAMINHO DO SERVIDOR (db/dieta_publicacao_segura.sql): a RPC confere
+  // organização, vínculo e permissão `alimentacao.publicar`, troca a versão
+  // numa transação só e registra o evento. Depois da migration, o UPDATE
+  // direto abaixo é RECUSADO pelo banco — então ele só vale enquanto a RPC não
+  // existir, e não abre brecha nenhuma depois dela.
+  const viaServidor = await chamarRpcDaDieta('rpc_dieta_publicar', { p_plano_id: planoId });
+  if (viaServidor !== RPC_AUSENTE) return viaServidor;
+
+  const publicado = await atualizarPlano(planoId, { ativo: true });
+
+  const { data: outras, error } = await sb
+    .from('planos_alimentares')
+    .select('id')
+    .eq('paciente_id', plano.paciente_id)
+    .eq('ativo', true)
+    .neq('id', planoId);
+  if (error) throw error;
+  for (const o of outras || []) await atualizarPlano(o.id, { ativo: false });
+
+  return publicado;
+}
+
+/** Tira o plano do app do paciente. Nada é apagado. */
+export async function retirarDoApp(planoId) {
+  const viaServidor = await chamarRpcDaDieta('rpc_dieta_retirar', { p_plano_id: planoId });
+  if (viaServidor !== RPC_AUSENTE) return viaServidor;
+  return atualizarPlano(planoId, { ativo: false });
+}
+
+// Sinal de "a função ainda não existe no banco" — distinto de qualquer erro
+// de negócio, que SOBE: permissão negada não pode cair no caminho antigo.
+const RPC_AUSENTE = Symbol('rpc-ausente');
+
+/**
+ * MODO DE PUBLICAÇÃO — o desligamento do caminho direto.
+ *
+ *   somenteServidor = false  (HOJE, antes da migration): se a RPC ainda não
+ *     existe no banco, publicar/retirar cai no UPDATE direto. Depois da
+ *     migration esse UPDATE é recusado pelo banco de qualquer forma.
+ *   somenteServidor = true   (DEPOIS da migration confirmada em produção):
+ *     RPC ausente = publicação BLOQUEADA, com erro. Nunca há caminho
+ *     alternativo. Virar para true é um commit de uma linha; o passo seguinte
+ *     é apagar o caminho direto (ver o documento de compatibilidade).
+ *
+ * Qualquer OUTRO erro da RPC (permissão, rede, 500) já sobe hoje, nos dois
+ * modos: só "função inexistente" é tratada como ausência.
+ */
+export const PUBLICACAO = { somenteServidor: false };
+
+/** Função inexistente: PostgREST responde PGRST202; Postgres, 42883. */
+export function ehRpcAusente(erro) {
+  if (!erro) return false;
+  if (erro.code === 'PGRST202' || erro.code === '42883') return true;
+  return /could not find the function|function .* does not exist/i.test(erro.message || '');
+}
+
+async function chamarRpcDaDieta(nome, params) {
+  const { data, error } = await sb.rpc(nome, params);
+  if (error) {
+    if (ehRpcAusente(error)) {
+      if (PUBLICACAO.somenteServidor) {
+        throw new Error('A função segura de publicação não está disponível no servidor. ' +
+          'Por segurança, a publicação foi bloqueada. Tente mais tarde ou avise o suporte.');
+      }
+      return RPC_AUSENTE;
+    }
+    throw error;
+  }
+  // A RPC devolve a linha do plano (ou um array com ela, conforme a versão
+  // do PostgREST).
+  return Array.isArray(data) ? (data[0] ?? null) : data;
 }
 
 /** Sobe um plano de aluno para a BIBLIOTECA como modelo reutilizável. */
@@ -690,8 +838,13 @@ export async function gerarPlanoParaPaciente(nutriId, p = {}) {
     gord_meta:   p.metas.gord,
     data_inicio: p.data_inicio ?? null,
     data_fim:    p.data_fim ?? null,
-    ativo:       true,
+    // O gerador NUNCA publica: o plano nasce rascunho, fora do app, e só
+    // entra quando o profissional revisa e publica.
+    ativo:       false,
     paciente_id: p.pacienteId ?? null,
+    // Marca de origem: é por ela que a auditoria acha os planos gerados. Como
+    // o plano agora passa pela revisão antes de ir ao app, o profissional vê
+    // (e pode reescrever) esta nota antes de publicar.
     observacoes: `Gerado automaticamente · ${resultado.template.nome}`,
   });
 

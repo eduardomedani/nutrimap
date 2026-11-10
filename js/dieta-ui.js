@@ -19,6 +19,7 @@ import {
   listarFavoritos, listarRecentes, registrarUso,
   duplicarRefeicao, duplicarItem, reordenarItens, reordenarRefeicoes,
   prescreverModeloParaPaciente, salvarComoModelo,
+  criarNovaVersao, publicarVersao, retirarDoApp,
 } from './dieta.js';
 import {
   quantidadeDePeso, gramasDeMedida, medidaDoItem, MEDIDA_GRAMAS,
@@ -69,6 +70,30 @@ let _atalhosLigados = false;   // o listener global de atalhos é ligado uma vez
  * errado, escondido.
  */
 const qs = (id) => _mountEl?.querySelector('#' + id) || null;
+
+// ───────────────────────────────────────────────────────────
+// PLANO PUBLICADO NÃO SE EDITA NO LUGAR
+// ───────────────────────────────────────────────────────────
+// Para o paciente, `ativo` = visível no app. Editar um plano ativo mudava, item
+// a item e em silêncio, o que ele já tinha recebido. Agora o publicado fica
+// travado nesta tela: alterar = "Criar nova versão" (rascunho, fora do app),
+// revisar, e publicar — e a versão publicada continua no app até lá.
+//
+// Toda função desta tela que ESCREVE no plano começa por exigirRascunho().
+// test/dieta-publicacao.test.mjs confere que nenhuma ficou de fora.
+//
+// É contenção de interface: o banco ainda aceita escrita direta (ver o aviso
+// em dieta.js, seção VERSÕES E PUBLICAÇÃO).
+export const planoPublicado = (modo, plano) => modo === 'paciente' && !!plano?.ativo;
+
+function exigirRascunho() {
+  if (!planoPublicado(_modo, _plano)) return true;
+  mostrarToast('Este plano está publicado no app. Para alterar, crie uma nova versão.');
+  // Devolve à tela o que está gravado — um campo editado não pode ficar
+  // mostrando um valor que não foi salvo.
+  if (_plano) renderRefeicoes();
+  return false;
+}
 
 const OBJETIVOS = ['Emagrecimento', 'Manutenção', 'Hipertrofia', 'Recomposição', 'Performance', 'Saúde'];
 const REFEICOES_SUGERIDAS = ['Café da manhã', 'Lanche da manhã', 'Almoço', 'Lanche da tarde', 'Jantar', 'Ceia'];
@@ -130,8 +155,14 @@ async function renderLista() {
           : [
               p.objetivo ? esc(p.objetivo) : '',
               p.ativo
-                ? '<span style="color:var(--moss)"><i data-lucide="circle-check"></i> Ativo</span>'
-                : '<span style="color:var(--ink-mute)"><i data-lucide="circle"></i> Inativo</span>',
+                ? '<span style="color:var(--moss)"><i data-lucide="circle-check"></i> Publicado no app</span>'
+                : '<span style="color:var(--ink-mute)"><i data-lucide="circle"></i> Rascunho · fora do app</span>',
+              // Publicado antes da revisão obrigatória (backfill da migration
+              // db/dieta_publicacao_segura.sql). Sinal para auditoria clínica:
+              // o plano continua no app, sem alteração retroativa.
+              p.revisao_legada_pendente
+                ? '<span style="color:var(--terracotta)" title="Publicado antes da revisão obrigatória. Revise e, se preciso, publique uma nova versão."><i data-lucide="triangle-alert"></i> Auditoria clínica pendente</span>'
+                : '',
               periodo,
             ].filter(Boolean).join(' · ');
         return `
@@ -175,12 +206,25 @@ async function renderLista() {
   _mountEl.querySelectorAll('[data-pl-edit]').forEach(b =>
     b.addEventListener('click', () => abrirEditor(planos.find(p => p.id === b.dataset.plEdit))));
   _mountEl.querySelectorAll('[data-pl-del]').forEach(b =>
-    b.addEventListener('click', () => removerPlano(b.dataset.plDel, b.dataset.plNome)));
+    b.addEventListener('click', () => removerPlano(b.dataset.plDel, b.dataset.plNome,
+      planos.find(p => p.id === b.dataset.plDel))));
   _mountEl.querySelectorAll('[data-pl-lib]').forEach(b =>
     b.addEventListener('click', () => salvarPlanoNaBiblioteca(b.dataset.plLib, b.dataset.plNome, b)));
 }
 
-async function removerPlano(id, nome) {
+async function removerPlano(id, nome, plano = null) {
+  // O plano que está no app é o registro do que o paciente recebeu: não sai
+  // por exclusão. Primeiro é retirado do app (ou substituído por outra versão).
+  if (planoPublicado(_modo, plano)) {
+    mostrarToast('Este plano está publicado no app. Retire-o do app antes de excluir.');
+    return;
+  }
+  // Depois da migration (db/dieta_publicacao_segura.sql), versão que já foi
+  // entregue e depois substituída é histórico: o banco recusa a exclusão.
+  if (_modo === 'paciente' && plano?.status === 'substituido') {
+    mostrarToast('Esta versão já esteve no app do paciente e faz parte do histórico: não pode ser excluída.');
+    return;
+  }
   const termo = _modo === 'modelo' ? 'modelo' : 'plano';
   if (!(await confirmar({
     titulo: `Excluir ${termo}`,
@@ -248,10 +292,11 @@ async function aplicarModelo(modeloId, btn) {
   const orig = btn.innerHTML;
   btn.disabled = true; btn.textContent = 'Aplicando...';
   try {
+    // Usar um modelo cria um RASCUNHO: o modelo não foi revisado para ESTE
+    // paciente. Antes, prescrever um modelo já publicava.
     const novo = await prescreverModeloParaPaciente(modeloId, _paciente.id, {});
-    mostrarToast('✓ Plano criado a partir do modelo');
+    mostrarToast('✓ Rascunho criado a partir do modelo — revise e publique');
     await abrirEditor(novo);
-    if (novo.ativo) await eventoPlanoPublicado();   // prescrever um modelo = publicar
   } catch (e) {
     mostrarErro('Erro: ' + e.message);
     btn.disabled = false; btn.innerHTML = orig;
@@ -371,10 +416,9 @@ function dadosCardAbertoHtml() {
         </div>
         <div class="av-field">
           <label>Status</label>
-          <select id="plAtivo" class="np-input ${(!t || t.ativo) ? 'pl-status-ativo' : 'pl-status-inativo'}">
-            <option value="1" ${!t || t.ativo ? 'selected' : ''}>Ativo</option>
-            <option value="0" ${t && !t.ativo ? 'selected' : ''}>Inativo</option>
-          </select>
+          <div class="np-input ${t?.ativo ? 'pl-status-ativo' : 'pl-status-inativo'}" id="plStatusTxt">
+            ${t?.ativo ? 'Publicado no app' : 'Rascunho · fora do app'}
+          </div>
         </div>` : ''}
       </div>
 
@@ -444,17 +488,9 @@ function ligarDadosAberto(mount) {
     elIni.addEventListener('change', () => { if (elDias.value) fimPorDias(); else diasPorFim(); });
   }
 
-  // Cor do Status: Ativo = verde, Inativo = vermelho.
-  const elStatus = mount.querySelector('#plAtivo');
-  if (elStatus) {
-    const corStatus = () => {
-      const ativo = elStatus.value === '1';
-      elStatus.classList.toggle('pl-status-ativo', ativo);
-      elStatus.classList.toggle('pl-status-inativo', !ativo);
-    };
-    elStatus.addEventListener('change', corStatus);
-    corStatus();
-  }
+  // O Status deixou de ser um seletor: publicar e retirar do app são ações
+  // explícitas da barra ("Revisar e publicar", "Retirar do app"), nunca um
+  // campo de formulário que um "Salvar" leva junto.
 }
 
 // Lê o formulário administrativo. Quando o card está RECOLHIDO os inputs não
@@ -464,26 +500,31 @@ function lerDados() {
   const t = _plano || {};
   const dataEl = qs('plData');
   const dataFimEl = qs('plDataFim');
-  const ativoEl = qs('plAtivo');
   const dataInicio = dataEl ? (dataEl.value || null) : (t.data_inicio ?? null);
   const dataFim = dataFimEl ? (dataFimEl.value || null) : (t.data_fim ?? null);
   // Metas (kcal/macros) NÃO entram aqui de propósito: vêm do Cálculo de Calorias.
+  // `ativo` também NÃO: salvar dados nunca publica nem despublica. Antes, o
+  // seletor vinha com "Ativo" marcado e o "Salvar rascunho" de um plano novo o
+  // publicava.
   return {
     nome:        qs('plNome') ? g('plNome') : (t.nome || ''),
     objetivo:    qs('plObjetivo') ? (g('plObjetivo') || null) : (t.objetivo ?? null),
     data_inicio: dataInicio,
     data_fim:    dataFim,
-    ativo:       ativoEl ? (ativoEl.value === '1') : (t.ativo ?? true),
     observacoes: qs('plObs') ? (g('plObs') || null) : (t.observacoes ?? null),
     _dataInicio: dataInicio, _dataFim: dataFim,
   };
 }
 
 async function salvarDados(override = {}) {
-  const dados = { ...lerDados(), ...override };
-  if (!dados.nome) { mostrarToast('Informe o nome do plano'); return; }
+  // Nome, objetivo, datas e observações aparecem no app: num plano publicado,
+  // mudar qualquer um deles é mudar o que o paciente recebeu.
+  if (_plano && !exigirRascunho()) return false;
+  const { semEvento = false, ...outros } = override;
+  const dados = { ...lerDados(), ...outros };
+  if (!dados.nome) { mostrarToast('Informe o nome do plano'); return false; }
   if (dados._dataInicio && dados._dataFim && dados._dataFim < dados._dataInicio) {
-    mostrarToast('A data de término não pode ser antes do início'); return;
+    mostrarToast('A data de término não pode ser antes do início'); return false;
   }
   delete dados._dataInicio; delete dados._dataFim;
 
@@ -500,20 +541,23 @@ async function salvarDados(override = {}) {
       mostrarToast('✓ Plano atualizado');
       // Publicação registra o próprio evento; aqui é só edição do plano.
       // Um evento por dia agrupa vários salvamentos seguidos em uma linha só.
-      if (_modo === 'paciente' && override.ativo !== true) await eventoPlanoAtualizado();
+      if (_modo === 'paciente' && !semEvento) await eventoPlanoAtualizado();
       await abrirEditor(_plano);   // recolhe o card de dados e volta à prescrição
     } else {
       const nutriId = await getNutriId();
-      const extra = _modo === 'modelo' ? {} : { paciente_id: _paciente.id };
+      // Plano de paciente nasce RASCUNHO; modelo de biblioteca não tem app.
+      const extra = _modo === 'modelo' ? {} : { paciente_id: _paciente.id, ativo: false };
       const criado = await criarPlano(nutriId, { ...dados, ...extra });
-      mostrarToast(_modo === 'modelo' ? '✓ Modelo criado' : '✓ Plano criado');
+      mostrarToast(_modo === 'modelo' ? '✓ Modelo criado' : '✓ Rascunho criado — fora do app até você publicar');
       await abrirEditor(criado);
     }
     marcarSave('salvo');
+    return true;
   } catch (e) {
     mostrarErro('Erro ao salvar: ' + e.message);
     marcarSave('erro');
     if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+    return false;
   }
 }
 
@@ -693,10 +737,13 @@ function toolbarHtml() {
         </div>
         <div class="di-tb-salvar">
           <span class="di-save" id="diSave" role="status" aria-live="polite">${saveStatusHtml()}</span>
-          <button class="btn" id="diSalvarRasc" title="Salvar mantendo como rascunho (Ctrl+S)">Salvar rascunho</button>
-          ${_modo === 'paciente'
-            ? `<button class="btn primary" id="diPublicar" title="Salvar e marcar o plano como ativo">Salvar e publicar</button>`
-            : ''}
+          ${planoPublicado(_modo, p)
+            ? `<button class="btn" id="diRetirar" title="Tirar este plano do app do paciente (nada é apagado)">Retirar do app</button>
+               <button class="btn primary" id="diNovaVersao" title="Copiar este plano como rascunho para alterar; o publicado continua no app">Criar nova versão</button>`
+            : `<button class="btn" id="diSalvarRasc" title="Salvar como rascunho, fora do app (Ctrl+S)">Salvar rascunho</button>
+               ${_modo === 'paciente'
+                 ? `<button class="btn primary" id="diPublicar" title="Revisar e publicar esta versão no app do paciente">Revisar e publicar</button>`
+                 : ''}`}
         </div>
       </div>
 
@@ -784,13 +831,14 @@ function somasHtml() {
 }
 
 
-// O banco só tem `ativo` (boolean). "Rascunho/arquivado" não existe: não invento
-// estado que não dá para persistir.
+// O banco só tem `ativo` (boolean): ativo = publicado no app; o resto é
+// rascunho (nunca publicado ou versão que saiu do app). Status com mais
+// estados depende da migration.
 function estadoChipHtml() {
   if (_modo === 'modelo') return `<span class="di-chip">modelo</span>`;
   return _plano?.ativo
-    ? `<span class="di-chip di-chip-on">ativo</span>`
-    : `<span class="di-chip">inativo</span>`;
+    ? `<span class="di-chip di-chip-on" title="Visível no app do paciente. Para alterar, crie uma nova versão.">publicado · somente leitura</span>`
+    : `<span class="di-chip" title="O paciente não vê este plano.">rascunho · fora do app</span>`;
 }
 
 function saveStatusHtml() {
@@ -1165,6 +1213,8 @@ function ligarBarra(cont) {
 
   ao('diSalvarRasc', () => salvarDados());
   ao('diPublicar', () => publicarPlano());
+  ao('diNovaVersao', () => criarNovaVersaoUI());
+  ao('diRetirar', () => retirarDoAppUI());
   ao('diEditarCalc', irParaCalculo);
   ao('plDadosEditar', () => { _dadosAberto = true; montarDadosCard(); });
 
@@ -1219,6 +1269,7 @@ function ligarNovaRefeicao(cont) {
 // a barra de ferramentas só precisa de um gatilho, e ele é registrado no render.
 let _abrirNovaRefeicao = null;
 function abrirNovaRefeicao() {
+  if (!exigirRascunho()) return;
   if (_abrirNovaRefeicao) _abrirNovaRefeicao();
   qs('diNovaRefNome')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
@@ -1355,6 +1406,7 @@ function apiBusca() {
 }
 
 async function abrirDrawer(refId) {
+  if (!exigirRascunho()) return;
   await abrirBusca(refId, apiBusca());
 }
 
@@ -1418,6 +1470,7 @@ async function carregarSugestoes() {
 
 // ── Refeições ──
 async function adicionarRefeicao() {
+  if (!exigirRascunho()) return;
   const nome = (qs('diNovaRefNome').value || '').trim();
   const hora = (qs('diNovaRefHora').value || '').trim();
   if (!nome) { mostrarToast('Informe o nome da refeição'); return; }
@@ -1460,6 +1513,7 @@ async function recarregarRefeicoes() {
 }
 
 async function duplicarRefeicaoUI(id) {
+  if (!exigirRascunho()) return;
   const r = _refeicoes.find(x => x.id === id);
   if (!r) return;
   try {
@@ -1473,6 +1527,7 @@ async function duplicarRefeicaoUI(id) {
 
 /** Move a refeição trocando `ordem` com a vizinha. */
 async function moverRefeicao(id, dir) {
+  if (!exigirRascunho()) return;
   const idx = _refeicoes.findIndex(r => r.id === id);
   const alvo = idx + dir;
   if (idx === -1 || alvo < 0 || alvo >= _refeicoes.length) return;
@@ -1485,15 +1540,67 @@ async function moverRefeicao(id, dir) {
 }
 
 /**
- * "Salvar e publicar" = salvar os dados + marcar ativo.
- * O banco só tem o boolean `ativo` — não existe rascunho/arquivado. Publicar
- * aqui significa exatamente "ficar ativo", nada além disso.
+ * "Revisar e publicar": ação EXPLÍCITA do profissional, com confirmação.
+ *
+ * Salva os dados do rascunho, e só então publicarVersao() põe ESTA versão no
+ * app e tira as anteriores (nada é apagado). Plano sem alimento não publica.
  */
 async function publicarPlano() {
-  const sel = qs('plAtivo');
-  if (sel) sel.value = '1';
-  await salvarDados({ ativo: true });   // força ativo mesmo com o card de dados recolhido
-  if (_modo === 'paciente' && _plano?.ativo) await eventoPlanoPublicado();
+  if (_modo !== 'paciente' || !_plano) return;
+  if (!exigirRascunho()) return;
+  const n = principais().length;
+  const itens = _refeicoes.reduce((s, r) => s + (r.itens?.length || 0), 0);
+  if (!itens) { mostrarToast('Adicione os alimentos antes de publicar.'); return; }
+
+  if (!(await confirmar({
+    titulo: 'Publicar esta versão',
+    mensagem:
+      `Você revisou "${_plano.nome || 'este plano'}" (${n} ${n === 1 ? 'refeição' : 'refeições'}, ` +
+      `${itens} ${itens === 1 ? 'alimento' : 'alimentos'}), incluindo substituições e refeições alternativas?\n\n` +
+      `Ao publicar, ${_paciente?.nome || 'o paciente'} passa a ver ESTA versão no app, e a versão publicada ` +
+      `hoje sai do app. Nada é apagado.\n\n` +
+      `Atenção: o sistema ainda não confere alergias e restrições. Essa conferência é sua.`,
+    textoOk: 'Publicar',
+  }))) return;
+
+  if (!(await salvarDados({ semEvento: true }))) return;
+  try {
+    const publicado = await publicarVersao(_plano.id);
+    _plano = { ..._plano, ...publicado, ativo: true };
+    await eventoPlanoPublicado();
+    mostrarToast('✓ Versão publicada no app do paciente');
+    await abrirEditor(_plano);
+  } catch (e) {
+    mostrarErro('Não foi possível publicar: ' + e.message +
+      '. Confira na lista de planos qual versão está no app.');
+  }
+}
+
+/** Copia o plano publicado como rascunho. O publicado continua no app. */
+async function criarNovaVersaoUI() {
+  if (!_plano) return;
+  try {
+    const nova = await criarNovaVersao(_plano.id);
+    mostrarToast('✓ Nova versão criada como rascunho — o plano publicado continua no app');
+    await abrirEditor(nova);
+  } catch (e) { mostrarErro('Não foi possível criar a nova versão: ' + e.message); }
+}
+
+/** Tira o plano do app do paciente, com confirmação. Nada é apagado. */
+async function retirarDoAppUI() {
+  if (!planoPublicado(_modo, _plano)) return;
+  if (!(await confirmar({
+    titulo: 'Retirar do app',
+    mensagem: `${_paciente?.nome || 'O paciente'} deixa de ver "${_plano.nome || 'este plano'}" no app ` +
+      `e fica sem plano alimentar até você publicar outro. Nada é apagado.`,
+    textoOk: 'Retirar do app', perigo: true,
+  }))) return;
+  try {
+    const atualizado = await retirarDoApp(_plano.id);
+    _plano = { ..._plano, ...atualizado, ativo: false };
+    mostrarToast('✓ Plano retirado do app');
+    await abrirEditor(_plano);
+  } catch (e) { mostrarErro('Não foi possível retirar do app: ' + e.message); }
 }
 
 // ── Timeline do plano ──────────────────────────────────────
@@ -1545,6 +1652,7 @@ async function eventoPlanoAtualizado() {
 }
 
 async function salvarCampoRefeicao(el) {
+  if (!exigirRascunho()) return;
   const id = el.dataset.refId;
   const campo = el.dataset.refCampo;
   let valor = el.value.trim();
@@ -1558,6 +1666,7 @@ async function salvarCampoRefeicao(el) {
 }
 
 async function removerRefeicao(id) {
+  if (!exigirRascunho()) return;
   const r = _refeicoes.find(x => x.id === id);
   if (!(await confirmar({
     titulo: 'Excluir refeição',
@@ -1578,6 +1687,7 @@ async function removerRefeicao(id) {
  * que é a base dos valores da tabela e o palpite mais honesto.
  */
 async function adicionarAlimento(refId, al) {
+  if (!exigirRascunho()) return;
   try {
     const nutriId = await getNutriId();
     const r = _refeicoes.find(x => x.id === refId);
@@ -1640,6 +1750,7 @@ function agendarFocoVizinho(id, dir) {
  *   2 colheres x 25 g = 50 g -> quantidade = 0,5
  */
 async function salvarQuantidade(id, { seguir = 0 } = {}) {
+  if (!exigirRascunho()) return;
   const { item } = acharItem(id);
   const el = _mountEl?.querySelector(`[data-item-qtd="${id}"]`);
   if (!item || !el) return;
@@ -1677,6 +1788,7 @@ async function salvarQuantidade(id, { seguir = 0 } = {}) {
  * a quantidade prescrita é o campo Qtd, nunca o seletor de medida.
  */
 async function trocarMedida(id) {
+  if (!exigirRascunho()) return;
   const { item } = acharItem(id);
   const el = _mountEl?.querySelector(`[data-item-med="${id}"]`);
   if (!item || !el) return;
@@ -1696,6 +1808,7 @@ async function trocarMedida(id) {
 }
 
 async function salvarCampoItem(el) {
+  if (!exigirRascunho()) return;
   const id = el.dataset.itemId;
   const campo = el.dataset.itemCampo;
   const valor = String(el.value).trim() || null;
@@ -1708,6 +1821,7 @@ async function salvarCampoItem(el) {
 }
 
 async function duplicarItemUI(id) {
+  if (!exigirRascunho()) return;
   const { item } = acharItem(id);
   if (!item) return;
   try {
@@ -1725,6 +1839,7 @@ async function duplicarItemUI(id) {
  * menos atrito que um modal a cada remoção.
  */
 async function removerItem(id) {
+  if (!exigirRascunho()) return;
   const { item } = acharItem(id);
   if (!item) return;
   const nome = item.food?.nome || 'Alimento';
@@ -1738,6 +1853,7 @@ async function removerItem(id) {
 }
 
 async function restaurarItem(backup) {
+  if (!exigirRascunho()) return;
   try {
     const nutriId = await getNutriId();
     await comSave(() => adicionarItem(nutriId, {
@@ -1758,6 +1874,7 @@ async function restaurarItem(backup) {
 
 // Move um item para cima/baixo dentro da própria refeição (troca ordem).
 async function moverItem(id, dir) {
+  if (!exigirRascunho()) return;
   let ref = null, itens = null, idx = -1;
   for (const r of _refeicoes) {
     const arr = (r.itens || []);

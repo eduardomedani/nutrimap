@@ -285,7 +285,11 @@ export function sheetHtml(alimento) {
           </button>
         </header>
 
-        <p class="dt-sheet-nota">Escolha uma das opções aprovadas pelo seu profissional.</p>
+        <!-- Não afirmar "aprovadas": planos publicados antes de 09/11/2026 não
+             passaram por revisão obrigatória, e a conferência de alergia ainda
+             não é automática. A frase não pode prometer segurança que o
+             sistema não verifica. -->
+        <p class="dt-sheet-nota">Opções de troca indicadas no seu plano. Se tiver alergia ou dúvida sobre algum alimento, fale com seu profissional antes de trocar.</p>
 
         <ul class="dt-sheet-lista">
           ${subs.map((s, i) => `

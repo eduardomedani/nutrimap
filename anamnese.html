@@ -638,6 +638,78 @@
         </div>
       </div>
 
+      <!-- SEGURANÇA ALIMENTAR (09/11/2026). Até aqui a anamnese NÃO perguntava
+           alergia: o relatório tinha a linha "Alergias/intolerâncias" lendo um
+           q3_5 que nenhum campo gravava, e a linha sumia sem aviso.
+           Os VALORES são códigos do vocabulário de js/dieta-seguranca.js
+           (leite, ovo, ...), não texto livre: é o que permite validar o plano
+           por alérgeno estruturado, e não por busca no nome do alimento.
+           Não remova o `required` do primeiro checkbox: é ele que obriga a
+           resposta (marcar "Não tenho" também é responder). -->
+      <div class="section-divider">Alergias e restrições alimentares</div>
+      <div class="question">
+        <label class="question-label">Você tem ALERGIA a algum alimento?<span class="required">*</span></label>
+        <p class="question-helper">Alergia é quando o corpo reage ao alimento (coceira, inchaço, falta de ar, manchas na pele). Marque todas as que tiver.</p>
+        <div class="checkbox-group">
+          <div class="checkbox-option"><input type="checkbox" id="q3_alergias_nenhuma" name="q3_alergias" value="nenhuma" required onchange="marcarExclusivo(this, 'q3_alergias_cond')"><label for="q3_alergias_nenhuma">Não tenho alergia alimentar</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_alergias_leite" name="q3_alergias" value="leite" onchange="marcarExclusivo(this, 'q3_alergias_cond')"><label for="q3_alergias_leite">Leite de vaca (proteína do leite)</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_alergias_ovo" name="q3_alergias" value="ovo" onchange="marcarExclusivo(this, 'q3_alergias_cond')"><label for="q3_alergias_ovo">Ovo</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_alergias_amendoim" name="q3_alergias" value="amendoim" onchange="marcarExclusivo(this, 'q3_alergias_cond')"><label for="q3_alergias_amendoim">Amendoim</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_alergias_castanhas" name="q3_alergias" value="castanhas" onchange="marcarExclusivo(this, 'q3_alergias_cond')"><label for="q3_alergias_castanhas">Castanhas e nozes</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_alergias_peixe" name="q3_alergias" value="peixe" onchange="marcarExclusivo(this, 'q3_alergias_cond')"><label for="q3_alergias_peixe">Peixes</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_alergias_crustaceos" name="q3_alergias" value="crustaceos" onchange="marcarExclusivo(this, 'q3_alergias_cond')"><label for="q3_alergias_crustaceos">Crustáceos e frutos do mar</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_alergias_soja" name="q3_alergias" value="soja" onchange="marcarExclusivo(this, 'q3_alergias_cond')"><label for="q3_alergias_soja">Soja</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_alergias_trigo" name="q3_alergias" value="trigo" onchange="marcarExclusivo(this, 'q3_alergias_cond')"><label for="q3_alergias_trigo">Trigo</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_alergias_gergelim" name="q3_alergias" value="gergelim" onchange="marcarExclusivo(this, 'q3_alergias_cond')"><label for="q3_alergias_gergelim">Gergelim</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_alergias_outra" name="q3_alergias" value="outra" onchange="marcarExclusivo(this, 'q3_alergias_cond')"><label for="q3_alergias_outra">Outra</label></div>
+        </div>
+        <div id="q3_alergias_cond" class="conditional">
+          <label class="question-label" for="q3_alergias_detalhe">Qual alimento, que reação você teve e quando foi?</label>
+          <textarea id="q3_alergias_detalhe" class="textarea" placeholder="Ex: camarão — inchaço na boca e falta de ar, em 2023"></textarea>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Você tem alguma INTOLERÂNCIA ou doença que restrinja alimentos?<span class="required">*</span></label>
+        <div class="checkbox-group">
+          <div class="checkbox-option"><input type="checkbox" id="q3_intolerancias_nenhuma" name="q3_intolerancias" value="nenhuma" required onchange="marcarExclusivo(this, 'q3_intolerancias_cond')"><label for="q3_intolerancias_nenhuma">Não tenho</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_intolerancias_lactose" name="q3_intolerancias" value="lactose" onchange="marcarExclusivo(this, 'q3_intolerancias_cond')"><label for="q3_intolerancias_lactose">Intolerância à lactose</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_intolerancias_celiaca" name="q3_intolerancias" value="celiaca" onchange="marcarExclusivo(this, 'q3_intolerancias_cond')"><label for="q3_intolerancias_celiaca">Doença celíaca (diagnosticada)</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_intolerancias_gluten" name="q3_intolerancias" value="gluten" onchange="marcarExclusivo(this, 'q3_intolerancias_cond')"><label for="q3_intolerancias_gluten">Sensibilidade ao glúten (sem doença celíaca)</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_intolerancias_frutose" name="q3_intolerancias" value="frutose" onchange="marcarExclusivo(this, 'q3_intolerancias_cond')"><label for="q3_intolerancias_frutose">Intolerância à frutose</label></div>
+          <div class="checkbox-option"><input type="checkbox" id="q3_intolerancias_outra" name="q3_intolerancias" value="outra" onchange="marcarExclusivo(this, 'q3_intolerancias_cond')"><label for="q3_intolerancias_outra">Outra</label></div>
+        </div>
+        <div id="q3_intolerancias_cond" class="conditional">
+          <label class="question-label" for="q3_intolerancias_detalhe">Conte o que acontece e com quais alimentos</label>
+          <textarea id="q3_intolerancias_detalhe" class="textarea" placeholder="Ex: leite me dá cólica e diarreia; queijo curado eu tolero"></textarea>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Qual destas descreve sua alimentação?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q3_padrao_onivoro" name="q3_padrao" value="onivoro" required onchange="toggleConditional('q3_padrao_cond', false)"><label for="q3_padrao_onivoro">Como de tudo</label></div>
+          <div class="radio-option"><input type="radio" id="q3_padrao_ovolacto" name="q3_padrao" value="ovolacto" onchange="toggleConditional('q3_padrao_cond', false)"><label for="q3_padrao_ovolacto">Vegetariano (com ovos e laticínios)</label></div>
+          <div class="radio-option"><input type="radio" id="q3_padrao_vegano" name="q3_padrao" value="vegano" onchange="toggleConditional('q3_padrao_cond', false)"><label for="q3_padrao_vegano">Vegano (nenhum produto de origem animal)</label></div>
+          <div class="radio-option"><input type="radio" id="q3_padrao_pescetariano" name="q3_padrao" value="pescetariano" onchange="toggleConditional('q3_padrao_cond', false)"><label for="q3_padrao_pescetariano">Não como carne, mas como peixe</label></div>
+          <div class="radio-option"><input type="radio" id="q3_padrao_outro" name="q3_padrao" value="outro" onchange="toggleConditional('q3_padrao_cond', true)"><label for="q3_padrao_outro">Outro (religioso, cultural ou outro motivo)</label></div>
+        </div>
+        <div id="q3_padrao_cond" class="conditional">
+          <label class="question-label" for="q3_padrao_detalhe">Quais alimentos você não come?</label>
+          <textarea id="q3_padrao_detalhe" class="textarea" placeholder="Ex: não como carne de porco"></textarea>
+        </div>
+      </div>
+
+      <div class="question">
+        <label class="question-label">Você está gestante ou amamentando?<span class="required">*</span></label>
+        <div class="radio-group">
+          <div class="radio-option"><input type="radio" id="q3_gestacao_nao" name="q3_gestacao" value="nao" required><label for="q3_gestacao_nao">Não</label></div>
+          <div class="radio-option"><input type="radio" id="q3_gestacao_gestante" name="q3_gestacao" value="gestante"><label for="q3_gestacao_gestante">Estou gestante</label></div>
+          <div class="radio-option"><input type="radio" id="q3_gestacao_amamentando" name="q3_gestacao" value="amamentando"><label for="q3_gestacao_amamentando">Estou amamentando</label></div>
+          <div class="radio-option"><input type="radio" id="q3_gestacao_nao_se_aplica" name="q3_gestacao" value="nao_se_aplica"><label for="q3_gestacao_nao_se_aplica">Não se aplica</label></div>
+        </div>
+      </div>
+
       <div class="question"><label class="question-label" for="q3_3">Medicamentos<span class="required">*</span></label><textarea id="q3_3" class="textarea" placeholder="Liste ou: Nenhum" required></textarea></div>
       <div class="section-divider">Exames</div>
       <div class="question">
@@ -2207,6 +2279,13 @@
               <div class="summary-value" id="summary_exams">Nenhum enviado</div>
             </div>
           </li>
+          <li class="summary-item">
+            <div class="summary-icon">⚠️</div>
+            <div class="summary-text">
+              <div class="summary-name">Alergias alimentares</div>
+              <div class="summary-value" id="summary_allergies">Não respondido</div>
+            </div>
+          </li>
         </ul>
       </div>
 
@@ -2260,6 +2339,7 @@
   // ═══════════════════════════════════════════════════════════
   import { buscarPacientePorCodigo, marcarComoCompleto } from './js/pacientes.js';
   import { salvarTodasRespostas } from './js/respostas.js';
+  import { escaparHtml } from './js/html-seguro.js';
 
   const TOTAL_MODULES = 13;
   let currentModule = 1;
@@ -2439,6 +2519,24 @@
   function toggleConditional(id, show) {
     const el = document.getElementById(id);
     if (el) { if (show) el.classList.add('active'); else el.classList.remove('active'); }
+  }
+
+  // Grupo de checkbox com uma opção "nenhuma" EXCLUSIVA: marcar "nenhuma"
+  // desmarca as outras, e marcar qualquer outra desmarca "nenhuma" — "não
+  // tenho alergia" junto com "amendoim" seria uma resposta contraditória.
+  // Roda ANTES do autosave (o onchange inline é registrado primeiro), então o
+  // que é gravado já é o estado corrigido. Mostra o detalhe quando há alguma
+  // opção além de "nenhuma".
+  function marcarExclusivo(el, condId) {
+    const grupo = Array.from(document.querySelectorAll(`input[type="checkbox"][name="${el.name}"]`));
+    if (el.checked) {
+      grupo.forEach(c => {
+        if (c === el) return;
+        if (el.value === 'nenhuma' || c.value === 'nenhuma') c.checked = false;
+      });
+    }
+    const temAlguma = grupo.some(c => c.checked && c.value !== 'nenhuma');
+    if (condId) toggleConditional(condId, temAlguma);
   }
   function maskPhone(input) {
     let v = input.value.replace(/\D/g, '');
@@ -2630,6 +2728,18 @@
         data.q3_7 === 'Sim' ? 'Tem exames recentes — levar na consulta' : 'Sem exames recentes';
     }
 
+    // A pessoa confere a alergia antes de enviar: é o dado que mais pesa na
+    // segurança do plano. textContent, nunca innerHTML.
+    const ROTULO_ALERGIA = {
+      nenhuma: 'Não tenho alergia alimentar', leite: 'Leite de vaca', ovo: 'Ovo', amendoim: 'Amendoim',
+      castanhas: 'Castanhas e nozes', peixe: 'Peixes', crustaceos: 'Crustáceos e frutos do mar',
+      soja: 'Soja', trigo: 'Trigo', gergelim: 'Gergelim', outra: 'Outra',
+    };
+    const alergias = Array.isArray(data.q3_alergias) ? data.q3_alergias : [];
+    document.getElementById('summary_allergies').textContent = alergias.length
+      ? alergias.map(a => ROTULO_ALERGIA[a] || a).join(', ')
+      : 'Não respondido';
+
     showScreen('screen-review');
   }
 
@@ -2747,7 +2857,7 @@
                 <div style="font-size:64px;margin-bottom:16px;">⚠️</div>
                 <h1 style="font-family: var(--font-sans);font-size:28px;color:var(--text-primary);margin-bottom:12px;">Link inválido ou expirado</h1>
                 <p style="color:var(--text-secondary);font-size:15px;line-height:1.5;margin-bottom:20px;">
-                  O código <strong>${patientCode}</strong> não foi encontrado em nosso sistema.
+                  O código <strong>${escaparHtml(patientCode)}</strong> não foi encontrado em nosso sistema.
                 </p>
                 <p style="color:var(--text-muted);font-size:13px;">
                   Por favor, entre em contato com seu nutricionista para receber um novo link.
@@ -2830,6 +2940,7 @@
   window.removeSupplement = removeSupplement;
   window.toggleMeal = toggleMeal;
   window.toggleConditional = toggleConditional;
+  window.marcarExclusivo = marcarExclusivo;
 </script>
 
 </body>

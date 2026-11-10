@@ -954,13 +954,24 @@ async function salvar() {
     };
 
     const planos = await listarPlanosDoPaciente(_paciente.id);
-    if (!planos.length) {
-      await criarPlano(_nutriId, { nome: 'Plano alimentar', ativo: true, paciente_id: _paciente.id, ...metas });
-      mostrarToast('✓ Plano criado com as metas');
+    const alvo = planoDasMetas(planos);
+    if (!alvo) {
+      // Plano novo nasce RASCUNHO (fora do app). Antes nascia ativo e vazio: o
+      // paciente abria o app e via um plano sem nenhuma refeição.
+      await criarPlano(_nutriId, { nome: 'Plano alimentar', ativo: false, paciente_id: _paciente.id, ...metas });
+      mostrarToast('✓ Rascunho criado com as metas');
+    } else if (!alvo.ativo) {
+      await atualizarPlano(alvo.id, metas);
+      mostrarToast('✓ Metas salvas no rascunho');
     } else {
-      const plano = planos.find(p => p.ativo) || planos[0];
-      await atualizarPlano(plano.id, metas);
-      mostrarToast('✓ Metas salvas');
+      // Plano PUBLICADO: só as metas numéricas, que o app do paciente não
+      // mostra. O `objetivo` aparece no app — mudá-lo aqui alteraria em
+      // silêncio o que o paciente já recebeu. Vai na próxima versão.
+      const { objetivo, ...numericas } = metas;
+      await atualizarPlano(alvo.id, numericas);
+      mostrarToast(objetivo && objetivo !== alvo.objetivo
+        ? '✓ Metas salvas. O objetivo do plano publicado não muda — ajuste numa nova versão.'
+        : '✓ Metas salvas');
     }
     _salvo = clonar(_form);
     _salvoEm = Date.now();
@@ -983,6 +994,18 @@ async function descartar() {
   _form = clonar(_salvo);
   pintar();
   mostrarToast('Alterações descartadas');
+}
+
+/**
+ * Em qual plano as metas são gravadas: o rascunho mais recente, se houver um
+ * em andamento depois da versão publicada; senão a publicada; senão nenhum.
+ * `planos` vem de listarPlanosDoPaciente, já do mais novo para o mais velho.
+ */
+export function planoDasMetas(planos = []) {
+  const publicado = planos.find(p => p.ativo) || null;
+  const rascunho = planos.find(p => !p.ativo &&
+    (!publicado || String(p.criado_em || '') > String(publicado.criado_em || ''))) || null;
+  return rascunho || publicado;
 }
 
 async function gerarPlanoCompleto() {
@@ -1012,8 +1035,9 @@ async function gerarPlanoCompleto() {
     if (planos.length && !(await confirmar({
       titulo: 'Gerar novo plano',
       mensagem: `${_paciente.nome} já tem ${planos.length} plano(s). ` +
-        `Gerar cria um plano NOVO e desativa o atual — nada é apagado.`,
-      textoOk: 'Gerar',
+        `Gerar cria um RASCUNHO novo, fora do app do paciente. ` +
+        `O plano publicado continua valendo até você revisar e publicar o novo.`,
+      textoOk: 'Gerar rascunho',
     }))) return;
 
     const { plano, resultado } = await gerarPlanoParaPaciente(_nutriId, {
@@ -1032,17 +1056,19 @@ async function gerarPlanoCompleto() {
       },
     });
 
-    // o novo vira o ativo; os anteriores saem de cena sem serem apagados
-    for (const p of planos) if (p.ativo) await atualizarPlano(p.id, { ativo: false });
+    // NENHUM plano é ativado ou desativado aqui. O gerado nasce rascunho, o
+    // publicado continua no app, e a troca só acontece quando o profissional
+    // publica a nova versão no Planejamento Alimentar.
 
     const m = resultado.macros, dv = resultado.desvio;
     const pc = v => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}%`;
     if (msg) msg.textContent =
-      `✓ "${plano.nome}" criado: ${fmtKcal(m.kcal)} kcal (${pc(dv.kcal)}), ` +
+      `✓ Rascunho "${plano.nome}" criado: ${fmtKcal(m.kcal)} kcal (${pc(dv.kcal)}), ` +
       `P ${Math.round(m.proteina)}g · C ${Math.round(m.carboidrato)}g · G ${Math.round(m.gordura)}g. ` +
-      `Monte as refeições na aba "Planejamento Alimentar".` +
+      `Ele NÃO está visível para o paciente: revise na aba "Planejamento Alimentar" e publique. ` +
+      `O gerador ainda não considera alergias e restrições — confira cada alimento e cada substituição.` +
       (resultado.avisos.length ? ` ⚠ ${resultado.avisos.join(' ')}` : '');
-    mostrarToast('✓ Plano gerado');
+    mostrarToast('✓ Rascunho gerado — revise antes de publicar');
   } catch (e) {
     if (msg) msg.textContent = 'Erro: ' + e.message;
     mostrarToast('Erro ao gerar o plano');
