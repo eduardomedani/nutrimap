@@ -152,6 +152,13 @@
      na janela. Dentro da casca quem manda é `body.pa-app`, logo abaixo. */
   html, body { min-height: 100%; min-height: 100dvh; }
 
+  /* Sem "aumento automático de texto" do Safari do iPhone. Ele escolhe alguns
+     blocos — sobretudo dentro de área que rola por conta própria, como o
+     .pa-main — e infla a fonte só deles: em 10/11/2026 apareceram cartões de
+     exercício e linhas da agenda com letra maior que o resto. 100% (e não
+     `none`) mantém o zoom e o tamanho de texto de acessibilidade do aparelho. */
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
   /* Com a casca no ar, a página não rola — quem rola é o miolo, e só ele.
      A classe é posta por ligarShell() e tirada por semCasca(), em
      js/paciente-ui.js, junto da própria `.pa-shell`.

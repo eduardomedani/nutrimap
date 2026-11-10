@@ -41,7 +41,8 @@ const diaDaSemana = data => new Date(data + 'T12:00:00').getDay();
  * O que mostrar num horário:
  *   'passou' · 'desmarcar' · 'prazo' (é seu, mas o prazo para desmarcar
  *   acabou) · 'voltar' (era seu fixo, desmarcado; pode voltar) · 'reservar' ·
- *   'lotado' · 'abre' (fora da janela) · 'sem_saldo'
+ *   'lotado' · 'abre' (fora da janela) · 'sem_plano' (nenhum plano com
+ *   agenda vigente) · 'sem_saldo' (já usou os treinos da semana)
  */
 export function estadoDoHorario(h, ctx) {
   const agora = String(ctx.agora).slice(0, 16);
@@ -52,7 +53,9 @@ export function estadoDoHorario(h, ctx) {
   }
   if (h.ocupados >= h.capacidade) return 'lotado';
   if (h.data > somaDias(agora.slice(0, 10), ctx.abre_dias_antes ?? 2)) return 'abre';
-  if ((ctx.usados ?? 0) >= (ctx.limite ?? 0)) return 'sem_saldo';
+  // Sem plano não é 'semana completa': dizer isso a quem nem tem plano engana.
+  if (!(Number(ctx.limite) > 0)) return 'sem_plano';
+  if ((ctx.usados ?? 0) >= ctx.limite) return 'sem_saldo';
   return h.meu === 'desmarcado' ? 'voltar' : 'reservar';
 }
 
@@ -132,6 +135,7 @@ function linhaHorario(h, ctx) {
     lotado: `<span class="ag-info">Lotado</span>`,
     abre: `<span class="ag-info">Abre ${ctx.abre_dias_antes ?? 2} dia(s) antes</span>`,
     sem_saldo: `<span class="ag-info">Semana completa</span>`,
+    sem_plano: `<span class="ag-info">Sem plano</span>`,
     passou: '',
   }[est];
   const meu = h.meu === 'fixo' || h.meu === 'reserva';

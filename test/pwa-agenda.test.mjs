@@ -19,6 +19,11 @@ grupo('agenda · estado de cada horário', () => {
   teste('fora da janela de 2 dias: abre depois', () => igual(estadoDoHorario(h({ data: '2026-11-13' }), ctx()), 'abre'));
   teste('no limite da janela (hoje + 2) ainda abre', () => igual(estadoDoHorario(h({ data: '2026-11-12' }), ctx()), 'reservar'));
   teste('SEMANA COMPLETA: sem saldo do plano', () => igual(estadoDoHorario(h(), ctx({ usados: 3 })), 'sem_saldo'));
+  teste('SEM PLANO não é semana completa (limite 0)', () => {
+    igual(estadoDoHorario(h(), ctx({ limite: 0, usados: 0 })), 'sem_plano');
+    igual(estadoDoHorario(h(), ctx({ limite: null, usados: 0 })), 'sem_plano');
+    igual(estadoDoHorario(h({ ocupados: 9 }), ctx({ limite: 0 })), 'lotado', 'lotado continua lotado');
+  });
   teste('meu fixo com prazo: desmarcar', () => igual(estadoDoHorario(h({ meu: 'fixo' }), ctx()), 'desmarcar'));
   teste('minha reserva a menos de 1h: prazo encerrado', () =>
     igual(estadoDoHorario(h({ meu: 'reserva', data: '2026-11-10', hora: '10:30' }), ctx()), 'prazo'));
@@ -115,5 +120,12 @@ grupo('agenda · dia a dia e mês', () => {
   teste('a troca de dia respeita movimento reduzido', () => {
     const css = readFileSync(new URL('../css/pwa-agenda.css', import.meta.url), 'utf8');
     contem(css, '@media (prefers-reduced-motion: reduce) { .ag-entra-dir, .ag-entra-esq { animation: none; } }');
+  });
+});
+
+grupo('app · o Safari não infla letra por conta própria', () => {
+  teste('text-size-adjust em 100% (não none: o zoom de acessibilidade continua)', () => {
+    const shell = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+    contem(shell, 'html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }');
   });
 });
