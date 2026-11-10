@@ -102,17 +102,18 @@ grupo('serviços · a barra e a leitura do aluno', () => {
   });
 });
 
-grupo('serviços · a ficha do cliente', () => {
-  teste('três marcadores, com a explicação do que cada um libera', () => {
+grupo('serviços · a ficha do cliente (cabeçalho)', () => {
+  teste('três botões liga/desliga, com a explicação do que cada um libera', () => {
     const h = servicosHtml(['treino']);
-    igual((h.match(/type="checkbox"/g) || []).length, 3);
-    contem(h, 'Treino');
-    contem(h, 'Plano alimentar e a aba Dieta no app');
-    contem(h, 'value="treino" checked');
-    naoContem(h, 'value="alimentacao" checked');
+    igual((h.match(/data-sv="/g) || []).length, 3);
+    contem(h, 'data-sv="treino" aria-pressed="true"');
+    contem(h, 'data-sv="alimentacao" aria-pressed="false"');
+    contem(h, 'title="Plano alimentar e a aba Dieta no app"');
   });
-  teste('não definido avisa que o app mostra tudo', () => {
-    contem(servicosHtml(null), 'Ainda não definido: o app do cliente mostra tudo.');
+  teste('não definido: nenhum aceso e o aviso de que o app mostra tudo', () => {
+    const h = servicosHtml(null);
+    naoContem(h, 'aria-pressed="true"');
+    contem(h, 'não definido');
   });
   teste('sem permissão de editar, só leitura', () => {
     igual((servicosHtml(['treino'], { editar: false }).match(/disabled/g) || []).length, 3);
@@ -122,10 +123,14 @@ grupo('serviços · a ficha do cliente', () => {
     contem(ui, ".update({ servicos: marcados }).eq('id', paciente.id).select('servicos').maybeSingle()");
     contem(ui, "pode('clientes.editar')");
   });
-  teste('a seção entra na Visão geral sem derrubar o painel', () => {
-    const p = ler('../js/paciente-painel.js');
-    contem(p, '<section class="pv-bloco" data-pv-servicos></section>');
-    contem(p, ".catch(e => console.error('[painel] serviços:', e));");
+  teste('no cabeçalho, no lugar de "Registrar consulta"/"Registrar avaliação" (que foram para o menu ⋯)', () => {
+    const hub = ler('../js/paciente-hub.js');
+    contem(hub, '<div class="hub-servicos" data-hub-servicos role="group" aria-label="Serviços contratados"></div>');
+    contem(hub, ".catch(e => console.error('[hub] serviços:', e));");
+    contem(hub, "{ id: 'consulta',  label: 'Registrar consulta',  icone: 'stethoscope', aba: 'consultas' },");
+    contem(hub, "{ id: 'avaliacao', label: 'Registrar avaliação', icone: 'ruler',       aba: 'avaliacoes' },");
+    igual(/destaque: true/.test(hub), false, 'nenhuma ação em destaque');
+    igual(ler('../js/paciente-painel.js').includes('data-pv-servicos'), false, 'saiu da Visão geral');
   });
   teste('CSS só com tokens', () => {
     const css = ler('../css/paciente-servicos.css').replace(/\/\*[\s\S]*?\*\//g, '');

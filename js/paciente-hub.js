@@ -15,9 +15,13 @@ import { copiarParaClipboard, gerarLinkWhatsapp, montarMensagemQuestionario } fr
 // Ações rápidas: só o que tem tela de verdade hoje. Iniciar consulta, anexar
 // exame, agendar retorno e enviar material entram quando as fases 2, 4 e 6
 // forem construídas — botão que não leva a lugar nenhum não entra.
+//
+// Destaque no cabeçalho (10/11/2026): os SERVIÇOS CONTRATADOS. "Registrar
+// consulta" e "Registrar avaliação" saíram do destaque a pedido do Eduardo e
+// ficam no menu ⋯, junto das outras.
 const ACOES = [
-  { id: 'consulta',  label: 'Registrar consulta',  icone: 'stethoscope', aba: 'consultas',    destaque: true },
-  { id: 'avaliacao', label: 'Registrar avaliação', icone: 'ruler',       aba: 'avaliacoes',   destaque: true },
+  { id: 'consulta',  label: 'Registrar consulta',  icone: 'stethoscope', aba: 'consultas' },
+  { id: 'avaliacao', label: 'Registrar avaliação', icone: 'ruler',       aba: 'avaliacoes' },
   { id: 'plano',     label: 'Revisar plano',       icone: 'utensils',    aba: 'planejamento' },
   { id: 'observacao', label: 'Adicionar observação', icone: 'notebook-pen', evento: 'observacao' },
   { id: 'treino',    label: 'Abrir treino',        icone: 'dumbbell',    aba: 'treinos' },
@@ -68,6 +72,8 @@ export function hubShellHtml(p, dados, abaAtiva) {
           <button class="btn-sm btn-sm-secondary hub-acao" data-hub-acao="${a.id}">
             <i data-lucide="${a.icone}"></i> ${esc(a.label)}
           </button>`).join('')}
+        <!-- Serviços contratados: js/paciente-servicos-ui.js preenche. -->
+        <div class="hub-servicos" data-hub-servicos role="group" aria-label="Serviços contratados"></div>
         <div class="hub-menu-wrap">
           <button class="btn-sm btn-sm-secondary hub-acao-mais" data-hub-menu
                   aria-haspopup="menu" aria-expanded="false" aria-label="Mais ações">
@@ -103,6 +109,11 @@ export function hubShellHtml(p, dados, abaAtiva) {
  */
 export function ligarHub(page, p, handlers = {}) {
   page.querySelector('#fichaVoltar')?.addEventListener('click', () => handlers.onVoltar?.());
+
+  // Serviços contratados (import dinâmico; falhar aqui não derruba a ficha).
+  import('./paciente-servicos-ui.js')
+    .then(m => m.montarServicos(page.querySelector('[data-hub-servicos]'), p))
+    .catch(e => console.error('[hub] serviços:', e));
 
   page.querySelectorAll('.hub-tab').forEach(b =>
     b.addEventListener('click', () => handlers.irParaAba?.(b.dataset.aba)));

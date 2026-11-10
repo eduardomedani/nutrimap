@@ -1,31 +1,33 @@
 /* ═══════════════════════════════════════════════════════════
-   FICHA DO CLIENTE — "Serviços contratados" (js/paciente-servicos-ui.js)
+   FICHA DO CLIENTE — "Serviços contratados" no cabeçalho do Hub
+   (js/paciente-servicos-ui.js)
    ═══════════════════════════════════════════════════════════
-   Sem cor literal: tudo sai dos tokens em css/tokens.css. */
+   Botões liga/desliga em pílula. Sem cor literal: tudo sai dos tokens. */
 
-.sv-resumo { font-size: 13px; font-weight: 700; color: var(--text-primary); }
-.sv-resumo-pend { color: var(--text-secondary); font-style: italic; font-weight: 600; }
+.hub-servicos { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.hub-sv-rot {
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-secondary); margin-right: 2px;
+}
+.hub-sv {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 34px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+  font-family: inherit; font-size: 13px; font-weight: 700;
+  background: var(--surface); color: var(--text-primary);
+  border: 1.5px solid var(--border-strong);
+  transition: background 0.15s, border-color 0.15s;
+}
+.hub-sv svg { width: 15px; height: 15px; }
+.hub-sv:hover:not(:disabled) { border-color: var(--primary); }
+.hub-sv.on { background: var(--primary-soft); border-color: var(--primary); color: var(--color-primary-800); }
+.hub-sv:disabled { cursor: default; opacity: 0.75; }
+.hub-sv:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+.hub-sv-pend { font-size: 12px; font-style: italic; color: var(--text-secondary); }
 
-.sv-lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
-.sv-op {
-  position: relative; display: flex; align-items: center; gap: 12px;
-  padding: 12px 14px; min-height: 64px; cursor: pointer;
-  background: var(--surface); border: 1.5px solid var(--border); border-radius: 14px;
-  transition: border-color 0.15s, background 0.15s;
+/* Celular: os três lado a lado, em colunas iguais, com 44px de toque. */
+@media (max-width: 640px) {
+  .hub-servicos { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .hub-sv-rot, .hub-sv-pend { grid-column: 1 / -1; }
+  .hub-sv { justify-content: center; min-height: 44px; padding: 6px 8px; font-size: 12.5px; gap: 4px; }
+  .hub-sv svg { width: 14px; height: 14px; flex: 0 0 auto; }
 }
-.sv-op:hover { border-color: var(--border-strong); }
-.sv-op input { position: absolute; opacity: 0; inset: 0; cursor: pointer; margin: 0; }
-.sv-op input:disabled { cursor: default; }
-.sv-op.on { border-color: var(--primary); background: var(--primary-soft); }
-.sv-op:focus-within { box-shadow: var(--shadow-focus); }
-.sv-ic {
-  flex: 0 0 auto; width: 38px; height: 38px; border-radius: 11px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--surface-subtle); color: var(--text-primary);
-}
-.sv-op.on .sv-ic { background: var(--surface); color: var(--color-primary-800); }
-.sv-ic svg { width: 19px; height: 19px; }
-.sv-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.sv-txt b { font-size: 14px; color: var(--text-primary); }
-.sv-txt small { font-size: 12px; line-height: 1.35; color: var(--text-secondary); }
-.sv-nota { margin: 10px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary); }

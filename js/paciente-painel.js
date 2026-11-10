@@ -40,12 +40,6 @@ export async function initPainel360({ cont, paciente, irParaAba, aoCarregar }) {
 
   cont.innerHTML = esqueleto();
 
-  // Serviços contratados: não depende do resumo; monta já (import dinâmico,
-  // e falhar aqui não derruba o painel).
-  import('./paciente-servicos-ui.js')
-    .then(m => m.montarServicos(cont.querySelector('[data-pv-servicos]'), paciente))
-    .catch(e => console.error('[painel] serviços:', e));
-
   // A timeline recente carrega em paralelo: uma consulta não espera a outra.
   montarTimelineRecente({
     cont: cont.querySelector('[data-pv-timeline]'),
@@ -109,7 +103,6 @@ function esqueleto() {
         <div class="pv-col"><div class="sk sk-bloco"></div></div>
       </div>
     </div>
-    <section class="pv-bloco" data-pv-servicos></section>
     <section class="pv-bloco">
       <div class="pv-sec-head">
         <h3 class="pv-sec-tit">Histórico recente</h3>
