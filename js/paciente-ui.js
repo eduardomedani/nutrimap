@@ -515,6 +515,20 @@ function marcarTreinoVisto(t) {
   try { localStorage.setItem(_vistoKey(t.id), t.atualizado_em || new Date().toISOString()); } catch {}
 }
 
+// "Como fazer este treino": agenda e orientações que o profissional deixou no
+// treino (treinos.orientacoes — vem preenchido nos treinos da Base Evollo e é
+// editável no painel). Recolhido por padrão: é consulta, não o assunto da tela.
+// <details> nativo — abre e fecha sem JS e é lido por leitor de tela. O texto
+// é do profissional, mas passa por esc() como todo texto vindo do banco.
+function orientacoesHtml(t) {
+  const txt = String(t?.orientacoes || '').trim();
+  if (!txt) return '';
+  return `<details class="pa-orient">
+      <summary><i data-lucide="info"></i><span>Como fazer este treino</span><i data-lucide="chevron-down" class="pa-orient-seta"></i></summary>
+      <div class="pa-orient-txt">${esc(txt).replace(/\n/g, '<br>')}</div>
+    </details>`;
+}
+
 function renderListaDias() {
   const nome = (_paciente?.nome || 'Aluno').trim().split(' ')[0];
   const proximo = proximoDiaSugerido();
@@ -555,6 +569,7 @@ function renderListaDias() {
       ${statsTopo()}
       ${seletor}
       <div class="pa-diacards">${cards}</div>
+      ${orientacoesHtml(treinoAtual)}
     </main>
     ${bottomNav()}`;
 

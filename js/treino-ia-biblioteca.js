@@ -54,7 +54,14 @@ const TETO_FAMILIA = 0.4;
 
 const porNomeCurto = (a, b) => String(a.nome).length - String(b.nome).length || String(a.nome).localeCompare(String(b.nome));
 
-function amostraVariada(exs, teto) {
+// Dentro da família: primeiro o que o profissional MAIS PRESCREVE; entre os
+// que ele nunca usou (ou empatados), o nome mais curto — o mais "canônico".
+// Sem contagem, é o critério de antes.
+const porUsoDepoisNome = prescricoes => (a, b) =>
+  (prescricoes.get(b.id) || 0) - (prescricoes.get(a.id) || 0) || porNomeCurto(a, b);
+
+function amostraVariada(exs, teto, prescricoes = new Map()) {
+  const ordem = porUsoDepoisNome(prescricoes);
   const mobilidade = exs.filter(e => MOBILIDADE.test(norm(e.nome)));
   const forca = exs.filter(e => !MOBILIDADE.test(norm(e.nome)));
 
@@ -65,7 +72,7 @@ function amostraVariada(exs, teto) {
     familias.get(f).push(e);
   }
   const lista = [...familias.entries()].map(([f, l]) => ({
-    f, fila: l.sort(porNomeCurto), peso: l.length * (COMPOSTOS.test(f) ? 2 : 1), vagas: 0,
+    f, fila: l.sort(ordem), peso: l.length * (COMPOSTOS.test(f) ? 2 : 1), vagas: 0,
   }));
   const maxPorFamilia = Math.max(1, Math.ceil(teto * TETO_FAMILIA));
 
@@ -84,15 +91,17 @@ function amostraVariada(exs, teto) {
   // Sobrou vaga (grupo pequeno)? Primeiro o resto das famílias além do teto
   // por família; por último, mobilidade.
   for (const x of lista) while (out.length < teto && x.vagas < x.fila.length) out.push(x.fila[x.vagas++]);
-  for (const e of mobilidade.sort(porNomeCurto)) if (out.length < teto) out.push(e);
+  for (const e of mobilidade.sort(ordem)) if (out.length < teto) out.push(e);
   return out;
 }
 
 /**
  * A lista enviada à IA. `obrigatorios` (ids do treino atual, no Evoluir/
  * Ajustar) entram sempre — a IA precisa poder MANTER o que está funcionando.
+ * `prescricoes` (Map id → vezes que aparece nos treinos do profissional) põe
+ * na frente, dentro de cada família, o que ele de fato usa.
  */
-export function bibliotecaCompacta(todos, gruposAlvo, { comInventario = false, obrigatorios = [] } = {}) {
+export function bibliotecaCompacta(todos, gruposAlvo, { comInventario = false, obrigatorios = [], prescricoes = new Map() } = {}) {
   const alvo = new Set((gruposAlvo || []).map(g => String(g).toLowerCase()));
   const ids = new Set(obrigatorios);
   const enxuto = e => ({ id: e.id, nome: e.nome, grupo: e.grupo_muscular || '', equipamento: e.equipamento || '' });
@@ -104,7 +113,7 @@ export function bibliotecaCompacta(todos, gruposAlvo, { comInventario = false, o
   const out = fixos.map(enxuto);
   for (const [g, exs] of Object.entries(porGrupo)) {
     const teto = alvo.has(g.toLowerCase()) ? (comInventario ? 40 : 25) : (comInventario ? 15 : 10);
-    amostraVariada(exs, teto).forEach(e => out.push(enxuto(e)));
+    amostraVariada(exs, teto, prescricoes).forEach(e => out.push(enxuto(e)));
   }
   return out.slice(0, comInventario ? 320 : 180);
 }

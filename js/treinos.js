@@ -63,6 +63,23 @@ export async function listarTodosExercicios() {
 }
 
 /**
+ * Quantas vezes cada exercício aparece nos treinos do profissional (modelos e
+ * prescrições). A amostra enviada à IA usa isto para pôr na frente, dentro de
+ * cada família de movimento, o que ele de fato prescreve. Map(id → vezes).
+ */
+export async function contarPrescricoes() {
+  const conta = new Map();
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await sb
+      .from('treino_exercicios').select('exercicio_id')
+      .range(offset, offset + 999);
+    if (error) throw error;
+    (data || []).forEach(r => r.exercicio_id && conta.set(r.exercicio_id, (conta.get(r.exercicio_id) || 0) + 1));
+    if (!data || data.length < 1000) return conta;
+  }
+}
+
+/**
  * Resolve um nome digitado/escolhido para o exercício da biblioteca (match
  * exato case-insensitive). Usado ao adicionar exercício ao treino, já que a
  * biblioteca inteira não fica mais carregada em memória.
@@ -258,19 +275,31 @@ export async function criarTreino(nutriId, dados) {
  * se a origem tiver `base_id`: antes da migração a coluna não existe, o
  * `select *` não a traz e o insert segue sem ela.
  */
-const comBase = origem => (origem && origem.base_id ? { base_id: origem.base_id } : {});
+// As orientações para o aluno (db/treino_orientacoes.sql) viajam do mesmo jeito.
+const comBase = origem => ({
+  ...(origem && origem.base_id ? { base_id: origem.base_id } : {}),
+  ...(origem && origem.orientacoes ? { orientacoes: origem.orientacoes } : {}),
+});
+
+// Colunas que podem não existir ainda (migração não aplicada).
+const COLUNAS_OPCIONAIS = ['base_id', 'orientacoes'];
 
 /**
- * Cria o treino gravando `base_id`; se a coluna ainda não existir no banco
- * (migração não aplicada), grava sem ela em vez de falhar o treino inteiro.
+ * Cria o treino gravando `base_id` e as colunas de `extras` (ex.:
+ * `orientacoes`). Se uma delas ainda não existir no banco (migração não
+ * aplicada), tira só ela e tenta de novo — o treino não falha inteiro.
  */
-export async function criarTreinoComBase(nutriId, dados, baseId) {
-  if (!baseId) return criarTreino(nutriId, dados);
-  try {
-    return await criarTreino(nutriId, { ...dados, base_id: baseId });
-  } catch (e) {
-    if (/base_id/.test(`${e?.message || ''} ${e?.details || ''}`)) return criarTreino(nutriId, dados);
-    throw e;
+export async function criarTreinoComBase(nutriId, dados, baseId, extras = {}) {
+  const cols = { ...(baseId ? { base_id: baseId } : {}), ...extras };
+  for (;;) {
+    try {
+      return await criarTreino(nutriId, { ...dados, ...cols });
+    } catch (e) {
+      const msg = `${e?.message || ''} ${e?.details || ''}`;
+      const falta = COLUNAS_OPCIONAIS.find(c => c in cols && msg.includes(c));
+      if (!falta) throw e;
+      delete cols[falta];
+    }
   }
 }
 

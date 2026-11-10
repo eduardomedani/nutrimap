@@ -16,7 +16,7 @@ import {
   listarExercicios, buscarExercicioPorNome, listarTodosExercicios,
   listarProgressao, registrarProgressao, excluirProgressao,
   listarModelos, prescreverModeloParaPaciente, salvarComoModelo,
-  duplicarTreino, criarTreinoComBase,
+  duplicarTreino, criarTreinoComBase, contarPrescricoes,
   obterInventarioAcademia, inventarioParaIA,
 } from './treinos.js';
 import { recursosDisponiveis, cabeNaAcademia } from './academia-compat.js';
@@ -790,7 +790,10 @@ async function gerarTreinoIA() {
     const inteira = todos.map(enxuto);
     if (payload.base || modo === 'ciclo') payload.biblioteca = inteira;
     else {
-      payload.exercicios = bibliotecaCompacta(candidatos, gruposAlvo, { comInventario: !!inv, obrigatorios: idsBase });
+      // O que o profissional mais prescreve vai na frente dentro de cada
+      // família; falhar a contagem não trava o gerador, só volta ao critério antigo.
+      const prescricoes = await contarPrescricoes().catch(() => new Map());
+      payload.exercicios = bibliotecaCompacta(candidatos, gruposAlvo, { comInventario: !!inv, obrigatorios: idsBase, prescricoes });
       if (payload.baseId) payload.biblioteca = inteira;
     }
     if (inv) payload.inventario = inv;
@@ -891,6 +894,22 @@ function renderPreviewIA(plano, bib, inv = null) {
   res.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+/**
+ * O que o ALUNO lê no app ("Como fazer este treino"): agenda sugerida,
+ * orientações e aviso da Base Evollo. Plano sem base (gerador livre) não tem
+ * esse texto — devolve {} e o treino nasce sem orientações.
+ */
+export function orientacoesDoPlano(plano) {
+  const r = plano?.relatorio || {};
+  if (!plano?.base) return {};
+  const texto = [
+    plano.base.agenda ? `Agenda sugerida: ${plano.base.agenda}` : '',
+    r.orientacoes || '',
+    r.aviso || '',
+  ].filter(Boolean).join('\n\n');
+  return texto ? { orientacoes: texto } : {};
+}
+
 async function criarTreinoDaIA(plano) {
   const btns = [..._mountEl.querySelectorAll('#iaCriar, #iaCriar2')];
   btns.forEach(b => { b.disabled = true; });
@@ -910,7 +929,7 @@ async function criarTreinoDaIA(plano) {
       paciente_id: _modo === 'modelo' ? null : _paciente.id,
       divisao: LETRAS.slice(0, plano.dias.length).join(''),
       ativo: _modo === 'modelo',
-    }, plano.base?.id || null);
+    }, plano.base?.id || null, orientacoesDoPlano(plano));
     for (let di = 0; di < plano.dias.length; di++) {
       const letra = LETRAS[di];
       const exs = plano.dias[di].exercicios || [];
@@ -1052,6 +1071,15 @@ function renderEditor() {
         </div>` : ''}
         <button class="btn primary tr-salvar-linha" id="trSalvarDados">${t ? '<i data-lucide="save"></i> Salvar dados' : `<i data-lucide="plus"></i> Criar ${termo}`}</button>
       </div>
+      ${/* Só aparece quando a coluna existe (db/treino_orientacoes.sql): antes
+            disso o select * não traz `orientacoes` e salvar daria erro. */''}
+      ${t && 'orientacoes' in t ? `
+      <div class="av-field" style="margin-top:14px;">
+        <label>Orientações para o aluno <span class="ex-opt">aparece no app em "Como fazer este treino"</span></label>
+        <textarea id="trOrientacoes" class="np-input" rows="5" style="resize:vertical"
+          placeholder="Agenda sugerida, aquecimento, progressão de carga, cuidados...">${esc(t.orientacoes || '')}</textarea>
+        <div class="ex-hint">Clique em <b>Salvar dados</b> para gravar.</div>
+      </div>` : ''}
     </div>
 
     ${t ? `
@@ -1211,6 +1239,8 @@ async function salvarDados() {
     descanso_padrao: (descPadraoEl?.value || '') || null,
     ativo: ativoEl ? (ativoEl.value === '1') : true,
   };
+  const orientEl = document.getElementById('trOrientacoes');
+  if (orientEl) dados.orientacoes = orientEl.value.trim() || null;
 
   const btn = document.getElementById('trSalvarDados');
   const orig = btn.innerHTML;

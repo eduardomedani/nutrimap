@@ -573,6 +573,16 @@
   .pa-hero-sub b { color: var(--moss-deep); font-weight: 800; }
   .pa-lista-sel { margin-bottom: 14px; }
   .pa-diacards { display: flex; flex-direction: column; gap: 11px; }
+  /* "Como fazer este treino" (orientacoesHtml em js/paciente-ui.js). */
+  .pa-orient { margin-top: 16px; background: var(--bg-card); border: 1px solid var(--line); border-radius: 14px; }
+  .pa-orient summary { display: flex; align-items: center; gap: 9px; min-height: 48px; padding: 0 14px; cursor: pointer; list-style: none; font-size: 14.5px; font-weight: 700; color: var(--moss-deep); }
+  .pa-orient summary::-webkit-details-marker { display: none; }
+  .pa-orient summary svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .pa-orient summary span { flex: 1; }
+  .pa-orient-seta { color: var(--ink-mute); transition: transform 0.2s; }
+  .pa-orient[open] .pa-orient-seta { transform: rotate(180deg); }
+  .pa-orient-txt { padding: 0 14px 14px; font-size: 13.5px; line-height: 1.55; color: var(--ink-soft); }
+  @media (prefers-reduced-motion: reduce) { .pa-orient-seta { transition: none; } }
   .pa-diacard { display: flex; align-items: center; gap: 13px; width: 100%; text-align: left; background: var(--bg-card); border: 1px solid var(--hair); border-radius: var(--pa-card-radius); padding: var(--pa-card-pad-y) var(--pa-card-pad-x); box-shadow: var(--shadow); cursor: pointer; font-family: inherit; transition: transform 0.15s, box-shadow 0.2s, border-color 0.2s; }
   .pa-diacard:hover { transform: translateY(-1px); }
   .pa-diacard.prox { border-color: var(--sage); background: linear-gradient(150deg, var(--bg-card) 0%, #EEF3EC 100%); }

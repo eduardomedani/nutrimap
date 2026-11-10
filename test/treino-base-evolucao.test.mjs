@@ -25,11 +25,12 @@ const dados = readFileSync(new URL('../js/treinos.js', import.meta.url), 'utf8')
 grupo('base evollo · o treino lembra o modelo (base_id)', () => {
   teste('o treino gerado grava o modelo', () => {
     contem(ui, 'criarTreinoComBase(nutriId, {');
-    contem(ui, "}, plano.base?.id || null);");
+    contem(ui, "}, plano.base?.id || null, orientacoesDoPlano(plano));");
   });
 
   teste('sem a coluna no banco, grava sem ela em vez de falhar', () => {
-    contem(dados, "if (/base_id/.test(`${e?.message || ''} ${e?.details || ''}`)) return criarTreino(nutriId, dados);");
+    contem(dados, "const COLUNAS_OPCIONAIS = ['base_id', 'orientacoes'];");
+    contem(dados, 'const falta = COLUNAS_OPCIONAIS.find(c => c in cols && msg.includes(c));');
   });
 
   teste('duplicar, prescrever modelo e salvar na biblioteca levam o base_id', () => {

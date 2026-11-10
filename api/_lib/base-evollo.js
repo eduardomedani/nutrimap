@@ -121,6 +121,31 @@ export function recursosDoInventario(inventario) {
   return s;
 }
 
+// PADRÃO DE MOVIMENTO pelo nome do exercício da base. A ordem importa:
+// "Supino fechado" é tríceps antes de ser supino; "Remada alta" é ombro, não
+// costas; "Crucifixo invertido" é puxar, não empurrar.
+const PADROES = [
+  // Panturrilha primeiro: "Panturrilha no leg press" não é agachamento.
+  ['panturrilha', /panturrilha/],
+  ['triceps', /triceps|testa|frances|supino fechado|mergulho no banco|coice na polia/],
+  ['puxar-vertical', /puxada|barra fixa|graviton|pulldown|pullover/],
+  ['empurrar-vertical', /desenvolvimento|push press|elevacao (lateral|frontal)|remada alta/],
+  ['puxar-horizontal', /remada|face pull|crucifixo invertido/],
+  ['empurrar-horizontal', /supino|flexao de bracos|paralelas|mergulho|crucifixo|crossover|voador/],
+  ['flexao-joelho', /flexora|nordica/],
+  ['extensao-joelho', /extensora/],
+  ['quadril', /stiff|terra|good morning|bom dia|elevacao pelvica|ponte|gluteo|coice|abducao|abdutora/],
+  ['joelho', /agachamento|leg press|hack|afundo|passada|bulgaro|sissy|subida|step/],
+  ['biceps', /rosca/],
+  ['trapezio', /encolhimento/],
+  ['core', /prancha|abdominal|pallof|roda|elevacao de pernas/],
+];
+const semAcento = s => k(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+export function padraoDe(nome) {
+  const n = semAcento(nome);
+  return (PADROES.find(([, re]) => re.test(n)) || [''])[0];
+}
+
 const cabe = (ex, recursos) => !recursos || requisitosDoExercicio(ex).some(alt => alt.every(r => recursos.has(r)));
 
 /**
@@ -151,20 +176,32 @@ export function converterModelo(base, modelo, { biblioteca, inventario = null, n
   const trocas = [];
   const faltas = [];
 
-  // Substitutos possíveis, na ordem da base (PE01, PE02…). Prefere um
-  // movimento que o dia ainda não tem: trocar "Paralelas" num dia que já tem
-  // três supinos por um quarto supino cumpre a regra e piora o treino.
+  // Substitutos possíveis, na ordem da base (PE01, PE02…). A preferência:
+  //   1. mesmo PADRÃO de movimento e família que o dia ainda não tem;
+  //   2. mesmo padrão (ex.: graviton → puxada, mesmo já havendo puxada);
+  //   3. família que o dia ainda não tem;
+  //   4. o primeiro possível.
+  // O padrão vem antes porque "mesmo grupo e tipo" sozinho deixava trocar a
+  // barra fixa (puxar na vertical) por remada curvada (puxar na horizontal).
+  // A família vem depois: trocar "Paralelas" num dia que já tem três supinos
+  // por um quarto supino cumpre a regra e piora o treino.
   const nomePorId = new Map(biblioteca.map(e => [e.id, e.nome]));
   const substituto = (baseId, usados) => {
     const o = base.exercicios[baseId];
+    const padrao = padraoDe(o.n);
     const familiasDoDia = new Set([...usados].map(id => familiaDe(nomePorId.get(id))));
     const possiveis = [];
     for (const [id, e] of Object.entries(base.exercicios)) {
       if (id === baseId || id === 'CARDIO' || e.g !== o.g || e.t !== o.t || e.nm > nivelNum) continue;
       const lib = libDe(id);
-      if (lib && !usados.has(lib.id) && cabe(lib, recursos)) possiveis.push({ id, lib });
+      if (lib && !usados.has(lib.id) && cabe(lib, recursos)) possiveis.push({ id, lib, padrao: padraoDe(e.n) });
     }
-    return possiveis.find(p => !familiasDoDia.has(familiaDe(p.lib.nome))) || possiveis[0] || null;
+    const familiaNova = p => !familiasDoDia.has(familiaDe(p.lib.nome));
+    const mesmoPadrao = p => !!padrao && p.padrao === padrao;
+    return possiveis.find(p => mesmoPadrao(p) && familiaNova(p))
+      || possiveis.find(mesmoPadrao)
+      || possiveis.find(familiaNova)
+      || possiveis[0] || null;
   };
 
   // Resolve um exercício da base para um da biblioteca, trocando se preciso.
