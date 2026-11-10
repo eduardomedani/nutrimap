@@ -6,7 +6,7 @@
 
 // Um SW só para os DOIS apps: o escopo é a raiz, e registrar um segundo
 // service worker no mesmo escopo só criaria disputa entre eles.
-const CACHE = 'evollo-apps-v27';
+const CACHE = 'evollo-apps-v28';
 // Caminhos relativos ao escopo do SW — funcionam tanto na raiz (localhost)
 // quanto numa subpasta (GitHub Pages: /nutrimap/).
 const SHELL = [
@@ -32,6 +32,9 @@ const SHELL = [
   // quem parece importante.
   'js/exercicio-midia.js',
   'js/push.js',
+  // A barra flutuante (10/11/2026): import ESTÁTICO do paciente-ui.js.
+  'js/barra-retratil.js',
+  'css/pwa-agenda.css',
 
   // App do colaborador
   'equipe.html',

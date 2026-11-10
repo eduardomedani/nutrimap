@@ -403,11 +403,15 @@ grupo('pwa documentos · o bloco no Início', () => {
 // ═══════════════════════════════════════════════════════════
 grupo('pwa documentos · a rota e a barra inferior', () => {
 
-  teste('NENHUMA quarta aba foi criada', () => {
-    const nav = casca.slice(casca.indexOf('function bottomNav()'), casca.indexOf('// Liga o logout'));
-    igual((nav.match(/item\('/g) || []).length, 3, 'Início | Treino | Dieta, e só');
-    naoContem(nav, 'documentos');
-    naoContem(nav, "'mais'");
+  teste('Documentos NÃO vira aba (a quarta é a Agenda, só com a agenda ligada)', () => {
+    // 10/11/2026: a barra flutuante ganhou a Agenda como quarta aba, e SÓ
+    // quando a agenda de treino está ligada. Documentos continua subtela do
+    // Início — uma aba para algo aberto uma vez por mês desequilibraria a barra.
+    const abas = casca.slice(casca.indexOf('function abasDaBarra()'), casca.indexOf('function bottomNav()'));
+    igual((abas.match(/\['(inicio|treino|agenda|dieta)'/g) || []).length, 4, 'Início | Treino | Agenda | Dieta');
+    contem(abas, "...(_agendaAtiva ? [['agenda'");
+    naoContem(abas, 'documentos');
+    naoContem(abas, "'mais'");
   });
 
   teste('Documentos é subtela do Início — a barra acende Início', () => {

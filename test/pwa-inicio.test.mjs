@@ -397,7 +397,7 @@ grupo('início · a casca entrega matéria-prima, o módulo faz a conta', () => 
 
   teste('o Início é a terceira aba, e a primeira da barra', () => {
     // Conferido no fonte da casca porque `bottomNav` não é exportada.
-    const nav = casca.slice(casca.indexOf('function bottomNav'), casca.indexOf('function bottomNav') + 420);
+    const nav = casca.slice(casca.indexOf('function abasDaBarra'), casca.indexOf('function bottomNav'));
     ok(nav.indexOf("'inicio'") < nav.indexOf("'treino'"), 'Início vem antes de Treino na barra');
     ok(nav.includes("'dieta'"), 'Dieta continua na barra');
   });
@@ -618,471 +618,192 @@ grupo('início · o topo não rouba meia tela', () => {
   });
 });
 
-grupo('início · a barra inferior encosta no fim da TELA', () => {
+grupo('início · a casca e a barra flutuante', () => {
   const shell = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
   const inicioCss = readFileSync(new URL('../css/pwa-inicio.css', import.meta.url), 'utf8');
   const dietaCss = readFileSync(new URL('../css/pwa-dieta.css', import.meta.url), 'utf8');
   const ui = readFileSync(new URL('../js/paciente-ui.js', import.meta.url), 'utf8');
+  const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
 
-  // Recorte SEM COMENTÁRIOS, e é obrigatório que seja: as regras da barra
-  // explicam no próprio CSS por que são o que são, e essas explicações citam
-  // `}` e `env(...)`. Recortando o texto cru, o slice parava no primeiro `}`
-  // de dentro de um comentário e a guarda passava a conferir meia regra — pior
-  // que falhar, porque continua verde enquanto olha o lugar errado.
+  // Recorte SEM COMENTÁRIOS: as regras explicam no próprio CSS por que são o
+  // que são, e essas explicações citam `}`, `env(...)` e `position: fixed`.
   const semComentario = shell.replace(/\/\*[\s\S]*?\*\//g, '');
+  const regra = (sel) => { const r = semComentario.slice(semComentario.indexOf(sel)); return r.slice(0, r.indexOf('}') + 1); };
+  const cssLayout = semComentario.slice(semComentario.indexOf('\n<style>'), semComentario.indexOf('\n</style>'));
+  const corpoBarra = regra('  .pa-barra {');
 
-  // Só a regra da barra, para as asserções não pegarem env() de outra tela.
-  const regraNav = semComentario.slice(semComentario.indexOf('.pa-bottomnav {'));
-  const corpoNav = regraNav.slice(0, regraNav.indexOf('}') + 1);
-
-  teste('a barra é o fim da casca, e não um elemento posicionado', () => {
-    // Era `fixed; bottom: 0`, e no iOS em modo standalone isso a ancorava numa
-    // viewport de layout que no lançamento não é a tela: a barra parava ACIMA
-    // do fim, com uma faixa do fundo embaixo. O toque duplo que ressincronizava
-    // a viewport e "consertava" a barra foi o que entregou o caso.
-    //
-    // Item de fluxo não tem régua para errar: ele está no fim da coluna.
-    ok(!/position:\s*(fixed|absolute|sticky)/.test(corpoNav),
-       'qualquer position aqui devolve a barra para a viewport de layout do iOS');
-    contem(corpoNav, 'flex: 0 0 auto');
-  });
-
+  // ── A CASCA: tudo o que resolveu o iOS em set/2026 continua valendo ──
   teste('a casca ancora na viewport — não guarda a altura dela', () => {
-    const shellRegra = semComentario.slice(semComentario.indexOf('#app.pa-shell {'));
-    const corpo = shellRegra.slice(0, shellRegra.indexOf('}') + 1);
-
-    // `inset: 0` num elemento fixed é uma RESTRIÇÃO que o navegador reresolve a
-    // cada layout. `height: 100dvh` era um NÚMERO medido — e no lançamento do
-    // PWA no iPhone o iOS mede a viewport errada. Quando esse número saía menor
-    // que a tela, a casca ficava curta: a barra subia junto e aparecia uma
-    // faixa do fundo do body embaixo dela.
+    const corpo = regra('#app.pa-shell {');
     contem(corpo, 'position: fixed');
     contem(corpo, 'inset: 0');
     contem(corpo, 'flex-direction: column');
-    ok(!/height:\s*100(d|s|l)?vh/.test(corpo),
-       'altura medida na casca reabre a faixa embaixo da barra no iPhone');
-
-    // O teclado é o único caso em que a viewport VISUAL discorda da de layout,
-    // e aí quem manda são estas duas variáveis — escritas por ancorarCasca().
+    ok(!/height:\s*100(d|s|l)?vh/.test(corpo), 'altura medida na casca reabre a faixa no iPhone');
     contem(corpo, '--pa-casca-h');
     contem(corpo, '--pa-casca-top');
-
-    // Sem máscara: era `overflow: hidden` que escondia o miolo transbordando à
-    // direita a 360px, e o corte do ✓ da série ficou invisível por isso.
-    ok(!/overflow:\s*hidden/.test(corpo),
-       'overflow: hidden na casca esconde estouro em vez de deixá-lo aparecer');
-
-    const mainRegra = semComentario.slice(semComentario.indexOf('.pa-shell .pa-main {'));
-    const main = mainRegra.slice(0, mainRegra.indexOf('}') + 1);
+    ok(!/overflow:\s*hidden/.test(corpo), 'overflow: hidden na casca esconde estouro');
+    const main = regra('.pa-shell .pa-main {');
     contem(main, 'overflow-y: auto');
-    // Sem isto o item flex não encolhe abaixo do conteúdo e a rolagem some.
     contem(main, 'min-height: 0');
   });
 
   teste('com a casca no ar, quem rola é o miolo — nunca a página', () => {
-    // A casca é `fixed`, então não empurra o documento. O que sobraria sem esta
-    // trava é o `min-height` do body virando rolagem fantasma quando a medida
-    // de viewport vem maior que a tela: rola, não move nada, e dá o elástico.
-    contem(semComentario, 'body.pa-app');
     const r = semComentario.slice(semComentario.indexOf('body.pa-app'));
     contem(r.slice(0, r.indexOf('}') + 1), 'overflow: hidden');
-    // E o par tem que ser ligado e desligado junto da própria casca.
     const liga = ui.slice(ui.indexOf('function ligarShell()'));
-    ok(liga.slice(0, liga.indexOf('\n}')).includes("classList.add('pa-app')"),
-       'a trava de rolagem entra junto com a casca');
+    ok(liga.slice(0, liga.indexOf('\n}')).includes("classList.add('pa-app')"), 'a trava entra junto com a casca');
     const sai = ui.slice(ui.indexOf('function semCasca()'));
-    ok(sai.slice(0, sai.indexOf('\n}')).includes("classList.remove('pa-app')"),
-       'login e boot rolam na janela: a trava tem que sair com a casca');
+    ok(sai.slice(0, sai.indexOf('\n}')).includes("classList.remove('pa-app')"), 'login e boot rolam na janela');
   });
 
-  teste('a casca segue a visualViewport, não uma altura chumbada', () => {
+  teste('a casca segue a visualViewport, sem direção e sem passar da viewport de layout', () => {
     contem(semComentario, 'visualViewport');
     contem(semComentario, 'interactive-widget=resizes-content');
-    ok(!/\b\d{3,4}px\b[^;]*--pa-casca-h/.test(semComentario),
-       'altura de teclado chumbada é palpite: cada aparelho tem a sua');
-  });
-
-  teste('a comparação de viewports não tem direção', () => {
-    // ISTO já falhou uma vez, e o defeito passou pela validação porque o
-    // ambiente de teste só exercitava um dos lados.
-    //
-    // As duas viewports discordam em direções OPOSTAS conforme a causa:
-    //   · teclado aberto  → a VISUAL encolhe (visual < layout)
-    //   · lançamento do PWA no iPhone → a de LAYOUT é que vem curta, e a
-    //     visual é a maior e a certa (visual > layout)
-    //
-    // A primeira versão testava `innerHeight - vv.height > 1`, que só pega o
-    // primeiro caso. No segundo a conta dá negativo, nada era escrito, e a
-    // casca ficava com a viewport errada — exatamente o defeito que o bloco
-    // existia para corrigir. A regra certa é o módulo da diferença.
     const bloco = semComentario.slice(semComentario.indexOf('function ancorarCasca'));
     const corpo = bloco.slice(0, bloco.indexOf('})();'));
     contem(corpo, 'Math.abs(');
-    ok(!/innerHeight\s*-\s*vv\.height\s*>/.test(corpo),
-       'comparação com direção só enxerga o teclado e deixa o lançamento quebrado');
-    ok(!/vv\.height\s*-\s*(window\.)?innerHeight\s*>/.test(corpo),
-       'comparação com direção só enxerga o lançamento e deixa o teclado quebrado');
-  });
-
-  teste('a casca não tenta passar da viewport de layout', () => {
-    // Tentado e REPROVADO no aparelho, e o registro fica para ninguém tentar
-    // de novo: em standalone o iPhone entrega uma viewport de layout 62px menor
-    // que a tela (956 vs 894 — exatamente o safe-area-inset-top), e desenha o
-    // conteúdo a partir de y=0 mesmo assim.
-    //
-    // Esticar a casca até `screen` mede certo e RENDERIZA errado: o iOS aceita
-    // a geometria mas não pinta nada abaixo da viewport de layout. Os ícones
-    // da barra saíam cortados ao meio e os rótulos sumiam.
-    //
-    // Se alguém trouxer `screen.height` de volta para cá, é este defeito que
-    // volta junto.
-    const bloco = semComentario.slice(semComentario.indexOf('function ancorarCasca'));
-    const corpo = bloco.slice(0, bloco.indexOf('})();'));
-    ok(!/screen\s*\.\s*(height|width)/.test(corpo),
-       'screen na âncora da casca corta os rótulos da barra no iPhone');
-    ok(!/navigator\s*\.\s*standalone/.test(corpo),
-       'a casca não decide geometria por modo de exibição');
-  });
-
-  teste('a faixa que o layout não alcança recebe a cor da barra', () => {
-    // Medido no iPhone em standalone: tela 956, viewport de layout 894,
-    // safe-area-inset-top 62px — a diferença exata. Aqueles 62px não são
-    // endereçáveis por layout (esticar a casca até lá renderiza cortado), e o
-    // único que pinta ali é o fundo do canvas, propagado do <body>.
-    //
-    // Então o body recebe a cor da BARRA, e a cor do app passa a ser declarada
-    // na casca, que cobre exatamente a viewport. A faixa deixa de ser emenda.
-    const corpoApp = semComentario.slice(semComentario.indexOf('body.pa-app { background'));
-    contem(corpoApp.slice(0, corpoApp.indexOf('}') + 1), 'var(--bg-card)');
-    // O par: a cor da aplicação passa a ser declarada na casca. Uma regra só
-    // para `#app.pa-shell` — duas fariam qualquer busca por ela achar a errada.
-    const casca = semComentario.slice(semComentario.indexOf('#app.pa-shell {'));
-    contem(casca.slice(0, casca.indexOf('}') + 1), 'background: var(--background)');
-    igual((semComentario.match(/#app\.pa-shell \{/g) || []).length, 1,
-          'a casca tem uma regra só: duas escondem uma da outra');
-
-    // A barra tem que usar a MESMA variável do body, senão as duas divergem no
-    // primeiro ajuste de marca e a emenda volta.
-    contem(corpoNav, 'background: var(--bg-card);');
-
-    // E só com a casca no ar: login, vinculação, boot e erro rolam na janela,
-    // não têm barra nenhuma e não podem herdar o fundo dela.
-    const regraBody = shell.slice(shell.indexOf('  body {'));
-    contem(regraBody.slice(0, regraBody.indexOf('}')), 'background: var(--background)');
-  });
-
-  teste('a primeira medida da casca não espera quadro', () => {
-    // `requestAnimationFrame` não roda com a página oculta, e um PWA pode ser
-    // aberto em segundo plano. Se a primeira âncora dependesse de quadro, a
-    // casca nasceria com a viewport errada e ficaria assim até o app aparecer.
-    const bloco = semComentario.slice(semComentario.indexOf('function ancorarCasca'));
-    const corpo = bloco.slice(0, bloco.indexOf('})();'));
+    ok(!/innerHeight\s*-\s*vv\.height\s*>/.test(corpo), 'comparação com direção só enxerga o teclado');
+    ok(!/screen\s*\.\s*(height|width)/.test(corpo), 'screen na âncora corta os rótulos no iPhone');
     const fim = corpo.slice(corpo.lastIndexOf('addEventListener'));
     ok(/\baplicar\(\);/.test(fim), 'a medida inicial tem que ser síncrona');
-    // E um pedido pendente que nunca virou quadro não pode engolir os próximos.
     contem(corpo, 'cancelAnimationFrame');
   });
 
   teste('toda tela com barra entra na casca, por um caminho só', () => {
-    contem(ui, "app()?.classList.add('pa-shell')");
     const shellFn = ui.slice(ui.indexOf('function ligarShell()'));
-    ok(shellFn.slice(0, shellFn.indexOf('\n}')).includes("classList.add('pa-shell')"),
-       'a casca tem que ser ligada em ligarShell — é por onde toda tela com barra passa');
-    // E as telas SEM barra têm que sair dela, senão o login herda a altura
-    // travada da casca e o formulário não rola no teclado aberto.
+    ok(shellFn.slice(0, shellFn.indexOf('\n}')).includes("classList.add('pa-shell')"));
     for (const tela of ['renderAuth', 'renderVincular', 'renderCarregando', 'renderErro']) {
       const f = ui.slice(ui.indexOf(`function ${tela}(`));
-      ok(f.slice(0, f.indexOf('app().innerHTML')).includes('semCasca()'),
-         `${tela} tem que sair da casca`);
+      ok(f.slice(0, f.indexOf('app().innerHTML')).includes('semCasca()'), `${tela} tem que sair da casca`);
     }
   });
 
-  teste('não sobrou spacer artificial abaixo da barra', () => {
-    // Eram 80px pintados com a cor da própria barra logo abaixo dela. Onde o
-    // fim do viewport não é o fim da tela, viravam a faixa vazia que fazia o
-    // menu parecer boiando no meio da tela.
-    naoContem(shell, '.pa-bottomnav::after');
-    naoContem(shell, '.pa-bottomnav::before');
-    ok(!/\.pa-bottomnav[^{]*\{[^}]*margin-bottom/.test(shell),
-       'margem embaixo da barra é vão artificial');
-    ok(!/\.pa-bottomnav[^{]*\{[^}]*bottom:\s*-/.test(shell),
-       'bottom negativo é valor mágico, não correção');
+  teste('só a casca é fixed — a barra flutua DENTRO dela', () => {
+    // Decisão de 10/11/2026: a barra virou pílula flutuante. Ela é `absolute`
+    // dentro da casca (que já é fixed e ancorada certo), nunca `fixed` na
+    // janela — `fixed` voltaria a se ancorar na viewport de layout que o iOS
+    // erra no lançamento do PWA.
+    contem(corpoBarra, 'position: absolute');
+    const fixos = (cssLayout.match(/position:\s*fixed/g) || []).length;
+    ok(fixos === 1, `só a casca pode ser fixed — achei ${fixos}`);
+    const fin = regra('  .pa-finishbar { flex');
+    contem(fin, 'flex: 0 0 auto');
+    ok(!/position:\s*fixed/.test(fin), 'a finishbar continua em fluxo');
   });
 
-  teste('a safe-area é contada UMA vez, e é na barra', () => {
-    // Contar duas vezes (body + barra, ou barra + conteúdo dela) é o que
-    // empurra o menu para cima e abre a faixa embaixo.
-    //
-    // A medida é declarada uma vez em --pa-nav-safe e daí em diante só se
-    // referencia. Quem quiser a safe-area — a barra, a reserva do conteúdo, a
-    // barra de finalizar do treino — lê a variável. Escrever env() de novo em
-    // qualquer uma dessas é abrir a porta para as duas saírem de sincronia.
-    // A conta é sobre o CSS que forma o LAYOUT. A sonda do diagnóstico também
-    // escreve env(), mas num <div> de 0x0, invisível e sem eventos, criado só
-    // para LER o inset do aparelho — ela não empurra nada. Por isso o recorte
-    // é o <style>, e não o arquivo inteiro.
-    const cssLayout = semComentario.slice(
-      semComentario.indexOf('\n<style>'), semComentario.indexOf('\n</style>'));
-    igual((cssLayout.match(/env\(safe-area-inset-bottom/g) || []).length, 1,
-          'o inset de baixo aparece uma vez no CSS de layout: na variável');
-    ok(!/padding-bottom:\s*env\(safe-area-inset-bottom/.test(cssLayout),
-       'env() direto num padding do layout é a segunda fonte da mesma medida');
-    contem(shell, '--pa-nav-safe: max(10px, env(safe-area-inset-bottom, 0px));');
-    contem(corpoNav, 'padding-bottom: var(--pa-nav-safe);');
-    ok(!/env\(safe-area-inset-bottom/.test(corpoNav),
-       'a barra lê a variável; env() escrito aqui duplicaria a fonte da medida');
-    // `[\s;{]` antes: sem isso o próprio `padding-bottom:` casaria com o
-    // padrão e a guarda acusaria a regra certa.
-    ok(!/[\s;{]bottom:\s*(env\(safe-area-inset-bottom|var\(--pa-nav-safe)/.test(corpoNav),
-       'safe-area em `bottom` não é reserva de espaço — ela vai no padding');
-
-    const regraBody = shell.slice(shell.indexOf('  body {'));
-    ok(!regraBody.slice(0, regraBody.indexOf('}')).includes('safe-area-inset-bottom'),
-       'o body não move uma barra fixed — só cria tira morta e dobra o inset');
-  });
-
-  teste('sem inset, a barra encosta sozinha — nada de altura de iPhone', () => {
-    // Android e desktop: env() vale 0, o piso de 6px assume e a barra fica
-    // rente ao fim da tela sem colar o rótulo na borda.
-    contem(shell, 'env(safe-area-inset-bottom, 0px)');
-    ok(!/\b(34|44|62|83)px\b/.test(corpoNav),
-       'altura de um modelo específico de iPhone não pode virar constante');
-
-    // 62px é a faixa fora da viewport no iOS standalone (956 − 894). Ela foi
-    // medida, investigada até o fim e registrada como DÍVIDA CONHECIDA no
-    // app.html: não se resolve por CSS neste modelo de PWA. Uma constante de
-    // 62px em qualquer regra de layout seria compensação chumbada — certa num
-    // aparelho, errada em todos os outros —, e foi descartada de propósito.
-    // Só o CSS de verdade conta: o comentário da dívida cita o número.
-    const cssLayout = semComentario.slice(
-      semComentario.indexOf('\n<style>'), semComentario.indexOf('\n</style>'));
-    ok(!/\b62px\b/.test(cssLayout),
-       'compensar os 62px com constante no CSS foi descartado — ver DÍVIDA CONHECIDA no app.html');
-    ok(!/\b(1[0-9]{2})px\b/.test(corpoNav),
-       'altura total chumbada (120/130/150px) é certa num aparelho e errada nos outros');
-  });
-
-  teste('a área útil é compacta: entre 44 e 64px, fora a safe-area', () => {
-    // Referência ORIGINAL: a tab bar nativa do iPhone tem 49pt de conteúdo +
-    // a safe-area. Acima de ~64px a barra passa a parecer um bloco, que é a
-    // queixa que fez este teste existir — e esse teto não mudou.
-    //
-    // O PISO DESCEU DE 48 PARA 44, a pedido, quando a barra continuou parecendo
-    // alta demais no aparelho. 44px não é um número escolhido para caber no que
-    // já estava escrito: é o alvo de toque mínimo da Apple HIG, o ponto onde a
-    // compactação para de ser estética e passa a atrapalhar o polegar.
-    //
-    // O ícone continua fora desta negociação: 22px é o mínimo em que o desenho
-    // do lucide ainda se distingue, e ele tem teste próprio logo abaixo.
-    const pad = Number((shell.match(/--pa-nav-pad-top:\s*(\d+)px/) || [])[1]);
-    const item = Number((shell.match(/--pa-nav-item-h:\s*(\d+)px/) || [])[1]);
-    ok(pad && item, 'a geometria da barra tem que ser variável, não número solto');
-    ok(pad >= 6 && pad <= 12, `respiro de cima de ${pad}px — fora da faixa 6–12px`);
-    // --pa-nav-item-h é a altura REAL do item, padding de cima incluído: o item
-    // herda o `box-sizing: border-box` global. Somar o padding de novo era o
-    // que pedia 52px de uma caixa que mede 49 e deixava 3px mortos embaixo do
-    // rótulo, esticados pelo `align-items: stretch`.
-    ok(item >= 44 && item <= 64, `área útil de ${item}px — fora da faixa 44–64px`);
-    ok(item > pad, 'a altura do item inclui o respiro de cima; somar de novo conta duas vezes');
-  });
-
-  teste('a barra não pede altura própria — quem a define é o item', () => {
-    // `min-height` na barra a esticava além do que o conteúdo mede, e a
-    // diferença virava folga morta embaixo do rótulo. Sem ela, a altura é
-    // exatamente item + safe-area + borda, que é o contrato desejado.
-    ok(!/min-height/.test(corpoNav),
-       'min-height na barra estica o item e recria a folga embaixo do rótulo');
-    ok(!/box-sizing/.test(corpoNav),
-       'sem min-height não há o que proteger: content-box aqui só confunde');
-    ok(!/height:\s*\d/.test(corpoNav), 'altura fixa é certa num aparelho e errada nos outros');
-  });
-
-  teste('nada de folga abaixo do rótulo além da safe-area', () => {
-    // O defeito relatado: ícone e rótulo longe da borda, com uma área branca
-    // grande embaixo. Nascia de centralizar um conteúdo de ~57px dentro de uma
-    // caixa de 66px — a folga toda ia parar embaixo do rótulo, somada ao
-    // padding do item e à safe-area.
-    const item = shell.slice(shell.indexOf('.pa-nav-item {'));
-    const corpo = item.slice(0, item.indexOf('}') + 1);
-    contem(corpo, 'flex-direction: column');
-    contem(corpo, 'align-items: center');
-    contem(corpo, 'justify-content: flex-start');
-    ok(!/justify-content:\s*center/.test(corpo),
-       'centralizar dentro de caixa maior joga a folga toda para baixo do rótulo');
-    contem(corpo, 'padding: var(--pa-nav-pad-top) 4px 0;');
-    ok(!/padding-bottom/.test(corpo),
-       'padding embaixo do item soma à safe-area e recria a faixa branca');
-    // Entrelinha herdada do body (1.55) vira espaço invisível dentro de um
-    // rótulo de uma linha só.
-    contem(corpo, 'line-height: 1.1');
-  });
-
-  teste('ícone e rótulo continuam legíveis e tocáveis', () => {
-    const item = shell.slice(shell.indexOf('.pa-nav-item {'));
-    const corpo = item.slice(0, item.indexOf('}') + 1);
-    const fonte = Number((corpo.match(/font-size:\s*(\d+(?:\.\d+)?)px/) || [])[1]);
-    ok(fonte >= 12 && fonte <= 13, `rótulo de ${fonte}px — fora da faixa 12–13px`);
-    const gap = Number((corpo.match(/gap:\s*(\d+)px/) || [])[1]);
-    ok(gap >= 3 && gap <= 4, `gap de ${gap}px — fora da faixa 3–4px`);
-
-    const svg = shell.slice(shell.indexOf('.pa-nav-item svg {'));
-    const icone = Number((svg.slice(0, svg.indexOf('}')).match(/width:\s*(\d+)px/) || [])[1]);
-    ok(icone >= 22 && icone <= 24, `ícone de ${icone}px — fora da faixa 22–24px`);
-
-    // Área de toque: nem o rótulo menor nem a barra mais baixa podem deixar o
-    // alvo pequeno demais para o polegar.
-    const item_h = Number((shell.match(/--pa-nav-item-h:\s*(\d+)px/) || [])[1]);
-    ok(item_h >= 42, `área de toque de ${item_h}px é pequena demais`);
-  });
-
-  teste('não existe mais reserva embaixo — a barra não cobre nada', () => {
-    // A reserva existia porque a barra flutuava por cima do conteúdo. Fora da
-    // viewport, ela ocupa espaço próprio no fim da coluna, e reservar de novo
-    // seria o vão embaixo do último cartão de volta — agora sem nenhum jeito
-    // de descobrir de onde veio, já que não haveria barra por cima para
-    // justificar o buraco.
-    ok(!semComentario.includes('--pa-nav-reserva'),
-       'a reserva não pode voltar: a barra não cobre mais o conteúdo');
-    // app.html tem DOIS blocos '.pa-main': o da casca (que rola) e o da coluna
-    // de conteúdo. Aqui interessa o segundo — o que se centraliza.
-    const corpoDe = (txt) => {
-      let i = -1;
-      while ((i = txt.indexOf('.pa-main {', i + 1)) !== -1) {
-        const corpo = txt.slice(i, txt.indexOf('}', i) + 1);
-        if (corpo.includes('margin: 0 auto')) return corpo;
-      }
-      return '';
-    };
-    const main = corpoDe(semComentario);
-    contem(main, 'max-width: var(--pa-conteudo-max)');
-    ok(!main.includes('96px') && !main.includes('nav-reserva') && !main.includes('padding-bottom'),
-       'reserva em número solto ou em variável reabre o vão');
-    // "width: 100%" é o que impede o <main> de virar shrink-to-fit. Sem ele,
-    // "margin: 0 auto" desliga o stretch do item flex e a largura da tela passa
-    // a ser a do texto mais longo dela: a 360px o miolo ficava 6px mais largo
-    // que a casca e o ✓ de cada série saía cortado — sem barra de rolagem para
-    // denunciar, porque não era estouro, era corte. Ver o bloco A COLUNA DE
-    // CONTEÚDO em app.html.
-    contem(main, 'width: 100%');
-  });
-
-  teste('barra e CTA são itens da coluna — nenhum se ancora sozinho', () => {
-    // A distinção que importa: a CASCA é fixed (`inset: 0`, ancorada nas quatro
-    // bordas — não há medida para errar). O que mora DENTRO dela, não: uma
-    // `.pa-finishbar` ou uma `.pa-bottomnav` com `fixed; bottom: 0` volta a se
-    // ancorar sozinha na viewport de layout, que é exatamente a que o iOS erra
-    // no lançamento do PWA. Foi assim que a barra ficava acima do fim da tela.
-    // Em fluxo elas são a penúltima e a última linha da coluna: seguem a casca.
-    for (const sel of ['.pa-finishbar {', '.pa-bottomnav {']) {
-      const r = semComentario.slice(semComentario.indexOf(sel));
-      const corpo = r.slice(0, r.indexOf('}') + 1);
-      ok(!/position:\s*fixed/.test(corpo),
-         `${sel} com fixed se ancora sozinha e reabre o defeito do iOS`);
-      contem(corpo, 'flex: 0 0 auto');
-    }
-    // Só a casca pode ser fixed, e só ela. A contagem olha apenas o <style>:
-    // fora dele há `position: fixed` escrito em comentário de JS, que o
-    // recorte de /* */ não tira e não é declaração nenhuma.
-    // A TAG, não a palavra: um comentário de JS que mencione <style> faria o
-    // recorte começar dentro do script e trazer o `position:fixed` do painel
-    // de diagnóstico para dentro da contagem do CSS.
-    const abre = semComentario.indexOf('\n<style>');
-    const css = semComentario.slice(abre, semComentario.indexOf('\n</style>'));
-    ok(abre > 0, 'não achei a tag <style> no início de linha');
-    const fixos = (css.match(/position:\s*fixed/g) || []).length;
-    const regraCasca = css.slice(css.indexOf('#app.pa-shell {'));
-    ok(/position:\s*fixed/.test(regraCasca.slice(0, regraCasca.indexOf('}') + 1)),
-       'a casca é quem ancora');
-    ok(fixos === 1, `só a casca pode ser fixed — achei ${fixos} declarações no CSS`);
-  });
-
-  teste('a reserva mora em UM lugar — nenhuma tela declara a sua', () => {
-    // O vão nascia disto: casca e folha reservando o mesmo espaço, e um
-    // `:has()` para cancelar uma delas. Duas fontes para o mesmo número.
-    for (const [nome, css] of [['pwa-inicio.css', inicioCss], ['pwa-dieta.css', dietaCss]]) {
-      ok(!/^\s*(\.inicio|\.dt)\s*\{[^}]*padding-bottom/m.test(css),
-         `${nome} não pode declarar a própria reserva`);
-      ok(!css.includes('main.pa-main:has('),
-         `${nome} zerando a reserva da casca é sinal de reserva duplicada`);
-    }
-  });
-
-  teste('Início, Treino e Dieta usam a MESMA barra', () => {
-    // Uma fonte de verdade: bottomNav(). Nada de .inicio-bottomnav.
-    //
-    // A conferência compara as DUAS contagens entre si, e não com um número
-    // fixo: o invariante é "toda tela que pinta a casca tem a barra", não
-    // "existem N telas". Fixar o número faz a guarda quebrar na próxima tela
-    // que nascer — foi o que aconteceu quando Documentos virou a sexta — e uma
-    // guarda que grita por crescimento normal é uma guarda que se aprende a
-    // desligar.
-    const telas = (ui.match(/<main class="pa-main/g) || []).length;
-    const barras = (ui.match(/\$\{bottomNav\(\)\}/g) || []).length;
-    ok(telas >= 5, `só achei ${telas} telas — o app do aluno tem mais que isso`);
-    igual(barras, telas,
-          'toda tela do app do aluno monta a barra pelo mesmo componente');
-    igual((ui.match(/class="pa-bottomnav"/g) || []).length, 1,
-          'a marcação da barra existe em um lugar só');
-    for (const css of [inicioCss, dietaCss]) {
-      ok(!/bottomnav|bottom-nav/i.test(css), 'nenhuma tela redefine a barra por conta própria');
-    }
-  });
-
-  teste('as telas de altura cheia usam dvh, com vh de reserva', () => {
-    // No Safari 100vh é sempre a altura MAIOR, com a barra dinâmica recolhida.
-    contem(shell, 'min-height: 100vh; min-height: 100dvh;');
-    contem(shell, 'min-height: 80vh; min-height: 80dvh;');
-  });
-
-  teste('o viewport declara viewport-fit=cover, uma vez só', () => {
-    // Sem isso o iOS não informa env(safe-area-inset-*) nenhum.
+  // ── A BARRA FLUTUANTE (pedido de 10/11/2026) ──
+  teste('flutua acima da área segura, afastada das bordas, com teto de largura', () => {
+    contem(corpoBarra, 'left: max(12px, env(safe-area-inset-left, 0px))');
+    contem(corpoBarra, 'right: max(12px, env(safe-area-inset-right, 0px))');
+    contem(corpoBarra, 'bottom: calc(8px + env(safe-area-inset-bottom, 0px))');
+    contem(corpoBarra, 'max-width: 560px');
+    contem(corpoBarra, 'border-radius: 999px');
     contem(shell, 'viewport-fit=cover');
     igual((shell.match(/name="viewport"/g) || []).length, 1);
   });
 
-  teste('a barra de status continua black-translucent — default foi medido e não resolve', () => {
-    // Testado no iPhone real, num Preview da Vercel, em 11/09/2026, com a sonda
-    // do rodapé: trocando `black-translucent` por `default`, a faixa fora da
-    // viewport continuou com 62px — C = 62 antes e depois. A troca só deixaria
-    // a barra de status opaca, sem ganhar pixel nenhum embaixo.
-    //
-    // Se alguém propuser a troca de novo como "a solução da faixa", este teste
-    // é o registro de que ela já foi medida. A dívida inteira está no comentário
-    // A FAIXA QUE O LAYOUT NÃO ALCANÇA, no app.html.
+  teste('vidro com fallback sólido (sem blur, menos transparência, mais contraste)', () => {
+    contem(corpoBarra, 'backdrop-filter: blur(20px) saturate(180%)');
+    contem(corpoBarra, '-webkit-backdrop-filter: blur(20px) saturate(180%)');
+    contem(semComentario, '@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))');
+    contem(semComentario, '@media (prefers-reduced-transparency: reduce), (prefers-contrast: more)');
+    ok(!/#[0-9a-f]{3,6}\b|rgba?\(/i.test(corpoBarra), 'cor só por token');
+  });
+
+  teste('o vidro tem registro do motivo de setembro e da reversão', () => {
+    // O blur saiu em set/26 pelo defeito do WebView do Android. Voltou por
+    // decisão do Eduardo: o comentário guarda o motivo e a reversão de 1 linha.
+    contem(shell, 'O VIDRO FOI TIRADO EM SETEMBRO POR UM MOTIVO');
+    contem(shell, 'teste obrigatório no Android');
+  });
+
+  teste('itens: mesma largura, alvo ≥ 44px, ícone 21px, rótulo sem quebra', () => {
+    const item = regra('  .pa-barra-item {');
+    contem(item, 'flex: 1');
+    const alt = Number((item.match(/min-height:\s*(\d+)px/) || [])[1]);
+    ok(alt >= 44, `alvo de toque de ${alt}px`);
+    contem(regra('  .pa-barra-item svg {'), 'width: 21px');
+    contem(regra('  .pa-barra-rot {'), 'white-space: nowrap');
+  });
+
+  teste('ativo não depende só da cor: negrito, traço mais grosso e pílula', () => {
+    contem(regra('  .pa-barra-item.ativo svg {'), 'stroke-width: 2.4');
+    contem(regra('  .pa-barra-item svg {'), 'stroke-width: 1.9');
+    contem(regra('  .pa-barra-item.ativo .pa-barra-rot {'), 'font-weight: 800');
+    contem(regra('  .pa-barra-pilula {'), 'transform: translateX(calc(var(--pa-barra-i, 0) * 100%))');
+    contem(regra('  .pa-barra-pilula {'), 'cubic-bezier(.22,.61,.36,1)');
+    contem(regra('  .pa-barra-pilula.fora {'), 'opacity: 0');
+  });
+
+  teste('acessibilidade: nav rotulada e aria-current na aba ativa', () => {
+    contem(ui, 'aria-label="Navegação principal"');
+    contem(ui, `aria-current="page"`);
+    contem(ui, "badge > 9 ? '9+' : badge");
+  });
+
+  teste('recolhida: sai pela base com a sombra, sem tocar, e continua no DOM', () => {
+    const rec = regra('body.pa-barra-recolhida .pa-barra {');
+    contem(rec, 'transform: translateY(calc(100% + 8px + env(safe-area-inset-bottom, 0px) + 32px))');
+    contem(rec, 'pointer-events: none');
+    ok(!/display:\s*none/.test(rec), 'recolhida continua no DOM e na ordem de foco');
+    contem(regra('body.pa-teclado .pa-barra {'), 'display: none');
+  });
+
+  teste('reserva FIXA embaixo do conteúdo e variável para FAB/toast', () => {
+    contem(shell, '--pa-barra-reserva: calc(72px + env(safe-area-inset-bottom, 0px));');
+    contem(regra('.pa-shell .pa-main {'), 'overflow-y: auto');
+    contem(semComentario, '.pa-shell .pa-main { padding-bottom: var(--pa-barra-reserva); }');
+    contem(semComentario, '.pa-shell .pa-finishbar { padding-bottom: var(--pa-barra-reserva); }');
+    contem(shell, '--pa-barra-h: 64px;');
+    contem(semComentario, 'body.pa-barra-recolhida { --pa-barra-h: 0px; }');
+    for (const [nome, css] of [['pwa-inicio.css', inicioCss], ['pwa-dieta.css', dietaCss]]) {
+      ok(!/^\s*(\.inicio|\.dt)\s*\{[^}]*padding-bottom/m.test(css), `${nome} não declara reserva própria`);
+    }
+  });
+
+  teste('movimento reduzido desliga a pílula e o recolher', () => {
+    contem(semComentario, '.pa-barra, .pa-barra-pilula { transition: none; }');
+  });
+
+  teste('a barra antiga saiu por inteiro', () => {
+    ok(!/pa-bottomnav|pa-nav-item|--pa-nav-(safe|item-h|pad-top|reserva)/.test(cssLayout), 'nenhuma regra da barra antiga');
+    ok(!/class="pa-bottomnav"|pa-nav-item/.test(ui), 'nenhuma marcação da barra antiga');
+  });
+
+  teste('a faixa fora da viewport do iOS tem a cor do fundo (a barra não encosta mais)', () => {
+    contem(regra('body.pa-app { background'), 'var(--background)');
+    contem(regra('#app.pa-shell {'), 'background: var(--background)');
+    ok(!/\b62px\b/.test(cssLayout), 'compensar os 62px com constante foi descartado (DÍVIDA CONHECIDA)');
     contem(shell, '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">');
   });
 
-  teste('a barra não pede camada própria de composição', () => {
-    // backdrop-filter põe a barra numa camada alimentada pelo que passa atrás
-    // dela. Com `fixed` sobre conteúdo que muda de altura, o WebView do Android
-    // reaproveita a camada velha e desenha a barra na posição anterior — a
-    // barra "alta", com uma tira do fundo embaixo. Translúcido é enfeite.
-    //
-    // A conferência ignora COMENTÁRIOS: a regra explica no próprio CSS por que
-    // não há blur ali, e uma guarda que proíbe explicar é uma guarda que se
-    // resolve apagando a explicação.
-    const semComentario = corpoNav.replace(/\/\*[\s\S]*?\*\//g, '');
-    ok(!/backdrop-filter/.test(semComentario),
-       'blur na barra inferior é camada que envelhece — fundo chapado não tem esse modo de falhar');
-    ok(!/rgba\(/.test(semComentario),
-       'fundo translúcido deixa o conteúdo aparecer por baixo da barra');
+  teste('toda tela monta a MESMA barra', () => {
+    const telas = (ui.match(/<main class="pa-main/g) || []).length;
+    const barras = (ui.match(/\$\{bottomNav\(\)\}/g) || []).length;
+    ok(telas >= 6, `só achei ${telas} telas`);
+    igual(barras, telas, 'toda tela do app do aluno monta a barra pelo mesmo componente');
+    igual((ui.match(/class="pa-barra"/g) || []).length, 1, 'a marcação existe em um lugar só');
+  });
+
+  teste('o recolhimento é ligado na casca e toda tela nova mostra a barra', () => {
+    const liga = ui.slice(ui.indexOf('function ligarShell()'));
+    const corpo = liga.slice(0, liga.indexOf('\n}'));
+    contem(corpo, 'ligarBarraRetratil({ obterRolador: rolador });');
+    contem(corpo, 'mostrarBarra();');
+    contem(sw, "'js/barra-retratil.js'");
   });
 
   teste('trocar de seção volta ao topo', () => {
-    // `app().innerHTML = ...` troca o conteúdo e o navegador MANTÉM a rolagem
-    // antiga. Sem zerar, sai-se de um treino rolado e cai-se no meio da Dieta —
-    // e a barra fixed fica sobre um conteúdo que encolheu debaixo dela.
     contem(ui, 'function aoTopo()');
-    contem(ui, 'window.scrollTo(0, 0)');
-
-    // Os DOIS caminhos de troca de seção: a barra inferior e os atalhos do
-    // Início. Um só zerado deixa metade do app com o defeito.
-    const shellFn = ui.slice(ui.indexOf('function ligarShell()'));
-    ok(shellFn.slice(0, shellFn.indexOf('\n}')).includes('aoTopo()'),
-       'a barra inferior troca de seção sem zerar a rolagem');
+    const barra = ui.slice(ui.indexOf('function ligarBarra()'));
+    ok(barra.slice(0, barra.indexOf('\n}')).includes('aoTopo()'), 'a barra troca de seção sem zerar a rolagem');
     const atalho = ui.slice(ui.indexOf('function irParaSecao('));
-    ok(atalho.slice(0, atalho.indexOf('\n}')).includes('aoTopo()'),
-       'os atalhos do Início trocam de seção sem zerar a rolagem');
+    ok(atalho.slice(0, atalho.indexOf('\n}')).includes('aoTopo()'), 'os atalhos do Início trocam sem zerar');
+  });
+
+  teste('as telas de altura cheia usam dvh, com vh de reserva', () => {
+    contem(shell, 'min-height: 100vh; min-height: 100dvh;');
+    contem(shell, 'min-height: 80vh; min-height: 80dvh;');
   });
 });
 

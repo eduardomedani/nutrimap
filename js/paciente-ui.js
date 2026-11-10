@@ -15,6 +15,7 @@ import {
 } from './paciente-data.js';
 import { mostrarToast, mostrarErro, confirmar } from './utils.js';
 import { pushSuportado, pushAtivo, ativarNotificacoes, desativarNotificacoes, traduzirPush } from './push.js';
+import { ligarBarraRetratil, mostrarBarra } from './barra-retratil.js';
 import * as Exec from './paciente-execucao.js';
 import { descansoDoItem, parseCadencia, fmtSegLongo } from './execucao-core.js';
 import * as Midia from './exercicio-midia.js';
@@ -30,7 +31,7 @@ let _progAbertas = new Set();
 let _progCache = new Map();   // id do item -> regs (progressão) já carregada
 let _sexo     = null;         // 'M' | 'F' | null — decide a versão da animação
 let _urlsAssinadas = new Map();  // id da mídia -> URL assinada desta sessão
-let _secao    = 'inicio';     // seção ativa: 'inicio' | 'treino' | 'dieta'
+let _secao    = 'inicio';     // seção ativa: 'inicio' | 'treino' | 'agenda' | 'dieta'
 let _view     = 'lista';      // dentro de treino: 'lista' (escolher dia) | 'treino' (página do dia)
 let _treinosCarregados = false;
 
@@ -924,18 +925,107 @@ function proximoDiaSugerido() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// NAVEGAÇÃO INFERIOR (Treino | Dieta) + shell
+// BARRA FLUTUANTE (Início | Treino | Agenda | Dieta) + shell
 // ═══════════════════════════════════════════════════════════
+// Pílula de vidro que flutua acima da área segura e se recolhe ao rolar para
+// baixo (regra em js/barra-retratil.js; geometria em app.html, bloco BARRA
+// FLUTUANTE). O nome continua bottomNav() porque é por ele que toda tela
+// com barra monta a casca.
+//
+// A aba Agenda só existe com a agenda de treino LIGADA para a academia do
+// aluno (agenda_config.ativo): no mês em paralelo com a Next Fit ela fica de
+// fora em vez de abrir uma tela vazia. `_agendaAtiva` é descoberto depois da
+// primeira pintura (ver conferirAgenda) e a barra é redesenhada no lugar.
+let _agendaAtiva = false;
+let _pilulaAntes = -1;   // aba acesa na tela anterior: a pílula desliza dela até a atual
+
+function abasDaBarra() {
+  return [
+    ['inicio', 'house', 'Início'],
+    ['treino', 'dumbbell', 'Treino'],
+    ...(_agendaAtiva ? [['agenda', 'calendar-days', 'Agenda']] : []),
+    ['dieta', 'salad', 'Dieta'],
+  ];
+}
+
 function bottomNav() {
-  const item = (sec, icone, label) =>
-    `<button class="pa-nav-item ${_secao === sec ? 'active' : ''}" data-sec="${sec}">
-       <i data-lucide="${icone}"></i><span>${label}</span>
+  const abas = abasDaBarra();
+  const atual = abas.findIndex(([sec]) => sec === _secao);
+  // A barra é redesenhada a cada tela: nasce com a pílula na aba ANTERIOR e
+  // ligarShell a desliza para a atual no quadro seguinte.
+  const inicio = _pilulaAntes >= 0 && _pilulaAntes < abas.length ? _pilulaAntes : atual;
+  const item = ([sec, icone, label, badge]) => {
+    const on = sec === _secao;
+    const contador = badge > 0 ? `<span class="pa-barra-badge" aria-label="${badge} novidade(s)">${badge > 9 ? '9+' : badge}</span>` : '';
+    return `<button type="button" class="pa-barra-item${on ? ' ativo' : ''}" data-sec="${sec}"${on ? ' aria-current="page"' : ''}>
+       <span class="pa-barra-icone"><i data-lucide="${icone}"></i>${contador}</span><span class="pa-barra-rot">${label}</span>
      </button>`;
-  return `<nav class="pa-bottomnav">
-    ${item('inicio', 'house', 'Início')}
-    ${item('treino', 'dumbbell', 'Treino')}
-    ${item('dieta', 'salad', 'Dieta')}
+  };
+  return `<nav class="pa-barra" aria-label="Navegação principal" data-atual="${atual}"
+      style="--pa-barra-n:${abas.length};--pa-barra-i:${Math.max(inicio, 0)}">
+    <span class="pa-barra-pilula${atual < 0 ? ' fora' : ''}" aria-hidden="true"></span>
+    ${abas.map(item).join('')}
   </nav>`;
+}
+
+// Liga os itens da barra e desliza a pílula até a aba atual.
+function ligarBarra() {
+  const nav = app()?.querySelector('.pa-barra');
+  if (!nav) return;
+  nav.querySelectorAll('.pa-barra-item').forEach(b =>
+    b.addEventListener('click', () => {
+      const sec = b.dataset.sec;
+      if (sec === _secao) return;
+      aoTopo();
+      if (sec === 'dieta') renderDieta();
+      else if (sec === 'inicio') renderInicio();
+      else if (sec === 'agenda') renderAgenda();
+      else irParaTreino();
+    }));
+  const atual = Number(nav.dataset.atual);
+  requestAnimationFrame(() => nav.style.setProperty('--pa-barra-i', String(Math.max(atual, 0))));
+  _pilulaAntes = atual;
+}
+
+// A agenda está ligada para este aluno? Pergunta UMA vez por sessão, depois da
+// primeira pintura; se estiver, redesenha só a barra para a aba aparecer.
+let _agendaConferida = false;
+function conferirAgenda() {
+  if (_agendaConferida) return;
+  _agendaConferida = true;
+  import('./pwa-agenda-data.js')
+    .then(m => m.agendaAtiva())
+    .then(ativa => {
+      if (!ativa || _agendaAtiva) return;
+      _agendaAtiva = true;
+      const nav = app()?.querySelector('.pa-barra');
+      if (!nav) return;
+      nav.outerHTML = bottomNav();
+      ligarBarra();
+    })
+    .catch(() => {});   // sem agenda (migração/rede): a barra segue com 3 abas
+}
+
+// Seção Agenda — a casca; a tela mora em js/pwa-agenda-ui.js.
+function renderAgenda() {
+  _secao = 'agenda';
+  app().innerHTML = `
+    ${topo()}
+    <main class="pa-main"><div id="paAgenda"></div></main>
+    ${bottomNav()}`;
+  ligarShell();
+  import('./pwa-agenda-ui.js')
+    .then(m => m.renderAgendaPaciente('paAgenda'))
+    .catch(e => {
+      console.error('Agenda:', e);
+      const cx = document.getElementById('paAgenda');
+      if (cx) cx.innerHTML = `
+        <div class="pa-empty pa-empty-lg">
+          <i data-lucide="cloud-off"></i>
+          <div class="pa-empty-t">Não foi possível abrir a agenda</div>
+          <div class="pa-empty-s">Verifique sua conexão e tente novamente.</div>
+        </div>`;
+    });
 }
 
 // Liga o logout do topo + a troca de seção da barra inferior.
@@ -1006,15 +1096,11 @@ function ligarShell() {
   // viewport vem maior que a tela. Ver o bloco A CASCA em app.html.
   document.body.classList.add('pa-app');
   document.getElementById('paLogout')?.addEventListener('click', logout);
-  app().querySelectorAll('.pa-nav-item').forEach(b =>
-    b.addEventListener('click', () => {
-      const sec = b.dataset.sec;
-      if (sec === _secao) return;
-      aoTopo();
-      if (sec === 'dieta') renderDieta();
-      else if (sec === 'inicio') renderInicio();
-      else irParaTreino();
-    }));
+  ligarBarra();
+  // Toda tela nova é troca de rota: a barra volta a aparecer.
+  ligarBarraRetratil({ obterRolador: rolador });
+  mostrarBarra();
+  conferirAgenda();
 }
 
 function irParaTreino() {

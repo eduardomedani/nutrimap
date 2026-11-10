@@ -1874,6 +1874,8 @@
 <link rel="stylesheet" href="css/paciente-documentos.css">
 <!-- Check-ins: tela global (Análise) e aba do Hub do paciente. -->
 <link rel="stylesheet" href="css/checkin.css">
+<!-- Agenda de treino: grade, regras e a semana da recepção. -->
+<link rel="stylesheet" href="css/agenda-treino.css">
 </head>
 <body>
 
@@ -2087,6 +2089,7 @@
         <div class="nav-item" data-page="treinos"><span class="nav-icon"><i data-lucide="list-checks"></i></span><span>Treinos</span></div>
         <div class="nav-item" data-page="exercicios"><span class="nav-icon"><i data-lucide="dumbbell"></i></span><span>Exercícios</span></div>
         <div class="nav-item" data-page="gestao-treinos"><span class="nav-icon"><i data-lucide="calendar-clock"></i></span><span>Gerenciar treinos</span></div>
+        <div class="nav-item" data-page="agenda-treino" data-exige="agenda.visualizar" hidden><span class="nav-icon"><i data-lucide="calendar-check"></i></span><span>Agenda de treino</span></div>
         <div class="nav-item disabled" data-page="materiais"><span class="nav-icon"><i data-lucide="book-open"></i></span><span>Materiais</span></div>
       </div>
       <!-- ADMINISTRAÇÃO — os dois módulos do escritório, separados de propósito.
@@ -2240,6 +2243,8 @@
     <div class="module-page" id="page-relatorio">
       <div class="loading"><div class="spinner"></div>Carregando relatório...</div>
     </div>
+    <!-- GESTÃO — AGENDA DE TREINO (js/agenda-treino-ui.js monta tudo) -->
+    <div class="module-page" id="page-agenda-treino"></div>
     <!-- GESTÃO — GERENCIAR TREINOS (vencimentos) -->
     <div class="module-page" id="page-gestao-treinos">
       <div class="page-header">
@@ -2272,6 +2277,7 @@
   import { carregarPermissoes, limparPermissoes, registrarAcesso, pode } from './js/permissoes.js';
   import { limparOrganizacao } from './js/organizacao.js';
   import { abrirUsuarios } from './js/usuarios-ui.js';
+  import { abrirAgendaTreino } from './js/agenda-treino-ui.js';
   import { gerarRelatorio } from './js/relatorio.js';
   import { processarRecordatorioIA } from './js/recordatorio-ia.js';
   import { abrirFichaPaciente } from './js/ficha.js';
@@ -2347,6 +2353,9 @@
     if (pagina === 'usuarios') {
       abrirUsuarios().catch(console.error);
     }
+    if (pagina === 'agenda-treino') {
+      abrirAgendaTreino().catch(console.error);
+    }
     try { history.replaceState(null, '', '#' + pagina); } catch (e) {}
   }
 
@@ -2361,6 +2370,7 @@
   const EXIGE_PERMISSAO = {
     usuarios: 'usuarios.visualizar',
     financeiro: 'financeiro.visualizar',
+    'agenda-treino': 'agenda.visualizar',
   };
 
   function podeAbrir(pagina) {

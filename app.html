@@ -203,7 +203,10 @@
 
      A outra metade do par — o fundo da aplicação, que o body deixou de
      carregar — está declarada na própria casca, em `#app.pa-shell`. */
-  body.pa-app { background: var(--bg-card); }
+  /* Com a BARRA FLUTUANTE (10/11/2026) o fundo da tela chega até a base — a
+     barra não encosta mais no fim. A faixa passa a ter a cor do FUNDO, não a
+     da barra; a dívida dos 62px continua a mesma. */
+  body.pa-app { background: var(--background); }
   /* Fundo chapado: os gradientes radiais quentes saíram com a identidade antiga. */
   body {
     background: var(--background);
@@ -226,7 +229,7 @@
      ══════════════════════════════════════════════════════════════════════
      UMA casca só para Início, Treino, Dieta e treino em execução. As quatro
      telas montam `<header class="pa-topbar">`, `<main class="pa-main">` e a
-     `<nav class="pa-bottomnav">` dentro deste mesmo `#app.pa-shell`, e é aqui
+     `<nav class="pa-barra">` (flutuante) dentro deste mesmo `#app.pa-shell`, e é aqui
      — em lugar nenhum além daqui — que a geometria delas é decidida.
 
      A CASCA NÃO TEM ALTURA. Tem ÂNCORA. Essa é a coisa inteira.
@@ -338,59 +341,6 @@
   .pa-logout:hover { background: var(--bg-warm); color: var(--ink); }
   .pa-logout svg { width: 19px; height: 19px; }
 
-  /* Geometria da barra inferior, num lugar só. Quem mede a barra, mede a
-     reserva do conteúdo e mede a barra de finalizar do treino — as três saem
-     daqui, e por isso não têm como divergir.
-
-     A ÁREA ÚTIL é só respiro de cima + altura de toque do item. A safe-area
-     NÃO entra nela: é padding da barra, e mora em --pa-nav-safe.
-
-     Antes a área útil era 66px e os itens (57px de conteúdo) eram
-     centralizados dentro dela — sobravam ~4,5px de folga que, somados ao
-     padding do item e à safe-area, viravam ~46px de branco abaixo do rótulo
-     quando só 34 são obrigatórios. Agora a altura do item É a área de toque:
-     não há caixa maior para centralizar dentro.
-
-     O respiro de cima era contado DUAS VEZES, e a auditoria da barra achou:
-     `--pa-nav-item-h` valia 43px como se fosse só o conteúdo, mas o item tem o
-     `box-sizing: border-box` global — 43px já INCLUÍAM o padding de cima. A
-     área útil somava esse mesmo padding de novo (9 + 43 = 52), a barra pedia
-     52px de conteúdo, o item media 49px de verdade e o `align-items: stretch`
-     esticava a diferença. Os 3px sobravam mortos embaixo do rótulo, somados à
-     safe-area. Agora a variável diz o que mede: a altura REAL do item, padding
-     incluído, e a barra não pede altura nenhuma além dela. */
-  :root {
-    --pa-nav-pad-top: 8px;    /* respiro acima do ícone */
-    /* Altura real do item, COM o padding de cima (border-box):
-       8 (respiro) + 22 (ícone) + 3 (gap) + 13,2 (rótulo) = 46,2px.
-
-       Eram 49px: 9 + 22 + 3 + 15. A economia sai do respiro de cima, do gap e
-       da entrelinha do rótulo — não do ícone, que continua em 22px, e não da
-       safe-area nem da posição da barra, que seguem como a auditoria as
-       deixou.
-
-       O piso é o alvo de toque: 44px é o mínimo da Apple HIG, e 46,2 passa com
-       folga. Descer os outros 2px exigiria encolher o ícone, e aí a barra fica
-       menor à custa de ficar mais difícil de ler. */
-    --pa-nav-item-h: 46px;
-
-    /* A safe-area REAL do aparelho, com um PISO de respiro. Declarada UMA vez e
-       usada como variável — é o que impede a mesma medida de ser escrita em
-       dois lugares e sair de sincronia.
-
-       O piso de 10px não é decoração nem palpite: com a folga morta zerada,
-       abaixo do rótulo passou a existir exatamente esta variável e mais nada.
-       Onde o aparelho tem indicador Home, os 34px dele já são o respiro, e é
-       assim que a tab bar do próprio iOS se comporta — o rótulo encosta no
-       topo da área do indicador. Onde não tem (Android, desktop, iPhone antigo)
-       o inset vale 0, e sem piso o rótulo ficaria colado na borda: os 10px são
-       o respiro nesses casos. Um `max()` cobre os dois sem um `if` de aparelho. */
-    --pa-nav-safe: max(10px, env(safe-area-inset-bottom, 0px));
-  }
-  /* Não existe mais --pa-nav-reserva. A barra é o último item da coluna flex
-     da casca: ela não cobre o conteúdo, e conteúdo que não é coberto não tem
-     o que reservar. Era essa reserva — escrita em dois lugares, cancelada com
-     `:has()` num terceiro — que produzia o vão embaixo do último cartão. */
 
   /* ══════════════════════════════════════════════════════════════════════
      A COLUNA DE CONTEÚDO — a mesma nas três telas
@@ -399,8 +349,8 @@
      e o teto vêm de tokens (--pa-conteudo-*), porque três telas com a mesma
      função não podem ter três medidas.
 
-     Sem reserva embaixo: a barra deixou de cobrir o conteúdo quando virou item
-     da coluna flex da casca — ver o bloco A CASCA lá em cima.
+     A reserva embaixo (para a barra flutuante não cobrir o último cartão) é
+     UMA só: `.pa-shell .pa-main`, no bloco BARRA FLUTUANTE.
 
      `width: 100%` NÃO é decoração, e tirá-lo devolve um defeito difícil de
      ler. A casca é `display: flex; flex-direction: column`, então o eixo
@@ -430,55 +380,116 @@
   }
 
   /* ══════════════════════════════════════════════════════════════════════
-     NAVEGAÇÃO INFERIOR (Início | Treino | Dieta)
+     BARRA FLUTUANTE RETRÁTIL (10/11/2026) — substitui a .pa-bottomnav
      ══════════════════════════════════════════════════════════════════════
-     Fonte única: bottomNav() em js/paciente-ui.js monta esta barra, e TODAS as
-     telas do app do aluno a usam. Não existe .inicio-bottomnav nem
-     .dt-bottomnav — três implementações voltariam a divergir.
+     Pílula de vidro que flutua ACIMA da área segura (a barrinha de gestos do
+     iPhone fica livre) e se recolhe ao rolar para baixo. Regra em
+     js/barra-retratil.js; marcação em bottomNav(), js/paciente-ui.js.
 
-     A barra é o ÚLTIMO ITEM da coluna flex da casca — não é mais um elemento
-     `fixed`. Dashboard curto, dieta longa, estado vazio, loading ou erro:
-     sempre no fim da casca, que por sua vez ocupa a viewport dinâmica. Foi
-     trocar `fixed` por isto que resolveu a barra parando acima do fim da tela
-     no iOS; o motivo inteiro está no bloco A CASCA.
+     `absolute` dentro da casca, não `fixed` na janela: a casca já é fixed e
+     ancorada à viewport certa (bloco A CASCA, que resolveu o iOS em set/26).
+     Dentro dela, absolute = fixed — sem herdar o erro de régua.
 
-     Safe-area UMA vez, aqui, e SÓ como padding interno de baixo: é o que faz o
-     rótulo parar logo acima do indicador Home em vez de embaixo dele.
+     O VIDRO FOI TIRADO EM SETEMBRO POR UM MOTIVO: o WebView do Android, quando
+     o conteúdo muda de altura embaixo, reaproveitava a camada do blur e
+     desenhava a barra no lugar antigo. Voltou por decisão do Eduardo, com
+     teste obrigatório no Android. Se o defeito reaparecer, a reversão é UMA
+     linha: tirar o backdrop-filter (o desenho continua o mesmo, chapado).
 
-     A altura NÃO é fixa e NÃO é pedida aqui: é a do item mais a safe-area real
-     do aparelho, e só. Nada de 120/130/150px chumbado, que seria certo num
-     modelo e errado em todos os outros — e nada de `min-height` próprio, que
-     era o que esticava o item além do que ele mede e deixava folga morta
-     embaixo do rótulo. Quem define a altura é quem tem conteúdo: o item. */
-  .pa-bottomnav {
-    flex: 0 0 auto; z-index: 30;
-    display: flex; align-items: stretch;
-    padding-top: 0;
-    padding-bottom: var(--pa-nav-safe);
-    /* Fundo OPACO, sem backdrop-filter. O blur obriga o navegador a compor a
-       barra numa camada própria alimentada pelo que passa atrás dela — e é aí
-       que o WebView do Android, quando o conteúdo troca de altura embaixo de
-       um elemento `fixed`, reaproveita a camada antiga e desenha a barra onde
-       ela estava. Translúcido era enfeite; a barra encostada no fim da tela
-       não é. Um fundo chapado não tem camada para envelhecer. */
-    background: var(--bg-card);
-    border-top: 1px solid var(--line);
+     Contraste no PIOR caso, vidro sobre fundo preto (fundo efetivo #B3B3B3):
+       inativo  --ink                 #1D2939  7,0:1  (14,7:1 sobre branco)
+       ativo    --color-primary-800   #13472F  5,1:1  (4,8:1 sobre a pílula)
+     O cinza (--ink-mute) e o verde (--moss) da barra antiga davam 1,2 e 2,5:1
+     sobre vidro — por isso tons mais escuros. O ativo também não depende só
+     da cor: negrito, ícone mais grosso e a pílula. */
+  :root {
+    --pa-barra-reserva: calc(72px + env(safe-area-inset-bottom, 0px));   /* espaço FIXO embaixo do conteúdo */
+    --pa-barra-h: 64px;                                                    /* para FAB/toast ficarem acima */
   }
-  /* Nada de pseudo-elemento prolongando o fundo para baixo. Eram 80px pintados
-     com a cor da própria barra logo abaixo dela: onde o fim do viewport não
-     coincide com o fim da tela, esses 80px viram uma faixa vazia da cor da
-     barra — exatamente o "menu boiando no meio da tela". A tira do gesto do
-     Android se resolve com viewport-fit=cover no <meta>, que já está lá. */
-  /* O item NÃO tem padding embaixo, e o conteúdo começa no topo
-     (`flex-start`). Centralizar dentro de uma caixa maior que o conteúdo é o
-     que empurrava o rótulo para longe do indicador Home: a folga ia parar
-     TODA embaixo dele, somada à safe-area. O respiro de cima é explícito e
-     mora em --pa-nav-pad-top; embaixo do rótulo só existe a safe-area.
-     `line-height: 1.1` no rótulo pelo mesmo motivo — o 1.55 herdado do body
-     virava ~6px de entrelinha invisível dentro de um texto de uma linha só. */
-  .pa-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px; min-height: var(--pa-nav-item-h); padding: var(--pa-nav-pad-top) 4px 0; background: none; border: none; cursor: pointer; color: var(--ink-mute); font-size: 12px; line-height: 1.1; font-weight: 700; font-family: inherit; transition: color 0.15s; }
-  .pa-nav-item svg { width: 22px; height: 22px; }
-  .pa-nav-item.active { color: var(--moss); }
+  body.pa-barra-recolhida { --pa-barra-h: 0px; }
+
+  .pa-barra {
+    position: absolute; z-index: 30;
+    left: max(12px, env(safe-area-inset-left, 0px));
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    max-width: 560px; margin: 0 auto;
+    display: flex; padding: 0 4px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--surface) 70%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid color-mix(in srgb, var(--surface) 60%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--surface) 85%, transparent),
+      0 0 0 0.5px color-mix(in srgb, var(--color-primary-900) 10%, transparent),
+      0 10px 28px -8px color-mix(in srgb, var(--color-primary-900) 38%, transparent);
+    transition: transform 0.28s cubic-bezier(.22,.61,.36,1);
+  }
+  /* Sem desfoque, ou quem pediu menos transparência/mais contraste: fundo
+     SÓLIDO da superfície. O desenho é o mesmo. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .pa-barra { background: var(--surface); }
+  }
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    .pa-barra { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  }
+  /* Recolhida: sai pela base (os 32px levam a sombra junto). Continua no DOM e
+     na ordem de foco — focar nela pelo teclado a traz de volta. */
+  body.pa-barra-recolhida .pa-barra {
+    transform: translateY(calc(100% + 8px + env(safe-area-inset-bottom, 0px) + 32px));
+    pointer-events: none;
+  }
+  /* Teclado aberto: a barra sai da tela. Presa à viewport de layout, no iPhone
+     ela flutuaria no meio da tela por cima do conteúdo. */
+  body.pa-teclado .pa-barra { display: none; }
+
+  /* A pílula do ativo: UMA, que desliza entre as abas. O trilho tem a largura
+     de uma aba, então translateX(i × 100%) é exatamente "i abas para o lado". */
+  .pa-barra-pilula {
+    position: absolute; top: 0; bottom: 0; left: 4px;
+    width: calc((100% - 8px) / var(--pa-barra-n, 3));
+    transform: translateX(calc(var(--pa-barra-i, 0) * 100%));
+    transition: transform 0.28s cubic-bezier(.22,.61,.36,1), opacity 0.2s;
+    pointer-events: none;
+  }
+  .pa-barra-pilula::before {
+    content: ''; position: absolute; left: 50%; top: 6px;
+    width: 46px; height: 30px; margin-left: -23px; border-radius: 999px;
+    background: color-mix(in srgb, var(--color-primary-600) 16%, transparent);
+  }
+  .pa-barra-pilula.fora { opacity: 0; }   /* tela que não é de nenhuma aba */
+
+  .pa-barra-item {
+    position: relative; flex: 1; min-width: 0; min-height: 56px;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 3px;
+    padding: 10px 2px 8px; background: none; border: none; cursor: pointer;
+    font-family: inherit; color: var(--ink);
+  }
+  .pa-barra-icone { position: relative; display: inline-flex; }
+  .pa-barra-item svg { width: 21px; height: 21px; stroke-width: 1.9; }
+  .pa-barra-rot { font-size: 10.5px; line-height: 1.1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .pa-barra-item.ativo { color: var(--color-primary-800); }
+  .pa-barra-item.ativo svg { stroke-width: 2.4; }
+  .pa-barra-item.ativo .pa-barra-rot { font-weight: 800; }
+  .pa-barra-item:focus-visible { outline: 2px solid var(--color-primary-800); outline-offset: -4px; border-radius: 999px; }
+  .pa-barra-badge {
+    position: absolute; top: -6px; left: 13px; min-width: 16px; height: 16px; padding: 0 4px;
+    border-radius: 999px; background: var(--color-primary-700); color: var(--surface);
+    font-size: 10px; font-weight: 800; line-height: 16px; text-align: center;
+  }
+
+  /* Espaço embaixo do conteúdo: FIXO (mesmo com a barra recolhida), para a
+     página não "saltar" quando ela some e volta. */
+  .pa-shell .pa-main { padding-bottom: var(--pa-barra-reserva); }
+  /* Treino em andamento: a barra de finalizar é a última linha da casca e é
+     ELA que reserva o espaço da barra — o miolo acima dela não precisa. */
+  .pa-shell:has(.pa-finishbar) .pa-main { padding-bottom: 18px; }
+  .pa-shell .pa-finishbar { padding-bottom: var(--pa-barra-reserva); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pa-barra, .pa-barra-pilula { transition: none; }
+  }
   .pa-select { padding: 9px 12px; border: 1px solid var(--hair); border-radius: 10px; background: var(--bg-card); font-size: 13.5px; color: var(--ink); max-width: 100%; }
 
   /* ── Hero: tela inicial do treino do dia ── */
@@ -495,8 +506,8 @@
   /* ══════════════════════════════════════════════════════════════════════
      TREINO EM ANDAMENTO — cabeçalho fixo, cronômetro e barra de finalizar
      ══════════════════════════════════════════════════════════════════════ */
-  /* Altura da topbar (12 + avatar 30 + 12). A da navegação inferior mora lá em
-     cima, junto da própria barra — ver --pa-nav-h. */
+  /* Altura da topbar (12 + avatar 30 + 12). A da barra flutuante mora no bloco
+     BARRA FLUTUANTE — ver --pa-barra-h e --pa-barra-reserva. */
   :root { --pa-top-h: 54px; }
 
   .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
@@ -539,12 +550,11 @@
   @keyframes paPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
   @media (prefers-reduced-motion: reduce) { .pa-cron-dot { animation: none; } }
 
-  /* Barra de finalizar: fica acima do menu inferior, sem cobri-lo. */
-  /* Também item da casca, logo acima da navegação — a marcação já a põe entre
-     o <main> e a barra. Era `fixed` medida por --pa-nav-h + --pa-nav-safe, o
-     que a deixava exposta ao mesmo erro de viewport do iOS que levantava a
-     barra inferior. Em fluxo não há medida para acertar: ela é a penúltima
-     linha da coluna, e a navegação é a última. */
+  /* Barra de finalizar: ÚLTIMO item da coluna da casca (em fluxo, nunca
+     `fixed` — o mesmo erro de viewport do iOS a levantaria). A barra flutuante
+     passa POR CIMA da base da casca, então é a finishbar que reserva o espaço
+     dela (--pa-barra-reserva, no bloco BARRA FLUTUANTE): o botão fica acima da
+     barra, nunca embaixo. */
   .pa-finishbar { flex: 0 0 auto; z-index: 25;
     background: linear-gradient(to top, var(--background) 62%, color-mix(in srgb, var(--background) 0%, transparent)); pointer-events: none; }
   /* Mesma coluna dos cards, pelo mesmo token. Com o <main> em shrink-to-fit e
@@ -929,6 +939,7 @@
 <!-- Documentos: a subtela do Início e o bloco que a anuncia lá. Depois de
      pwa-inicio.css, porque .in-doc e .in-atalho-n entram no Início. -->
 <link rel="stylesheet" href="css/pwa-documentos.css">
+<link rel="stylesheet" href="css/pwa-agenda.css">
 </head>
 <body>
   <div id="app">

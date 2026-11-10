@@ -267,12 +267,14 @@ grupo('etapa 3 · permissões no frontend', () => {
        'não se busca dado para depois escondê-lo');
   });
 
-  teste('as rotas protegidas são usuarios e financeiro', () => {
+  teste('as rotas protegidas são usuarios, financeiro e agenda de treino', () => {
     // Equipe e os demais módulos ainda não entraram: escondê-los é decisão
     // própria de cada um, com a RLS dele conferida antes.
     const i = HTMLC.indexOf('const EXIGE_PERMISSAO');
     const bloco = HTMLC.slice(i, HTMLC.indexOf('}', i) + 1);
-    igual((bloco.match(/:/g) || []).length, 2, 'duas rotas protegidas');
+    // A agenda de treino nasceu com RLS por agenda.visualizar (db/agenda_treino.sql).
+    igual((bloco.match(/:/g) || []).length, 3, 'três rotas protegidas');
+    contem(bloco, "'agenda-treino': 'agenda.visualizar'");
     contem(bloco, "usuarios: 'usuarios.visualizar'");
     contem(bloco, "financeiro: 'financeiro.visualizar'");
   });

@@ -458,6 +458,9 @@ export function drawerHtml({ assinatura, cobrancas = [], hoje, mostrarCanceladas
       ${cabecalhoHtml(assinatura, hoje)}
       <div class="cm-drawer-corpo">
         ${assinaturaHtml(assinatura, hoje)}
+        ${/* Horários fixos na agenda de treino: js/agenda-fixos-ui.js preenche
+              depois de desenhar, e some se a academia não tem grade. */''}
+        <div data-agenda-fixos></div>
         ${renovacaoProgramadaHtml(assinatura, planos)}
         ${cobrancaAbertaHtml(aberta, hoje)}
         ${observacoesHtml(assinatura)}
@@ -813,6 +816,9 @@ export async function abrirDrawerCliente({ assinatura, aoMudar }) {
       fundo.innerHTML = drawerHtml({ assinatura, cobrancas, hoje, mostrarCanceladas, planos });
       window.renderIcons?.();
       ligar();
+      import('./agenda-fixos-ui.js')
+        .then(m => m.montarFixosNoDrawer(fundo, assinatura))
+        .catch(e => console.error('Comercial · horários na agenda:', e));
     };
 
     /**
