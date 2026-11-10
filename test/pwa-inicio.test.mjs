@@ -702,10 +702,12 @@ grupo('início · a casca e a barra flutuante', () => {
   teste('flutua acima da área segura, afastada das bordas, com teto de largura', () => {
     // Largura EXPLÍCITA (10/11/2026): só com left/right o iPhone mediu a barra
     // pelo conteúdo — curta e encostada à esquerda.
-    contem(corpoBarra, 'left: 0; right: 0;');
+    // Depois, centralizada mas com ~64%: min()/max()/env() na horizontal saem.
+    contem(corpoBarra, 'left: 12px; right: 12px;');
     contem(corpoBarra, 'width: calc(100% - 24px);');
-    contem(corpoBarra, 'width: min(560px, calc(100% - 2 * max(12px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px))));');
     contem(corpoBarra, 'margin: 0 auto;');
+    const horizontal = corpoBarra.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter(l => /^\s*(left|right|width):/.test(l)).join('\n');
+    ok(!/min\(|max\(|env\(/.test(horizontal), 'largura sem min/max/env');
     contem(corpoBarra, 'bottom: calc(8px + env(safe-area-inset-bottom, 0px))');
     contem(corpoBarra, 'max-width: 560px');
     contem(corpoBarra, 'border-radius: 999px');
