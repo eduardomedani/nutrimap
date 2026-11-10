@@ -402,6 +402,13 @@ grupo('início · a casca entrega matéria-prima, o módulo faz a conta', () => 
     ok(nav.includes("'dieta'"), 'Dieta continua na barra');
   });
 
+  teste('a Agenda vem logo depois do Início (Início | Agenda | Treino | Dieta)', () => {
+    const nav = casca.slice(casca.indexOf('function abasDaBarra'), casca.indexOf('function bottomNav'));
+    const pos = ['inicio', 'agenda', 'treino', 'dieta'].map(s => nav.indexOf(`['${s}'`));
+    ok(pos.every(p => p > 0), 'as quatro abas estão na lista');
+    igual([...pos].sort((a, b) => a - b), pos, 'nessa ordem');
+  });
+
   teste('o app abre no Início', () => {
     contem(casca, "let _secao    = 'inicio'");
     contem(casca, 'renderInicio();');
@@ -693,8 +700,12 @@ grupo('início · a casca e a barra flutuante', () => {
 
   // ── A BARRA FLUTUANTE (pedido de 10/11/2026) ──
   teste('flutua acima da área segura, afastada das bordas, com teto de largura', () => {
-    contem(corpoBarra, 'left: max(12px, env(safe-area-inset-left, 0px))');
-    contem(corpoBarra, 'right: max(12px, env(safe-area-inset-right, 0px))');
+    // Largura EXPLÍCITA (10/11/2026): só com left/right o iPhone mediu a barra
+    // pelo conteúdo — curta e encostada à esquerda.
+    contem(corpoBarra, 'left: 0; right: 0;');
+    contem(corpoBarra, 'width: calc(100% - 24px);');
+    contem(corpoBarra, 'width: min(560px, calc(100% - 2 * max(12px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px))));');
+    contem(corpoBarra, 'margin: 0 auto;');
     contem(corpoBarra, 'bottom: calc(8px + env(safe-area-inset-bottom, 0px))');
     contem(corpoBarra, 'max-width: 560px');
     contem(corpoBarra, 'border-radius: 999px');

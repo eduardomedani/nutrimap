@@ -410,10 +410,17 @@
 
   .pa-barra {
     position: absolute; z-index: 30;
-    left: max(12px, env(safe-area-inset-left, 0px));
-    right: max(12px, env(safe-area-inset-right, 0px));
+    /* Largura EXPLÍCITA, e não só left/right: no iPhone (10/11/2026) a barra
+       saiu do tamanho do conteúdo, encostada à esquerda e curta na direita.
+       left/right 0 + margin auto centraliza; a largura é a tela menos 12px de
+       cada lado (ou a área segura, se maior), até 560px. A primeira linha é o
+       piso para WebView sem min()/max(). */
+    left: 0; right: 0;
     bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    width: calc(100% - 24px);
+    width: min(560px, calc(100% - 2 * max(12px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px))));
     max-width: 560px; margin: 0 auto;
+    box-sizing: border-box;
     display: flex; padding: 0 4px;
     border-radius: 999px;
     background: color-mix(in srgb, var(--surface) 70%, transparent);

@@ -942,8 +942,9 @@ let _pilulaAntes = -1;   // aba acesa na tela anterior: a pílula desliza dela a
 function abasDaBarra() {
   return [
     ['inicio', 'house', 'Início'],
-    ['treino', 'dumbbell', 'Treino'],
+    // Logo depois do Início (pedido do Eduardo, 10/11/2026).
     ...(_agendaAtiva ? [['agenda', 'calendar-days', 'Agenda']] : []),
+    ['treino', 'dumbbell', 'Treino'],
     ['dieta', 'salad', 'Dieta'],
   ];
 }
