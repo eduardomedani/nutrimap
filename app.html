@@ -347,6 +347,33 @@
   .pa-logout { background: none; border: none; color: var(--ink-mute); cursor: pointer; padding: 6px; display: flex; border-radius: 8px; }
   .pa-logout:hover { background: var(--bg-warm); color: var(--ink); }
   .pa-logout svg { width: 19px; height: 19px; }
+  /* Área de toque de 44×44 (o ícone continua 19px). */
+  .pa-topuser .pa-logout { min-width: 44px; min-height: 44px; align-items: center; justify-content: center; border-radius: 12px; }
+
+  /* Menu do perfil (10/11/2026): o avatar abre o nome e o "Sair". */
+  .pa-perfil { position: relative; }
+  .pa-avatar-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; padding: 0; border: none; border-radius: 50%;
+    background: none; cursor: pointer; font-family: inherit;
+  }
+  .pa-avatar-btn .pa-avatar { width: 32px; height: 32px; }
+  .pa-avatar-btn:focus-visible { outline: 2px solid var(--color-primary-800); outline-offset: -2px; }
+  .pa-perfil-menu {
+    position: absolute; right: 0; top: calc(100% + 6px); z-index: 40;
+    min-width: 200px; padding: 8px; border-radius: 14px;
+    background: var(--surface); border: 1px solid var(--line);
+    box-shadow: 0 12px 32px -10px color-mix(in srgb, var(--color-primary-900) 35%, transparent);
+  }
+  .pa-perfil-menu[hidden] { display: none; }
+  .pa-perfil-nome { margin: 0; padding: 8px 10px 10px; font-size: 14px; font-weight: 800; color: var(--ink); border-bottom: 1px solid var(--line); }
+  .pa-perfil-item {
+    display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; margin-top: 6px;
+    padding: 0 10px; border: none; border-radius: 10px; background: none; cursor: pointer;
+    font-family: inherit; font-size: 14.5px; font-weight: 700; color: var(--ink); text-align: left;
+  }
+  .pa-perfil-item:hover, .pa-perfil-item:focus-visible { background: var(--bg-warm); outline: none; }
+  .pa-perfil-item svg { width: 18px; height: 18px; color: var(--ink-soft); }
 
 
   /* ══════════════════════════════════════════════════════════════════════

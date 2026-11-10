@@ -1097,11 +1097,33 @@ function ligarShell() {
   // viewport vem maior que a tela. Ver o bloco A CASCA em app.html.
   document.body.classList.add('pa-app');
   document.getElementById('paLogout')?.addEventListener('click', logout);
+  ligarPerfil();
   ligarBarra();
   // Toda tela nova é troca de rota: a barra volta a aparecer.
   ligarBarraRetratil({ obterRolador: rolador });
   mostrarBarra();
   conferirAgenda();
+}
+
+// Menu do perfil (avatar): abre/fecha no toque, fecha com Esc ou toque fora.
+function ligarPerfil() {
+  const btn = document.getElementById('paPerfil');
+  const menu = document.getElementById('paPerfilMenu');
+  if (!btn || !menu) return;
+  const fechar = () => {
+    menu.hidden = true; btn.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('click', fora, true);
+    document.removeEventListener('keydown', tecla);
+  };
+  const fora = e => { if (!menu.contains(e.target) && e.target !== btn) fechar(); };
+  const tecla = e => { if (e.key === 'Escape') { fechar(); btn.focus(); } };
+  btn.addEventListener('click', () => {
+    if (!menu.hidden) { fechar(); return; }
+    menu.hidden = false; btn.setAttribute('aria-expanded', 'true');
+    document.addEventListener('click', fora, true);
+    document.addEventListener('keydown', tecla);
+    menu.querySelector('[role="menuitem"]')?.focus();
+  });
 }
 
 function irParaTreino() {
@@ -1143,6 +1165,10 @@ function brutoDoTreino() {
     treinadoHoje,
     exercicios: dia ? contarDia(dia) : 0,
     grupos: dia ? gruposDoDia(dia).slice(0, 2).join(' · ') : '',
+    // Card "Treino de hoje": a MESMA estimativa da tela do treino, e o
+    // "Continuar treino" quando o cronômetro desse dia está rodando.
+    minutos: dia && !treinadoHoje ? resumoDia(dia).minutos : 0,
+    emAndamento: dia ? cronAtivo(dia) : false,
     sequencia: calcSequencia(),
     recordes: calcRecordes(),
     datasTreinadas: datasTreinadas(),
@@ -1184,6 +1210,7 @@ function irParaSecao(sec) {
   if (sec === 'dieta') renderDieta();
   else if (sec === 'treino') irParaTreino();
   else if (sec === 'documentos') renderDocumentos();
+  else if (sec === 'agenda') renderAgenda();
 }
 
 // Seção Documentos — subtela do Início, não uma quarta aba.
@@ -2444,10 +2471,17 @@ function topo() {
     <header class="pa-topbar">
       <div class="pa-topbrand evo-logo evo-logo--sm"><span class="evo-logo-mark" aria-hidden="true">E</span><span class="evo-logo-name">Evollo</span></div>
       <div class="pa-topuser">
-        <span class="pa-avatar">${esc(inicial)}</span>
-        <span class="pa-username">${esc(nome.split(' ')[0])}</span>
         ${pushSuportado() ? `<button class="pa-logout" data-push-toggle title="Notificações" aria-label="Ativar ou desativar notificações"><i data-lucide="${pushAtivo() ? 'bell-ring' : 'bell'}"></i></button>` : ''}
-        <button class="pa-logout" id="paLogout" title="Sair"><i data-lucide="log-out"></i></button>
+        ${/* O nome saiu do topo (a saudação já diz) e o "Sair" foi para o
+              menu do perfil: sair é raro, e um ícone solto ao lado das
+              notificações era toque acidental esperando para acontecer. */''}
+        <div class="pa-perfil">
+          <button class="pa-avatar-btn" type="button" id="paPerfil" aria-haspopup="menu" aria-expanded="false" aria-controls="paPerfilMenu" aria-label="Perfil de ${esc(nome)}"><span class="pa-avatar" aria-hidden="true">${esc(inicial)}</span></button>
+          <div class="pa-perfil-menu" id="paPerfilMenu" role="menu" hidden>
+            <p class="pa-perfil-nome">${esc(nome)}</p>
+            <button class="pa-perfil-item" type="button" role="menuitem" id="paLogout"><i data-lucide="log-out"></i> Sair</button>
+          </div>
+        </div>
       </div>
     </header>`;
 }

@@ -18,7 +18,7 @@ import {
 import {
   paraCartao, ordenar, agruparPorAno, resumoParaInicio, dataPorExtenso,
 } from '../js/pwa-documentos-data.js';
-import { documentosHtml, atalhosHtml, inicioHtml, rotuloDocumentos } from '../js/pwa-inicio-ui.js';
+import { documentosHtml, inicioHtml, rotuloDocumentos } from '../js/pwa-inicio-ui.js';
 
 const css   = readFileSync(new URL('../css/pwa-documentos.css', import.meta.url), 'utf8');
 const ui    = readFileSync(new URL('../js/pwa-documentos-ui.js', import.meta.url), 'utf8');
@@ -340,7 +340,7 @@ grupo('pwa documentos · o bloco no Início', () => {
     igual((h.match(/in-doc-tit/g) || []).length, 0);
   });
 
-  teste('sem novidade, o acesso persiste — discreto, no Acesso rápido', () => {
+  teste('sem novidade, o acesso persiste — discreto, numa linha no fim', () => {
     const h = inicioHtml({ documentos: { total: 8, novos: 0 }, temTreino: true });
     naoContem(h, 'in-doc-tag', 'sem novidade não há cartão contextual');
     contem(h, 'data-ir="documentos"');
@@ -359,28 +359,24 @@ grupo('pwa documentos · o bloco no Início', () => {
     contem(documentosHtml({ novos: 2 }), '2 novos documentos');
   });
 
-  teste('o cartão vem depois de refeição e treino, antes do progresso', () => {
-    // Os marcadores são os RÓTULOS que as seções realmente emitem, não nomes
-    // de classe supostos: `progressoHtml` escreve "Seu progresso" sob .in-t, e
-    // procurar uma classe que não existe faz a asserção passar por engano no
-    // dia em que a ordem quebrar.
+  teste('o cartão vem depois de treino e alimentação, antes da semana', () => {
+    // Marcadores = os RÓTULOS que as seções emitem de verdade.
     const h = inicioHtml({
-      documentos: { total: 2, novos: 2 }, temTreino: true, temDieta: true,
-      treino: { dia: { nome: 'A' }, feito: false },
-      refeicao: { nome: 'Almoço', horario: '12:00' },
+      documentos: { total: 2, novos: 2 }, temTreino: true,
+      treino: { dia: 'A', feito: false },
+      dieta: { nome: 'Plano', refeicoes: 4, proxima: { nome: 'Almoço', horario: '12:00' } },
+      hoje: '2026-08-06',
     });
-    const iHero = h.indexOf('in-hero');
-    const iRefeicao = h.indexOf('Próxima refeição');
-    const iTreino = h.indexOf('Treino do dia');
+    const iOla = h.indexOf('in-ola');
+    const iTreino = h.indexOf('Treino de hoje');
+    const iDieta = h.indexOf('Sua alimentação');
     const iDoc = h.indexOf('in-doc');
-    const iProg = h.indexOf('Seu progresso');
-
-    ok(iHero > -1 && iDoc > -1 && iProg > -1, 'as três seções têm que estar na tela');
-    ok(iHero < iDoc, 'a saudação vem primeiro');
-    // O que o paciente abriu o app para ver às 7h continua acima do exame.
-    ok(iRefeicao > -1 && iRefeicao < iDoc, 'a próxima refeição vem antes');
-    ok(iTreino > -1 && iTreino < iDoc, 'o treino do dia vem antes');
-    ok(iDoc < iProg, 'e o cartão fica acima do progresso');
+    const iSemana = h.indexOf('Sua semana');
+    ok([iOla, iTreino, iDieta, iDoc, iSemana].every(x => x > -1), 'todas as seções têm que estar na tela');
+    ok(iOla < iTreino && iTreino < iDieta, 'saudação, treino, alimentação');
+    // O que o aluno abriu o app para ver continua acima do exame.
+    ok(iDieta < iDoc, 'o cartão do documento vem depois da alimentação');
+    ok(iDoc < iSemana, 'e antes da semana');
   });
 
   teste('a contagem sai de UMA leitura, não de uma consulta por documento', () => {

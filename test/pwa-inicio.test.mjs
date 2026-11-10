@@ -16,8 +16,9 @@ import {
   formatarConsulta, formatarMeta, diasAte,
 } from '../js/pwa-inicio-data.js';
 import {
-  inicioHtml, hojeHtml, progressoHtml, atalhosHtml, linhaHoje, dataLonga, montarDados,
-  metasHtml, renderInicioPaciente,
+  inicioHtml, dataLonga, montarDados, metasHtml, renderInicioPaciente,
+  treinoHojeHtml, alimentacaoHtml, semanaHtml, diasDaSemana, metaSemanal,
+  proximaAula, proximaAulaHtml, planoHtml, resumoDaDieta, consultaHtml,
 } from '../js/pwa-inicio-ui.js';
 
 const css = readFileSync(new URL('../css/pwa-inicio.css', import.meta.url), 'utf8');
@@ -132,55 +133,349 @@ grupo('início · o treino do dia', () => {
 grupo('início · a tela', () => {
   const DADOS = {
     saudacao: 'Bom dia', nome: 'Eduardo', hoje: '2026-08-06',
-    refeicao: { nome: 'Almoço', horario: '12:00', amanha: false },
-    treino: { dia: 'E', feito: false, proximo: null },
-    exercicios: 7, grupos: 'Peito · Tríceps',
-    sequencia: 3, recordes: 2, semana: 4,
-    temTreino: true, temDieta: true,
+    treino: { dia: 'E', feito: false, proximo: null }, temTreino: true,
+    exercicios: 7, grupos: 'Peito · Tríceps', minutos: 55,
+    dieta: { nome: 'Plano de agosto', refeicoes: 5, proxima: { nome: 'Almoço', horario: '12:00', amanha: false } },
+    datasTreinadas: ['2026-08-03', '2026-08-05'], semana: 2, sequencia: 3, recordes: 2,
   };
   const html = inicioHtml(DADOS);
 
-  teste('cumprimenta pelo primeiro nome', () => {
+  teste('cumprimenta pelo primeiro nome, com a data por extenso e sem o ano', () => {
     contem(html, 'Bom dia, Eduardo');
-  });
-
-  teste('a data aparece por extenso, sem o ano', () => {
-    contem(html, 'Quinta');
+    contem(html, 'Quinta-feira, 6 de agosto');
     naoContem(html, '2026');
   });
 
-  teste('a próxima refeição aparece com nome e hora', () => {
-    contem(html, 'Próxima refeição');
-    contem(html, 'Almoço · 12:00');
+  teste('ordem: saudação, treino, alimentação, semana', () => {
+    const pos = ['in-ola', 'Treino de hoje', 'Sua alimentação', 'Sua semana'].map(s => html.indexOf(s));
+    ok(pos.every(p => p > -1), 'todas as seções aparecem');
+    igual([...pos].sort((a, b) => a - b), pos);
   });
 
-  teste('o treino do dia aparece com o que tem dentro', () => {
-    contem(html, 'Treino do dia');
+  teste('treino de hoje: nome, grupos, exercícios, tempo e "Iniciar treino"', () => {
     contem(html, 'Treino E');
-    contem(html, '7 exercícios');
+    contem(html, '<span class="in-nq">Peito · Tríceps</span> · <span class="in-nq">7 exercícios</span> · <span class="in-nq">≈ 55 min</span>');
+    contem(html, '<button class="in-btn in-btn-pri" type="button" data-ir="treino">');
+    contem(html, 'Iniciar treino');
   });
 
-  teste('cada linha do bloco Hoje é um botão que leva a algum lugar', () => {
-    // Uma <div> com onclick não se anuncia como navegável para o leitor de tela.
-    contem(html, '<button class="in-linha" type="button" data-ir="dieta"');
-    contem(html, '<button class="in-linha" type="button" data-ir="treino"');
+  teste('alimentação: nome do plano, próxima refeição e "Ver dieta"', () => {
+    contem(html, 'Plano de agosto');
+    contem(html, 'Almoço · 12:00');
+    contem(html, '5 refeições no plano');
+    contem(html, 'data-ir="dieta"');
   });
 
   teste('NADA de água, check-in, peso ou aderência', () => {
-    // Nenhum dos quatro existe no banco. Enquanto não existir, a tela não
-    // finge que existe — nem com traço, nem com zero, nem com "em breve".
-    for (const proibido of ['Água', 'gua:', 'Check-in', 'check-in', 'Registrar peso', 'Aderência', 'em breve']) {
+    for (const proibido of ['Água', 'gua:', 'Check-in', 'check-in', 'Registrar peso', 'Aderência', 'em breve', 'kcal']) {
       naoContem(html, proibido);
     }
   });
 
-  teste('sem consulta agendada, a linha não existe', () => {
-    // `null` é resposta legítima do RPC: não há consulta marcada.
+  teste('sem consulta, sem metas, sem agenda e sem plano: esses blocos não existem', () => {
     naoContem(html, 'Próxima consulta');
+    naoContem(html, 'Suas metas');
+    naoContem(html, 'Próxima aula');
+    naoContem(html, 'Meu plano');
   });
 
-  teste('sem metas, a seção inteira não existe', () => {
-    naoContem(html, 'Suas metas');
+  teste('o grande "Nada programado ainda" saiu', () => {
+    naoContem(inicioHtml({ saudacao: 'Oi', treino: null, dieta: null }), 'Nada programado ainda');
+  });
+});
+
+grupo('início · treino de hoje', () => {
+  const base = { treino: { dia: 'B', feito: false }, temTreino: true };
+  teste('em andamento: "Continuar treino" e selo', () => {
+    const h = treinoHojeHtml({ ...base, emAndamento: true });
+    contem(h, 'Continuar treino');
+    contem(h, 'Em andamento');
+  });
+  teste('concluído: estado claro e botão secundário "Ver treino"', () => {
+    const h = treinoHojeHtml({ treino: { dia: 'B', feito: true, proximo: 'C' }, temTreino: true });
+    contem(h, 'Concluído');
+    contem(h, 'Treino de hoje concluído');
+    contem(h, 'Próximo: Treino C');
+    contem(h, 'in-btn-sec');
+    naoContem(h, 'Iniciar treino');
+  });
+  teste('sem treino publicado: o card fica, com a mensagem e SEM botão', () => {
+    const h = treinoHojeHtml({ treino: null, temTreino: false });
+    contem(h, 'Seu profissional está preparando seu treino.');
+    naoContem(h, '<button');
+  });
+  teste('carregando: esqueleto, não "sem treino"', () => {
+    const h = treinoHojeHtml({ treino: null, carregando: true });
+    contem(h, 'in-sk');
+    naoContem(h, 'preparando');
+  });
+});
+
+grupo('início · sua alimentação', () => {
+  teste('sem dieta publicada: mensagem e nenhum botão', () => {
+    const h = alimentacaoHtml(null);
+    contem(h, 'Seu profissional está preparando seu plano alimentar.');
+    naoContem(h, '<button');
+  });
+  teste('carregando: esqueleto', () => contem(alimentacaoHtml(undefined), 'in-sk'));
+  teste('falhou: diz que não carregou, não que não existe', () => {
+    const h = alimentacaoHtml('falhou');
+    contem(h, 'Não foi possível carregar sua alimentação');
+    naoContem(h, 'preparando');
+  });
+  teste('depois da última refeição, anuncia a primeira de amanhã', () => {
+    contem(alimentacaoHtml({ nome: 'P', refeicoes: 3, proxima: { nome: 'Café', horario: '07:00', amanha: true } }), 'Primeira refeição de amanhã');
+  });
+  teste('plano sem horários: sem "próxima", mas com "Ver dieta"', () => {
+    const h = alimentacaoHtml(resumoDaDieta({ plano: { nome: 'P' }, refeicoes: [{ id: 'x', nome: 'Ceia', horario: null }] }, '10:00'));
+    naoContem(h, 'Próxima refeição');
+    contem(h, 'Ver dieta');
+    contem(h, '1 refeição no plano');
+  });
+});
+
+grupo('início · sua semana', () => {
+  teste('sete dias, segunda a domingo, com hoje e futuros marcados', () => {
+    const d = diasDaSemana(['2026-08-03', '2026-08-05'], '2026-08-06');
+    igual(d.map(x => x.inicial).join(''), 'STQQSSD');
+    igual(d.filter(x => x.feito).map(x => x.data), ['2026-08-03', '2026-08-05']);
+    igual(d.find(x => x.hoje).data, '2026-08-06');
+    igual(d.filter(x => x.futuro).length, 3);
+  });
+  teste('dia futuro não é falta', () => {
+    const h = semanaHtml({ datas: [], hoje: '2026-08-06', semana: 0 });
+    igual((h.match(/class="in-dia futuro"/g) || []).length, 3);
+    // só os dias que já passaram (ou hoje) dizem "sem treino"
+    igual((h.match(/sem treino/g) || []).length, 4);
+  });
+  teste('meta semanal só se o profissional cadastrou', () => {
+    contem(semanaHtml({ datas: ['2026-08-03'], hoje: '2026-08-06', semana: 1, meta: 3 }), '1 de 3 treinos');
+    contem(semanaHtml({ datas: ['2026-08-03'], hoje: '2026-08-06', semana: 1 }), '1 treino');
+    igual(metaSemanal([{ tipo: 'frequencia_treino', valor_alvo: 4 }]), 4);
+    igual(metaSemanal([{ tipo: 'peso', valor_alvo: 70 }]), null);
+  });
+  teste('sequência e recordes: discretos e só quando > 0 (nada de cards zerados)', () => {
+    const zero = semanaHtml({ datas: [], hoje: '2026-08-06', sequencia: 0, recordes: 0 });
+    naoContem(zero, 'seguido');
+    naoContem(zero, 'recorde');
+    const com = semanaHtml({ datas: [], hoje: '2026-08-06', sequencia: 3, recordes: 1 });
+    contem(com, '3 dias seguidos');
+    contem(com, '1 recorde');
+  });
+  teste('carregando: esqueleto, não "0 treinos"', () => {
+    const h = semanaHtml({ hoje: '2026-08-06', carregando: true });
+    contem(h, 'in-sk-num');
+    naoContem(h, '0 treinos');
+  });
+});
+
+grupo('início · próxima aula e meu plano', () => {
+  const sem = { horarios: [
+    { grade_id: 'a', data: '2026-11-10', hora: '06:00', duracao_min: 60, meu: 'fixo', modalidade: 'Musculação' },
+    { grade_id: 'b', data: '2026-11-12', hora: '18:00', duracao_min: 60, meu: 'reserva', modalidade: 'Musculação' },
+    { grade_id: 'c', data: '2026-11-11', hora: '07:00', duracao_min: 60, meu: null },
+  ] };
+  teste('a próxima é a primeira marcada que ainda não começou', () => {
+    igual(proximaAula([sem], '2026-11-10T10:00:00').grade_id, 'b');
+    igual(proximaAula([sem], '2026-11-10T05:00:00').grade_id, 'a');
+    igual(proximaAula([sem], '2026-11-13T00:00:00'), null);
+  });
+  teste('com aula: data, horário, presencial e acesso à agenda', () => {
+    const h = proximaAulaHtml({ aula: proximaAula([sem], '2026-11-10T10:00:00'), podeAgendar: true, hoje: '2026-11-10' });
+    contem(h, 'Quinta-feira, 12/11 · 18:00–19:00');
+    contem(h, 'Aula presencial');
+    contem(h, 'data-ir="agenda"');
+  });
+  teste('sem aula e podendo agendar: "Agendar aula"; sem poder: nada', () => {
+    contem(proximaAulaHtml({ aula: null, podeAgendar: true }), 'Agendar aula');
+    igual(proximaAulaHtml({ aula: null, podeAgendar: false }), '');
+    igual(proximaAulaHtml(null), '');
+  });
+  teste('meu plano: um card com plano, disponíveis e validade', () => {
+    const h = planoHtml({ ativo: true, plano: 'Mensal 3x', inicio: '2026-10-27', fim: '2026-12-10', feitas: 7, disponiveis: 15 }, '2026-11-10');
+    contem(h, 'Meu plano');
+    contem(h, 'Mensal 3x');
+    contem(h, '15 aulas disponíveis · 7 feitas');
+    contem(h, 'Válido até 10/12 · 30 dias restantes');
+    contem(h, 'data-ir="agenda"');
+  });
+  teste('dias restantes contam até a DATA DE VALIDADE mostrada', () => {
+    const r = { ativo: true, plano: 'P', inicio: '2026-11-01', fim: '2026-11-30', feitas: 0, disponiveis: 1 };
+    contem(planoHtml(r, '2026-11-29'), 'termina amanhã');
+    contem(planoHtml(r, '2026-11-30'), 'último dia');
+    contem(planoHtml(r, '2026-12-01'), 'vencido');
+    contem(planoHtml(r, '2026-11-01'), '29 dias restantes');
+  });
+  teste('o plano vem DEPOIS de treino, dieta e agenda', () => {
+    const h = inicioHtml({
+      hoje: '2026-11-10', treino: { dia: 'A' }, temTreino: true, dieta: null,
+      agenda: { aula: null, podeAgendar: true },
+      plano: { ativo: true, plano: 'P', fim: '2026-12-10', feitas: 1, disponiveis: 2 },
+    });
+    ok(h.indexOf('Próxima aula') < h.indexOf('Meu plano'));
+    ok(h.indexOf('Sua alimentação') < h.indexOf('Próxima aula'));
+  });
+});
+
+grupo('início · a casca entrega matéria-prima, o módulo faz a conta', () => {
+  teste('montarDados deriva treino do dia e treinos da semana', () => {
+    const d = montarDados({
+      saudacao: 'Boa tarde', nome: 'Eduardo', hoje: '2026-08-06',
+      dias: ['A', 'B'], proximo: 'B', treinadoHoje: null, minutos: 50, emAndamento: true,
+      datasTreinadas: ['2026-08-03', '2026-08-05', '2026-07-30'],
+    });
+    igual(d.treino.dia, 'B');
+    igual(d.semana, 2);
+    igual(d.temTreino, true);
+    igual([d.minutos, d.emAndamento], [50, true]);
+  });
+
+  teste('paciente sem treino nenhum não trava a tela', () => {
+    const d = montarDados({ hoje: '2026-08-06', dias: [], datasTreinadas: [] });
+    igual(d.treino, null);
+    igual(d.temTreino, false);
+    igual(d.semana, 0);
+  });
+
+  teste('a casca manda o tempo estimado e o "em andamento" que a tela do treino já calcula', () => {
+    contem(casca, 'minutos: dia && !treinadoHoje ? resumoDia(dia).minutos : 0,');
+    contem(casca, 'emAndamento: dia ? cronAtivo(dia) : false,');
+    contem(casca, "else if (sec === 'agenda') renderAgenda();");
+  });
+
+  teste('o Início é a primeira aba da barra', () => {
+    const nav = casca.slice(casca.indexOf('function abasDaBarra'), casca.indexOf('function bottomNav'));
+    ok(nav.indexOf("'inicio'") < nav.indexOf("'treino'"), 'Início vem antes de Treino na barra');
+    ok(nav.includes("'dieta'"), 'Dieta continua na barra');
+  });
+
+  teste('a Agenda vem logo depois do Início (Início | Agenda | Treino | Dieta)', () => {
+    const nav = casca.slice(casca.indexOf('function abasDaBarra'), casca.indexOf('function bottomNav'));
+    const pos = ['inicio', 'agenda', 'treino', 'dieta'].map(s => nav.indexOf(`['${s}'`));
+    ok(pos.every(p => p > 0), 'as quatro abas estão na lista');
+    igual([...pos].sort((a, b) => a - b), pos, 'nessa ordem');
+  });
+
+  teste('o app abre no Início', () => {
+    contem(casca, "let _secao    = 'inicio'");
+    contem(casca, 'renderInicio();');
+  });
+
+  teste('Início e Treino leem a MESMA carga de dados', () => {
+    contem(casca, 'async function carregarTreino()');
+    ok(casca.split('await meusTreinos(').length === 2, 'meusTreinos é chamado num lugar só');
+  });
+});
+
+grupo('início · o cabeçalho', () => {
+  const topo = casca.slice(casca.indexOf('function topo()'), casca.indexOf('function renderSemTreino'));
+  teste('sem o nome repetido no topo (a saudação já diz)', () => {
+    naoContem(topo, 'pa-username');
+  });
+  teste('"Sair" mora no menu do perfil, aberto pelo avatar', () => {
+    contem(topo, 'id="paPerfil" aria-haspopup="menu" aria-expanded="false"');
+    contem(topo, 'role="menuitem" id="paLogout"');
+    contem(casca, 'function ligarPerfil()');
+  });
+  teste('toques de 44×44 no topo', () => {
+    const shell = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+    contem(shell, '.pa-topuser .pa-logout { min-width: 44px; min-height: 44px;');
+    ok(/\.pa-avatar-btn \{[^}]*width: 44px; height: 44px;/.test(shell), 'avatar 44×44');
+  });
+});
+
+grupo('início · a montagem, com a dieta chegando depois', () => {
+  const alvo = () => ({
+    _html: '',
+    set innerHTML(v) { this._html = v; },
+    get innerHTML() { return this._html; },
+    querySelectorAll: () => [],
+    querySelector: () => null,
+  });
+  const BRUTO = { saudacao: 'Bom dia', nome: 'Eduardo', hoje: '2026-08-06', dias: ['A'], proximo: 'A' };
+  const sem = { carregarConsulta: async () => null, carregarMetas: async () => [], carregarDocumentos: async () => [], carregarPlano: async () => null, carregarAgenda: async () => null };
+  const quieto = async fn => { const e = console.error; console.error = () => {}; try { return await fn(); } finally { console.error = e; } };
+
+  teste('a primeira pintura já mostra o treino, com a dieta em esqueleto', async () => {
+    const cx = alvo();
+    const espera = new Promise(r => setTimeout(r, 0));
+    renderInicioPaciente(cx, BRUTO, { ...sem, carregarDieta: async () => { await espera; return null; } });
+    await Promise.resolve();
+    contem(cx.innerHTML, 'Treino A');
+    contem(cx.innerHTML, 'in-sk');
+  });
+
+  teste('a tela pinta ANTES de o treino chegar', async () => {
+    const cx = alvo();
+    let liberar;
+    const treino = new Promise(r => { liberar = r; });
+    const pronto = renderInicioPaciente(cx, BRUTO, { ...sem, treino, carregarDieta: async () => null });
+    contem(cx.innerHTML, 'Bom dia, Eduardo');
+    contem(cx.innerHTML, 'Treino de hoje');
+    contem(cx.innerHTML, 'in-sk');
+    liberar({ dias: ['A', 'B'], proximo: 'B', datasTreinadas: ['2026-08-05'] });
+    await pronto;
+    contem(cx.innerHTML, 'Treino B');
+    naoContem(cx.innerHTML, 'in-sk');
+  });
+
+  teste('com tudo carregado: dieta, agenda e plano entram nos seus cards', async () => {
+    const cx = alvo();
+    await renderInicioPaciente(cx, { ...BRUTO, hoje: '2026-11-10' }, {
+      ...sem,
+      agora: '08:30',
+      carregarDieta: async () => ({ plano: { nome: 'Plano novo' }, refeicoes: REFEICOES }),
+      carregarPlano: async () => ({ ativo: true, plano: 'Mensal 3x', inicio: '2026-11-01', fim: '2026-12-10', feitas: 4, disponiveis: 12 }),
+      carregarAgenda: async () => ({ semanas: [{ ativo: true, limite: 3, agora: '2026-11-10T08:30:00', horarios: [
+        { grade_id: 'g', data: '2026-11-11', hora: '18:00', duracao_min: 60, meu: 'fixo', modalidade: 'Musculação' }] }] }),
+    });
+    contem(cx.innerHTML, 'Plano novo');
+    contem(cx.innerHTML, 'Almoço · 12:00');
+    contem(cx.innerHTML, 'Amanhã, 11/11 · 18:00–19:00');
+    contem(cx.innerHTML, '12 aulas disponíveis');
+  });
+
+  teste('dieta que falha não derruba o resto — e não diz "preparando"', async () => {
+    const cx = alvo();
+    await quieto(() => renderInicioPaciente(cx, BRUTO, { ...sem, carregarDieta: async () => { throw new Error('rede'); } }));
+    contem(cx.innerHTML, 'Treino A');
+    contem(cx.innerHTML, 'Iniciar treino');
+    contem(cx.innerHTML, 'Não foi possível carregar sua alimentação');
+    naoContem(cx.innerHTML, 'Ver dieta');
+    naoContem(cx.innerHTML, 'in-sk');
+  });
+
+  teste('agenda e plano que falham simplesmente não aparecem', async () => {
+    const cx = alvo();
+    await quieto(() => renderInicioPaciente(cx, BRUTO, {
+      ...sem, carregarDieta: async () => null,
+      carregarPlano: async () => { throw new Error('x'); }, carregarAgenda: async () => { throw new Error('x'); },
+    }));
+    naoContem(cx.innerHTML, 'Meu plano');
+    naoContem(cx.innerHTML, 'Próxima aula');
+    contem(cx.innerHTML, 'Treino A');
+  });
+
+  teste('com TUDO falhando, a tela diz que não carregou — não que não há nada', async () => {
+    const cx = alvo();
+    await quieto(() => renderInicioPaciente(cx, BRUTO, {
+      treino: Promise.reject(new Error('rede')),
+      carregarDieta: async () => { throw new Error('rede'); },
+      carregarConsulta: async () => { throw new Error('rede'); },
+      carregarMetas: async () => { throw new Error('rede'); },
+      carregarDocumentos: async () => [], carregarPlano: async () => null, carregarAgenda: async () => null,
+    }));
+    contem(cx.innerHTML, 'Não foi possível carregar');
+    contem(cx.innerHTML, 'Tentar novamente');
+    naoContem(cx.innerHTML, 'preparando');
+  });
+
+  teste('aluno sem plano alimentar vê o aviso, não o atalho', async () => {
+    const cx = alvo();
+    await renderInicioPaciente(cx, BRUTO, { ...sem, carregarDieta: async () => null });
+    naoContem(cx.innerHTML, 'Ver dieta');
+    contem(cx.innerHTML, 'preparando seu plano alimentar');
+    contem(cx.innerHTML, 'Iniciar treino');
   });
 });
 
@@ -216,12 +511,10 @@ grupo('início · a próxima consulta', () => {
 
   teste('a linha da consulta NÃO é botão — não há tela de consultas', () => {
     // Um botão que não leva a lugar nenhum é promessa que o toque não cumpre.
-    const html = hojeHtml({
-      refeicao: null, treino: null,
-      consulta: { data: '12/08', hora: '14:30', online: false, quando: 'em 6 dias' },
-    });
+    const html = consultaHtml({ data: '12/08', hora: '14:30', online: false, quando: 'em 6 dias' });
     contem(html, 'Próxima consulta');
-    contem(html, 'in-linha-fixa');
+    contem(html, '12/08 · 14:30');
+    contem(html, 'em 6 dias · presencial');
     naoContem(html, '<button');
   });
 });
@@ -307,265 +600,6 @@ grupo('início · a migração não pode vazar nota do profissional', () => {
   });
 });
 
-grupo('início · o que ainda não carregou', () => {
-  teste('a refeição desconhecida vira esqueleto, não linha vazia', () => {
-    const html = hojeHtml({ refeicao: undefined, treino: { dia: 'A', feito: false } });
-    contem(html, 'in-sk');
-    contem(html, 'Próxima refeição');
-  });
-
-  teste('o esqueleto não é clicável nem é anunciado', () => {
-    const html = linhaHoje({ rotulo: 'Próxima refeição', carregando: true });
-    naoContem(html, '<button');
-    contem(html, 'aria-hidden="true"');
-  });
-
-  teste('sem dieta, a linha da refeição simplesmente não existe', () => {
-    // `null` (buscou e não há plano) é diferente de `undefined` (ainda buscando).
-    const html = hojeHtml({ refeicao: null, treino: { dia: 'A', feito: false } });
-    naoContem(html, 'Próxima refeição');
-    contem(html, 'Treino do dia');
-  });
-
-  teste('sem treino e sem dieta, a tela diz isso em vez de ficar vazia', () => {
-    const html = inicioHtml({ saudacao: 'Boa noite', nome: 'Ana', refeicao: null, treino: null });
-    contem(html, 'Nada programado ainda');
-  });
-});
-
-grupo('início · progresso e atalhos', () => {
-  teste('são três números, e todos existem no banco', () => {
-    const html = progressoHtml({ sequencia: 3, recordes: 2, semana: 4 });
-    contem(html, 'Sequência');
-    contem(html, 'Na semana');
-    contem(html, 'Recordes');
-    naoContem(html, 'Peso');
-    naoContem(html, 'Aderência');
-  });
-
-  teste('singular e plural conforme o número', () => {
-    contem(progressoHtml({ sequencia: 1, semana: 1 }), '1 <small>dia</small>');
-    contem(progressoHtml({ sequencia: 1, semana: 1 }), '1 <small>treino</small>');
-    contem(progressoHtml({ sequencia: 2, semana: 3 }), '2 <small>dias</small>');
-    contem(progressoHtml({ sequencia: 2, semana: 3 }), '3 <small>treinos</small>');
-  });
-
-  teste('só entra atalho que chega a uma tela que existe', () => {
-    const html = atalhosHtml({ temTreino: true, temDieta: true });
-    contem(html, 'Iniciar treino');
-    contem(html, 'Ver dieta');
-    naoContem(html, 'Responder check-in');
-    naoContem(html, 'Registrar peso');
-  });
-
-  teste('sem dieta publicada, não se oferece "Ver dieta"', () => {
-    const html = atalhosHtml({ temTreino: true, temDieta: false });
-    contem(html, 'Iniciar treino');
-    naoContem(html, 'Ver dieta');
-  });
-
-  teste('a seção nunca fica vazia — Documentos é permanente', () => {
-    // Antes ela sumia inteira sem treino nem dieta. Agora Documentos é módulo
-    // permanente e sempre ocupa uma linha, então "Acesso rápido" sempre tem
-    // pelo menos um destino de verdade — nada de título sobre o nada.
-    const so = atalhosHtml({ temTreino: false, temDieta: false });
-    contem(so, 'Acesso rápido');
-    contem(so, 'data-ir="documentos"');
-    naoContem(so, 'data-ir="treino"');
-    naoContem(so, 'data-ir="dieta"');
-  });
-});
-
-grupo('início · a casca entrega matéria-prima, o módulo faz a conta', () => {
-  teste('montarDados deriva treino do dia e treinos da semana', () => {
-    const d = montarDados({
-      saudacao: 'Boa tarde', nome: 'Eduardo', hoje: '2026-08-06',
-      dias: ['A', 'B'], proximo: 'B', treinadoHoje: null,
-      datasTreinadas: ['2026-08-03', '2026-08-05', '2026-07-30'],
-    });
-    igual(d.treino.dia, 'B');
-    igual(d.semana, 2);
-    igual(d.temTreino, true);
-  });
-
-  teste('paciente sem treino nenhum não trava a tela', () => {
-    const d = montarDados({ hoje: '2026-08-06', dias: [], datasTreinadas: [] });
-    igual(d.treino, null);
-    igual(d.temTreino, false);
-    igual(d.semana, 0);
-  });
-
-  teste('o Início é a terceira aba, e a primeira da barra', () => {
-    // Conferido no fonte da casca porque `bottomNav` não é exportada.
-    const nav = casca.slice(casca.indexOf('function abasDaBarra'), casca.indexOf('function bottomNav'));
-    ok(nav.indexOf("'inicio'") < nav.indexOf("'treino'"), 'Início vem antes de Treino na barra');
-    ok(nav.includes("'dieta'"), 'Dieta continua na barra');
-  });
-
-  teste('a Agenda vem logo depois do Início (Início | Agenda | Treino | Dieta)', () => {
-    const nav = casca.slice(casca.indexOf('function abasDaBarra'), casca.indexOf('function bottomNav'));
-    const pos = ['inicio', 'agenda', 'treino', 'dieta'].map(s => nav.indexOf(`['${s}'`));
-    ok(pos.every(p => p > 0), 'as quatro abas estão na lista');
-    igual([...pos].sort((a, b) => a - b), pos, 'nessa ordem');
-  });
-
-  teste('o app abre no Início', () => {
-    contem(casca, "let _secao    = 'inicio'");
-    contem(casca, 'renderInicio();');
-  });
-
-  teste('Início e Treino leem a MESMA carga de dados', () => {
-    // Duas buscas separadas viram duas verdades no dia em que uma mudar.
-    contem(casca, 'async function carregarTreino()');
-    ok(casca.split('await meusTreinos(').length === 2, 'meusTreinos é chamado num lugar só');
-  });
-});
-
-grupo('início · a montagem, com a dieta chegando depois', () => {
-  // Alvo de mentira: só precisa guardar o innerHTML e não ter filhos.
-  const alvo = () => ({
-    _html: '',
-    set innerHTML(v) { this._html = v; },
-    get innerHTML() { return this._html; },
-    querySelectorAll: () => [],
-    querySelector: () => null,
-  });
-  const BRUTO = { saudacao: 'Bom dia', nome: 'Eduardo', hoje: '2026-08-06', dias: ['A'], proximo: 'A' };
-
-  teste('a primeira pintura já mostra o treino, com a refeição em esqueleto', async () => {
-    const cx = alvo();
-    const espera = new Promise(r => setTimeout(r, 0));
-    renderInicioPaciente(cx, BRUTO, { carregarDieta: async () => { await espera; return null; } });
-    await Promise.resolve();
-    contem(cx.innerHTML, 'Treino A');
-    contem(cx.innerHTML, 'in-sk');
-  });
-
-  teste('a tela pinta ANTES de o treino chegar', async () => {
-    // O app ficava em "Abrindo..." esperando treinos -> itens -> progressão,
-    // três idas à rede encadeadas, para só então desenhar. O nome já basta.
-    const cx = alvo();
-    let liberar;
-    const treino = new Promise(r => { liberar = r; });
-
-    const pronto = renderInicioPaciente(cx, BRUTO, {
-      treino,
-      carregarDieta: async () => null,
-      carregarConsulta: async () => null,
-      carregarMetas: async () => [],
-    });
-
-    contem(cx.innerHTML, 'Bom dia, Eduardo');       // já desenhou
-    contem(cx.innerHTML, 'Treino do dia');
-    contem(cx.innerHTML, 'in-sk');                  // em esqueleto
-
-    liberar({ dias: ['A', 'B'], proximo: 'B', datasTreinadas: ['2026-08-05'] });
-    await pronto;
-    contem(cx.innerHTML, 'Treino B');
-    naoContem(cx.innerHTML, 'in-sk');
-  });
-
-  teste('enquanto carrega, o progresso não mente zero', async () => {
-    // "0 dias" piscando antes de virar "3 dias" afirma algo falso sobre o
-    // esforço de quem está olhando.
-    const cx = alvo();
-    const treino = new Promise(() => {});          // nunca resolve
-    renderInicioPaciente(cx, BRUTO, {
-      treino,
-      carregarDieta: async () => null,
-      carregarConsulta: async () => null,
-      carregarMetas: async () => [],
-    });
-    contem(cx.innerHTML, 'in-sk-num');
-    naoContem(cx.innerHTML, '0 <small>dias</small>');
-    naoContem(cx.innerHTML, '0 <small>treinos</small>');
-  });
-
-  teste('sem promessa de treino, nada fica em esqueleto à toa', async () => {
-    const cx = alvo();
-    await renderInicioPaciente(cx, { ...BRUTO, dias: ['A'], proximo: 'A' }, {
-      carregarDieta: async () => null,
-      carregarConsulta: async () => null,
-      carregarMetas: async () => [],
-    });
-    naoContem(cx.innerHTML, 'in-sk');
-    contem(cx.innerHTML, 'Treino A');
-  });
-
-  teste('plano SEM horário nenhum ainda oferece o atalho da dieta', async () => {
-    // O bug que isto tranca: amarrar o atalho à "próxima refeição" fazia a
-    // dieta sumir do Início de quem tem plano sem horários.
-    const cx = alvo();
-    const dieta = { refeicoes: [{ id: 'x', nome: 'Ceia', horario: null }] };
-    await renderInicioPaciente(cx, BRUTO, { carregarDieta: async () => dieta, agora: '10:00' });
-    naoContem(cx.innerHTML, 'Próxima refeição');
-    contem(cx.innerHTML, 'Ver dieta');
-  });
-
-  teste('com horário, a linha aparece e o atalho também', async () => {
-    const cx = alvo();
-    const dieta = { refeicoes: REFEICOES };
-    await renderInicioPaciente(cx, BRUTO, { carregarDieta: async () => dieta, agora: '08:30' });
-    contem(cx.innerHTML, 'Almoço · 12:00');
-    contem(cx.innerHTML, 'Ver dieta');
-  });
-
-  teste('dieta que falha não derruba o resto da tela', async () => {
-    const cx = alvo();
-    const err = console.error;
-    console.error = () => {};      // o módulo loga de propósito; aqui é ruído
-    try {
-      await renderInicioPaciente(cx, BRUTO, { carregarDieta: async () => { throw new Error('rede'); } });
-    } finally { console.error = err; }
-    contem(cx.innerHTML, 'Treino A');
-    contem(cx.innerHTML, 'Iniciar treino');
-    naoContem(cx.innerHTML, 'Ver dieta');
-    naoContem(cx.innerHTML, 'in-sk');       // o esqueleto não pode ficar preso
-  });
-
-  teste('com TUDO falhando, a tela diz que não carregou — não que não há nada', async () => {
-    // "Nada programado ainda" com a rede fora afirma sobre o plano do paciente
-    // uma coisa que a tela não sabe.
-    const cx = alvo();
-    const err = console.error;
-    console.error = () => {};
-    try {
-      await renderInicioPaciente(cx, BRUTO, {
-        treino: Promise.reject(new Error('rede')),
-        carregarDieta: async () => { throw new Error('rede'); },
-        carregarConsulta: async () => { throw new Error('rede'); },
-        carregarMetas: async () => { throw new Error('rede'); },
-      });
-    } finally { console.error = err; }
-    contem(cx.innerHTML, 'Não foi possível carregar');
-    contem(cx.innerHTML, 'Tentar novamente');
-    naoContem(cx.innerHTML, 'Nada programado ainda');
-  });
-
-  teste('uma fonte de pé já basta para a tela normal aparecer', async () => {
-    const cx = alvo();
-    const err = console.error;
-    console.error = () => {};
-    try {
-      await renderInicioPaciente(cx, BRUTO, {
-        treino: Promise.resolve({ dias: ['A'], proximo: 'A', datasTreinadas: [] }),
-        carregarDieta: async () => { throw new Error('rede'); },
-        carregarConsulta: async () => { throw new Error('rede'); },
-        carregarMetas: async () => { throw new Error('rede'); },
-      });
-    } finally { console.error = err; }
-    naoContem(cx.innerHTML, 'Não foi possível carregar');
-    contem(cx.innerHTML, 'Treino A');
-  });
-
-  teste('paciente sem plano não vê atalho de dieta', async () => {
-    const cx = alvo();
-    await renderInicioPaciente(cx, BRUTO, { carregarDieta: async () => null });
-    naoContem(cx.innerHTML, 'Ver dieta');
-    contem(cx.innerHTML, 'Iniciar treino');
-  });
-});
-
 grupo('início · o CSS', () => {
   teste('nenhuma cor literal — a identidade é a do Evollo', () => {
     const cores = css.match(/#[0-9a-f]{3,8}\b/gi) || [];
@@ -618,9 +652,9 @@ grupo('início · o topo não rouba meia tela', () => {
     contem(html, 'Quinta-feira, 6 de agosto');
   });
 
-  teste('o hero compacto é só do Início — o do Treino não muda', () => {
-    // No Treino o título diz "Vamos treinar?" ou "Mandou bem!": informação.
-    contem(css, '.inicio .pa-hero');
+  teste('a saudação é compacta e só do Início — o hero do Treino não muda', () => {
+    // Sem cartão: duas linhas de texto. O hero global (Treino) fica intacto.
+    contem(css, '.in-ola-t { margin: 0; font-size: 22px;');
     ok(!/^\.pa-hero \{/m.test(css), 'o Início não pode redefinir o hero global');
   });
 });

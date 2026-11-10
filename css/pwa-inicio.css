@@ -1,114 +1,160 @@
 /* ═══════════════════════════════════════════════════════════
    PWA · INÍCIO — tela de abertura do app do aluno
    ═══════════════════════════════════════════════════════════
-   Reaproveita o vocabulário que já existe no app.html (.pa-hero, .pa-stats,
-   .pa-empty). O que mora aqui é só o que é do Início: o bloco "Hoje", os
-   títulos de seção e os atalhos.
+   Redesenho de 10/11/2026: treino e alimentação em destaque, semana
+   compacta, agenda e o administrativo (plano) por último num card só.
 
-   Sem cor literal: a identidade do Evollo vem dos tokens em css/tokens.css.
-   Um #hexadecimal aqui é uma cor que não muda quando a marca mudar. */
+   Sem cor literal: tudo vem dos tokens em css/tokens.css. Espaçamentos em
+   múltiplos de 4. Texto secundário em --ink-soft (não o cinza claro
+   --ink-mute, que não passa contraste em corpo pequeno).
 
-/* ── Respiro para a barra inferior ─────────────────────────────────────── */
-/* Nada aqui. A reserva é uma só, da casca (.pa-main, em app.html), e já conta
-   a safe-area: --pa-nav-reserva. Esta folha declarava a própria reserva e
-   precisava zerar a da casca com `:has()` para as duas não se somarem — dois
-   lugares para o mesmo número, que era justamente como o vão nascia. */
+   A reserva para a barra flutuante é UMA, da casca (.pa-main em app.html):
+   esta folha não declara respiro embaixo. */
 
-/* ── Hero do Início ────────────────────────────────────────────────────── */
-/* Duas linhas, não três: o "Hoje" era palavra estática em corpo 27 — manchete
-   para informação zero. A saudação ocupa o lugar dele e a data fica embaixo.
+.inicio { display: flex; flex-direction: column; gap: 12px; }
 
-   A saudação está no MESMO corpo do título do Treino ("Vamos treinar?"), e o
-   cartão tem o mesmo padding. Aqui ela era 22px num cartão mais raso, e era
-   isso que fazia o Início parecer um nível menor que o Treino: dois títulos de
-   tela com dois corpos diferentes, na mesma barra de navegação. A economia de
-   altura que esta regra dava vem agora de ter uma linha a menos, não de um
-   corpo menor. */
-.inicio .pa-hero-title { line-height: 1.15; }
-.inicio .pa-hero-sub { margin-top: 4px; }
+/* ── Saudação: duas linhas, sem cartão ─────────────────── */
+.in-ola { padding: 4px 4px 0; }
+.in-ola-t { margin: 0; font-size: 22px; line-height: 1.2; font-weight: 800; color: var(--ink); letter-spacing: -0.01em; }
+.in-ola-s { margin: 4px 0 0; font-size: var(--pa-fs-sub); color: var(--ink-soft); }
 
-/* ── Títulos de seção ──────────────────────────────────────────────────── */
-.in-t {
-  margin: 16px 0 8px;
-  font-size: var(--pa-fs-rotulo);
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--ink-mute);
-}
-
-/* ── Bloco "Hoje" ──────────────────────────────────────────────────────── */
-/* Uma pilha de linhas dentro de um cartão só. Cartões separados por linha
-   fariam duas informações curtas ocuparem a tela inteira do celular. */
-.in-bloco {
+/* ── Cards ────────────────────────────────────────────── */
+.in-card {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px;
   background: var(--bg-card);
   border: 1px solid var(--hair);
-  border-radius: var(--pa-card-radius);
-  box-shadow: var(--shadow);
-  overflow: hidden;
+  border-radius: 20px;
 }
+/* Treino e alimentação: os dois que mandam. Sombra só neles — o resto da
+   tela fica plano, para não competir. */
+.in-card-forte { box-shadow: var(--shadow); }
+.in-treino { border-color: color-mix(in srgb, var(--color-primary-600) 30%, transparent); }
 
-.in-linha {
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  width: 100%;
-  padding: 14px 15px;
-  background: none;
-  border: none;
-  border-top: 1px solid var(--hair);
-  text-align: left;
-  font-family: inherit;
-  color: inherit;
-  cursor: pointer;
-}
-.in-linha:first-child { border-top: none; }
-.in-linha:hover { background: var(--bg-warm); }
-.in-linha:focus-visible { outline: 2px solid var(--moss); outline-offset: -2px; }
-
-/* Mesma bolha do card de treino (.pa-dc-letra): eram 40px aqui contra 44 lá, e
-   a diferença aparecia porque as duas telas trocam pela barra inferior. */
-.in-linha-ic {
-  flex: 0 0 auto;
-  width: var(--pa-ic-card); height: var(--pa-ic-card);
+.in-card-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.in-card-ic {
+  flex: 0 0 auto; width: 44px; height: 44px; border-radius: 14px;
   display: flex; align-items: center; justify-content: center;
-  border-radius: 13px;
-  background: var(--cream);
-  color: var(--moss-deep);
+  background: var(--color-primary-100); color: var(--color-primary-800);
 }
-.in-linha-ic svg { width: var(--pa-ic-card-svg); height: var(--pa-ic-card-svg); }
+.in-card-ic svg { width: 22px; height: 22px; }
+.in-card-cab { flex: 1 1 auto; min-width: 0; }
+.in-card-rot {
+  margin: 0; font-size: var(--pa-fs-rotulo); font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--ink-soft);
+}
+.in-card-tit {
+  margin: 2px 0 0; font-size: 18px; line-height: 1.25; font-weight: 800; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.in-card-meta { margin: 0; font-size: var(--pa-fs-sub); line-height: 1.45; color: var(--ink-soft); }
+.in-card-vazio { margin: 0; font-size: var(--pa-fs-corpo); line-height: 1.45; color: var(--ink-soft); }
+.in-nq { white-space: nowrap; }
+.in-local { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+.in-local svg { width: 14px; height: 14px; }
+.in-aula .in-card-tit { white-space: normal; }
+.in-card-ok { margin: 0; font-size: var(--pa-fs-corpo); font-weight: 700; color: var(--color-primary-800); }
 
-.in-linha-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.in-linha-rot {
+/* Selos: estado, não enfeite. */
+.in-selo {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 8px; border-radius: 999px;
+  font-size: var(--pa-fs-selo); font-weight: 800; white-space: nowrap;
+  background: var(--surface-subtle); color: var(--ink-soft);
+}
+.in-selo svg { width: 13px; height: 13px; }
+.in-selo-ok { background: var(--color-primary-100); color: var(--color-primary-800); }
+.in-selo-vivo { background: var(--color-primary-700); color: var(--text-on-primary); }
+
+/* Próxima refeição dentro do card da dieta */
+.in-prox { display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: 12px; background: var(--surface-subtle); }
+.in-prox-rot { font-size: var(--pa-fs-meta); font-weight: 700; color: var(--ink-soft); }
+.in-prox-val { font-size: var(--pa-fs-card); font-weight: 800; color: var(--ink); }
+
+/* ── Botões ───────────────────────────────────────────── */
+.in-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; min-height: 48px; padding: 12px 16px;
+  border-radius: 14px; border: 1px solid transparent;
+  font-family: inherit; font-size: var(--pa-cta-fs); font-weight: 800; cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+}
+.in-btn svg { width: 20px; height: 20px; }
+.in-btn-pri { background: var(--color-primary-700); color: var(--text-on-primary); }
+.in-btn-pri:hover { background: var(--color-primary-800); }
+.in-btn-sec { background: var(--surface); color: var(--color-primary-800); border-color: color-mix(in srgb, var(--color-primary-700) 35%, transparent); }
+.in-btn-sec:hover { background: var(--color-primary-100); }
+.in-btn:focus-visible { outline: 2px solid var(--color-primary-800); outline-offset: 2px; }
+.in-btn:active { transform: scale(0.99); }
+
+/* ── Sua semana ───────────────────────────────────────── */
+.in-semana { gap: 12px; }
+.in-semana-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.in-semana-n { font-size: var(--pa-fs-sub); font-weight: 800; color: var(--ink); }
+.in-dias { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.in-dia { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.in-dia-l { font-size: var(--pa-fs-meta); font-weight: 700; color: var(--ink-soft); }
+.in-dia-m {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-subtle); color: var(--text-on-primary);
+}
+.in-dia-m svg { width: 16px; height: 16px; stroke-width: 3; }
+/* Dia futuro: só contorno tracejado — nunca cara de "falta". */
+.in-dia.futuro .in-dia-m { background: transparent; box-shadow: inset 0 0 0 1.5px var(--hair); }
+.in-dia.feito .in-dia-m { background: var(--color-primary-700); }
+.in-dia.hoje .in-dia-l { color: var(--color-primary-800); font-weight: 800; }
+.in-dia.hoje .in-dia-m { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--color-primary-600); }
+.in-semana-extra {
+  margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;
+  font-size: var(--pa-fs-meta); font-weight: 700; color: var(--ink-soft);
+}
+.in-semana-extra svg { width: 14px; height: 14px; vertical-align: -2px; color: var(--color-primary-700); }
+
+/* ── Meu plano e Documentos: linhas compactas ─────────── */
+.in-plano-btn, .in-linha-doc {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 12px 16px; min-height: 56px;
+  background: var(--bg-card); border: 1px solid var(--hair); border-radius: 16px;
+  font-family: inherit; text-align: left; color: inherit; cursor: pointer;
+}
+.in-plano-btn:hover, .in-linha-doc:hover { background: var(--bg-warm); }
+.in-plano-btn:focus-visible, .in-linha-doc:focus-visible { outline: 2px solid var(--color-primary-800); outline-offset: 2px; }
+.in-plano-ic {
+  flex: 0 0 auto; width: 40px; height: 40px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-subtle); color: var(--ink);
+}
+.in-plano-ic svg { width: 20px; height: 20px; }
+.in-plano-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.in-plano-nome { font-size: var(--pa-fs-card); font-weight: 800; color: var(--ink); }
+.in-plano-det { font-size: var(--pa-fs-meta); color: var(--ink-soft); }
+.in-linha-doc-t { flex: 1 1 auto; font-size: var(--pa-fs-corpo); font-weight: 800; color: var(--ink); }
+.in-linha-doc-n { font-size: var(--pa-fs-meta); font-weight: 700; color: var(--ink-soft); white-space: nowrap; }
+.in-seta { flex: 0 0 auto; display: flex; color: var(--ink-soft); }
+.in-seta svg { width: 18px; height: 18px; }
+
+/* ── Títulos de seção (metas) ─────────────────────────── */
+.in-t {
+  margin: 4px 0 0;
   font-size: var(--pa-fs-rotulo); font-weight: 800; text-transform: uppercase;
-  letter-spacing: 0.06em; color: var(--ink-mute);
-}
-/* Nome de card, como "Treino A" na lista do Treino. Era 15,5px — meio ponto
-   abaixo, o bastante para a linha parecer secundária ao lado dele. */
-.in-linha-val {
-  font-size: var(--pa-fs-card); font-weight: 800; color: var(--ink);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.in-linha-det {
-  font-size: var(--pa-fs-meta); font-weight: 600; color: var(--ink-soft);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  letter-spacing: 0.07em; color: var(--ink-soft);
 }
 
-.in-linha-seta { flex: 0 0 auto; color: var(--ink-mute); display: flex; }
-.in-linha-seta svg { width: 19px; height: 19px; }
+/* ── Metas ─────────────────────────────────────────────── */
+.in-metas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.in-meta {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px;
+  padding: 12px 16px; border: 1px solid var(--hair); border-radius: 16px; background: var(--bg-card);
+}
+.in-meta-nome { flex: 1 1 auto; font-size: var(--pa-fs-corpo); font-weight: 800; color: var(--ink); }
+.in-meta-alvo { flex: 0 0 auto; font-size: var(--pa-fs-sub); font-weight: 800; color: var(--color-primary-800); font-variant-numeric: tabular-nums; }
+.in-meta-prazo { flex: 0 0 100%; font-size: var(--pa-fs-meta); font-weight: 600; color: var(--ink-soft); }
 
-/* Linha ainda carregando: não é botão e não recebe toque. */
-.in-linha-esq { cursor: default; }
-.in-linha-esq:hover { background: none; }
-
-/* Linha que é informação, não caminho (a consulta). Sem seta e sem hover: nada
-   nela pode sugerir que o toque leva a algum lugar. */
-.in-linha-fixa { cursor: default; }
-.in-linha-fixa:hover { background: none; }
-
+/* ── Carregando ───────────────────────────────────────── */
+.in-sk-bloco { display: flex; flex-direction: column; gap: 8px; }
 .in-sk {
-  display: block;
-  border-radius: 8px;
+  display: block; border-radius: 8px;
   background: linear-gradient(90deg,
     var(--surface-subtle) 0%,
     color-mix(in srgb, var(--surface-subtle) 55%, transparent) 50%,
@@ -116,111 +162,27 @@
   background-size: 200% 100%;
   animation: in-brilho 1.2s ease-in-out infinite;
 }
-.in-sk-ic  { width: var(--pa-ic-card); height: var(--pa-ic-card); border-radius: 13px; }
-.in-sk-val { width: 62%; height: 15px; margin-top: 3px; }
-.in-sk-num { width: 48px; height: 19px; }
+.in-sk-tit { width: 55%; height: 18px; }
+.in-sk-lin { width: 80%; height: 14px; }
+.in-sk-num { width: 64px; height: 16px; }
 @keyframes in-brilho { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-
-/* ── Progresso: três tiles em vez dos dois da tela de treino ───────────── */
-/* Só o NÚMERO DE COLUNAS muda em relação ao Treino. O corpo do número, a
-   unidade ao lado e o padding do tile são os mesmos: eram 20px contra 23, e
-   11px contra 13 na unidade, e é o tipo de diferença que ninguém consegue
-   nomear olhando — só sente que uma tela vale menos que a outra. */
-.in-stats3 { grid-template-columns: repeat(3, 1fr); gap: 9px; margin-bottom: 0; }
-.in-stats3 .pa-stat { padding: 14px 12px; }
-
-/* Com três tiles em corpo cheio, "Recordes" já não cabe em três colunas num
-   celular estreito. O ponto de quebra sobe de 359 para 400px: abaixo dele o
-   terceiro desce e ocupa a linha inteira, em vez de a palavra quebrar ao meio. */
-@media (max-width: 400px) {
-  .in-stats3 { grid-template-columns: 1fr 1fr; }
-  .in-stats3 .pa-stat:last-child { grid-column: 1 / -1; }
-}
-
-/* ── Metas ─────────────────────────────────────────────────────────────── */
-/* Lista, não cartões: são combinados curtos, e um cartão por meta faria três
-   linhas de texto ocuparem a tela toda. Sem controle nenhum — o paciente lê a
-   meta, quem a muda é o profissional. */
-.in-metas { list-style: none; margin: 0; padding: 0; }
-
-.in-meta {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  padding: var(--pa-card-pad-y) var(--pa-card-pad-x);
-  border: 1px solid var(--hair);
-  border-radius: var(--pa-card-radius);
-  background: var(--bg-card);
-  box-shadow: var(--shadow);
-}
-.in-meta + .in-meta { margin-top: 9px; }
-
-.in-meta-nome { flex: 1 1 auto; font-size: var(--pa-fs-corpo); font-weight: 800; color: var(--ink); }
-.in-meta-alvo {
-  flex: 0 0 auto; font-size: var(--pa-fs-sub); font-weight: 800; color: var(--moss-deep);
-  font-variant-numeric: tabular-nums;
-}
-.in-meta-prazo {
-  flex: 0 0 100%; font-size: var(--pa-fs-meta); font-weight: 600; color: var(--ink-mute);
-}
-
-/* ── Acesso rápido ─────────────────────────────────────────────────────── */
-.in-atalhos { display: flex; flex-direction: column; gap: 10px; }
-
-/* Mesma linguagem do "Ver treino" — ver --pa-cta-* em css/tokens.css. */
-.in-atalho {
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  width: 100%;
-  min-height: var(--pa-cta-h);
-  padding: 13px var(--pa-cta-pad-x);
-  border: 1px solid var(--hair);
-  border-radius: var(--pa-cta-radius);
-  background: var(--bg-card);
-  color: var(--ink);
-  font-family: inherit;
-  font-size: var(--pa-cta-fs);
-  font-weight: var(--pa-cta-fw);
-  cursor: pointer;
-  box-shadow: var(--shadow);
-  transition: transform 0.15s, background 0.2s;
-}
-.in-atalho:hover { transform: translateY(-1px); }
-.in-atalho:focus-visible { outline: 2px solid var(--moss); outline-offset: 2px; }
-.in-atalho svg { width: var(--pa-cta-svg); height: var(--pa-cta-svg); }
-
-.in-atalho-forte {
-  border-color: transparent;
-  background: var(--moss);
-  color: var(--cream);
-}
-.in-atalho-forte:hover { background: var(--moss-deep); }
 
 @media (prefers-reduced-motion: reduce) {
   .in-sk { animation: none; }
-  .in-atalho:hover { transform: none; }
+  .in-btn { transition: none; }
+  .in-btn:active { transform: none; }
 }
 
-/* ── Desktop ───────────────────────────────────────────────────────────── */
-/* Uma coluna, como no celular: o Início é uma lista curta de decisões, e
-   espalhá-la em duas colunas só faria o olho procurar onde já estava. */
+/* ── Celular estreito (320px) ─────────────────────────── */
+@media (max-width: 359px) {
+  .in-card { padding: 12px; }
+  .in-card-tit { font-size: 17px; }
+  .in-dia-m { width: 28px; height: 28px; }
+}
+
+/* ── Tablet / desktop: treino e dieta lado a lado ─────── */
+.in-duo { display: flex; flex-direction: column; gap: 12px; }
 @media (min-width: 720px) {
-  .in-atalhos { flex-direction: row; }
-  .in-atalho { flex: 1; }
+  .in-duo { display: grid; grid-template-columns: 1fr 1fr; align-items: stretch; }
+  .in-duo .in-card .in-btn { margin-top: auto; }
 }
-
-/* ── "Seu plano" (agenda de treino) ────────────────────────────────────── */
-/* Nome e vigência num cartão baixo; os dois números nos mesmos tiles do
-   "Seu progresso", para a tela ler como uma família só. */
-.in-plano {
-  background: var(--bg-card);
-  border: 1px solid var(--hair);
-  border-radius: 16px;
-  padding: 12px 15px;
-  box-shadow: var(--shadow);
-  margin-bottom: 9px;
-}
-.in-plano-nome { font-size: var(--pa-fs-card); font-weight: 800; color: var(--ink); }
-.in-plano-vig { margin-top: 2px; font-size: var(--pa-fs-sub); color: var(--ink-soft); }
-.in-stats2 { grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 0; }
-.in-stats2 .pa-stat { padding: 14px 12px; }

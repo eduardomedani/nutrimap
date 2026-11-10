@@ -178,28 +178,7 @@ grupo('agenda · uma aula por dia e as mensagens', () => {
   });
 });
 
-import { planoHtml } from '../js/pwa-inicio-ui.js';
-
-grupo('início · seu plano (vigência, feitas, disponíveis)', () => {
-  const r = { ativo: true, plano: 'Mensal 3x', frequencia: 3, inicio: '2026-10-27', fim: '2026-12-10', feitas: 7, disponiveis: 15 };
-  teste('mostra vigência, quanto falta e os dois números', () => {
-    const html = planoHtml(r, '2026-11-10');
-    contem(html, 'Mensal 3x');
-    contem(html, 'Vigência 27/10 a 10/12 · faltam 30 dias');
-    contem(html, 'Aulas feitas');
-    contem(html, '>7 <small>aulas</small>');
-    contem(html, '>15 <small>aulas</small>');
-  });
-  teste('sem agenda, sem plano ou sem resposta: o bloco não aparece', () => {
-    igual(planoHtml(null), '');
-    igual(planoHtml({ ativo: false }), '');
-    igual(planoHtml({ ativo: true, plano: null }), '');
-  });
-  teste('singular e fim do plano', () => {
-    contem(planoHtml({ ...r, feitas: 1 }, '2026-11-10'), '>1 <small>aula</small>');
-    contem(planoHtml(r, '2026-12-10'), 'termina hoje');
-  });
-});
+// O bloco "Meu plano" do Início é testado em test/pwa-inicio.test.mjs.
 
 grupo('agenda · migração de 1 aula por dia', () => {
   const sql = readFileSync(new URL('../db/agenda_uma_aula_por_dia.sql', import.meta.url), 'utf8');

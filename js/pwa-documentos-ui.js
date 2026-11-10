@@ -79,7 +79,7 @@ export function erroHtml() {
     <div class="pa-empty pa-empty-lg">
       <i data-lucide="cloud-off"></i>
       <div class="pa-empty-t">Não foi possível carregar seus documentos.</div>
-      <button class="in-atalho in-atalho-forte" type="button" data-retry>
+      <button class="in-btn in-btn-pri" type="button" data-retry>
         <i data-lucide="rotate-cw"></i> Tentar novamente
       </button>
     </div>`;
