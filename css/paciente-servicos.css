@@ -1,33 +1,75 @@
 /* ═══════════════════════════════════════════════════════════
-   FICHA DO CLIENTE — "Serviços contratados" no cabeçalho do Hub
-   (js/paciente-servicos-ui.js)
+   CABEÇALHO DA FICHA — Serviços contratados + Score de acompanhamento
+   (js/paciente-servicos-ui.js, js/paciente-hub.js)
    ═══════════════════════════════════════════════════════════
-   Botões liga/desliga em pílula. Sem cor literal: tudo sai dos tokens. */
+   Desenho do Eduardo (10/11/2026): à direita do nome, os três serviços
+   EMPILHADOS, o card do score e o menu ⋯, alinhados ao centro, com o
+   mesmo respiro entre eles. Sem cor literal: tokens de css/tokens.css. */
 
-.hub-servicos { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+/* A faixa de ações do cabeçalho: sem quebrar no desktop, tudo centrado. */
+.hub-head .hub-acoes { flex-wrap: nowrap; align-items: center; gap: 12px; }
+
+/* ── Serviços: coluna de três pílulas ───────────────────── */
+.hub-servicos { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 132px; }
+/* O rótulo continua para leitores de tela; visualmente o grupo já se explica. */
 .hub-sv-rot {
-  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--text-secondary); margin-right: 2px;
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
 }
 .hub-sv {
-  display: inline-flex; align-items: center; gap: 6px;
-  min-height: 34px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
-  font-family: inherit; font-size: 13px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 32px; padding: 5px 14px; border-radius: 999px; cursor: pointer;
+  font-family: inherit; font-size: 13px; font-weight: 700; white-space: nowrap;
   background: var(--surface); color: var(--text-primary);
   border: 1.5px solid var(--border-strong);
   transition: background 0.15s, border-color 0.15s;
 }
-.hub-sv svg { width: 15px; height: 15px; }
+.hub-sv svg { width: 15px; height: 15px; flex: 0 0 auto; }
 .hub-sv:hover:not(:disabled) { border-color: var(--primary); }
 .hub-sv.on { background: var(--primary-soft); border-color: var(--primary); color: var(--color-primary-800); }
 .hub-sv:disabled { cursor: default; opacity: 0.75; }
 .hub-sv:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
-.hub-sv-pend { font-size: 12px; font-style: italic; color: var(--text-secondary); }
+.hub-sv-pend { font-size: 11.5px; font-style: italic; text-align: center; color: var(--text-secondary); }
 
-/* Celular: os três lado a lado, em colunas iguais, com 44px de toque. */
+/* ── Score de acompanhamento: card compacto, neutro ─────── */
+.hub-score {
+  position: relative; display: flex; flex-direction: column; gap: 2px;
+  min-width: 220px; padding: 12px 16px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+}
+.hub-score[hidden] { display: none; }
+.hub-score-t {
+  margin: 0; display: flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 700; color: var(--text-primary);
+}
+.hub-score-t svg { width: 15px; height: 15px; color: var(--text-secondary); }
+.hub-score-v { margin: 2px 0 0; font-size: 12.5px; color: var(--text-secondary); white-space: nowrap; }
+.hub-score-v b { font-size: 24px; line-height: 1.1; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.hub-score-v small { font-size: 13px; color: var(--text-secondary); }
+.hub-score-nada { margin: 2px 0 0; font-size: 12.5px; color: var(--text-secondary); }
+.hub-score-como { align-self: flex-start; font-size: 12.5px; margin-top: 2px; }
+/* Os critérios abrem num balão, para o cabeçalho não crescer. */
+.hub-score-pop {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 40;
+  width: min(340px, 86vw); padding: 12px 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-lg);
+}
+.hub-score-pop[hidden] { display: none; }
+.hub-score-pop ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.hub-score-pop li { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; font-size: 12.5px; color: var(--text-primary); }
+.hub-score-pop li small { grid-column: 1 / -1; color: var(--text-secondary); }
+
+/* ── Tablet: a faixa de ações desce para baixo do nome ──── */
+@media (max-width: 1100px) {
+  .hub-head .hub-acoes { flex-wrap: wrap; }
+}
+
+/* ── Celular: serviços lado a lado, score na largura toda ─ */
 @media (max-width: 640px) {
+  .hub-head .hub-acoes { width: 100%; }
   .hub-servicos { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .hub-sv-rot, .hub-sv-pend { grid-column: 1 / -1; }
-  .hub-sv { justify-content: center; min-height: 44px; padding: 6px 8px; font-size: 12.5px; gap: 4px; }
-  .hub-sv svg { width: 14px; height: 14px; flex: 0 0 auto; }
+  .hub-sv-pend { grid-column: 1 / -1; }
+  .hub-sv { min-height: 44px; padding: 6px 8px; font-size: 12.5px; gap: 4px; }
+  .hub-sv svg { width: 14px; height: 14px; }
+  .hub-score { flex: 1 1 auto; min-width: 0; }
 }

@@ -186,11 +186,30 @@ grupo('visão geral · layout', () => {
     contem(css, '.pv2-o-pend   { order: 1; }');
     contem(css, '.pv2-o-evol   { order: 2; }');
   });
-  teste('o score saiu do topo e ficou neutro (sem barra verde)', () => {
+  teste('o score saiu da Visão geral e mora no cabeçalho, neutro (sem barra verde)', () => {
     const p = ler('../js/paciente-painel.js');
     naoContem(p, 'faixaSuperiorHtml(r)');
     naoContem(p, 'pv-score-bar');
-    contem(p, '<div class="pv2-o-score">${scoreHtml(r)}</div>');
+    naoContem(p, 'scoreHtml(r)');
+    const hub = ler('../js/paciente-hub.js');
+    contem(hub, '<div class="hub-score" data-hub-score hidden></div>');
+    // ordem no cabeçalho: serviços, score, menu ⋯
+    ok(hub.indexOf('data-hub-servicos') < hub.indexOf('data-hub-score') && hub.indexOf('data-hub-score') < hub.indexOf('data-hub-menu'));
+  });
+
+  teste('card do score: número, faixa em texto e critérios num balão', async () => {
+    const { scoreCabecalhoHtml } = await import('../js/paciente-hub.js');
+    const h = scoreCabecalhoHtml({ valor: 40, base: 'Base.', criterios: [{ label: 'Avaliação em dia', nota: 0, detalhe: 'há 200 dias' }] });
+    contem(h, '<b>40</b><small>/100</small> <span>· com itens em atraso</span>');
+    contem(h, 'aria-controls="hubScoreCriterios"');
+    contem(h, 'Avaliação em dia');
+    contem(scoreCabecalhoHtml({ valor: 85, criterios: [] }), '· em dia');
+    contem(scoreCabecalhoHtml({ valor: null, motivo: 'Dados insuficientes para calcular' }), 'Dados insuficientes');
+  });
+
+  teste('serviços empilhados em coluna no cabeçalho', () => {
+    const c = ler('../css/paciente-servicos.css');
+    contem(c, '.hub-servicos { display: flex; flex-direction: column;');
   });
   teste('CSS só com tokens', () => {
     igual(/#[0-9a-fA-F]{3,8}\b|rgba?\(/.test(css.replace(/\/\*[\s\S]*?\*\//g, '')), false);

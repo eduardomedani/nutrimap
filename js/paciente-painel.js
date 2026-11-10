@@ -109,10 +109,10 @@ function esqueleto() {
 // ── Layout (redesenho de 10/11/2026) ─────────────────────────
 // Quatro indicadores no topo; abaixo, duas colunas (≈65/35):
 //   principal: Evolução · Plano alimentar + Treino · Metas
-//   lateral:   Pendências · Agenda · Últimos registros · Documentos · Score
+//   lateral:   Pendências · Agenda · Últimos registros · Documentos
 // No celular é uma coluna só, e as PENDÊNCIAS sobem para logo depois dos
 // indicadores (ordem por CSS, ver css/paciente-visao.css).
-// O cabeçalho do Hub não muda (decisão do Eduardo).
+// O Score de acompanhamento mora no CABEÇALHO do Hub (js/paciente-hub.js).
 function renderPainel(r) {
   const corpo = _cont.querySelector('[data-pv-corpo]');
   if (!corpo) return;
@@ -137,7 +137,6 @@ function renderPainel(r) {
           <div data-pv-timeline></div>
         </section>
         <div class="pv2-o-docs">${documentosHtml()}</div>
-        <div class="pv2-o-score">${scoreHtml(r)}</div>
       </aside>
     </div>`;
 
@@ -149,26 +148,6 @@ function renderPainel(r) {
 
   ligar(corpo, r);
   window.renderIcons?.();
-}
-
-// ── Score: informação secundária, neutra ─────────────────────
-// Mesma fórmula de paciente-resumo.js. Sem verde automático: número, faixa
-// em texto (os limites 50/80 que o status já usa) e a explicação.
-function scoreHtml(r) {
-  const s = r.score;
-  const faixaTxt = s.valor == null ? '' : s.valor >= 80 ? 'em dia' : s.valor >= 50 ? 'com pontos a revisar' : 'com itens em atraso';
-  return `
-    <section class="pv-card pv2-score" aria-labelledby="pvScoreT">
-      <div class="pv-card-head"><h3 id="pvScoreT"><i data-lucide="gauge"></i> Score de acompanhamento</h3></div>
-      ${s.valor != null ? `
-        <p class="pv2-score-v"><b>${s.valor}</b><small>/100</small> <span>· ${esc(faixaTxt)}</span></p>
-        <button class="pv-link" data-pv-criterios aria-expanded="false">Como é calculado</button>
-        <div class="pv-criterios" data-pv-criterios-box hidden>
-          <p class="pv-criterios-base">${esc(s.base)} Não é um indicador clínico.</p>
-          <ul>${s.criterios.map(c => `
-            <li><span>${esc(c.label)}</span><b>${c.nota}</b><small>${esc(c.detalhe)}</small></li>`).join('')}</ul>
-        </div>` : `<p class="pv2-nada">${esc(s.motivo)}</p>`}
-    </section>`;
 }
 
 // ── Os quatro indicadores ────────────────────────────────────

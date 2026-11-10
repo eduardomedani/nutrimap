@@ -74,6 +74,9 @@ export function hubShellHtml(p, dados, abaAtiva) {
           </button>`).join('')}
         <!-- Serviços contratados: js/paciente-servicos-ui.js preenche. -->
         <div class="hub-servicos" data-hub-servicos role="group" aria-label="Serviços contratados"></div>
+        <!-- Score de acompanhamento (10/11/2026): saiu da Visão geral e mora
+             aqui, ao lado dos serviços. Preenchido quando o resumo chega. -->
+        <div class="hub-score" data-hub-score hidden></div>
         <div class="hub-menu-wrap">
           <button class="btn-sm btn-sm-secondary hub-acao-mais" data-hub-menu
                   aria-haspopup="menu" aria-expanded="false" aria-label="Mais ações">
@@ -156,6 +159,16 @@ export function ligarHub(page, p, handlers = {}) {
     })();
   }
 
+  // Score no cabeçalho: em QUALQUER aba (o resumo vem do cache; a Visão geral
+  // também o preenche pelo preencherContexto).
+  (async () => {
+    try {
+      const { carregarResumo } = await import('./paciente-resumo.js');
+      const r = await carregarResumo(p);
+      if (page.isConnected) preencherScore(page, r);
+    } catch (e) { /* sem resumo, o score não aparece */ }
+  })();
+
   const btnMenu = page.querySelector('[data-hub-menu]');
   const pop = page.querySelector('[data-hub-menu-pop]');
   if (btnMenu && pop) {
@@ -212,6 +225,50 @@ export function preencherContexto(page, resumo) {
     ob.textContent = obj ? `Objetivo: ${obj}` : '';
     ob.hidden = !obj;
   }
+  preencherScore(page, resumo);
+}
+
+/**
+ * O card do score no cabeçalho (puro, testado). Mesma fórmula de
+ * paciente-resumo.js; apresentação NEUTRA: número, a faixa em texto (os
+ * limites 50/80 que o status já usa) e os critérios num balão.
+ */
+export function scoreCabecalhoHtml(s) {
+  if (!s) return '';
+  if (s.valor == null) {
+    return `<p class="hub-score-t"><i data-lucide="gauge"></i> Score de acompanhamento</p>
+      <p class="hub-score-nada">${esc(s.motivo || 'Dados insuficientes para calcular')}</p>`;
+  }
+  const faixa = s.valor >= 80 ? 'em dia' : s.valor >= 50 ? 'com pontos a revisar' : 'com itens em atraso';
+  return `
+    <p class="hub-score-t"><i data-lucide="gauge"></i> Score de acompanhamento</p>
+    <p class="hub-score-v"><b>${s.valor}</b><small>/100</small> <span>· ${esc(faixa)}</span></p>
+    <button class="pv-link hub-score-como" type="button" data-hub-score-como aria-expanded="false" aria-controls="hubScoreCriterios">Como é calculado</button>
+    <div class="hub-score-pop" id="hubScoreCriterios" data-hub-score-pop hidden>
+      <p class="pv-criterios-base">${esc(s.base || '')} Não é um indicador clínico.</p>
+      <ul>${(s.criterios || []).map(c => `
+        <li><span>${esc(c.label)}</span><b>${c.nota}</b><small>${esc(c.detalhe)}</small></li>`).join('')}</ul>
+    </div>`;
+}
+
+function preencherScore(page, resumo) {
+  const box = page.querySelector('[data-hub-score]');
+  if (!box || !resumo?.score) return;
+  box.innerHTML = scoreCabecalhoHtml(resumo.score);
+  box.hidden = false;
+  window.renderIcons?.();
+  const btn = box.querySelector('[data-hub-score-como]');
+  const pop = box.querySelector('[data-hub-score-pop]');
+  if (!btn || !pop) return;
+  const fechar = () => { pop.hidden = true; btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('click', fora, true); document.removeEventListener('keydown', esc_); };
+  const fora = e => { if (!box.contains(e.target)) fechar(); };
+  const esc_ = e => { if (e.key === 'Escape') { fechar(); btn.focus(); } };
+  btn.addEventListener('click', () => {
+    if (!pop.hidden) { fechar(); return; }
+    pop.hidden = false; btn.setAttribute('aria-expanded', 'true');
+    document.addEventListener('click', fora, true);
+    document.addEventListener('keydown', esc_);
+  });
 }
 
 // ── Links de acesso do paciente ────────────────────────────
