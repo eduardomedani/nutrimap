@@ -14,6 +14,7 @@ import {
 } from './avaliacoes.js';
 import { mostrarToast, mostrarErro, confirmar } from './utils.js';
 import { FATORES } from './calorias-calc.js';
+import { conferirResultados } from './avaliacao-validacao.js';
 
 let _nutriId = null;
 let _pacientes = [];
@@ -292,7 +293,10 @@ function recalcPreview() {
     const r = calcularResultados({ ...reg, dobras: extrairDobras(reg) });
     const item = (lbl, val, suf='') =>
       `<div class="av-res"><div class="av-res-lbl">${lbl}</div><div class="av-res-val">${val}${suf}</div></div>`;
+    // O mesmo aviso que impede salvar, já na prévia: a pessoa corrige antes.
+    const problema = conferirResultados(reg, r);
     box.innerHTML =
+      (problema ? `<div class="form-warn">${esc(problema)}</div>` : '') +
       item('IMC', r.imc) +
       item('% Gordura', (r.pct_gordura*100).toFixed(1), '%') +
       item('Massa gorda', r.peso_gordura, ' kg') +

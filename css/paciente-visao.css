@@ -1,0 +1,98 @@
+/* ═══════════════════════════════════════════════════════════
+   VISÃO GERAL DO PACIENTE (js/paciente-painel.js) — redesenho de 10/11/2026
+   ═══════════════════════════════════════════════════════════
+   Reaproveita .pv-card / .pv-card-head / .pv-linha do index.html. Aqui mora
+   só o novo: os 4 indicadores, a grade 65/35 e a ordem no celular.
+   Sem cor literal: tokens de css/tokens.css. Espaços em múltiplos de 4. */
+
+/* ── Quatro indicadores ─────────────────────────────────── */
+.pv2-inds { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.pv2-ind {
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  padding: 14px 16px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 14px;
+}
+.pv2-ind-l { font-size: 12.5px; font-weight: 700; color: var(--text-secondary); }
+.pv2-ind-v { font-size: 22px; font-weight: 800; line-height: 1.15; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.pv2-ind-v.vazio { font-size: 15px; font-weight: 700; color: var(--text-secondary); }
+.pv2-ind-v.tom-bom { color: var(--color-primary-800); }
+.pv2-ind-v.tom-atencao { color: var(--warning); }
+.pv2-ind-s { font-size: 12px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.pv2-ind-rev { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; margin-top: 2px; font-size: 12.5px; }
+.pv2-ind-rev svg { width: 14px; height: 14px; color: var(--warning); }
+
+/* ── Grade principal 65/35 ──────────────────────────────── */
+.pv2-grade { display: grid; grid-template-columns: minmax(0, 65fr) minmax(0, 35fr); gap: 16px; align-items: start; margin-bottom: 24px; }
+.pv2-principal, .pv2-lateral { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.pv2-principal > *, .pv2-lateral > * { min-width: 0; }
+.pv2-principal > :empty, .pv2-lateral > :empty { display: none; }
+
+/* Plano alimentar + Treino lado a lado quando cabe. */
+.pv2-duo { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; align-items: stretch; }
+.pv2-cartao { display: flex; flex-direction: column; }
+.pv2-cartao .pv-card-linhas { flex: 1; }
+.pv2-abrir { align-self: flex-start; margin-top: 12px; }
+
+/* ── Evolução ──────────────────────────────────────────── */
+.pv2-series { display: inline-flex; gap: 4px; padding: 3px; border-radius: 999px; background: var(--surface-subtle); }
+.pv2-serie {
+  border: 0; background: transparent; cursor: pointer; font-family: inherit;
+  font-size: 12.5px; font-weight: 700; color: var(--text-secondary);
+  padding: 6px 12px; min-height: 32px; border-radius: 999px;
+}
+.pv2-serie.on { background: var(--surface); color: var(--text-primary); box-shadow: var(--shadow-xs); }
+.pv2-serie:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+.pv2-evol-res { margin: 0 0 8px; font-size: 13.5px; color: var(--text-secondary); }
+.pv2-evol-res b { font-size: 18px; color: var(--text-primary); }
+.pv2-graf { padding: 8px 4px 2px; }
+.pv2-graf .ev-svg { width: 100%; height: auto; }
+.pv2-inicial { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 12px; background: var(--surface-subtle); }
+.pv2-inicial span { font-size: 12.5px; color: var(--text-secondary); }
+.pv2-inicial b { font-size: 22px; color: var(--text-primary); }
+.pv2-nada { margin: 8px 0; font-size: 13px; color: var(--text-secondary); }
+
+/* ── Lateral ───────────────────────────────────────────── */
+.pv2-discreto { font-size: 12px; color: var(--text-secondary); text-decoration: underline; text-underline-offset: 2px; }
+.pv2-score-v { margin: 0 0 6px; font-size: 13px; color: var(--text-secondary); }
+.pv2-score-v b { font-size: 22px; color: var(--text-primary); }
+.pv2-score-v small { font-size: 13px; color: var(--text-secondary); }
+
+/* ── Tablet ─────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .pv2-inds { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ── Celular: uma coluna; PENDÊNCIAS logo após os indicadores ─
+   As duas colunas viram "transparentes" (display: contents) e os blocos
+   entram numa pilha só, na ordem pedida. É o painel do PROFISSIONAL no
+   celular — o aluno nunca vê esta tela. */
+@media (max-width: 860px) {
+  .pv2-grade { display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
+  .pv2-principal, .pv2-lateral { display: contents; }
+  .pv2-o-pend   { order: 1; }
+  .pv2-o-evol   { order: 2; }
+  .pv2-o-plano  { order: 3; }
+  .pv2-o-metas  { order: 4; }
+  .pv2-o-agenda { order: 5; }
+  .pv2-o-reg    { order: 6; }
+  .pv2-o-docs   { order: 7; }
+  .pv2-o-score  { order: 8; }
+  .pv2-duo { grid-template-columns: 1fr; }
+}
+@media (max-width: 359px) {
+  .pv2-inds { grid-template-columns: 1fr; }
+}
+
+/* ── Pendências na coluna estreita: ação embaixo do texto ─ */
+/* Na lateral (≈35%) os botões à direita espremiam o título em 4 linhas. */
+.pv2-pend .pv-acao { flex-wrap: wrap; align-items: flex-start; }
+.pv2-pend .pv-acao-txt { flex: 1 1 calc(100% - 42px); }
+.pv2-pend .pv-acao-btns {
+  flex: 1 0 100%; display: flex; flex-direction: row; justify-content: flex-start; align-items: center; gap: 12px;
+  padding-left: 41px;   /* alinha com o texto, depois do ícone */
+}
+.pv2-pend .pv-acao-btns .btn-sm { white-space: nowrap; }
+
+/* Evolução: no estreito, as séries descem para a linha de baixo. */
+.pv2-evol .pv-card-head { flex-wrap: wrap; row-gap: 8px; }
+.pv2-serie { white-space: nowrap; }

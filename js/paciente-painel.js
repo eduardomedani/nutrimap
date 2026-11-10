@@ -9,8 +9,10 @@
 // Só desenha o que tem dado real. Módulo sem fundação (consultas, check-ins,
 // aderência) não vira card vazio — simplesmente não aparece.
 
-import { carregarResumo, invalidarResumo } from './paciente-resumo.js';
-import { alertasDoPaciente, PRIORIDADES } from './paciente-alertas.js';
+import { carregarResumo, invalidarResumo, diasAte } from './paciente-resumo.js';
+import { alertasDoPaciente, PRIORIDADES, ordenarPendencias } from './paciente-alertas.js';
+import { medidaValida } from './avaliacao-validacao.js';
+import { svgLinha } from './evolucao-core.js';
 import { montarTimelineRecente } from './timeline-ui.js';
 import { moduloAtivo } from './paciente-modulos.js';
 import { listarTarefas, criarTarefa, concluirTarefa, tarefaDeAlerta, diasDePrazo, CATEGORIAS_TAREFA } from './paciente-tarefas.js';
@@ -39,12 +41,6 @@ export async function initPainel360({ cont, paciente, irParaAba, aoCarregar }) {
   _cont = cont;
 
   cont.innerHTML = esqueleto();
-
-  // A timeline recente carrega em paralelo: uma consulta não espera a outra.
-  montarTimelineRecente({
-    cont: cont.querySelector('[data-pv-timeline]'),
-    paciente, limite: 5, irParaAba: _irParaAba,
-  }).catch(e => console.error('[painel] timeline:', e));
 
   try {
     const r = await carregarResumo(paciente);
@@ -95,21 +91,12 @@ export async function recarregarPainel() {
 function esqueleto() {
   return `
     <div data-pv-corpo>
-      <section class="pv-bloco">
-        <div class="pv-strip">${'<div class="pv-ind"><span class="sk sk-l"></span><span class="sk sk-v"></span></div>'.repeat(6)}</div>
-      </section>
-      <div class="pv-colunas">
-        <div class="pv-col"><div class="sk sk-bloco"></div></div>
-        <div class="pv-col"><div class="sk sk-bloco"></div></div>
+      <section class="pv2-inds">${'<div class="pv2-ind"><span class="sk sk-l"></span><span class="sk sk-v"></span></div>'.repeat(4)}</section>
+      <div class="pv2-grade">
+        <div class="pv2-principal"><div class="sk sk-bloco"></div></div>
+        <aside class="pv2-lateral"><div class="sk sk-bloco"></div></aside>
       </div>
     </div>
-    <section class="pv-bloco">
-      <div class="pv-sec-head">
-        <h3 class="pv-sec-tit">Histórico recente</h3>
-        <button class="pv-link" data-pv-ver-historico>Ver histórico completo</button>
-      </div>
-      <div data-pv-timeline></div>
-    </section>
     <details class="pv-dados">
       <summary class="pv-dados-sum">
         <span class="pv-dados-tit"><i data-lucide="user"></i> Dados pessoais e cadastro</span>
@@ -119,103 +106,109 @@ function esqueleto() {
     </details>`;
 }
 
+// ── Layout (redesenho de 10/11/2026) ─────────────────────────
+// Quatro indicadores no topo; abaixo, duas colunas (≈65/35):
+//   principal: Evolução · Plano alimentar + Treino · Metas
+//   lateral:   Pendências · Agenda · Últimos registros · Documentos · Score
+// No celular é uma coluna só, e as PENDÊNCIAS sobem para logo depois dos
+// indicadores (ordem por CSS, ver css/paciente-visao.css).
+// O cabeçalho do Hub não muda (decisão do Eduardo).
 function renderPainel(r) {
   const corpo = _cont.querySelector('[data-pv-corpo]');
   if (!corpo) return;
   _alertas = alertasDoPaciente(r);
 
   corpo.innerHTML = `
-    ${faixaSuperiorHtml(r)}
-    <section class="pv-bloco"><div class="pv-strip">${indicadoresHtml(r)}</div></section>
-    <div class="pv-colunas">
-      <div class="pv-col">
-        ${planoHtml(r)}
-        ${treinoHtml(r)}
-        ${documentosHtml()}
-        ${metasHtml(r)}
+    <section class="pv2-inds" aria-label="Resumo">${indicadoresHtml(r)}</section>
+    <div class="pv2-grade">
+      <div class="pv2-principal">
+        ${evolucaoHtml(r)}
+        <div class="pv2-duo pv2-o-plano">${planoHtml(r)}${treinoHtml(r)}</div>
+        <div class="pv2-o-metas">${metasHtml(r)}</div>
       </div>
-      <div class="pv-col">
-        ${acoesHtml()}
-      </div>
+      <aside class="pv2-lateral">
+        <div class="pv2-o-pend">${acoesHtml()}</div>
+        <div class="pv2-o-agenda">${agendaHtml(r)}</div>
+        <section class="pv-card pv2-o-reg" aria-labelledby="pvRegT">
+          <div class="pv-card-head">
+            <h3 id="pvRegT"><i data-lucide="history"></i> Últimos registros</h3>
+            <button class="pv-link" data-pv-aba="timeline">Ver timeline</button>
+          </div>
+          <div data-pv-timeline></div>
+        </section>
+        <div class="pv2-o-docs">${documentosHtml()}</div>
+        <div class="pv2-o-score">${scoreHtml(r)}</div>
+      </aside>
     </div>`;
 
+  // Os três acontecimentos mais recentes, das fontes reais (paciente_eventos).
+  montarTimelineRecente({
+    cont: corpo.querySelector('[data-pv-timeline]'),
+    paciente: _paciente, limite: 3, irParaAba: _irParaAba,
+  }).catch(e => console.error('[painel] timeline:', e));
+
   ligar(corpo, r);
-  _cont.querySelector('[data-pv-ver-historico]')
-    ?.addEventListener('click', () => _irParaAba?.('timeline'));
+  window.renderIcons?.();
 }
 
-// ── Faixa superior: status + score ─────────────────────────
-function faixaSuperiorHtml(r) {
-  const st = r.status;
+// ── Score: informação secundária, neutra ─────────────────────
+// Mesma fórmula de paciente-resumo.js. Sem verde automático: número, faixa
+// em texto (os limites 50/80 que o status já usa) e a explicação.
+function scoreHtml(r) {
   const s = r.score;
+  const faixaTxt = s.valor == null ? '' : s.valor >= 80 ? 'em dia' : s.valor >= 50 ? 'com pontos a revisar' : 'com itens em atraso';
   return `
-    <section class="pv-faixa">
-      <div class="pv-status tom-${st.tom}">
-        <span class="pv-status-dot"></span>
-        <div>
-          <div class="pv-status-l">${esc(st.label)}</div>
-          <div class="pv-status-s">${esc(st.detalhe)}</div>
-        </div>
-      </div>
-      <div class="pv-score">
-        <div class="pv-score-txt">
-          <span class="pv-score-l">Score de acompanhamento</span>
-          ${s.valor != null
-            ? `<span class="pv-score-v">${s.valor}<small>/100</small></span>`
-            : `<span class="pv-score-v vazio">${esc(s.motivo)}</span>`}
-        </div>
-        ${s.valor != null ? `
-          <div class="pv-score-bar"><span style="width:${s.valor}%"></span></div>
-          <button class="pv-link" data-pv-criterios aria-expanded="false">Como é calculado</button>
-          <div class="pv-criterios" data-pv-criterios-box hidden>
-            <p class="pv-criterios-base">${esc(s.base)} Não é um indicador clínico.</p>
-            <ul>${s.criterios.map(c => `
-              <li><span>${esc(c.label)}</span><b>${c.nota}</b><small>${esc(c.detalhe)}</small></li>`).join('')}</ul>
-          </div>` : ''}
-      </div>
+    <section class="pv-card pv2-score" aria-labelledby="pvScoreT">
+      <div class="pv-card-head"><h3 id="pvScoreT"><i data-lucide="gauge"></i> Score de acompanhamento</h3></div>
+      ${s.valor != null ? `
+        <p class="pv2-score-v"><b>${s.valor}</b><small>/100</small> <span>· ${esc(faixaTxt)}</span></p>
+        <button class="pv-link" data-pv-criterios aria-expanded="false">Como é calculado</button>
+        <div class="pv-criterios" data-pv-criterios-box hidden>
+          <p class="pv-criterios-base">${esc(s.base)} Não é um indicador clínico.</p>
+          <ul>${s.criterios.map(c => `
+            <li><span>${esc(c.label)}</span><b>${c.nota}</b><small>${esc(c.detalhe)}</small></li>`).join('')}</ul>
+        </div>` : `<p class="pv2-nada">${esc(s.motivo)}</p>`}
     </section>`;
 }
 
-// ── Indicadores ────────────────────────────────────────────
-function indicadoresHtml(r) {
+// ── Os quatro indicadores ────────────────────────────────────
+// Cada número diz DE QUANDO é. Nunca "atual" para medida antiga; ausência é
+// "Não registrado"; sem duas avaliações válidas, "Sem comparativo".
+export function indicadoresDados(r) {
   const m = r.metricas;
-  const inds = [
-    { lab: 'Objetivo', val: m.objetivo, vazio: 'Não definido' },
-    { lab: 'Peso atual', val: m.pesoAtual != null ? `${fmt(m.pesoAtual)} kg` : null,
-      sub: r.ultima ? `AV ${r.ultima.numero} · ${fmtData(r.ultima.data_avaliacao)}` : '' },
-    { lab: 'Variação total', val: m.variacao != null ? `${sinal(m.variacao)} kg` : null,
+  const av = a => a ? `AV ${a.numero} · ${fmtData(a.data_avaliacao)}` : '';
+  const revisarGord = (r.revisar || []).some(x => x.gordura === 'invalida');
+  const retorno = r.consultaAberta?.status === 'agendada' ? r.consultaAberta.data_hora : r.retornoSugerido;
+  const dRet = retorno ? diasAte(retorno) : null;
+  return [
+    { id: 'peso', rot: 'Último peso registrado',
+      val: m.pesoAtual != null ? `${fmt(m.pesoAtual)} kg` : null,
+      sub: av(m.avPeso), vazio: 'Não registrado' },
+    { id: 'variacao', rot: 'Variação de peso',
+      val: m.variacao != null ? `${sinal(m.variacao)} kg` : null,
+      sub: m.variacao != null ? `AV ${m.avPesoInicial.numero} (${fmtData(m.avPesoInicial.data_avaliacao)}) → AV ${m.avPeso.numero} (${fmtData(m.avPeso.data_avaliacao)})` : '',
       tom: tomVariacao(m.variacao, m.objetivo),
-      sub: m.pesoInicial != null ? `desde ${fmt(m.pesoInicial)} kg` : '',
-      vazio: r.avaliacoes.length > 1 ? 'Não registrado' : 'Sem comparativo' },
-    { lab: '% de gordura', val: m.gordura != null ? `${fmt(m.gordura)}%` : null,
-      sub: m.gorduraAnterior != null ? `antes ${fmt(m.gorduraAnterior)}%` : '' },
-    { lab: 'Massa magra', val: m.massaMagra != null ? `${fmt(m.massaMagra)} kg` : null },
-    { lab: 'Cintura', val: m.cintura != null ? `${fmt(m.cintura)} cm` : null },
-    { lab: 'Plano alimentar', val: r.planoAtivo?.nome || null, vazio: 'Nenhum ativo',
-      sub: m.kcalPlano ? `meta de ${fmt(m.kcalPlano, 0)} kcal` : '' },
-    { lab: 'Última avaliação', val: r.ultima ? fmtData(r.ultima.data_avaliacao) : null,
-      sub: r.dias.ultimaAv != null ? `há ${r.dias.ultimaAv} dias` : '', vazio: 'Aguardando primeira avaliação' },
-    // Consultas: só aparecem porque o módulo existe (Fase 2A).
-    ...(moduloAtivo('consultas') ? [
-      { lab: 'Última consulta', val: r.ultimaConsulta ? fmtData(r.ultimaConsulta.data_hora) : null,
-        sub: r.dias.ultimaConsulta != null ? `há ${r.dias.ultimaConsulta} dias` : '',
-        vazio: 'Nenhuma consulta registrada' },
-      { lab: 'Próximo retorno', val: r.retornoSugerido ? fmtData(r.retornoSugerido) : null,
-        sub: r.dias.retornoEm != null
-          ? (r.dias.retornoEm < 0 ? `atrasado ${Math.abs(r.dias.retornoEm)} dias` : `em ${r.dias.retornoEm} dias`)
-          : '',
-        tom: r.dias.retornoEm != null && r.dias.retornoEm < 0 ? 'atencao' : '',
-        vazio: 'Não definido' },
-    ] : []),
+      vazio: m.pesoAtual != null ? 'Sem comparativo' : 'Não registrado' },
+    { id: 'gordura', rot: 'Gordura corporal',
+      val: m.gordura != null ? `${fmt(m.gordura)}%` : null,
+      sub: av(m.avGordura), vazio: revisarGord ? 'Revisar dados' : 'Não registrado',
+      revisar: revisarGord },
+    { id: 'retorno', rot: 'Próximo retorno',
+      val: retorno ? fmtData(retorno) : null,
+      sub: dRet == null ? '' : dRet < 0 ? `passou há ${Math.abs(dRet)} ${Math.abs(dRet) === 1 ? 'dia' : 'dias'}` : dRet === 0 ? 'hoje' : `em ${dRet} ${dRet === 1 ? 'dia' : 'dias'}`,
+      tom: dRet != null && dRet < 0 ? 'atencao' : '', vazio: 'Não agendado' },
   ];
-  // Aderência entra quando o módulo de check-ins existir (Fase 3).
-  return inds.map(i => {
-    const tem = i.val !== null && i.val !== undefined && i.val !== '';
+}
+
+function indicadoresHtml(r) {
+  return indicadoresDados(r).map(i => {
+    const tem = i.val != null;
     return `
-      <div class="pv-ind">
-        <span class="pv-ind-l">${esc(i.lab)}</span>
-        <span class="pv-ind-v ${tem ? (i.tom ? 'tom-' + i.tom : '') : 'vazio'}">${esc(tem ? i.val : (i.vazio || 'Não registrado'))}</span>
-        ${tem && i.sub ? `<span class="pv-ind-s">${esc(i.sub)}</span>` : ''}
+      <div class="pv2-ind" data-ind="${i.id}">
+        <span class="pv2-ind-l">${esc(i.rot)}</span>
+        <span class="pv2-ind-v ${tem ? (i.tom ? 'tom-' + i.tom : '') : 'vazio'}">${esc(tem ? i.val : i.vazio)}</span>
+        ${tem && i.sub ? `<span class="pv2-ind-s">${esc(i.sub)}</span>` : ''}
+        ${i.revisar ? `<button class="pv-link pv2-ind-rev" data-pv-aba="avaliacoes"><i data-lucide="triangle-alert"></i> Revisar dados da avaliação</button>` : ''}
       </div>`;
   }).join('');
 }
@@ -231,7 +224,138 @@ function tomVariacao(v, objetivo) {
   return '';
 }
 
-// ── Plano e treino ativos ──────────────────────────────────
+// ── Evolução ─────────────────────────────────────────────────
+// Só medidas VÁLIDAS viram ponto (js/avaliacao-validacao.js). Uma série por
+// vez (kg e % no mesmo eixo mentem sobre a escala). Com uma medida só, mostra
+// a medida inicial e NÃO desenha tendência.
+const SERIES_VISAO = [
+  { id: 'peso',    rotulo: 'Peso',             unidade: ' kg' },
+  { id: 'gordura', rotulo: 'Gordura corporal', unidade: '%' },
+  { id: 'cintura', rotulo: 'Cintura',          unidade: ' cm' },
+];
+let _serie = 'peso';
+
+export function pontosValidos(avaliacoes, serie) {
+  return [...(avaliacoes || [])]
+    .filter(a => a.data_avaliacao)
+    .map(a => ({ av: a, valor: medidaValida(a, serie), data: new Date(`${a.data_avaliacao}T12:00:00`) }))
+    .filter(p => p.valor != null && !isNaN(p.data))
+    .sort((a, b) => a.data - b.data);
+}
+
+function evolucaoHtml(r) {
+  const head = (extra = '') => `
+    <div class="pv-card-head">
+      <h3><i data-lucide="trending-up"></i> Evolução</h3>${extra}
+    </div>`;
+  if (!r.avaliacoes.length) {
+    return `<section class="pv-card pv2-evol pv2-o-evol">${head()}
+      <div class="pv-vazio"><p>Nenhuma avaliação registrada ainda.</p>
+        <button class="btn-sm" data-pv-aba="avaliacoes">Nova avaliação</button></div></section>`;
+  }
+  const disponiveis = SERIES_VISAO.filter(s => pontosValidos(r.avaliacoes, s.id).length > 0);
+  if (!disponiveis.some(s => s.id === _serie)) _serie = disponiveis[0]?.id || 'peso';
+  const cfg = SERIES_VISAO.find(s => s.id === _serie);
+  const pts = pontosValidos(r.avaliacoes, _serie);
+  const abas = disponiveis.length > 1 ? `
+    <div class="pv2-series" role="tablist" aria-label="Medida do gráfico">
+      ${disponiveis.map(s => `<button type="button" role="tab" class="pv2-serie${s.id === _serie ? ' on' : ''}" aria-selected="${s.id === _serie}" data-pv-serie="${s.id}">${esc(s.rotulo)}</button>`).join('')}
+    </div>` : '';
+
+  let corpo;
+  if (!pts.length) {
+    corpo = `<div class="pv-vazio"><p>Nenhuma medida válida de ${esc(cfg.rotulo.toLowerCase())}.</p>
+      <button class="btn-sm" data-pv-aba="avaliacoes">Abrir avaliações</button></div>`;
+  } else if (pts.length === 1) {
+    const p = pts[0];
+    corpo = `
+      <div class="pv2-inicial">
+        <span>Medida inicial · AV ${p.av.numero} · ${fmtData(p.av.data_avaliacao)}</span>
+        <b>${fmt(p.valor)}${cfg.unidade}</b>
+      </div>
+      <p class="pv2-nada">Registre uma nova avaliação para acompanhar a evolução.</p>
+      <button class="btn-sm" data-pv-aba="avaliacoes">Nova avaliação</button>`;
+  } else {
+    const ult = pts[pts.length - 1], pri = pts[0];
+    const dif = Number((ult.valor - pri.valor).toFixed(1));
+    corpo = `
+      <p class="pv2-evol-res"><b>${fmt(ult.valor)}${cfg.unidade}</b> em ${fmtData(ult.av.data_avaliacao)}
+        <span>· ${sinal(dif)}${cfg.unidade} desde ${fmtData(pri.av.data_avaliacao)} (${pts.length} medidas)</span></p>
+      <div class="ev-grafico pv2-graf">${svgLinha(pts, { unidade: cfg.unidade.trim(), rotulo: cfg.rotulo, largura: 640, altura: 200 })}</div>`;
+  }
+  return `<section class="pv-card pv2-evol pv2-o-evol">${head(abas)}${corpo}</section>`;
+}
+
+// ── Plano alimentar e treino ─────────────────────────────────
+function planoHtml(r) {
+  const p = r.planoAtivo;
+  if (!p) {
+    return `
+      <section class="pv-card pv2-cartao">
+        <div class="pv-card-head"><h3><i data-lucide="utensils"></i> Plano alimentar</h3></div>
+        <div class="pv-vazio"><p>Nenhum plano alimentar ativo.</p>
+          <button class="btn-sm" data-pv-aba="planejamento">Criar plano</button></div>
+      </section>`;
+  }
+  // Dois números de energia SÓ com o nome de cada um: o prescrito no plano e o
+  // gasto estimado na avaliação. Nunca dois valores soltos.
+  const avGet = [...r.avaliacoes].reverse().find(a => Number(a.get_kcal) > 0);
+  const publicado = p.data_inicio || p.criado_em;
+  return `
+    <section class="pv-card pv2-cartao">
+      <div class="pv-card-head"><h3><i data-lucide="utensils"></i> Plano alimentar</h3></div>
+      <div class="pv-card-tit">${esc(p.nome || 'Plano sem nome')}</div>
+      <div class="pv-card-linhas">
+        ${linha('Plano prescrito', p.kcal_meta ? `${fmt(p.kcal_meta, 0)} kcal` : 'Não definido')}
+        ${avGet ? linha('Gasto estimado', `${fmt(avGet.get_kcal, 0)} kcal (AV ${avGet.numero})`) : ''}
+        ${linha('Publicado', publicado ? fmtData(publicado) : 'Não registrado')}
+        ${linha('Próxima revisão', p.data_fim ? fmtData(p.data_fim) : 'Não definida')}
+      </div>
+      <button class="btn-sm pv2-abrir" data-pv-aba="planejamento">Abrir plano</button>
+    </section>`;
+}
+
+function treinoHtml(r) {
+  const t = r.treinoAtivo;
+  if (!t) {
+    return `
+      <section class="pv-card pv2-cartao">
+        <div class="pv-card-head"><h3><i data-lucide="dumbbell"></i> Treino</h3></div>
+        <div class="pv-vazio"><p>Nenhum treino ativo.</p>
+          <button class="btn-sm" data-pv-aba="treinos">Criar treino</button></div>
+      </section>`;
+  }
+  const dias = (t.divisao || '').replace(/[^A-Za-z]/g, '').length;
+  return `
+    <section class="pv-card pv2-cartao">
+      <div class="pv-card-head"><h3><i data-lucide="dumbbell"></i> Treino</h3></div>
+      <div class="pv-card-tit">${esc(t.nome || 'Treino sem nome')}</div>
+      <div class="pv-card-linhas">
+        ${linha('Divisão', t.divisao ? `${t.divisao} · ${dias} ${dias === 1 ? 'treino' : 'treinos'}` : 'Não definida')}
+        ${linha('Início', t.data_inicio ? fmtData(t.data_inicio) : 'Não registrado')}
+        ${linha('Próxima revisão', t.data_fim ? fmtData(t.data_fim) : 'Não definida')}
+      </div>
+      <button class="btn-sm pv2-abrir" data-pv-aba="treinos">Abrir treino</button>
+    </section>`;
+}
+
+// ── Agenda (lateral) ─────────────────────────────────────────
+// Última consulta e próximo retorno. Não há módulo de agendamento de consulta
+// ainda: a ação é registrar a consulta.
+function agendaHtml(r) {
+  if (!moduloAtivo('consultas')) return '';
+  const retorno = r.consultaAberta?.status === 'agendada' ? r.consultaAberta.data_hora : r.retornoSugerido;
+  return `
+    <section class="pv-card" aria-labelledby="pvAgT">
+      <div class="pv-card-head"><h3 id="pvAgT"><i data-lucide="calendar-days"></i> Agenda</h3></div>
+      <div class="pv-card-linhas">
+        ${linha('Última consulta', r.ultimaConsulta ? `${fmtData(r.ultimaConsulta.data_hora)}${r.dias.ultimaConsulta != null ? ` · há ${r.dias.ultimaConsulta} ${r.dias.ultimaConsulta === 1 ? 'dia' : 'dias'}` : ''}` : 'Nenhuma registrada')}
+        ${linha('Próximo retorno', retorno ? fmtData(retorno) : 'Não agendado')}
+      </div>
+      <button class="btn-sm pv2-abrir" data-pv-aba="consultas">Registrar consulta</button>
+    </section>`;
+}
+
 /**
  * Documentos no Saúde 360°.
  *
@@ -269,52 +393,6 @@ function documentosHtml() {
             d.pendentes === 1 ? 'pendente' : 'pendentes'} de visualização</span>` : ''}
       </div>
       <div class="pv-card-linhas">${linhas}</div>
-    </section>`;
-}
-
-function planoHtml(r) {
-  const p = r.planoAtivo;
-  return `
-    <section class="pv-card">
-      <div class="pv-card-head">
-        <h3><i data-lucide="utensils"></i> Plano alimentar</h3>
-        ${p ? `<button class="pv-link" data-pv-aba="planejamento">Abrir</button>` : ''}
-      </div>
-      ${p ? `
-        <div class="pv-card-tit">${esc(p.nome || 'Plano sem nome')}</div>
-        <div class="pv-card-linhas">
-          ${linha('Meta', p.kcal_meta ? `${fmt(p.kcal_meta, 0)} kcal` : 'Não definida')}
-          ${linha('Objetivo', p.objetivo || 'Não definido')}
-          ${linha('Publicado', r.dias.planoPublicado != null ? `há ${r.dias.planoPublicado} dias` : 'Não registrado')}
-          ${p.data_fim ? linha('Validade', fmtData(p.data_fim)) : ''}
-        </div>` : `
-        <div class="pv-vazio">
-          <p>Nenhum plano alimentar ativo.</p>
-          <button class="btn-sm" data-pv-aba="planejamento">Criar plano</button>
-        </div>`}
-    </section>`;
-}
-
-function treinoHtml(r) {
-  const t = r.treinoAtivo;
-  const dias = (t?.divisao || '').length;
-  return `
-    <section class="pv-card">
-      <div class="pv-card-head">
-        <h3><i data-lucide="dumbbell"></i> Treino</h3>
-        ${t ? `<button class="pv-link" data-pv-aba="treinos">Abrir</button>` : ''}
-      </div>
-      ${t ? `
-        <div class="pv-card-tit">${esc(t.nome || 'Treino sem nome')}</div>
-        <div class="pv-card-linhas">
-          ${linha('Divisão', t.divisao ? `${t.divisao} · ${dias} ${dias === 1 ? 'dia' : 'dias'}` : 'Não definida')}
-          ${linha('Início', t.data_inicio ? fmtData(t.data_inicio) : 'Não registrado')}
-          ${t.data_fim ? linha('Revisão', fmtData(t.data_fim)) : ''}
-        </div>` : `
-        <div class="pv-vazio">
-          <p>Nenhum treino ativo.</p>
-          <button class="btn-sm" data-pv-aba="treinos">Criar treino</button>
-        </div>`}
     </section>`;
 }
 
@@ -358,14 +436,14 @@ function metasHtml(r) {
     </section>`;
 }
 
-// ── Próximas ações: tarefas registradas + alertas automáticos ──
+// ── Pendências: tarefas registradas + alertas automáticos, num bloco só ──
 // A tarefa é uma decisão guardada; o alerta é uma leitura do estado que some
 // quando a causa acaba. Aparecem juntos, com a origem sempre visível.
 function acoesHtml() {
   const total = _tarefas.length + _alertas.length;
   const cabecalho = `
     <div class="pv-card-head">
-      <h3><i data-lucide="list-checks"></i> Próximas ações</h3>
+      <h3><i data-lucide="list-checks"></i> Pendências</h3>
       <div class="pv-card-head-dir">
         ${total ? `<span class="pv-contador">${total}</span>` : ''}
         ${moduloAtivo('tarefas') ? `<button class="pv-link" data-tarefa-nova>Nova tarefa</button>` : ''}
@@ -373,19 +451,21 @@ function acoesHtml() {
     </div>`;
 
   if (!total) {
-    return `<section class="pv-card">${cabecalho}
+    return `<section class="pv-card pv2-pend">${cabecalho}
       <div class="pv-tudo-ok"><i data-lucide="check"></i> Tudo em dia com este paciente.</div></section>`;
   }
 
-  const itens = [
-    ..._tarefas.map(t => ({ tarefa: t })),
-    ..._alertas.map(a => ({ alerta: a })),
-  ];
+  // Tarefas e alertas na MESMA fila: prioridade, depois o mais antigo.
+  const PRIO_TAREFA = { alta: 'importante', normal: 'atencao', baixa: 'informativo' };
+  const itens = ordenarPendencias([
+    ..._tarefas.map(t => ({ tarefa: t, prioridade: PRIO_TAREFA[t.prioridade] || 'atencao', desde: t.prazo || t.criado_em })),
+    ..._alertas.map(a => ({ alerta: a, prioridade: a.prioridade, desde: a.desde })),
+  ]);
   const visiveis = _verTodos ? itens : itens.slice(0, 4);
   const resto = itens.length - visiveis.length;
 
   return `
-    <section class="pv-card">${cabecalho}
+    <section class="pv-card pv2-pend">${cabecalho}
       <div class="pv-acoes">
         ${visiveis.map(i => i.tarefa ? tarefaHtml(i.tarefa) : alertaHtml(i.alerta)).join('')}
         ${resto > 0 ? `<button class="pv-link" data-pv-ver-todas>Ver todas as pendências (${itens.length})</button>` : ''}
@@ -424,7 +504,7 @@ function alertaHtml(a) {
       </div>
       <div class="pv-acao-btns">
         ${a.acao ? `<button class="btn-sm btn-sm-secondary" data-pv-aba="${esc(a.acao.aba)}">${esc(a.acao.label)}</button>` : ''}
-        ${moduloAtivo('tarefas') ? `<button class="pv-link" data-alerta-tarefa="${esc(a.id)}" title="Guardar como tarefa com prazo">Virar tarefa</button>` : ''}
+        ${moduloAtivo('tarefas') ? `<button class="pv-link pv2-discreto" data-alerta-tarefa="${esc(a.id)}" title="Guardar como tarefa com prazo">Virar tarefa</button>` : ''}
       </div>
     </div>`;
 }
@@ -438,6 +518,22 @@ function ligar(corpo, r) {
     _verTodos = true;
     renderPainel(r);
   });
+
+  // Evolução: troca a medida do gráfico (Peso · Gordura · Cintura). Redesenha
+  // SÓ o card — o resto do painel (e a timeline) não vai à rede de novo.
+  const ligarSeries = () => corpo.querySelectorAll('[data-pv-serie]').forEach(b =>
+    b.addEventListener('click', () => {
+      _serie = b.dataset.pvSerie;
+      const sec = corpo.querySelector('.pv2-evol');
+      if (!sec) return;
+      sec.outerHTML = evolucaoHtml(r);
+      const nova = corpo.querySelector('.pv2-evol');
+      nova.querySelectorAll('[data-pv-aba]').forEach(x => x.addEventListener('click', () => _irParaAba?.(x.dataset.pvAba)));
+      ligarSeries();
+      window.renderIcons?.();
+      nova.querySelector(`[data-pv-serie="${_serie}"]`)?.focus();
+    }));
+  ligarSeries();
 
   // Concluir tarefa direto do painel: um clique, sem sair da visão geral.
   corpo.querySelectorAll('[data-tarefa-ok]').forEach(b =>

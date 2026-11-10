@@ -13,6 +13,7 @@ import { listarPlanosDoPaciente } from './dieta.js';
 import { listarTreinosDoPaciente } from './treinos.js';
 import { listarConsultas } from './consultas.js';
 import { moduloAtivo } from './paciente-modulos.js';
+import { ultimaValida, primeiraValida, avaliacoesARevisar, medidaValida } from './avaliacao-validacao.js';
 
 const DIA_MS = 86400000;
 const _cache = new Map();       // pacienteId -> resumo
@@ -74,7 +75,10 @@ export function montarResumo(paciente, { avaliacoes = [], planos = [], treinos =
     primeira, ultima, anterior,
     planoAtivo, treinoAtivo,
     ultimaConsulta, consultaAberta, retornoSugerido,
-    metricas: calcularMetricas({ primeira, ultima, anterior, planoAtivo }),
+    metricas: calcularMetricas({ primeira, ultima, anterior, planoAtivo, avs }),
+    // Avaliações com dado impossível (gordura < 0, massa magra > peso…): não
+    // entram em número nenhum e viram pendência "Revisar dados da avaliação".
+    revisar: avaliacoesARevisar(avs),
     dias: {
       cadastro:      diasDesde(paciente.criado_em),
       ultimaAv:      ultima ? diasDesde(ultima.data_avaliacao) : null,
@@ -92,22 +96,32 @@ export function montarResumo(paciente, { avaliacoes = [], planos = [], treinos =
 }
 
 // ── Métricas ───────────────────────────────────────────────
-function calcularMetricas({ primeira, ultima, anterior, planoAtivo }) {
-  const pesoIni = num(primeira?.peso);
-  const pesoAtu = num(ultima?.peso);
-  const pesoAnt = num(anterior?.peso);
+function calcularMetricas({ primeira, ultima, anterior, planoAtivo, avs = [] }) {
+  // Só medidas VÁLIDAS (js/avaliacao-validacao.js). Peso: o da última e da
+  // primeira avaliação com peso válido — e a variação só existe se forem
+  // avaliações DIFERENTES.
+  const pUlt = ultimaValida(avs, 'peso');
+  const pPri = primeiraValida(avs, 'peso');
+  const pesoAtu = pUlt?.valor ?? null;
+  const pesoIni = pPri?.valor ?? null;
+  const pesoAnt = anterior ? medidaValida(anterior, 'peso') : null;
+  const gUlt = ultimaValida(avs, 'gordura');
+  const gAnt = anterior ? medidaValida(anterior, 'gordura') : null;
 
   return {
     pesoInicial: pesoIni,
     pesoAtual:   pesoAtu,
-    // Só há "variação" com pelo menos duas avaliações.
-    variacao:    (pesoIni != null && pesoAtu != null && primeira !== ultima)
-                   ? arred(pesoAtu - pesoIni, 1) : null,
-    variacaoUltima: (pesoAnt != null && pesoAtu != null) ? arred(pesoAtu - pesoAnt, 1) : null,
+    avPeso:      pUlt?.av || null,       // de QUAL avaliação vem o peso mostrado
+    avPesoInicial: pPri?.av || null,
+    // Só há "variação" com duas avaliações distintas e válidas.
+    variacao:    (pUlt && pPri && pUlt.av !== pPri.av) ? arred(pesoAtu - pesoIni, 1) : null,
+    variacaoUltima: (pesoAnt != null && pesoAtu != null && pUlt?.av === ultima) ? arred(pesoAtu - pesoAnt, 1) : null,
     // pct_gordura vem como fração; 0 = sem protocolo de dobras, não "0%".
-    gordura:     num(ultima?.pct_gordura) ? arred(num(ultima.pct_gordura) * 100, 1) : null,
-    gorduraAnterior: num(anterior?.pct_gordura) ? arred(num(anterior.pct_gordura) * 100, 1) : null,
-    massaMagra:  num(ultima?.peso_magro),
+    // Gordura inválida (negativa, ≥ 100%) NÃO vira número aqui.
+    gordura:     gUlt?.valor ?? null,
+    avGordura:   gUlt?.av || null,
+    gorduraAnterior: gAnt,
+    massaMagra:  ultima ? medidaValida(ultima, 'magra') : null,
     massaGorda:  num(ultima?.peso_gordura),
     imc:         num(ultima?.imc),
     cintura:     num(ultima?.per_cintura),
@@ -223,7 +237,11 @@ function calcularStatus(r) {
     return { id: 'aguardando', label: 'Aguardando dados', tom: 'neutro',
              detalhe: 'Sem avaliação, plano ou treino registrados até agora.' };
   }
-  const semContato = Math.max(r.dias.ultimaAv ?? 0, r.dias.planoPublicado ?? 0);
+  // "Sem acompanhamento" mede o registro MAIS RECENTE (avaliação, plano ou
+  // consulta) — com Math.max, um plano antigo escondia uma avaliação de
+  // ontem e a tela dizia "nada registrado há 193 dias" (corrigido 10/11/2026).
+  const recentes = [r.dias.ultimaAv, r.dias.planoPublicado, r.dias.ultimaConsulta].filter(d => d != null);
+  const semContato = recentes.length ? Math.min(...recentes) : 0;
   if (semContato >= 90) {
     return { id: 'parado', label: 'Sem acompanhamento recente', tom: 'alerta',
              detalhe: `Nada registrado há ${semContato} dias.` };

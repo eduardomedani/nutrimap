@@ -397,7 +397,7 @@ grupo('integrações · Saúde 360°', () => {
   teste('o botão navega para a aba, não para o PWA', () => {
     contem(painel, 'data-pv-aba="documentos"');
     contem(painel, 'Ver documentos');
-    const bloco = painel.slice(painel.indexOf('function documentosHtml()'), painel.indexOf('function planoHtml'));
+    const bloco = painel.slice(painel.indexOf('function documentosHtml()'), painel.indexOf('const linha = (l, v)'));
     ok(!/app\.html|urlAssinada|window\.open/.test(bloco), 'é navegação administrativa');
   });
 
@@ -405,7 +405,7 @@ grupo('integrações · Saúde 360°', () => {
     // A frase é montada com singular/plural no meio ("1 pendente de" /
     // "2 pendentes de"), então o que se procura é o sufixo — e não uma string
     // contígua que o código nunca chega a formar.
-    const bloco = painel.slice(painel.indexOf('function documentosHtml()'), painel.indexOf('function planoHtml'));
+    const bloco = painel.slice(painel.indexOf('function documentosHtml()'), painel.indexOf('const linha = (l, v)'));
     contem(bloco, 'de visualização');
     contem(bloco, "d.pendentes === 1 ? 'pendente' : 'pendentes'");
     contem(bloco, 'pv-doc-pend');
@@ -414,7 +414,7 @@ grupo('integrações · Saúde 360°', () => {
   });
 
   teste('o painel não vira gerenciador de arquivos', () => {
-    const bloco = painel.slice(painel.indexOf('function documentosHtml()'), painel.indexOf('function planoHtml'));
+    const bloco = painel.slice(painel.indexOf('function documentosHtml()'), painel.indexOf('const linha = (l, v)'));
     for (const p of ['data-abrir', 'Baixar', 'Substituir', 'Excluir', 'urlAssinada']) {
       ok(!bloco.includes(p), `${p} é da aba Documentos, não do Saúde 360°`);
     }

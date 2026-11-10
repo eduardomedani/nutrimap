@@ -55,13 +55,16 @@ export function alertasDoPaciente(r) {
       acao: { label: 'Prescrever plano', aba: 'planejamento' },
     });
   } else {
+    // Sem data de revisão definida, o tempo desde a publicação é SUGESTÃO, não
+    // atraso (10/11/2026). Com data_fim, quem fala é "vencendo/vencido".
     const d = r.dias.planoPublicado;
-    if (d != null && d >= 30) {
+    if (d != null && d >= 30 && !r.planoAtivo.data_fim) {
       add({
         id: 'plano-antigo', tipo: 'MEAL_PLAN_STALE', origem: 'alimentacao',
-        titulo: 'Revisar plano alimentar',
-        descricao: `O plano atual foi publicado há ${d} dias.`,
-        prioridade: d >= 60 ? 'importante' : 'atencao', icone: 'file-pen',
+        titulo: 'Revisão do plano sugerida',
+        descricao: `Publicado em ${fmtData(r.planoAtivo.data_inicio || r.planoAtivo.criado_em)} (há ${d} dias), sem data de revisão definida.`,
+        prioridade: 'atencao', icone: 'file-pen',
+        desde: r.planoAtivo.data_inicio || r.planoAtivo.criado_em,
         acao: { label: 'Revisar plano', aba: 'planejamento' },
       });
     }
@@ -115,16 +118,32 @@ export function alertasDoPaciente(r) {
       acao: { label: 'Nova avaliação', aba: 'avaliacoes' },
     });
   } else {
+    // Não há prazo de reavaliação no sistema: é sugestão, não "atrasada".
     const d = r.dias.ultimaAv;
     if (d != null && d >= 60) {
       add({
         id: 'avaliacao-atrasada', tipo: 'ASSESSMENT_STALE', origem: 'avaliacoes',
-        titulo: 'Avaliação física atrasada',
-        descricao: `A última avaliação foi há ${d} dias (${fmtData(r.ultima.data_avaliacao)}).`,
-        prioridade: d >= 120 ? 'importante' : 'atencao', icone: 'ruler',
+        titulo: 'Nova avaliação sugerida',
+        descricao: `A última avaliação foi em ${fmtData(r.ultima.data_avaliacao)} (há ${d} dias).`,
+        prioridade: 'atencao', icone: 'ruler',
+        desde: r.ultima.data_avaliacao,
         acao: { label: 'Nova avaliação', aba: 'avaliacoes' },
       });
     }
+  }
+
+  // Avaliação com dado impossível (gordura < 0 ou ≥ 100%, massa magra acima do
+  // peso): não entra nos números; aqui vira pendência. O dado não é corrigido
+  // sozinho — quem decide é o profissional, abrindo a avaliação.
+  for (const x of (r.revisar || []).slice(0, 2)) {
+    add({
+      id: `revisar-av-${x.av.id || x.av.numero}`, tipo: 'ASSESSMENT_INVALID', origem: 'avaliacoes',
+      titulo: 'Revisar dados da avaliação',
+      descricao: `AV ${x.av.numero}${x.av.data_avaliacao ? ` (${fmtData(x.av.data_avaliacao)})` : ''}: ${x.problemas.join(' ')}`,
+      prioridade: 'importante', icone: 'triangle-alert',
+      desde: x.av.data_avaliacao,
+      acao: { label: 'Abrir avaliação', aba: 'avaliacoes' },
+    });
   }
 
   // ── Evolução: peso estagnado ────────────────────────────
@@ -147,11 +166,14 @@ export function alertasDoPaciente(r) {
 
   // ── Sem acompanhamento recente ──────────────────────────
   if (r.status?.id === 'parado') {
+    // Título FIXO (a dedução de tarefa repetida compara o título); os dias
+    // vão na descrição.
     add({
       id: 'sem-acompanhamento', tipo: 'FOLLOWUP_MISSING', origem: 'paciente',
       titulo: 'Sem acompanhamento recente',
       descricao: r.status.detalhe,
       prioridade: 'importante', icone: 'clock',
+      ...(moduloAtivo('consultas') ? { acao: { label: 'Registrar consulta', aba: 'consultas' } } : {}),
     });
   }
 
@@ -199,8 +221,18 @@ export function alertasDoPaciente(r) {
   if (moduloAtivo('checkins')) { /* Fase 3 */ }
   if (moduloAtivo('agendamentos')) { /* Fase 6 */ }
 
-  return out.sort((a, b) =>
-    (PRIORIDADES[a.prioridade]?.ordem ?? 9) - (PRIORIDADES[b.prioridade]?.ordem ?? 9));
+  return ordenarPendencias(out);
+}
+
+/**
+ * Prioridade primeiro; dentro da mesma prioridade, o MAIS ANTIGO primeiro
+ * (`desde`: data em que o motivo começou). Sem data, vai depois dos datados.
+ */
+export function ordenarPendencias(lista) {
+  const t = v => { const d = v ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? `${v}T12:00:00` : v) : null; return d && !isNaN(d) ? d.getTime() : Infinity; };
+  return [...(lista || [])].sort((a, b) =>
+    ((PRIORIDADES[a.prioridade]?.ordem ?? 9) - (PRIORIDADES[b.prioridade]?.ordem ?? 9))
+    || (t(a.desde) - t(b.desde)));
 }
 
 /** Conta por prioridade — usado no cabeçalho e, na Fase 1B, no dashboard. */

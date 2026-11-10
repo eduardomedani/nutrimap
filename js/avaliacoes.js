@@ -5,6 +5,7 @@
 // Densidade → %G via Siri. Faulkner retorna %G direto.
 
 import { sb } from './supabase.js';
+import { conferirResultados } from './avaliacao-validacao.js';
 import { buscarRespostasModulo } from './respostas.js';
 
 // ───────────────────────────────────────────────────────────
@@ -288,6 +289,10 @@ export async function criarAvaliacao(nutriId, pacienteId, registro) {
     ...registro,
     dobras: extrairDobras(registro),
   });
+  // Gordura impossível ou massa magra acima do peso NÃO vão para o banco
+  // (js/avaliacao-validacao.js). O profissional corrige as dobras e salva.
+  const problema = conferirResultados(registro, resultados);
+  if (problema) throw new Error(problema);
   const { data, error } = await sb
     .from('avaliacoes')
     .insert({ ...registro, ...resultados, nutri_id: nutriId, paciente_id: pacienteId, numero })
@@ -371,6 +376,8 @@ export async function atualizarAvaliacao(id, registro) {
     ...registro,
     dobras: extrairDobras(registro),
   });
+  const problema = conferirResultados(registro, resultados);
+  if (problema) throw new Error(problema);
   const { data, error } = await sb
     .from('avaliacoes')
     .update({ ...registro, ...resultados })
