@@ -88,3 +88,35 @@
 .ag-legenda { display: flex; justify-content: center; gap: 18px; font-size: 12.5px; color: var(--text-secondary); }
 .ag-legenda span { display: inline-flex; align-items: center; gap: 6px; }
 .ag-modo:focus-visible, .ag-fx:focus-visible, .ag-casa:focus-visible, .ag-hoje:focus-visible { outline: 2px solid var(--color-primary-700); outline-offset: 2px; }
+
+/* ── Uma aula por dia, fora do prazo e aula concluída ────── */
+.ag-selo-ok { background: var(--color-primary-100); color: var(--color-primary-800); }
+.ag-btn-mudo { color: var(--text-secondary); }
+.ag-info-btn { background: none; border: 0; padding: 6px 0; font-family: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── Cartão da agenda (js/pwa-agenda-ui.js, cartao()) ────── */
+/* Fecha SÓ no botão: o OK é o aluno dizendo que leu a regra. */
+.agc-fundo {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  background: color-mix(in srgb, var(--color-primary-900) 45%, transparent);
+}
+.agc {
+  width: 100%; max-width: 380px; padding: 22px 20px 18px;
+  border-radius: 22px; background: var(--surface);
+  box-shadow: 0 20px 50px -12px color-mix(in srgb, var(--color-primary-900) 45%, transparent);
+  text-align: center;
+}
+.agc-ic { display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 50%; margin-bottom: 10px; background: var(--color-primary-100); color: var(--color-primary-800); }
+.agc-ic svg { width: 26px; height: 26px; }
+.agc-erro .agc-ic { background: var(--danger-soft); color: var(--danger); }
+.agc-info .agc-ic, .agc-pergunta .agc-ic { background: var(--background); color: var(--text-primary); }
+.agc-t { margin: 0 0 8px; font-size: 18px; font-weight: 800; color: var(--text-primary); }
+.agc-x { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--text-primary); }
+.agc-regra {
+  margin: 12px 0 0; padding: 10px 12px; border-radius: 12px;
+  background: var(--background); font-size: 13px; line-height: 1.5; color: var(--text-secondary); text-align: left;
+}
+.agc-acoes { display: flex; gap: 10px; margin-top: 16px; }
+.agc-acoes .ag-btn { flex: 1; min-height: 46px; }
+.agc .ag-btn:focus-visible { outline: 2px solid var(--color-primary-800); outline-offset: 2px; }

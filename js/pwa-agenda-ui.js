@@ -20,7 +20,6 @@
 // que MOSTRAR. Quem aceita ou recusa é o servidor.
 
 import { semanaDaAgenda, reservarHorario, desmarcarHorario } from './pwa-agenda-data.js';
-import { mostrarToast, confirmar } from './utils.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
@@ -42,7 +41,8 @@ const diaDaSemana = data => new Date(data + 'T12:00:00').getDay();
  *   'passou' · 'desmarcar' · 'prazo' (é seu, mas o prazo para desmarcar
  *   acabou) · 'voltar' (era seu fixo, desmarcado; pode voltar) · 'reservar' ·
  *   'lotado' · 'abre' (fora da janela) · 'sem_plano' (nenhum plano com
- *   agenda vigente) · 'sem_saldo' (já usou os treinos da semana)
+ *   agenda vigente) · 'sem_saldo' (já usou os treinos da semana) ·
+ *   'outro_no_dia' (já tem aula neste dia — é uma por dia)
  */
 export function estadoDoHorario(h, ctx) {
   const agora = String(ctx.agora).slice(0, 16);
@@ -50,6 +50,11 @@ export function estadoDoHorario(h, ctx) {
   if (inicio <= agora) return 'passou';
   if (h.meu === 'fixo' || h.meu === 'reserva') {
     return agora <= menosHoras(inicio, ctx.cancela_horas_antes ?? 1) ? 'desmarcar' : 'prazo';
+  }
+  // Uma aula por dia (10/11/2026): com fixo ou reserva no dia, os outros
+  // horários desse dia ficam fechados. O banco recusa do mesmo jeito.
+  if ((ctx.horarios || []).some(o => o.data === h.data && o.grade_id !== h.grade_id && (o.meu === 'fixo' || o.meu === 'reserva'))) {
+    return 'outro_no_dia';
   }
   if (h.ocupados >= h.capacidade) return 'lotado';
   if (h.data > somaDias(agora.slice(0, 10), ctx.abre_dias_antes ?? 2)) return 'abre';
@@ -131,7 +136,10 @@ function linhaHorario(h, ctx) {
     desmarcar: `<button type="button" class="ag-btn ag-btn-sec" data-ag="desmarcar">Desmarcar</button>`,
     reservar: `<button type="button" class="ag-btn" data-ag="reservar">Reservar</button>`,
     voltar: `<button type="button" class="ag-btn" data-ag="reservar">Voltar</button>`,
-    prazo: `<span class="ag-info">Prazo para desmarcar encerrado</span>`,
+    // Fora do prazo o botão CONTINUA: tocar nele explica a regra num cartão,
+    // em vez de o aluno ficar sem saber por que não pode.
+    prazo: `<button type="button" class="ag-btn ag-btn-sec ag-btn-mudo" data-ag="prazo">Desmarcar</button>`,
+    outro_no_dia: `<button type="button" class="ag-info ag-info-btn" data-ag="outro_no_dia">1 aula por dia</button>`,
     lotado: `<span class="ag-info">Lotado</span>`,
     abre: `<span class="ag-info">Abre ${ctx.abre_dias_antes ?? 2} dia(s) antes</span>`,
     sem_saldo: `<span class="ag-info">Semana completa</span>`,
@@ -139,10 +147,13 @@ function linhaHorario(h, ctx) {
     passou: '',
   }[est];
   const meu = h.meu === 'fixo' || h.meu === 'reserva';
-  const vagasTxt = est === 'passou' ? 'Encerrado' : est === 'lotado' ? '' : `${vagas} vaga${vagas === 1 ? '' : 's'}`;
-  return `<li class="ag-hor${meu ? ' ag-hor-meu' : ''}${est === 'passou' ? ' ag-hor-passou' : ''}" data-grade="${esc(h.grade_id)}" data-data="${esc(h.data)}">
+  // Aula marcada e não desmarcada que já começou conta como FEITA.
+  const concluida = est === 'passou' && meu;
+  const seloFinal = concluida ? '<span class="ag-selo ag-selo-ok">✓ Concluída</span>' : selo;
+  const vagasTxt = concluida || est === 'lotado' ? '' : est === 'passou' ? 'Encerrado' : `${vagas} vaga${vagas === 1 ? '' : 's'}`;
+  return `<li class="ag-hor${meu ? ' ag-hor-meu' : ''}${est === 'passou' && !concluida ? ' ag-hor-passou' : ''}" data-grade="${esc(h.grade_id)}" data-data="${esc(h.data)}">
       <div class="ag-hor-h"><b>${esc(h.hora)}</b><span>–${esc(fmtFim(h.hora, h.duracao_min))}</span></div>
-      <div class="ag-hor-meio">${selo}${vagasTxt ? `<span class="ag-vagas">${vagasTxt}</span>` : ''}</div>
+      <div class="ag-hor-meio">${seloFinal}${vagasTxt ? `<span class="ag-vagas">${vagasTxt}</span>` : ''}</div>
       <div class="ag-hor-acao">${acao}</div>
     </li>`;
 }
@@ -217,6 +228,99 @@ function mesHtml(ano, mes, marcas, hoje, carregando) {
     </div>
     <div class="ag-legenda"><span><i class="ag-ponto ag-ponto-treino"></i> Treino marcado</span><span><i class="ag-ponto ag-ponto-desmarcado"></i> Desmarcado</span></div>
     <p class="ag-regra">Toque num dia para ver os horários. Os dias marcados vão até o fim do seu plano.</p>`;
+}
+
+// ── Mensagens e cartões ────────────────────────────────────
+const horasTxt = h => { const n = Number(h ?? 1); const v = Number.isInteger(n) ? String(n) : String(n).replace('.', ','); return `${v} hora${n === 1 ? '' : 's'}`; };
+
+/** A hora da aula que o aluno já tem neste dia (para o cartão de 1 por dia). */
+function horaMarcadaNoDia(s, data) {
+  return (s.horarios || []).find(h => h.data === data && (h.meu === 'fixo' || h.meu === 'reserva'))?.hora || '';
+}
+
+/**
+ * Os textos dos cartões, num lugar só e PUROS (testados). Sempre dizem a
+ * regra: quem lê entende o que pode e o que não pode, sem ligar para a academia.
+ */
+export function mensagensDaAgenda({ data, hora, horas = 1, limite = 0, horaDoDia = '' }) {
+  const quando = `${fmtDiaLongo(data)}, às ${hora}`;
+  const prazo = horasTxt(horas);
+  const regraDesmarcar = `Você pode desmarcar até ${prazo} antes do início da aula.`;
+  const regraDia = limite > 0
+    ? `É uma aula por dia, até ${limite} por semana no seu plano.`
+    : 'É uma aula por dia.';
+  return {
+    confirmarDesmarque: {
+      tom: 'pergunta', titulo: 'Desmarcar esta aula?', texto: quando + '.',
+      regra: 'Você está dentro do prazo: depois de desmarcar, poderá remarcar em outro horário desta semana.',
+      ok: 'Desmarcar', cancelar: 'Manter aula',
+    },
+    desmarcada: {
+      tom: 'ok', titulo: 'Aula desmarcada',
+      texto: `Sua aula de ${quando} foi desmarcada e a vaga ficou livre. Você poderá remarcar a aula em outro horário desta semana.`,
+      regra: `${regraDesmarcar} ${regraDia}`,
+    },
+    foraDoPrazo: {
+      tom: 'erro', titulo: 'Não é possível cancelar esta aula',
+      texto: `A aula de ${quando} começa em menos de ${prazo}, então pelo horário ela não pode mais ser desmarcada. Se você não for, a aula conta como feita.`,
+      regra: `${regraDesmarcar} Em caso de imprevisto, fale com a recepção.`,
+    },
+    umaPorDia: {
+      tom: 'info', titulo: 'Uma aula por dia',
+      texto: `Você já tem aula neste dia${horaDoDia ? `, às ${horaDoDia}` : ''}. Para treinar em outro horário, desmarque essa aula primeiro.`,
+      regra: `${regraDia} ${regraDesmarcar}`,
+    },
+    marcada: {
+      tom: 'ok', titulo: 'Aula marcada!', texto: `${quando}. Te esperamos!`,
+      regra: `Se precisar, desmarque até ${prazo} antes. Aula marcada e não desmarcada conta como feita.`,
+    },
+    voltou: {
+      tom: 'ok', titulo: 'Você voltou para o seu horário', texto: `${quando}. Te esperamos!`,
+      regra: `Se precisar, desmarque até ${prazo} antes. Aula marcada e não desmarcada conta como feita.`,
+    },
+    erroMarcar: { tom: 'erro', titulo: 'Não foi possível marcar', regra: `${regraDia} ${regraDesmarcar}` },
+    erroDesmarcar: { tom: 'erro', titulo: 'Não foi possível desmarcar', regra: regraDesmarcar },
+  };
+}
+
+const ICONE_DO_TOM = { ok: 'circle-check', erro: 'circle-alert', info: 'info', pergunta: 'calendar-x' };
+
+/**
+ * Cartão modal: só fecha no botão — o OK é o aluno dizendo "li". Com
+ * `cancelar`, vira pergunta e resolve true/false. Esc = cancelar (ou OK).
+ */
+function cartao({ tom = 'info', titulo, texto = '', regra = '', ok = 'OK', cancelar = null }) {
+  return new Promise(resolve => {
+    const fundo = document.createElement('div');
+    fundo.className = 'agc-fundo';
+    fundo.innerHTML = `
+      <div class="agc agc-${esc(tom)}" role="alertdialog" aria-modal="true" aria-labelledby="agcT" aria-describedby="agcX">
+        <div class="agc-ic"><i data-lucide="${ICONE_DO_TOM[tom] || 'info'}"></i></div>
+        <h2 class="agc-t" id="agcT">${esc(titulo)}</h2>
+        <p class="agc-x" id="agcX">${esc(texto)}</p>
+        ${regra ? `<p class="agc-regra">${esc(regra)}</p>` : ''}
+        <div class="agc-acoes">
+          ${cancelar ? `<button type="button" class="ag-btn ag-btn-sec" data-agc="nao">${esc(cancelar)}</button>` : ''}
+          <button type="button" class="ag-btn" data-agc="sim">${esc(ok)}</button>
+        </div>
+      </div>`;
+    // "-travado": a barra flutuante não se mexe enquanto o cartão está aberto.
+    document.body.classList.add('agc-travado');
+    document.body.appendChild(fundo);
+    window.renderIcons?.();
+    const fechar = v => {
+      document.removeEventListener('keydown', tecla);
+      fundo.remove();
+      document.body.classList.remove('agc-travado');
+      resolve(v);
+    };
+    const tecla = e => { if (e.key === 'Escape') fechar(cancelar ? false : true); };
+    document.addEventListener('keydown', tecla);
+    fundo.querySelector('[data-agc="sim"]').addEventListener('click', () => fechar(true));
+    fundo.querySelector('[data-agc="nao"]')?.addEventListener('click', () => fechar(false));
+    // Foco: na pergunta, no "manter" (Enter não desmarca sem querer); no aviso, no OK.
+    (fundo.querySelector('[data-agc="nao"]') || fundo.querySelector('[data-agc="sim"]')).focus();
+  });
 }
 
 /** Monta a tela no elemento `alvo` (id). */
@@ -313,21 +417,30 @@ export async function renderAgendaPaciente(alvo) {
       }, { passive: true });
     }
 
+    // Toda resposta da agenda vira um CARTÃO com OK (pedido do Eduardo): o
+    // aluno lê a regra e confirma que leu. Toast some sozinho e não ensina nada.
     el.querySelectorAll('[data-ag]').forEach(b => b.addEventListener('click', async () => {
       const li = b.closest('.ag-hor');
       const { grade, data } = li.dataset;
       const hora = li.querySelector('.ag-hor-h b')?.textContent || '';
-      if (b.dataset.ag === 'desmarcar' && !(await confirmar({
-        titulo: 'Desmarcar treino',
-        mensagem: `Desmarcar ${fmtDia(data)} às ${hora}? A vaga fica livre e você pode marcar outro dia desta semana.`,
-        textoOk: 'Desmarcar',
-      }))) return;
+      const s = semanas.get(inicioDaSemana(data)) || {};
+      const m = mensagensDaAgenda({ data, hora, horas: s.cancela_horas_antes, limite: s.limite, horaDoDia: horaMarcadaNoDia(s, data) });
+      const acao = b.dataset.ag;
+
+      if (acao === 'prazo') { await cartao(m.foraDoPrazo); return; }
+      if (acao === 'outro_no_dia') { await cartao(m.umaPorDia); return; }
+      if (acao === 'desmarcar' && !(await cartao(m.confirmarDesmarque))) return;
+
       b.disabled = true;
       try {
-        if (b.dataset.ag === 'desmarcar') { await desmarcarHorario(grade, data); mostrarToast('Treino desmarcado'); }
-        else { await reservarHorario(grade, data); mostrarToast(`Reservado: ${fmtDia(data)} às ${hora}`); }
+        if (acao === 'desmarcar') { await desmarcarHorario(grade, data); await cartao(m.desmarcada); }
+        else {
+          const voltou = li.querySelector('.ag-selo-des') !== null;
+          await reservarHorario(grade, data);
+          await cartao(voltou ? m.voltou : m.marcada);
+        }
       } catch (e) {
-        mostrarToast(e.message);
+        await cartao({ ...(acao === 'desmarcar' ? m.erroDesmarcar : m.erroMarcar), texto: e.message });
       }
       semanas.delete(inicioDaSemana(data));   // vaga e saldo mudaram: relê a semana
       desenharDia();

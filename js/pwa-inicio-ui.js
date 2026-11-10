@@ -242,13 +242,44 @@ export function documentosHtml({ novos = 0, titulo = null } = {}) {
 }
 
 /** A tela inteira. */
+/**
+ * "Seu plano" — vigência, aulas feitas e disponíveis (agenda de treino).
+ *
+ * Vem de `agenda_aluno_resumo()` (db/agenda_uma_aula_por_dia.sql). Sem agenda
+ * ligada, sem plano com frequência ou se a consulta falhou: o bloco NÃO
+ * aparece — "0 aulas disponíveis" afirmaria algo que a tela não sabe.
+ * Aula marcada e não desmarcada conta como feita (regra do Eduardo).
+ */
+export function planoHtml(r, hoje = '') {
+  if (!r || !r.ativo || !r.plano || !r.fim) return '';
+  const br = iso => String(iso).slice(0, 10).split('-').reverse().slice(0, 2).join('/');
+  const faltam = hoje ? Math.round((new Date(r.fim + 'T12:00:00') - new Date(hoje + 'T12:00:00')) / 86400000) : null;
+  const resta = faltam === null ? '' : faltam > 1 ? ` · faltam ${faltam} dias` : faltam === 1 ? ' · termina amanhã' : faltam === 0 ? ' · termina hoje' : '';
+  const tile = (ic, rot, val, un) => `
+    <div class="pa-stat">
+      <div class="pa-stat-top"><span class="pa-stat-ic">${ic}</span> ${esc(rot)}</div>
+      <div class="pa-stat-val">${esc(String(val))} <small>${esc(un)}</small></div>
+    </div>`;
+  const n = v => Math.max(0, Number(v) || 0);
+  return `
+    <h2 class="in-t">Seu plano</h2>
+    <div class="in-plano">
+      <div class="in-plano-nome">${esc(r.plano)}</div>
+      <div class="in-plano-vig">Vigência ${esc(br(r.inicio))} a ${esc(br(r.fim))}${esc(resta)}</div>
+    </div>
+    <div class="pa-stats in-stats2">
+      ${tile('✅', 'Aulas feitas', n(r.feitas), n(r.feitas) === 1 ? 'aula' : 'aulas')}
+      ${tile('🗓️', 'Disponíveis', n(r.disponiveis), n(r.disponiveis) === 1 ? 'aula' : 'aulas')}
+    </div>`;
+}
+
 export function inicioHtml(d = {}) {
   const {
     saudacao = 'Olá', nome = '', hoje = '',
     refeicao, treino = null, exercicios = 0, grupos = '', consulta = null,
     sequencia = 0, recordes = 0, semana = 0, metas = [],
     temTreino = false, temDieta = false, treinoCarregando = false,
-    documentos = null,
+    documentos = null, plano = null,
   } = d;
 
   const corpo = hojeHtml({ refeicao, treino, exercicios, grupos, consulta, treinoCarregando });
@@ -268,6 +299,7 @@ export function inicioHtml(d = {}) {
       </section>`}
 
       ${documentosHtml(documentos || {})}
+      ${planoHtml(plano, hoje)}
       ${progressoHtml({ sequencia, recordes, semana, carregando: treinoCarregando })}
       ${metasHtml(metas)}
       ${atalhosHtml({ temTreino, temDieta, documentos })}
@@ -336,12 +368,18 @@ export async function renderInicioPaciente(alvo, bruto = {}, opcoes = {}) {
   // As QUATRO vão juntas. Antes o treino era esperado primeiro e só então
   // estas três começavam: quatro esperas em fila viravam a soma dos tempos, e
   // não o maior deles.
-  const [rTreino, rDieta, rConsulta, rMetas, rDocs] = await Promise.all([
+  // Resumo do plano (agenda de treino): fora da conta do "tudo falhou" — é
+  // um bloco a mais, e sem a migração ele só não aparece.
+  const carregarPlano = opcoes.carregarPlano
+    || (async () => (await import('./pwa-agenda-data.js')).resumoDoPlano());
+
+  const [rTreino, rDieta, rConsulta, rMetas, rDocs, rPlano] = await Promise.all([
     opcoes.treino ? tentar(() => opcoes.treino, 'treino') : { ok: true, valor: null },
     tentar(carregarDieta, 'dieta'),
     tentar(carregarConsulta, 'consulta'),
     tentar(carregarMetas, 'metas'),
     tentar(carregarDocumentos, 'documentos'),
+    tentar(carregarPlano, 'plano'),
   ]);
 
   // Com a rede fora, TODAS falham. Aí a tela não pode dizer "nada programado":
@@ -377,6 +415,7 @@ export async function renderInicioPaciente(alvo, bruto = {}, opcoes = {}) {
     // "0 arquivos" afirmaria que o paciente não tem nenhum, e isso a tela não
     // sabe quando a consulta falhou.
     documentos: rDocs.ok ? resumoParaInicio(rDocs.valor || []) : null,
+    plano: rPlano.ok ? rPlano.valor : null,
   });
   ligarAtalhos(cx, opcoes.ir);
 }

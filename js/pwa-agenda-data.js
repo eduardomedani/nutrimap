@@ -39,3 +39,17 @@ export async function desmarcarHorario(gradeId, data) {
   const { error } = await sb.rpc('agenda_aluno_desmarcar', { p_grade: gradeId, p_data: data });
   if (error) throw new Error(mensagem(error));
 }
+
+/**
+ * Vigência do plano, aulas feitas e disponíveis — para o Início.
+ * null quando a função ainda não existe no banco (migração não rodada): o
+ * Início simplesmente não mostra o bloco.
+ */
+export async function resumoDoPlano() {
+  const { data, error } = await sb.rpc('agenda_aluno_resumo');
+  if (error) {
+    if (error.code === 'PGRST202' || error.code === '42883') return null;
+    throw new Error(mensagem(error));
+  }
+  return data;
+}

@@ -208,3 +208,19 @@
   .in-atalhos { flex-direction: row; }
   .in-atalho { flex: 1; }
 }
+
+/* ── "Seu plano" (agenda de treino) ────────────────────────────────────── */
+/* Nome e vigência num cartão baixo; os dois números nos mesmos tiles do
+   "Seu progresso", para a tela ler como uma família só. */
+.in-plano {
+  background: var(--bg-card);
+  border: 1px solid var(--hair);
+  border-radius: 16px;
+  padding: 12px 15px;
+  box-shadow: var(--shadow);
+  margin-bottom: 9px;
+}
+.in-plano-nome { font-size: var(--pa-fs-card); font-weight: 800; color: var(--ink); }
+.in-plano-vig { margin-top: 2px; font-size: var(--pa-fs-sub); color: var(--ink-soft); }
+.in-stats2 { grid-template-columns: 1fr 1fr; gap: 9px; margin-bottom: 0; }
+.in-stats2 .pa-stat { padding: 14px 12px; }

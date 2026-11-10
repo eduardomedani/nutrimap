@@ -50,10 +50,18 @@ grupo('agenda · tela', () => {
     igual(r.map(x => x.data + ' ' + x.hora), ['2026-11-09 19:00', '2026-11-10 18:00']);
   });
 
-  teste('desmarcar pede confirmação; regra mostrada é a que veio do servidor', () => {
+  teste('desmarcar pede confirmação NUM CARTÃO; regra mostrada é a que veio do servidor', () => {
     const ui = readFileSync(new URL('../js/pwa-agenda-ui.js', import.meta.url), 'utf8');
-    contem(ui, "if (b.dataset.ag === 'desmarcar' && !(await confirmar({");
+    contem(ui, "if (acao === 'desmarcar' && !(await cartao(m.confirmarDesmarque))) return;");
     contem(ui, 'A reserva abre ${s.abre_dias_antes} dia(s) antes.');
+  });
+
+  teste('toda resposta é cartão com OK — nada de toast que some sozinho', () => {
+    const ui = readFileSync(new URL('../js/pwa-agenda-ui.js', import.meta.url), 'utf8');
+    igual(/mostrarToast|confirmar\(/.test(ui), false);
+    contem(ui, 'role="alertdialog"');
+    // O fundo não fecha o cartão: só o botão (o OK é "li").
+    igual(/fundo\.addEventListener\('click'/.test(ui), false);
   });
 
   teste('o aluno só fala com as funções do banco (nenhuma tabela direto)', () => {
@@ -127,5 +135,99 @@ grupo('app · o Safari não infla letra por conta própria', () => {
   teste('text-size-adjust em 100% (não none: o zoom de acessibilidade continua)', () => {
     const shell = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
     contem(shell, 'html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }');
+  });
+});
+
+import { mensagensDaAgenda } from '../js/pwa-agenda-ui.js';
+
+grupo('agenda · uma aula por dia e as mensagens', () => {
+  const semana = (extra = []) => ctx({ horarios: [h({ grade_id: 'g18', hora: '18:00', meu: 'fixo' }), ...extra] });
+
+  teste('com aula no dia, os OUTROS horários do dia ficam fechados', () => {
+    igual(estadoDoHorario(h({ grade_id: 'g06', hora: '06:00' }), semana()), 'outro_no_dia');
+    igual(estadoDoHorario(h({ grade_id: 'g18', hora: '18:00', meu: 'fixo' }), semana()), 'desmarcar', 'a própria aula continua desmarcável');
+    igual(estadoDoHorario(h({ grade_id: 'g06', data: '2026-11-12', hora: '06:00' }), semana()), 'reservar', 'outro dia: livre');
+  });
+
+  teste('fixo DESMARCADO libera o dia para outra reserva', () => {
+    const s = ctx({ horarios: [h({ grade_id: 'g18', hora: '18:00', meu: 'desmarcado' })] });
+    igual(estadoDoHorario(h({ grade_id: 'g06', hora: '07:00' }), s), 'reservar');
+  });
+
+  teste('as mensagens sempre dizem a regra', () => {
+    const m = mensagensDaAgenda({ data: '2026-11-11', hora: '18:00', horas: 1, limite: 3, horaDoDia: '18:00' });
+    contem(m.desmarcada.texto, 'Você poderá remarcar a aula');
+    contem(m.desmarcada.regra, 'até 1 hora antes');
+    contem(m.foraDoPrazo.titulo, 'Não é possível cancelar');
+    contem(m.foraDoPrazo.texto, 'pelo horário');
+    contem(m.foraDoPrazo.texto, 'conta como feita');
+    contem(m.umaPorDia.texto, 'às 18:00');
+    contem(m.umaPorDia.regra, 'até 3 por semana');
+    igual(m.confirmarDesmarque.cancelar, 'Manter aula', 'a pergunta tem saída');
+  });
+
+  teste('prazo em horas: 1 hora, 2 horas, 1,5 horas', () => {
+    contem(mensagensDaAgenda({ data: '2026-11-11', hora: '18:00', horas: 2 }).foraDoPrazo.regra, 'até 2 horas antes');
+    contem(mensagensDaAgenda({ data: '2026-11-11', hora: '18:00', horas: 1.5 }).foraDoPrazo.regra, 'até 1,5 horas antes');
+  });
+
+  teste('aula que passou sem ser desmarcada aparece como Concluída', () => {
+    const ui = readFileSync(new URL('../js/pwa-agenda-ui.js', import.meta.url), 'utf8');
+    contem(ui, "const concluida = est === 'passou' && meu;");
+    contem(ui, '✓ Concluída');
+  });
+});
+
+import { planoHtml } from '../js/pwa-inicio-ui.js';
+
+grupo('início · seu plano (vigência, feitas, disponíveis)', () => {
+  const r = { ativo: true, plano: 'Mensal 3x', frequencia: 3, inicio: '2026-10-27', fim: '2026-12-10', feitas: 7, disponiveis: 15 };
+  teste('mostra vigência, quanto falta e os dois números', () => {
+    const html = planoHtml(r, '2026-11-10');
+    contem(html, 'Mensal 3x');
+    contem(html, 'Vigência 27/10 a 10/12 · faltam 30 dias');
+    contem(html, 'Aulas feitas');
+    contem(html, '>7 <small>aulas</small>');
+    contem(html, '>15 <small>aulas</small>');
+  });
+  teste('sem agenda, sem plano ou sem resposta: o bloco não aparece', () => {
+    igual(planoHtml(null), '');
+    igual(planoHtml({ ativo: false }), '');
+    igual(planoHtml({ ativo: true, plano: null }), '');
+  });
+  teste('singular e fim do plano', () => {
+    contem(planoHtml({ ...r, feitas: 1 }, '2026-11-10'), '>1 <small>aula</small>');
+    contem(planoHtml(r, '2026-12-10'), 'termina hoje');
+  });
+});
+
+grupo('agenda · migração de 1 aula por dia', () => {
+  const sql = readFileSync(new URL('../db/agenda_uma_aula_por_dia.sql', import.meta.url), 'utf8');
+  const des = readFileSync(new URL('../db/agenda_uma_aula_por_dia_desfazer.sql', import.meta.url), 'utf8');
+  teste('toda função com search_path fixo e as internas trancadas', () => {
+    const funcoes = sql.match(/create or replace function public\.[a-z_]+/g) || [];
+    igual(funcoes.length, 5);
+    igual((sql.match(/set search_path = public/g) || []).length, 5);
+    for (const f of ['agenda__aulas_no_dia(uuid, date)', 'agenda__reservar(uuid, uuid, date, text, boolean)', 'agenda__fixo_confere()', 'agenda__aulas_feitas(uuid, uuid, date, timestamp)'])
+      contem(sql, `revoke all on function public.${f} from public, anon, authenticated;`);
+  });
+  teste('o resumo é só do próprio aluno e só para quem está logado', () => {
+    contem(sql, 'v_pac uuid := public.paciente_do_auth()');
+    contem(sql, 'revoke all on function public.agenda_aluno_resumo() from public, anon;');
+    contem(sql, 'grant execute on function public.agenda_aluno_resumo() to authenticated;');
+  });
+  teste('a reserva recusa a segunda aula do dia e o fixo, o segundo no mesmo dia da semana', () => {
+    contem(sql, 'if public.agenda__aulas_no_dia(p_paciente, p_data) >= 1 then');
+    contem(sql, 'gf.dia_semana = gn.dia_semana');
+  });
+  teste('não mexe em tabela nem em dado', () => {
+    igual(/\b(alter|drop) table|\bdelete from|\bupdate public\.agenda_(config|grade|fixos)\b|insert into public\.agenda_(config|grade|fixos)/i.test(sql), false);
+  });
+  teste('o desfazer volta as duas funções e tira as três novas', () => {
+    contem(des, 'create or replace function public.agenda__reservar(');
+    contem(des, 'create or replace function public.agenda__fixo_confere()');
+    for (const f of ['agenda_aluno_resumo()', 'agenda__aulas_feitas(uuid, uuid, date, timestamp)', 'agenda__aulas_no_dia(uuid, date)'])
+      contem(des, `drop function if exists public.${f};`);
+    igual(des.includes('aulas_no_dia(p_paciente'), false, 'a reserva antiga não usa a função que sai');
   });
 });
