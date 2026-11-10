@@ -1,0 +1,151 @@
+// ═══════════════════════════════════════════════════════════
+// SERVIÇOS CONTRATADOS — Alimentação, Treino, Academia
+// ═══════════════════════════════════════════════════════════
+// O que estes testes protegem: o aluno vê só o que contratou; o que não
+// contratou de Alimentação vira oferta; sem definição, nada muda para ninguém.
+
+import { grupo, teste, ok, igual, contem, naoContem } from './runner.mjs';
+import { readFileSync } from 'node:fs';
+import { contratou, normalizarServicos, rotuloServicos, SERVICOS } from '../js/servicos.js';
+import { inicioHtml } from '../js/pwa-inicio-ui.js';
+import { servicosHtml } from '../js/paciente-servicos-ui.js';
+
+const ler = p => readFileSync(new URL(p, import.meta.url), 'utf8');
+
+grupo('serviços · a regra', () => {
+  teste('sem definição (null), tudo vale — ninguém perde tela', () => {
+    for (const s of ['alimentacao', 'treino', 'academia']) ok(contratou(null, s), s);
+    ok(contratou(undefined, 'treino'));
+  });
+  teste('definido, vale só o marcado; lista vazia = nada', () => {
+    igual(contratou(['alimentacao'], 'treino'), false);
+    igual(contratou(['treino', 'academia'], 'academia'), true);
+    igual(contratou([], 'alimentacao'), false);
+  });
+  teste('normaliza: sem repetição, sem lixo, na ordem oficial', () => {
+    igual(normalizarServicos(['academia', 'treino', 'treino', 'xpto']), ['treino', 'academia']);
+    igual(SERVICOS.map(s => s.id), ['alimentacao', 'treino', 'academia']);
+  });
+  teste('rótulo para a ficha', () => {
+    igual(rotuloServicos(null), 'Não definido');
+    igual(rotuloServicos([]), 'Nenhum serviço');
+    igual(rotuloServicos(['academia', 'treino']), 'Treino + Academia');
+  });
+});
+
+grupo('serviços · o Início do aluno', () => {
+  const base = {
+    hoje: '2026-11-10', treino: { dia: 'A', feito: false }, temTreino: true,
+    dieta: { nome: 'Plano', refeicoes: 3, proxima: null },
+    agenda: { aula: null, podeAgendar: true },
+    plano: { ativo: true, plano: 'Mensal 3x', fim: '2026-12-10', feitas: 1, disponiveis: 2 },
+  };
+  teste('academia (Treino + Academia): sem dieta, com a oferta de nutrição', () => {
+    const h = inicioHtml({ ...base, servicos: ['treino', 'academia'] });
+    contem(h, 'Treino de hoje');
+    contem(h, 'Sua semana');
+    contem(h, 'Próxima aula');
+    contem(h, 'Meu plano');
+    naoContem(h, 'Sua alimentação');
+    contem(h, 'Acompanhamento nutricional');
+    contem(h, 'Fale com o seu profissional');
+  });
+  teste('nutricionista (só Alimentação): sem treino, sem semana, sem academia, sem oferta', () => {
+    const h = inicioHtml({ ...base, servicos: ['alimentacao'] });
+    contem(h, 'Sua alimentação');
+    for (const fora of ['Treino de hoje', 'Sua semana', 'Próxima aula', 'Meu plano', 'Acompanhamento nutricional']) naoContem(h, fora);
+  });
+  teste('os três: tudo, e nenhuma oferta', () => {
+    const h = inicioHtml({ ...base, servicos: ['alimentacao', 'treino', 'academia'] });
+    for (const s of ['Treino de hoje', 'Sua alimentação', 'Próxima aula', 'Meu plano']) contem(h, s);
+    naoContem(h, 'Acompanhamento nutricional');
+  });
+  teste('não definido: igual a antes (tudo, sem oferta)', () => {
+    const h = inicioHtml({ ...base, servicos: null });
+    for (const s of ['Treino de hoje', 'Sua alimentação', 'Próxima aula']) contem(h, s);
+    naoContem(h, 'Acompanhamento nutricional');
+  });
+  teste('a oferta não tem botão (não há tela de venda)', () => {
+    const h = inicioHtml({ ...base, servicos: ['treino'] });
+    const i = h.indexOf('in-oferta');
+    naoContem(h.slice(i, h.indexOf('</section>', i)), '<button');
+  });
+  teste('só um card de destaque ocupa a linha inteira', () => {
+    contem(inicioHtml({ ...base, servicos: ['alimentacao'] }), 'class="in-duo in-duo-um"');
+    contem(inicioHtml({ ...base, servicos: null }), 'class="in-duo"');
+  });
+  teste('o que não foi contratado nem é buscado', () => {
+    const ui = ler('../js/pwa-inicio-ui.js');
+    contem(ui, "tem('alimentacao') ? tentar(carregarDieta, 'dieta') : nada,");
+    contem(ui, "tem('academia') ? tentar(carregarAgenda, 'agenda') : nada,");
+  });
+});
+
+grupo('serviços · a barra e a leitura do aluno', () => {
+  const casca = ler('../js/paciente-ui.js');
+  const abas = casca.slice(casca.indexOf('function abasDaBarra'), casca.indexOf('function bottomNav'));
+  teste('cada aba depende do serviço', () => {
+    contem(abas, "_agendaAtiva && temServico('academia')");
+    contem(abas, "temServico('treino')");
+    contem(abas, "temServico('alimentacao')");
+  });
+  teste('quem não é da academia nem consulta a agenda', () => {
+    contem(casca, "if (!temServico('academia')) return;");
+  });
+  teste('sem a coluna no banco, o app abre igual (lê de novo sem ela)', () => {
+    const dados = ler('../js/paciente-data.js');
+    contem(dados, "ler('id, nome, codigo, status, sexo, servicos')");
+    contem(dados, "if (error && error.code === '42703')");
+  });
+  teste('servicos.js está no cache do app (import estático)', () => {
+    contem(ler('../sw.js'), "'js/servicos.js',");
+  });
+});
+
+grupo('serviços · a ficha do cliente', () => {
+  teste('três marcadores, com a explicação do que cada um libera', () => {
+    const h = servicosHtml(['treino']);
+    igual((h.match(/type="checkbox"/g) || []).length, 3);
+    contem(h, 'Treino');
+    contem(h, 'Plano alimentar e a aba Dieta no app');
+    contem(h, 'value="treino" checked');
+    naoContem(h, 'value="alimentacao" checked');
+  });
+  teste('não definido avisa que o app mostra tudo', () => {
+    contem(servicosHtml(null), 'Ainda não definido: o app do cliente mostra tudo.');
+  });
+  teste('sem permissão de editar, só leitura', () => {
+    igual((servicosHtml(['treino'], { editar: false }).match(/disabled/g) || []).length, 3);
+  });
+  teste('grava só a coluna e confere a volta do banco', () => {
+    const ui = ler('../js/paciente-servicos-ui.js');
+    contem(ui, ".update({ servicos: marcados }).eq('id', paciente.id).select('servicos').maybeSingle()");
+    contem(ui, "pode('clientes.editar')");
+  });
+  teste('a seção entra na Visão geral sem derrubar o painel', () => {
+    const p = ler('../js/paciente-painel.js');
+    contem(p, '<section class="pv-bloco" data-pv-servicos></section>');
+    contem(p, ".catch(e => console.error('[painel] serviços:', e));");
+  });
+  teste('CSS só com tokens', () => {
+    const css = ler('../css/paciente-servicos.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    igual(/#[0-9a-fA-F]{3,8}\b|rgba?\(/.test(css), false);
+  });
+});
+
+grupo('serviços · a migração', () => {
+  const sql = ler('../db/paciente_servicos.sql');
+  const des = ler('../db/paciente_servicos_desfazer.sql');
+  teste('coluna que aceita nulo, sem padrão, com regra dos três nomes', () => {
+    contem(sql, 'alter table public.pacientes add column if not exists servicos text[];');
+    contem(sql, "servicos is null or servicos <@ array['alimentacao', 'treino', 'academia']::text[]");
+    naoContem(sql, 'default');
+  });
+  teste('não mexe em dado nem em política', () => {
+    igual(/\bupdate public\.|\binsert into|\bdelete from|create policy|drop policy|grant /i.test(sql), false);
+  });
+  teste('o desfazer tira a regra e a coluna', () => {
+    contem(des, 'drop constraint if exists pacientes_servicos_validos');
+    contem(des, 'drop column if exists servicos');
+  });
+});

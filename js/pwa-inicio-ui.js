@@ -26,6 +26,7 @@ import {
   inicioDaSemana, somarDias, diasAte,
 } from './pwa-inicio-data.js';
 import { resumoParaInicio } from './pwa-documentos-data.js';
+import { contratou } from './servicos.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const ic = nome => `<i data-lucide="${esc(nome)}"></i>`;
@@ -135,6 +136,21 @@ export function alimentacaoHtml(dieta) {
       ${proxima}
       ${meta ? `<p class="in-card-meta">${esc(meta)}</p>` : ''}
       <button class="in-btn in-btn-sec" type="button" data-ir="dieta">${ic('utensils')} Ver dieta</button>
+    </section>`;
+}
+
+/**
+ * Oferta de acompanhamento nutricional — para quem NÃO contratou Alimentação
+ * (decisão do Eduardo: o não contratado aparece como oferta, sem tela vazia).
+ * Sem botão: o app não tem canal de venda; o caminho é falar com o
+ * profissional. Treino e Academia não contratados simplesmente não aparecem —
+ * a academia sempre vende os dois juntos, e o nutricionista não vende nenhum.
+ */
+export function ofertaAlimentacaoHtml() {
+  return `
+    <section class="in-card in-oferta" aria-label="Acompanhamento nutricional">
+      ${cabecalhoCard({ icone: 'salad', rotulo: 'Acompanhamento nutricional' })}
+      <p class="in-card-vazio">Quer um plano alimentar feito para a sua rotina e o seu objetivo? Fale com o seu profissional para incluir a nutrição no seu acompanhamento.</p>
     </section>`;
 }
 
@@ -343,7 +359,13 @@ export function inicioHtml(d = {}) {
     dieta,   // undefined = carregando · null = sem plano · 'falhou' · resumo
     datasTreinadas = [], semana = 0, metaSemana = null, sequencia = 0, recordes = 0,
     agenda = null, consulta = null, plano = null, metas = [], documentos = null,
+    servicos = null,   // o que o cliente contratou (null = não definido: tudo)
   } = d;
+  const tem = id => contratou(servicos, id);
+  const cardTreino = tem('treino')
+    ? treinoHojeHtml({ treino, temTreino, carregando: treinoCarregando, grupos, exercicios, minutos, emAndamento })
+    : '';
+  const cardDieta = tem('alimentacao') ? alimentacaoHtml(dieta) : '';
 
   return `
     <div class="inicio">
@@ -352,16 +374,14 @@ export function inicioHtml(d = {}) {
         ${hoje ? `<p class="in-ola-s">${esc(dataLonga(hoje))}</p>` : ''}
       </header>
 
-      <div class="in-duo">
-        ${treinoHojeHtml({ treino, temTreino, carregando: treinoCarregando, grupos, exercicios, minutos, emAndamento })}
-        ${alimentacaoHtml(dieta)}
-      </div>
+      ${cardTreino || cardDieta ? `<div class="in-duo${cardTreino && cardDieta ? '' : ' in-duo-um'}">${cardTreino}${cardDieta}</div>` : ''}
 
       ${documentosHtml(documentos || {})}
-      ${semanaHtml({ datas: datasTreinadas, hoje, semana, meta: metaSemana, sequencia, recordes, carregando: treinoCarregando })}
-      ${proximaAulaHtml(agenda)}
+      ${tem('treino') ? semanaHtml({ datas: datasTreinadas, hoje, semana, meta: metaSemana, sequencia, recordes, carregando: treinoCarregando }) : ''}
+      ${tem('academia') ? proximaAulaHtml(agenda) : ''}
       ${consultaHtml(consulta)}
-      ${planoHtml(plano, hoje)}
+      ${tem('academia') ? planoHtml(plano, hoje) : ''}
+      ${tem('alimentacao') ? '' : ofertaAlimentacaoHtml()}
       ${metasHtml(metas)}
       ${acessoDocumentosHtml(documentos)}
     </div>`;
@@ -386,6 +406,7 @@ export function montarDados(b = {}) {
     datasTreinadas: b.datasTreinadas || [],
     semana: treinosNaSemana(b.datasTreinadas, b.hoje),
     temTreino: (b.dias || []).length > 0,
+    servicos: Array.isArray(b.servicos) ? b.servicos : null,
   };
 }
 
@@ -432,14 +453,18 @@ export async function renderInicioPaciente(alvo, bruto = {}, opcoes = {}) {
     return { semanas: [esta, proxima].filter(Boolean) };
   });
 
+  // O que o cliente não contratou nem é buscado: menos rede, e nenhuma
+  // chance de um card aparecer por engano.
+  const tem = id => contratou(bruto.servicos, id);
+  const nada = { ok: true, valor: null };
   const [rTreino, rDieta, rConsulta, rMetas, rDocs, rPlano, rAgenda] = await Promise.all([
-    opcoes.treino ? tentar(() => opcoes.treino, 'treino') : { ok: true, valor: null },
-    tentar(carregarDieta, 'dieta'),
+    opcoes.treino ? tentar(() => opcoes.treino, 'treino') : nada,
+    tem('alimentacao') ? tentar(carregarDieta, 'dieta') : nada,
     tentar(carregarConsulta, 'consulta'),
     tentar(carregarMetas, 'metas'),
     tentar(carregarDocumentos, 'documentos'),
-    tentar(carregarPlano, 'plano'),
-    tentar(carregarAgenda, 'agenda'),
+    tem('academia') ? tentar(carregarPlano, 'plano') : nada,
+    tem('academia') ? tentar(carregarAgenda, 'agenda') : nada,
   ]);
 
   // Com a rede fora, TODAS falham: aí a tela não pode dizer "preparando seu

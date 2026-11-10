@@ -405,7 +405,7 @@ grupo('pwa documentos · a rota e a barra inferior', () => {
     // Início — uma aba para algo aberto uma vez por mês desequilibraria a barra.
     const abas = casca.slice(casca.indexOf('function abasDaBarra()'), casca.indexOf('function bottomNav()'));
     igual((abas.match(/\['(inicio|treino|agenda|dieta)'/g) || []).length, 4, 'Início | Treino | Agenda | Dieta');
-    contem(abas, "...(_agendaAtiva ? [['agenda'");
+    contem(abas, "...(_agendaAtiva && temServico('academia') ? [['agenda'");
     naoContem(abas, 'documentos');
     naoContem(abas, "'mais'");
   });

@@ -16,6 +16,7 @@ import {
 import { mostrarToast, mostrarErro, confirmar } from './utils.js';
 import { pushSuportado, pushAtivo, ativarNotificacoes, desativarNotificacoes, traduzirPush } from './push.js';
 import { ligarBarraRetratil, mostrarBarra } from './barra-retratil.js';
+import { contratou } from './servicos.js';
 import * as Exec from './paciente-execucao.js';
 import { descansoDoItem, parseCadencia, fmtSegLongo } from './execucao-core.js';
 import * as Midia from './exercicio-midia.js';
@@ -939,13 +940,17 @@ function proximoDiaSugerido() {
 let _agendaAtiva = false;
 let _pilulaAntes = -1;   // aba acesa na tela anterior: a pílula desliza dela até a atual
 
+// Só as abas do que o cliente CONTRATOU (js/servicos.js). Sem definição na
+// ficha, tudo aparece, como sempre foi.
+const temServico = id => contratou(_paciente?.servicos, id);
+
 function abasDaBarra() {
   return [
     ['inicio', 'house', 'Início'],
     // Logo depois do Início (pedido do Eduardo, 10/11/2026).
-    ...(_agendaAtiva ? [['agenda', 'calendar-days', 'Agenda']] : []),
-    ['treino', 'dumbbell', 'Treino'],
-    ['dieta', 'salad', 'Dieta'],
+    ...(_agendaAtiva && temServico('academia') ? [['agenda', 'calendar-days', 'Agenda']] : []),
+    ...(temServico('treino') ? [['treino', 'dumbbell', 'Treino']] : []),
+    ...(temServico('alimentacao') ? [['dieta', 'salad', 'Dieta']] : []),
   ];
 }
 
@@ -994,6 +999,7 @@ let _agendaConferida = false;
 function conferirAgenda() {
   if (_agendaConferida) return;
   _agendaConferida = true;
+  if (!temServico('academia')) return;   // quem não é da academia nem pergunta
   import('./pwa-agenda-data.js')
     .then(m => m.agendaAtiva())
     .then(ativa => {
@@ -1187,6 +1193,7 @@ function pintarInicio(treino) {
     nome: (_paciente?.nome || '').trim().split(' ')[0],
     hoje: hoje(),
     pacienteId: _paciente?.id || null,
+    servicos: _paciente?.servicos ?? null,
   };
 
   import('./pwa-inicio-ui.js')

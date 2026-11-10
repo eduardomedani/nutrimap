@@ -186,3 +186,10 @@
   .in-duo { display: grid; grid-template-columns: 1fr 1fr; align-items: stretch; }
   .in-duo .in-card .in-btn { margin-top: auto; }
 }
+
+/* ── Serviço não contratado: oferta discreta ─────────── */
+/* Plano, sem sombra e com fundo suave: não compete com o que a pessoa usa. */
+.in-oferta { background: var(--surface-subtle); border-style: dashed; }
+.in-oferta .in-card-ic { background: var(--surface); }
+/* Só um dos dois cards de destaque: ocupa a linha inteira também no desktop. */
+@media (min-width: 720px) { .in-duo.in-duo-um { grid-template-columns: 1fr; } }

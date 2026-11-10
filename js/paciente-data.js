@@ -64,13 +64,13 @@ export async function meuPaciente(usuario = null) {
   let user = usuario;
   if (!user) ({ data: { user } } = await sb.auth.getUser());
   if (!user) return null;
-  const { data, error } = await sb
-    .from('pacientes')
-    // `sexo` entra por causa da animação: o acervo tem versão masculina e
-    // feminina do mesmo exercício, e a escolha sai daqui.
-    .select('id, nome, codigo, status, sexo')
-    .eq('auth_user_id', user.id)
-    .maybeSingle();
+  // `sexo` entra por causa da animação: o acervo tem versão masculina e
+  // feminina do mesmo exercício, e a escolha sai daqui. `servicos` diz o que o
+  // cliente contratou (db/paciente_servicos.sql) — e, se a coluna ainda não
+  // existir no banco (42703), a leitura repete sem ela: o app abre igual.
+  const ler = (colunas) => sb.from('pacientes').select(colunas).eq('auth_user_id', user.id).maybeSingle();
+  let { data, error } = await ler('id, nome, codigo, status, sexo, servicos');
+  if (error && error.code === '42703') ({ data, error } = await ler('id, nome, codigo, status, sexo'));
   if (error) throw error;
   return data || null;
 }
