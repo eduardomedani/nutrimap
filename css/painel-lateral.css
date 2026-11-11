@@ -78,3 +78,32 @@
 
 /* Barra de rolagem da navegação, discreta no verde. */
 .sidebar-nav { scrollbar-color: var(--sidebar-divider) transparent; }
+
+/* ── Grupos que recolhem e expandem (js/menu-lateral.js) ─────────────────
+   O título tem o MESMO tamanho dos itens (14px), sem caixa alta, e se
+   distingue pelo peso e pela seta. O item da página atual continua à vista
+   mesmo com o grupo recolhido. */
+.sidebar .nav-group { margin-bottom: 8px; }
+.sidebar .nav-group-title {
+  padding: 0; margin-bottom: 2px;
+  font-size: 14px; text-transform: none; letter-spacing: 0;
+}
+.sidebar .nav-group-botao {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; min-height: 38px; padding: 8px 12px;
+  border: 0; border-radius: var(--radius-sm); background: none; cursor: pointer;
+  font: inherit; font-size: 14px; font-weight: 700; line-height: 1.2; text-align: left;
+  color: var(--sidebar-fg-mute);
+  transition: background var(--duration-base) var(--ease), color var(--duration-base) var(--ease);
+}
+.sidebar .nav-group-botao:hover { background: var(--sidebar-hover); color: var(--sidebar-fg); }
+.sidebar .nav-group-botao:focus-visible { outline: 2px solid var(--sidebar-accent); outline-offset: 2px; }
+.sidebar .nav-group-botao svg {
+  width: 16px; height: 16px; flex-shrink: 0;
+  transition: transform var(--duration-base) var(--ease);
+}
+.sidebar .nav-group.recolhido .nav-group-botao svg { transform: rotate(-90deg); }
+.sidebar .nav-group.recolhido .nav-item:not(.active) { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .sidebar .nav-group-botao, .sidebar .nav-group-botao svg { transition: none; }
+}

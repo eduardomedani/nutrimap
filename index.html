@@ -2302,6 +2302,7 @@
   import { processarRecordatorioIA } from './js/recordatorio-ia.js';
   import { abrirFichaPaciente } from './js/ficha.js';
   import { ligarTelaClientes, definirClientes } from './js/clientes-ui.js';
+  import { ligarGruposDoMenu } from './js/menu-lateral.js';
   import { initAvaliacoesUI } from './js/avaliacoes-ui.js';
   import { initExerciciosUI } from './js/exercicios-ui.js';
   import { listarTreinosComVencimento } from './js/treinos.js';
@@ -2546,6 +2547,8 @@
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); item.click(); }
     });
   });
+  // Títulos dos grupos viram botões de recolher/expandir (js/menu-lateral.js).
+  ligarGruposDoMenu();
 
   document.getElementById('menuToggle').addEventListener('click', () => {
     document.getElementById('sidebar').classList.add('open');

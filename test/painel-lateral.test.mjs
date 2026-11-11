@@ -50,3 +50,34 @@ grupo('menu lateral · contraste sobre o verde', () => {
     naoContem(ler('../css/painel-lateral.css'), 'color-primary-600');
   });
 });
+
+// ── Grupos que recolhem e expandem (11/11/2026) ──────────────
+import { lerRecolhidos, alternar } from '../js/menu-lateral.js';
+
+grupo('menu lateral · grupos recolhíveis', () => {
+  const css = ler('../css/painel-lateral.css');
+  teste('o título tem o mesmo tamanho dos itens (14px), sem caixa alta', () => {
+    contem(css, 'font-size: 14px; text-transform: none; letter-spacing: 0;');
+    contem(css, 'font: inherit; font-size: 14px; font-weight: 700;');
+  });
+  teste('recolhido esconde os itens, MENOS o da página atual', () => {
+    contem(css, '.sidebar .nav-group.recolhido .nav-item:not(.active) { display: none; }');
+  });
+  teste('alternar entra e sai da lista', () => {
+    ok(alternar([], 'Financeiro').includes('Financeiro'));
+    ok(!alternar(['Financeiro'], 'Financeiro').includes('Financeiro'));
+  });
+  teste('storage vazio, com lixo ou bloqueado: tudo expandido', () => {
+    const st = v => ({ getItem: () => v });
+    ok(lerRecolhidos(st(null)).length === 0);
+    ok(lerRecolhidos(st('{quebrado')).length === 0);
+    ok(lerRecolhidos(st('{"a":1}')).length === 0);
+    ok(lerRecolhidos({ getItem: () => { throw new Error('bloqueado'); } }).length === 0);
+    ok(lerRecolhidos(st('["Financeiro", 3]')).join() === 'Financeiro');
+  });
+  teste('o título vira botão com aria-expanded e o painel liga', () => {
+    const js = ler('../js/menu-lateral.js');
+    contem(js, '<button type="button" class="nav-group-botao" aria-expanded="${!fechado}" aria-controls="${esc(grupo.id)}">');
+    contem(ler('../index.html'), '  ligarGruposDoMenu();');
+  });
+});
