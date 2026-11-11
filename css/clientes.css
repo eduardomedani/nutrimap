@@ -1,0 +1,224 @@
+/* ═══════════════════════════════════════════════════════════
+   CLIENTES — cabeçalho, busca, filtros e tabela (js/clientes-ui.js)
+   ═══════════════════════════════════════════════════════════
+   Ordem visual: 1) título + Novo cliente; 2) busca, filtros e contagem;
+   3) a lista numa superfície única. O cadastro abre no drawer .dsp-* do
+   financeiro (css/financeiro.css), com a largura ajustada aqui. */
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* ── 1. Cabeçalho ─────────────────────────────────────── */
+.cli-cabeca { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.cli-cabeca-txt { min-width: 0; }
+.cli-cabeca .page-sub { margin-bottom: 0; }
+.cli-novo { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 20px; flex-shrink: 0; font-weight: 700; }
+.cli-novo svg { width: 18px; height: 18px; }
+
+/* ── 2. Barra de ferramentas ──────────────────────────── */
+.cli-barra {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end;
+  gap: 12px 16px; margin: 0 0 16px;
+}
+.cli-busca {
+  position: relative; display: flex; align-items: center;
+  height: 48px; padding: 0 6px 0 14px; gap: 10px;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-md);
+  transition: border-color var(--duration-base) var(--ease), box-shadow var(--duration-base) var(--ease);
+}
+.cli-busca > svg { width: 20px; height: 20px; color: var(--text-secondary); flex-shrink: 0; }
+/* UMA borda: o input não desenha a dele (sem "input dentro de input"). */
+.cli-busca input {
+  flex: 1; min-width: 0; height: 100%; padding: 0;
+  border: 0; outline: 0; background: transparent;
+  font: inherit; font-size: 15px; color: var(--text-primary);
+}
+.cli-busca input::placeholder { color: var(--text-secondary); }
+.cli-busca input::-webkit-search-cancel-button { display: none; }   /* o nosso "x" faz isso */
+.cli-busca:focus-within { border-color: var(--color-primary-700); box-shadow: var(--shadow-focus); }
+.cli-busca-limpar {
+  flex-shrink: 0; width: 36px; height: 36px; border: 0; border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; color: var(--text-secondary); cursor: pointer;
+}
+.cli-busca-limpar[hidden] { display: none; }
+.cli-busca-limpar:hover { background: var(--surface-subtle); color: var(--text-primary); }
+.cli-busca-limpar:focus-visible { outline: 2px solid var(--color-primary-700); outline-offset: 0; }
+.cli-busca-limpar svg { width: 18px; height: 18px; }
+
+.cli-filtros { display: flex; gap: 12px; }
+.cli-filtro { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cli-filtro-rot { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.cli-filtro select {
+  height: 48px; min-width: 170px; padding: 0 36px 0 12px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-md);
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") right 12px center / 16px no-repeat;
+  appearance: none; -webkit-appearance: none;
+  font: inherit; font-size: 14px; color: var(--text-primary); cursor: pointer;
+}
+.cli-filtro select:focus-visible { outline: none; border-color: var(--color-primary-700); box-shadow: var(--shadow-focus); }
+
+.cli-contagem { grid-column: 1 / -1; margin: 0; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+
+/* ── 3. A lista: uma superfície, linhas alinhadas ─────── */
+.cli-sup { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs); overflow: visible; }
+.cli-tabela { width: 100%; border-collapse: collapse; table-layout: auto; }
+.cli-tabela th {
+  padding: 12px 16px; text-align: left; white-space: nowrap;
+  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: var(--tracking-wide, 0.04em);
+  color: var(--text-secondary); border-bottom: 1px solid var(--border);
+}
+.cli-tabela td { padding: 12px 16px; vertical-align: middle; border-bottom: 1px solid var(--border); }
+.cli-tabela tbody tr:last-child td { border-bottom: 0; }
+.cli-linha { transition: background var(--duration-fast) var(--ease); }
+.cli-linha:hover { background: color-mix(in srgb, var(--color-primary-100) 55%, var(--surface)); }
+
+.cli-tabela td.cli-c-cliente { width: 100%; min-width: 220px; }
+.cli-cel { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.cli-avatar {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 38px; height: 38px; border-radius: 50%;
+  background: var(--color-primary-100); color: var(--color-primary-800);
+  font-size: 13px; font-weight: 700;
+}
+.cli-id { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+.cli-nome {
+  padding: 0; border: 0; background: none; cursor: pointer; text-align: left;
+  font: inherit; font-size: 15px; font-weight: 700; color: var(--text-primary);
+  overflow-wrap: anywhere;   /* nome longo quebra, não empurra as colunas */
+}
+.cli-nome:hover { color: var(--color-primary-700); text-decoration: underline; text-underline-offset: 3px; }
+.cli-nome:focus-visible { outline: 2px solid var(--color-primary-700); outline-offset: 2px; border-radius: 4px; }
+.cli-desde { font-size: 12.5px; color: var(--text-secondary); }
+
+.cli-tag {
+  display: inline-flex; align-items: center; padding: 3px 10px; border-radius: var(--radius-pill);
+  font-size: 12.5px; font-weight: 600; white-space: nowrap;
+}
+.cli-tag-rot { display: none; margin-right: 0.3em; }   /* só aparece no celular, onde não há cabeçalho de coluna */
+.cli-tag-ok { background: var(--color-primary-100); color: var(--color-primary-800); }
+.cli-tag-espera { background: color-mix(in srgb, var(--warning) 14%, var(--surface)); color: #8A4B06; }
+
+.cli-c-codigo { white-space: nowrap; }
+.cli-codigo { font-family: var(--font-mono, ui-monospace, monospace); font-size: 13px; font-weight: 600; letter-spacing: 0.04em; color: var(--text-primary); }
+
+.cli-icone {
+  display: inline-flex; align-items: center; justify-content: center; vertical-align: middle;
+  width: 36px; height: 36px; margin-left: 4px; border: 0; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text-secondary); cursor: pointer;
+}
+.cli-icone:hover { background: var(--surface-subtle); color: var(--text-primary); }
+.cli-icone:focus-visible { outline: 2px solid var(--color-primary-700); outline-offset: 0; }
+.cli-icone svg { width: 17px; height: 17px; }
+
+.cli-c-acoes { text-align: right; white-space: nowrap; }
+/* Ação da ficha em tratamento SECUNDÁRIO: verde preenchido repetido em toda
+   linha disputava atenção com o "Novo cliente". */
+.cli-abrir {
+  display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-pill);
+  color: var(--color-primary-800); font-weight: 700; font-size: 13px;
+}
+.cli-abrir:hover { background: var(--color-primary-100); border-color: color-mix(in srgb, var(--color-primary-700) 40%, transparent); }
+.cli-abrir:focus-visible { outline: 2px solid var(--color-primary-700); outline-offset: 2px; }
+
+/* Menu "…" */
+.cli-menu-raiz { position: relative; display: inline-block; }
+.cli-menu {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 30;
+  display: flex; flex-direction: column; min-width: 220px; padding: 6px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg); text-align: left;
+}
+.cli-menu[hidden] { display: none; }
+.cli-menu [role="menuitem"] {
+  display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 10px;
+  border: 0; border-radius: var(--radius-sm); background: none; cursor: pointer;
+  font: inherit; font-size: 14px; color: var(--text-primary); text-align: left; white-space: nowrap;
+}
+.cli-menu [role="menuitem"] svg { width: 16px; height: 16px; color: var(--text-secondary); }
+.cli-menu [role="menuitem"]:hover,
+.cli-menu [role="menuitem"]:focus-visible { background: var(--surface-subtle); outline: none; }
+.cli-menu-sep { height: 1px; margin: 6px 4px; background: var(--border); }
+.cli-menu .cli-menu-perigo { color: #B42318; }
+.cli-menu .cli-menu-perigo svg { color: #B42318; }
+.cli-menu .cli-menu-perigo:hover,
+.cli-menu .cli-menu-perigo:focus-visible { background: var(--error-soft); }
+
+/* Vazio */
+.cli-vazio {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+  padding: 40px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+}
+.cli-vazio > svg { width: 30px; height: 30px; color: var(--text-secondary); margin-bottom: 4px; }
+.cli-vazio-t { margin: 0; font-size: 16px; font-weight: 700; color: var(--text-primary); }
+.cli-vazio-s { margin: 0 0 10px; font-size: 14px; color: var(--text-secondary); }
+.cli-vazio .btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; }
+
+/* ── Painel "Novo cliente" ────────────────────────────── */
+.cli-drawer { width: min(460px, 100vw); }
+.cli-opc { font-weight: 500; color: var(--text-secondary); }
+.cli-form .np-input { min-height: 44px; }
+.cli-erro-geral {
+  display: flex; align-items: flex-start; gap: 10px; margin: 18px 0 0; padding: 12px 14px;
+  border-radius: var(--radius-md); background: var(--error-soft); color: #B42318; font-size: 13.5px; line-height: 1.45;
+}
+.cli-erro-geral svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; }
+.cli-spin {
+  display: inline-block; width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid currentColor; border-right-color: transparent;
+  animation: cli-gira 0.7s linear infinite; vertical-align: -2px;
+}
+@keyframes cli-gira { to { transform: rotate(360deg); } }
+#cliNovoSalvar { display: inline-flex; align-items: center; gap: 8px; }
+#cliNovoSalvar:disabled { opacity: 0.75; cursor: progress; }
+
+.cli-ok {
+  display: flex; flex-direction: column; gap: 8px; margin-top: 20px; padding: 18px;
+  border-radius: var(--radius-lg); background: var(--color-primary-100);
+  border: 1px solid color-mix(in srgb, var(--color-primary-600) 30%, transparent);
+}
+.cli-ok-rot { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--color-primary-800); }
+.cli-ok-rot svg { width: 16px; height: 16px; }
+.cli-ok-cod { font-family: var(--font-mono, ui-monospace, monospace); font-size: 26px; font-weight: 700; letter-spacing: 0.08em; color: var(--text-primary); }
+.cli-ok-link { font-size: 12.5px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.cli-ok-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.cli-ok-acoes .btn, .cli-drawer .dsp-ft .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; white-space: nowrap; }
+.cli-ok-acoes svg, .cli-drawer .dsp-ft svg { width: 16px; height: 16px; }
+
+/* ── Celular ──────────────────────────────────────────── */
+@media (max-width: 760px) {
+  .cli-barra { grid-template-columns: 1fr; }
+  .cli-filtros { display: grid; grid-template-columns: 1fr 1fr; }
+  .cli-filtro select { min-width: 0; width: 100%; }
+
+  /* A tabela vira cards compactos: sem cabeçalho de coluna, cada linha uma
+     grade de 2 colunas (cliente/ações em cima, anamnese/código embaixo). */
+  .cli-sup { background: transparent; border: 0; box-shadow: none; }
+  .cli-tabela thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+  .cli-tabela, .cli-tabela tbody { display: block; }
+  .cli-tabela tbody { display: flex; flex-direction: column; gap: 8px; }
+  .cli-linha {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 10px;
+    padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  }
+  .cli-tabela td { display: block; padding: 0; border: 0; }
+  .cli-tabela td.cli-c-cliente { grid-column: 1; grid-row: 1; width: auto; min-width: 0; }
+  .cli-c-acoes { grid-column: 2; grid-row: 1; display: flex !important; align-items: center; }
+  .cli-c-anamnese { grid-column: 1; grid-row: 2; min-width: 0; }
+  .cli-c-codigo { grid-column: 2; grid-row: 2; justify-self: end; }
+  .cli-tag { white-space: normal; }
+  .cli-tag-rot { display: inline; }
+  .cli-abrir { min-height: 40px; }
+}
+@media (max-width: 420px) {
+  .cli-cabeca .page-title { font-size: 26px; }
+  .cli-novo { padding: 0 14px; }
+  .cli-filtros { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cli-spin { animation-duration: 1.6s; }
+  .cli-linha, .cli-busca { transition: none; }
+}

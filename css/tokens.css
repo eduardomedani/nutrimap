@@ -162,6 +162,24 @@
   /* ── LAYOUT ─────────────────────────────────────────────────────────── */
   --sidebar-w: 260px;
 
+  /* ── MENU LATERAL DO PAINEL (11/11/2026) ────────────────────────────── */
+  /* Verde profundo da marca (o 800), para a navegação se separar da área de
+     trabalho clara. O verde vivo (600) continua reservado às ações. Todos os
+     tons derivam da escala primária e do branco de texto — nenhum hex novo.
+     Contraste sobre --sidebar-bg: texto 11:1, texto suave ~7:1, títulos dos
+     grupos ~5:1 (ver test/painel-lateral.test.mjs). */
+  --sidebar-bg:        var(--color-primary-800);
+  --sidebar-fg:        color-mix(in srgb, var(--text-on-primary) 94%, var(--sidebar-bg));
+  --sidebar-fg-soft:   color-mix(in srgb, var(--text-on-primary) 76%, var(--sidebar-bg));
+  --sidebar-fg-mute:   color-mix(in srgb, var(--text-on-primary) 62%, var(--sidebar-bg));
+  --sidebar-fg-off:    color-mix(in srgb, var(--text-on-primary) 46%, var(--sidebar-bg));  /* "em breve" */
+  --sidebar-hover:     color-mix(in srgb, var(--text-on-primary) 8%, var(--sidebar-bg));
+  --sidebar-active-bg: color-mix(in srgb, var(--color-primary-500) 24%, var(--sidebar-bg));
+  --sidebar-active-fg: var(--text-on-primary);
+  --sidebar-accent:    var(--color-primary-300);   /* ícone ativo e foco */
+  --sidebar-surface:   color-mix(in srgb, var(--color-primary-900) 40%, var(--sidebar-bg));  /* rodapé */
+  --sidebar-divider:   color-mix(in srgb, var(--text-on-primary) 11%, var(--sidebar-bg));
+
   /* ═══════════════════════════════════════════════════════════════════════
      COMPATIBILIDADE — nomes herdados do NutriMap
      -----------------------------------------------------------------------

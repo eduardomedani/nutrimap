@@ -1880,6 +1880,11 @@
 <link rel="stylesheet" href="css/paciente-servicos.css">
 <!-- Visão geral do paciente: 4 indicadores, grade 65/35, ordem no celular. -->
 <link rel="stylesheet" href="css/paciente-visao.css">
+<!-- Clientes: cabeçalho, busca, filtros e a tabela (js/clientes-ui.js). -->
+<link rel="stylesheet" href="css/clientes.css">
+<!-- Menu lateral em verde profundo (tokens --sidebar-* em tokens.css). Por
+     último: ajusta a lateral que brand.css desenha. -->
+<link rel="stylesheet" href="css/painel-lateral.css">
 </head>
 <body>
 
@@ -2066,8 +2071,8 @@
       </div>
     </div>
 
-    <button class="bg-atalho" id="btnBuscaGlobal" aria-label="Busca global">
-      <i data-lucide="search"></i> <span>Buscar</span> <kbd>Ctrl K</kbd>
+    <button class="bg-atalho" id="btnBuscaGlobal" aria-label="Busca global (Ctrl K)" aria-keyshortcuts="Control+K">
+      <i data-lucide="search" aria-hidden="true"></i> <span>Busca global</span> <kbd aria-hidden="true">Ctrl K</kbd>
     </button>
 
     <nav class="sidebar-nav">
@@ -2137,42 +2142,46 @@
       </div>
     </div>
 
-    <!-- ANAMNESE -->
+    <!-- CLIENTES — montada por js/clientes-ui.js. O cadastro abre num painel
+         lateral ("Novo cliente"); o formulário aberto no topo era confundido
+         com a busca (11/11/2026). -->
     <div class="module-page" id="page-pacientes">
-      <div class="page-header">
-        <h1 class="page-title"><i data-lucide="users"></i> <em>Clientes</em></h1>
-        <div class="page-sub">Selecione um cliente para abrir a ficha completa</div>
+      <div class="page-header cli-cabeca">
+        <div class="cli-cabeca-txt">
+          <h1 class="page-title">Clientes</h1>
+          <p class="page-sub">Gerencie seus clientes e acesse suas fichas.</p>
+        </div>
+        <button type="button" class="btn primary cli-novo" id="cliNovo"><i data-lucide="plus" aria-hidden="true"></i> Novo cliente</button>
       </div>
 
-      <div class="novo-paciente-card">
-        <div class="novo-paciente-header">
-          <div class="novo-paciente-icon"><i data-lucide="user-plus"></i></div>
-          <div>
-            <div class="novo-paciente-title">Cadastrar <em>novo cliente</em></div>
-            <div class="novo-paciente-sub">Preencha os dados e gere o código de acesso (anamnese e app)</div>
-          </div>
+      <div class="cli-barra" role="search" aria-label="Clientes">
+        <div class="cli-busca">
+          <i data-lucide="search" aria-hidden="true"></i>
+          <label for="cliBusca" class="sr-only">Buscar cliente por nome, e-mail ou WhatsApp</label>
+          <input type="search" id="cliBusca" name="cli-busca" placeholder="Buscar cliente por nome, e-mail ou WhatsApp"
+                 autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+          <button type="button" class="cli-busca-limpar" id="cliBuscaLimpar" aria-label="Limpar busca" hidden><i data-lucide="x" aria-hidden="true"></i></button>
         </div>
-        <div class="novo-paciente-form">
-          <input type="text"  id="novoPacienteNome"     placeholder="Nome do cliente" class="np-input" />
-          <input type="email" id="novoPacienteEmail"    placeholder="Email (opcional)" class="np-input" autocomplete="off" />
-          <input type="tel"   id="novoPacienteTelefone" placeholder="WhatsApp (opcional)" class="np-input" autocomplete="off" />
-          <button class="btn primary" id="btnGerar">Cadastrar cliente <i data-lucide="arrow-right"></i></button>
+        <div class="cli-filtros">
+          <label class="cli-filtro">
+            <span class="cli-filtro-rot">Status da anamnese</span>
+            <select id="cliAnamnese">
+              <option value="">Todos</option>
+              <option value="aguardando">Aguardando resposta</option>
+              <option value="completo">Respondida</option>
+            </select>
+          </label>
+          <label class="cli-filtro">
+            <span class="cli-filtro-rot">Ordenar por</span>
+            <select id="cliOrdem">
+              <option value="recentes">Mais recentes</option>
+              <option value="nome">Nome (A–Z)</option>
+            </select>
+          </label>
         </div>
-        <div class="novo-paciente-result" id="resultGerado" style="display: none;">
-          <div class="np-result-header"><span class="np-result-label"><i data-lucide="check"></i> Código gerado</span><span class="np-result-code" id="resultCode">—</span></div>
-          <div class="np-result-link" id="resultLink">—</div>
-          <div class="np-result-actions">
-            <button class="btn-sm" id="btnCopiar"><i data-lucide="copy"></i> Copiar link</button>
-            <button class="btn-sm" id="btnWhatsapp"><i data-lucide="message-circle"></i> WhatsApp</button>
-            <button class="btn-sm btn-sm-secondary" id="btnPreview"><i data-lucide="eye"></i> Pré-visualizar</button>
-          </div>
-        </div>
+        <p class="cli-contagem" id="cliContagem" aria-live="polite">Carregando…</p>
       </div>
 
-      <div class="list-header">
-        <div class="list-title">Seus <em>clientes</em></div>
-        <div class="search-box search-box-inteira"><i data-lucide="search"></i> <input type="text" id="searchInput" placeholder="Buscar por nome ou código..." /></div>
-      </div>
       <div id="patientsContainer"><div class="loading"><div class="spinner"></div>Carregando clientes...</div></div>
     </div>
 
@@ -2285,6 +2294,7 @@
   import { gerarRelatorio } from './js/relatorio.js';
   import { processarRecordatorioIA } from './js/recordatorio-ia.js';
   import { abrirFichaPaciente } from './js/ficha.js';
+  import { ligarTelaClientes, definirClientes } from './js/clientes-ui.js';
   import { initAvaliacoesUI } from './js/avaliacoes-ui.js';
   import { initExerciciosUI } from './js/exercicios-ui.js';
   import { listarTreinosComVencimento } from './js/treinos.js';
@@ -2292,7 +2302,7 @@
   import { definirCompetencia } from './js/competencia.js';
 
   let todosPacientes = [];
-  let ultimoCodigoGerado = null;
+  let _cargaClientes = 0;   // só a última carga da lista de clientes pinta
 
   // `secao` só vale para as páginas com abas (financeiro, equipe). Existe para
   // que abrir #equipe/folha seja UMA montagem: antes, quem restaurava a rota
@@ -2519,6 +2529,14 @@
     item.addEventListener('click', () => {
       if (item.classList.contains('disabled')) return;   // módulos não prontos: sem funcionalidade
       navegar(item.dataset.page);
+    });
+    // Teclado: os itens são <div>. Tab chega neles e Enter/Espaço abrem — o
+    // mesmo caminho do clique. Os "em breve" ficam fora do Tab.
+    if (item.classList.contains('disabled')) { item.setAttribute('aria-disabled', 'true'); return; }
+    item.tabIndex = 0;
+    item.setAttribute('role', 'link');
+    item.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); item.click(); }
     });
   });
 
@@ -2809,8 +2827,13 @@
   async function carregarPacientes() {
     const container = document.getElementById('patientsContainer');
     if (container) container.innerHTML = '<div class="loading"><div class="spinner"></div>Carregando clientes...</div>';
+    // Duas cargas em voo (entrar na página + cadastro): só a ÚLTIMA pinta.
+    const vez = ++_cargaClientes;
+    definirClientes(null);
     try {
-      todosPacientes = await listarPacientes();
+      const lista = await listarPacientes();
+      if (vez !== _cargaClientes) return;
+      todosPacientes = lista;
       renderizarEstatisticas();
       renderizarPacientes(todosPacientes);
     } catch (e) {
@@ -2830,75 +2853,22 @@
     if (el('stat-taxa')) el('stat-taxa').textContent = s.taxa + '%';
   }
 
+  // A lista vive em js/clientes-ui.js: TODA pintura aplica a busca, o filtro
+  // e a ordem que estão na tela. (Antes, recarregar desenhava tudo e ignorava
+  // o texto que continuava no campo de busca.)
   function renderizarPacientes(lista) {
-    const container = document.getElementById('patientsContainer');
-    if (!container) return;
-    if (lista.length === 0) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i data-lucide="inbox"></i></div>Você ainda não tem clientes. Cadastre o primeiro no Início!</div>';
-      return;
-    }
-    container.innerHTML = '<div class="patients-grid">' + lista.map(p => {
-      const status = p.status || 'aguardando';
-      return `<div class="patient-row"><div class="patient-avatar">${esc(iniciaisDoNome(p.nome))}</div><div class="patient-info"><div class="patient-name">${esc(p.nome || '(sem nome)')}</div><div class="patient-meta">Criado em ${esc(formatarData(p.criado_em))}</div></div><button class="patient-code patient-code-link" data-action="link" data-codigo="${esc(p.codigo)}" title="Copiar link da anamnese"><i data-lucide="link"></i> ${esc(p.codigo)}</button><span class="status-tag status-${esc(status)}">${esc(status)}</span><button class="patient-action primary" data-action="ver" data-id="${esc(p.id)}" title="Abrir e editar o cadastro"><i data-lucide="eye"></i> Ver</button><button class="patient-action" data-action="app" data-codigo="${esc(p.codigo)}" title="Copiar link de acesso ao app do aluno"><i data-lucide="smartphone"></i> App</button><button class="patient-action patient-action-danger" data-action="excluir" data-id="${esc(p.id)}" data-nome="${esc(p.nome || p.codigo)}"><i data-lucide="trash-2"></i></button></div>`;
-    }).join('') + '</div>';
-
-    container.querySelectorAll('[data-action]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const action = btn.dataset.action;
-        if (action === 'ver') abrirRelatorio(btn.dataset.id);
-        else if (action === 'link') copiarLinkPaciente(btn.dataset.codigo);
-        else if (action === 'app') copiarLinkApp(btn.dataset.codigo);
-        else if (action === 'excluir') confirmarExclusao(btn.dataset.id, btn.dataset.nome);
-      });
-    });
+    definirClientes(lista);
   }
 
-  document.getElementById('searchInput').addEventListener('input', (e) => {
-    const termo = e.target.value.toLowerCase();
-    const filtrados = todosPacientes.filter(p =>
-      (p.nome || '').toLowerCase().includes(termo) ||
-      (p.codigo || '').toLowerCase().includes(termo)
-    );
-    renderizarPacientes(filtrados);
-  });
-
-  document.getElementById('btnGerar').addEventListener('click', async () => {
-    const btn = document.getElementById('btnGerar');
-    const nomeInput = document.getElementById('novoPacienteNome');
-    const emailInput = document.getElementById('novoPacienteEmail');
-    const telInput = document.getElementById('novoPacienteTelefone');
-    const nome = nomeInput.value.trim();
-    const email = emailInput.value.trim();
-    const telefone = telInput.value.trim();
-    btn.disabled = true; btn.textContent = 'Cadastrando...';
-    try {
-      const paciente = await criarPaciente({ nome, email, telefone });
-      const linkCompleto = QUESTIONARIO_URL + 'anamnese.html?p=' + paciente.codigo;
-      ultimoCodigoGerado = { codigo: paciente.codigo, link: linkCompleto, nome };
-      document.getElementById('resultCode').textContent = paciente.codigo;
-      document.getElementById('resultLink').textContent = linkCompleto;
-      document.getElementById('resultGerado').style.display = 'block';
-      nomeInput.value = ''; emailInput.value = ''; telInput.value = '';
-      setTimeout(carregarPacientes, 300);
-    } catch (e) {
-      console.error(e);
-      alert('Erro ao gerar código: ' + e.message);
-    } finally {
-      btn.disabled = false; btn.innerHTML = 'Cadastrar cliente <i data-lucide="arrow-right"></i>';
-    }
-  });
-
-  document.getElementById('btnCopiar').addEventListener('click', () => {
-    if (ultimoCodigoGerado) copiarParaClipboard(ultimoCodigoGerado.link, '✓ Link copiado!');
-  });
-  document.getElementById('btnWhatsapp').addEventListener('click', () => {
-    if (!ultimoCodigoGerado) return;
-    const msg = montarMensagemQuestionario(ultimoCodigoGerado.nome, ultimoCodigoGerado.link);
-    window.open(gerarLinkWhatsapp(msg), '_blank');
-  });
-  document.getElementById('btnPreview').addEventListener('click', () => {
-    if (ultimoCodigoGerado) window.open(ultimoCodigoGerado.link, '_blank');
+  ligarTelaClientes({
+    abrirFicha: id => abrirRelatorio(id),
+    copiarLinkAnamnese: codigo => copiarLinkPaciente(codigo),
+    copiarLinkApp: codigo => copiarLinkApp(codigo),
+    excluir: (id, nome) => confirmarExclusao(id, nome),
+    criar: dados => criarPaciente(dados),
+    aoCriar: () => carregarPacientes(),
+    linkAnamnese: codigo => QUESTIONARIO_URL + 'anamnese.html?p=' + codigo,
+    abrirWhatsapp: (nome, link) => window.open(gerarLinkWhatsapp(montarMensagemQuestionario(nome, link)), '_blank', 'noopener'),
   });
 
   function copiarLinkPaciente(codigo) {

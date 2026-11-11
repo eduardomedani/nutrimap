@@ -1,0 +1,80 @@
+/* ═══════════════════════════════════════════════════════════
+   MENU LATERAL DO PAINEL — verde profundo (11/11/2026)
+   ═══════════════════════════════════════════════════════════
+   Só cor e estado: a estrutura, os grupos, as permissões e a versão celular
+   (gaveta que desliza) continuam como estão em index.html e brand.css.
+   Cores: tokens --sidebar-* em css/tokens.css. Carregada por último. */
+
+.sidebar {
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-divider);
+  color: var(--sidebar-fg);
+}
+.sidebar-header { border-bottom-color: var(--sidebar-divider); }
+
+/* Marca: o símbolo oficial fica como é (já traz fundo verde e cantos); o nome
+   vai para o branco, como na variante para fundo escuro. */
+.sidebar .evo-logo-name { color: var(--sidebar-fg); }
+.sidebar .sidebar-brand-sub { color: var(--sidebar-fg-mute); }
+
+/* Grupos */
+.sidebar .nav-group-title { color: var(--sidebar-fg-mute); }
+
+/* Itens */
+.sidebar .nav-item { color: var(--sidebar-fg-soft); }
+.sidebar .nav-item .nav-icon,
+.sidebar .nav-item .nav-icon svg { color: var(--sidebar-fg-mute); }
+.sidebar .nav-item:hover:not(.active):not(.disabled) {
+  background: var(--sidebar-hover);
+  color: var(--sidebar-fg);
+}
+.sidebar .nav-item:hover:not(.active):not(.disabled) .nav-icon,
+.sidebar .nav-item:hover:not(.active):not(.disabled) .nav-icon svg { color: var(--sidebar-fg); }
+.sidebar .nav-item.active {
+  background: var(--sidebar-active-bg);
+  color: var(--sidebar-active-fg);
+  font-weight: 700;
+  box-shadow: inset 3px 0 0 var(--sidebar-accent);
+}
+.sidebar .nav-item.active .nav-icon,
+.sidebar .nav-item.active .nav-icon svg { color: var(--sidebar-accent); }
+.sidebar .nav-item.disabled,
+.sidebar .nav-item.disabled .nav-icon,
+.sidebar .nav-item.disabled .nav-icon svg { color: var(--sidebar-fg-off); }
+.sidebar .nav-item.disabled:hover { background: transparent; }
+
+/* Foco de teclado: anel claro, visível sobre o verde. */
+.sidebar .nav-item:focus-visible,
+.sidebar .bg-atalho:focus-visible,
+.sidebar .logout-btn:focus-visible {
+  outline: 2px solid var(--sidebar-accent);
+  outline-offset: 2px;
+}
+
+/* Busca global */
+.sidebar .bg-atalho {
+  background: var(--sidebar-hover);
+  border-color: var(--sidebar-divider);
+  color: var(--sidebar-fg-soft);
+}
+.sidebar .bg-atalho:hover {
+  background: color-mix(in srgb, var(--text-on-primary) 13%, var(--sidebar-bg));
+  border-color: color-mix(in srgb, var(--text-on-primary) 20%, var(--sidebar-bg));
+  color: var(--sidebar-fg);
+}
+.sidebar .bg-atalho kbd {
+  background: var(--sidebar-surface);
+  border-color: var(--sidebar-divider);
+  color: var(--sidebar-fg-mute);
+}
+
+/* Rodapé: perfil numa superfície discretamente distinta. */
+.sidebar-footer { border-top-color: var(--sidebar-divider); }
+.sidebar .user-box { background: var(--sidebar-surface); }
+.sidebar .user-name { color: var(--sidebar-fg); }
+.sidebar .user-email { color: var(--sidebar-fg-mute); }
+.sidebar .logout-btn { color: var(--sidebar-fg-soft); }
+.sidebar .logout-btn:hover { background: var(--sidebar-hover); color: var(--sidebar-fg); }
+
+/* Barra de rolagem da navegação, discreta no verde. */
+.sidebar-nav { scrollbar-color: var(--sidebar-divider) transparent; }

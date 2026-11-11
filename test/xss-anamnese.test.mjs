@@ -189,14 +189,16 @@ grupo('segurança · index.html escapa o nome do paciente', () => {
   teste('importa o escape compartilhado', () => {
     ok(html.includes(`import { escaparHtml as esc } from './js/html-seguro.js';`));
   });
-  teste('lista de clientes: nome, iniciais, código e status passam por esc()', () => {
-    const linha = html.split('\n').find(l => l.includes('<div class="patient-row">'));
-    ok(linha, 'achei a linha do cliente');
-    for (const trecho of ['${esc(iniciaisDoNome(p.nome))}', "${esc(p.nome || '(sem nome)')}",
-      '${esc(p.codigo)}', '${esc(status)}', '${esc(p.nome || p.codigo)}']) {
+  teste('lista de clientes (js/clientes-ui.js): nome, iniciais, código e status passam por esc()', () => {
+    // 11/11/2026: a linha saiu do index.html para o módulo da tela.
+    const mod = readFileSync(resolve(RAIZ, 'js/clientes-ui.js'), 'utf8');
+    ok(mod.includes("import { escaparHtml as esc } from './html-seguro.js';"));
+    const linha = mod.slice(mod.indexOf('export function linhaHtml'), mod.indexOf('export function tabelaHtml'));
+    for (const trecho of ['${esc(iniciais(p.nome))}', '${esc(nome)}',
+      '${esc(p.codigo)}', '${esc(a.rotulo)}', '${esc(p.nome || p.codigo)}', '${esc(p.id)}']) {
       ok(linha.includes(trecho), `falta ${trecho}`);
     }
-    ok(!/\$\{p\.nome/.test(linha), 'nenhum ${p.nome...} cru');
+    ok(!/\$\{p\.(nome|codigo|email|telefone)/.test(linha), 'nenhum campo do banco cru');
   });
   teste('lista de treinos a vencer: nome do paciente passa por esc()', () => {
     ok(html.includes('<div class="gt-nome">${esc(nome)}</div>'));
