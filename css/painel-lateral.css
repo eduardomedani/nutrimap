@@ -51,8 +51,9 @@
   outline-offset: 2px;
 }
 
-/* Busca global */
+/* Busca global. Respiro em cima: estava colada na linha do cabeçalho. */
 .sidebar .bg-atalho {
+  margin-top: 14px;
   background: var(--sidebar-hover);
   border-color: var(--sidebar-divider);
   color: var(--sidebar-fg-soft);
