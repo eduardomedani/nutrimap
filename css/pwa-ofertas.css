@@ -1,6 +1,10 @@
 /* ═══════════════════════════════════════════════════════════
-   OFERTAS — card do Início e vitrine da aba com cadeado
-   (js/pwa-ofertas.js). Usa os botões .in-btn do Início.
+   OFERTAS — card do Início e a mini landing page do serviço não contratado
+   (js/pwa-ofertas.js). Seções de fundo inteiro, alternando:
+     verde profundo (--color-primary-800) · claro (--background) ·
+     verde suave (--of-suave, derivado do 200) · verde profundo no fim.
+   Reaproveita: .in-btn do Início, .pa-btn e .pa-finishbar da casca, o card de
+   exercício (.pa-ex, app.html) e a folha/refeição da Dieta (pwa-dieta.css).
    ═══════════════════════════════════════════════════════════ */
 
 /* ── Card do Início ───────────────────────────────────── */
@@ -15,72 +19,213 @@
 .of-adiar:hover { color: var(--ink); }
 .of-adiar:focus-visible { outline: 2px solid var(--color-primary-800); outline-offset: 2px; }
 
-/* ── Vitrine ──────────────────────────────────────────── */
-/* O .pa-main já dá as margens laterais (como no .inicio). */
-.of-vitrine { display: flex; flex-direction: column; gap: 16px; }
+/* ── A página ocupa a largura toda (as cores vão de borda a borda) ── */
+.pa-shell .pa-main.of-main.of-main { max-width: none; padding: 0; }
+.of-faixa[hidden] { display: none; }
 
-.of-hero {
-  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px;
-  padding: 22px 18px 20px; border-radius: 22px;
-  background: linear-gradient(160deg, var(--color-primary-100), var(--surface) 75%);
-  border: 1px solid color-mix(in srgb, var(--color-primary-600) 22%, transparent);
+.of-vitrine {
+  /* Tons da página, todos derivados da paleta. */
+  --of-fundo: var(--color-primary-800);
+  --of-branco: var(--text-on-primary);
+  --of-branco-suave: color-mix(in srgb, var(--text-on-primary) 82%, var(--color-primary-800));
+  --of-destaque: var(--color-primary-300);
+  --of-suave: color-mix(in srgb, var(--color-primary-200) 45%, var(--surface));
+  display: flex; flex-direction: column;
 }
+.of-s { padding: 44px 0; }
+.of-in { max-width: var(--pa-conteudo-max); margin: 0 auto; padding: 0 var(--pa-conteudo-pad); }
+.of-escuro { background: var(--of-fundo); color: var(--of-branco); }
+.of-claro { background: var(--background); }
+.of-suave { background: var(--of-suave); }
+
+.of-sec-t {
+  margin: 0 0 22px; font-size: 26px; line-height: 1.15; font-weight: 800;
+  letter-spacing: -0.02em; color: var(--ink); text-wrap: balance;
+}
+
+/* ── 1. Abertura ──────────────────────────────────────── */
+.of-hero { padding: 34px 0 0; overflow: hidden; }
 .of-selo {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 5px 10px; border-radius: 999px;
-  background: var(--surface); color: var(--ink-soft);
-  font-size: 12px; font-weight: 800;
-  border: 1px solid var(--hair);
+  margin: 0 0 12px; font-size: 12px; font-weight: 800; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--of-destaque);
 }
-.of-selo svg { width: 13px; height: 13px; }
-.of-hero-ic {
-  display: flex; align-items: center; justify-content: center;
-  width: 64px; height: 64px; border-radius: 20px;
-  background: var(--color-primary-700); color: var(--text-on-primary);
-  box-shadow: var(--shadow-md);
+.of-tit {
+  margin: 0; font-size: clamp(31px, 9.2vw, 44px); line-height: 1.06; font-weight: 800;
+  letter-spacing: -0.03em; color: var(--of-branco); text-wrap: balance; hyphens: none;
 }
-.of-hero-ic svg { width: 32px; height: 32px; }
-.of-tit { margin: 4px 0 0; font-size: 23px; line-height: 1.2; font-weight: 800; color: var(--ink); letter-spacing: var(--tracking-snug, -0.01em); text-wrap: balance; }
-.of-chamada { margin: 0; max-width: 34ch; font-size: 15px; line-height: 1.5; color: var(--ink-soft); text-wrap: pretty; }
-.of-preco { margin: 4px 0 0; font-size: 17px; font-weight: 800; color: var(--color-primary-800); }
+.of-tit span { display: block; }
+.of-tit span + span { margin-top: 4px; color: var(--of-destaque); }
+.of-chamada { margin: 16px 0 0; max-width: 36ch; font-size: 16px; line-height: 1.5; color: var(--of-branco-suave); text-wrap: pretty; }
+.of-acao { margin-top: 24px; }
+.of-acao-carregando { height: 52px; }
+.of-link {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-top: 8px;
+  font-size: 15px; font-weight: 700; color: var(--of-branco);
+  text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1.5px;
+}
+.of-link svg { width: 17px; height: 17px; }
+.of-escuro :focus-visible { outline: 2px solid var(--of-destaque); outline-offset: 3px; border-radius: 8px; }
 
-.of-bloco { display: flex; flex-direction: column; gap: 10px; }
-.of-bloco-t {
-  margin: 0; font-size: var(--pa-fs-rotulo, 12px); font-weight: 800; text-transform: uppercase;
-  letter-spacing: 0.06em; color: var(--ink-soft);
+/* Botão sobre o verde profundo: verde claro com texto quase preto (≈ 12:1). */
+.of-btn-claro {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; min-height: 54px; padding: 0 20px; border-radius: var(--pa-cta-radius, 16px);
+  background: var(--of-destaque); color: var(--color-primary-900);
+  font-size: 15.5px; line-height: 1.25; font-weight: 800; text-align: center; text-decoration: none;
 }
+.of-btn-claro svg { width: 20px; height: 20px; }
+.of-btn-claro:hover { background: var(--color-primary-200); }
 
-.of-bens { list-style: none; margin: 0; padding: 4px 14px; border-radius: 20px; background: var(--bg-card); border: 1px solid var(--hair); }
-.of-ben { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; }
-.of-ben + .of-ben { border-top: 1px solid var(--hair); }
-.of-ben-ic {
+/* Sem canal: orientação compacta, sem cara de botão. */
+.of-orient {
+  margin: 0; display: flex; align-items: flex-start; gap: 10px;
+  padding: 14px 16px; border-radius: 16px;
+  background: color-mix(in srgb, var(--text-on-primary) 9%, var(--color-primary-800));
+  font-size: 15px; line-height: 1.45; font-weight: 600; color: var(--of-branco);
+}
+.of-orient svg { flex: 0 0 auto; width: 20px; height: 20px; margin-top: 1px; color: var(--of-destaque); }
+
+/* O palco: forma de marca + a prévia do app. Altura reservada, sem salto. */
+.of-palco {
+  position: relative; max-width: var(--pa-conteudo-max); margin: 30px auto 0;
+  padding: 0 var(--pa-conteudo-pad) 34px; min-height: 210px;
+}
+.of-palco-forma {
+  position: absolute; right: -70px; bottom: -90px; width: 300px; height: 300px; border-radius: 50%;
+  background: var(--color-primary-700); opacity: 0.55;
+}
+.of-mini {
+  position: relative; margin: 0 0 0 auto; max-width: 330px;
+  padding: 16px; border-radius: 22px; background: var(--surface); color: var(--ink);
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.55);
+}
+.of-mini-cab { display: flex; align-items: center; gap: 10px; }
+.of-mini-cab > span:nth-child(2) { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.of-mini-cab b { font-size: 16px; font-weight: 800; }
+.of-mini-cab small { font-size: 12.5px; color: var(--ink-soft); }
+.of-mini-ic {
   flex: 0 0 auto; width: 38px; height: 38px; border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
   background: var(--color-primary-100); color: var(--color-primary-800);
 }
-.of-ben-ic svg { width: 19px; height: 19px; }
-.of-ben-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 13.5px; line-height: 1.4; color: var(--ink-soft); }
-.of-ben-txt b { font-size: 15px; font-weight: 800; color: var(--ink); }
-
-/* Exemplo desfocado, com o véu do cadeado por cima. */
-.of-ex { position: relative; overflow: hidden; border-radius: 20px; background: var(--bg-card); border: 1px solid var(--hair); }
-.of-ex-conteudo { padding: 14px 16px; filter: blur(3px); user-select: none; pointer-events: none; }
-.of-ex-t { margin: 0 0 8px; font-size: 15px; font-weight: 800; color: var(--ink); }
-.of-ex-l { list-style: none; margin: 0; padding: 0; }
-.of-ex-l li { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; font-size: 14px; color: var(--ink); }
-.of-ex-l li + li { border-top: 1px solid var(--hair); }
-.of-ex-v { font-weight: 700; color: var(--ink-soft); white-space: nowrap; }
-.of-ex-veu {
-  position: absolute; inset: 0;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-  padding: 16px; text-align: center;
-  background: color-mix(in srgb, var(--surface) 55%, transparent);
-  font-size: 13px; font-weight: 700; color: var(--ink);
+.of-mini-ic svg { width: 19px; height: 19px; }
+.of-mini-selo {
+  align-self: flex-start; padding: 3px 8px; border-radius: 999px;
+  background: var(--color-primary-100); color: var(--color-primary-800);
+  font-size: 10.5px; font-weight: 800;
 }
-.of-ex-veu svg { width: 22px; height: 22px; color: var(--color-primary-800); }
+.of-mini-barra { height: 6px; margin: 12px 0 4px; border-radius: 99px; background: var(--hair); overflow: hidden; }
+.of-mini-barra span { display: block; height: 100%; border-radius: inherit; background: var(--color-primary-600); }
+.of-mini-lista { list-style: none; margin: 8px 0 0; padding: 0; }
+.of-mini-l { display: flex; align-items: center; gap: 10px; padding: 9px 0; font-size: 14px; }
+.of-mini-l + .of-mini-l { border-top: 1px solid var(--hair); }
+.of-mini-ck {
+  flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%;
+  border: 1.5px solid var(--line, var(--hair)); display: flex; align-items: center; justify-content: center;
+}
+.of-mini-l.feito .of-mini-ck { background: var(--color-primary-700); border-color: var(--color-primary-700); color: var(--text-on-primary); }
+.of-mini-ck svg { width: 12px; height: 12px; stroke-width: 3; }
+.of-mini-n { flex: 1; min-width: 0; font-weight: 600; }
+.of-mini-v { flex: 0 0 auto; font-weight: 700; color: var(--color-primary-800); }
+.of-mini-chip {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 6px 11px;
+  border-radius: 999px; border: 1.5px solid var(--color-primary-700);
+  font-size: 12.5px; font-weight: 800; color: var(--color-primary-800);
+}
+.of-mini-chip svg { width: 14px; height: 14px; }
 
-.of-cta { padding-top: 4px; }
+/* ── 2. Benefícios ────────────────────────────────────── */
+.of-bens { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 24px; }
+.of-ben { display: flex; align-items: flex-start; gap: 14px; }
+.of-ben-ic {
+  flex: 0 0 auto; width: 44px; height: 44px; border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--color-primary-800); color: var(--of-destaque);
+}
+.of-ben-ic svg { width: 21px; height: 21px; }
+.of-ben-txt { display: flex; flex-direction: column; gap: 3px; padding-top: 1px; font-size: 15px; line-height: 1.45; color: var(--ink-soft); }
+.of-ben-txt b { font-size: 19px; line-height: 1.2; font-weight: 800; letter-spacing: -0.01em; color: var(--ink); }
+
+/* ── 3. Demonstração ──────────────────────────────────── */
+.of-demo-selo {
+  display: inline-block; margin-bottom: 12px; padding: 4px 10px; border-radius: 999px;
+  background: var(--color-primary-800); color: var(--of-branco);
+  font-size: 12px; font-weight: 800; letter-spacing: 0.02em;
+}
+.of-suave .of-sec-t { margin-bottom: 8px; }
+.of-demo-aviso { margin: 0 0 18px; font-size: 14px; line-height: 1.45; color: var(--ink-soft); }
+.of-resumo { padding: 16px 18px; border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
+.of-resumo-t { margin: 0; font-size: 17px; font-weight: 800; color: var(--ink); }
+.of-resumo-s { margin: 4px 0 0; font-size: 14px; line-height: 1.4; color: var(--ink-soft); }
+.of-resumo-tags { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.of-resumo-tags li {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px;
+  background: var(--color-primary-100); color: var(--color-primary-800); font-size: 12.5px; font-weight: 700;
+}
+.of-resumo-tags svg { width: 14px; height: 14px; }
+.of-btn-linha {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; min-height: 52px; margin-top: 16px; padding: 0 18px;
+  border-radius: var(--pa-cta-radius, 16px); border: 2px solid var(--color-primary-800);
+  background: transparent; font-family: inherit; font-size: 15.5px; font-weight: 800;
+  color: var(--color-primary-800); cursor: pointer;
+}
+.of-btn-linha svg { width: 19px; height: 19px; }
+.of-btn-linha:hover { background: color-mix(in srgb, var(--color-primary-800) 7%, transparent); }
+.of-btn-linha:focus-visible { outline: 2px solid var(--color-primary-800); outline-offset: 3px; }
+
+/* O painel (folha da Dieta) com a ficha interativa dentro. */
+.of-painel-aviso { margin: 6px 0 0; font-size: 13px; line-height: 1.4; color: var(--ink-soft); }
+.of-painel .of-demo { margin-top: 14px; }
+.of-demo .pa-ex { margin: 0; }
+.of-demo-exh { cursor: default; }
+.of-demo .pa-ex-body { display: block; }
+/* .pa-video nasceu para <a>; aqui é <button>: tira a borda e herda a fonte. */
+.of-demo button.pa-video { border: none; font-family: inherit; cursor: pointer; }
+.of-demo button.pa-video:focus-visible { outline: 2px solid var(--color-primary-800); outline-offset: 2px; }
+.of-demo-series { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.of-demo-nota, .of-demo-rodape { margin: 10px 0 0; font-size: 13px; line-height: 1.45; color: var(--ink-soft); }
+.of-demo-nota { padding: 10px 12px; border-radius: 12px; background: var(--color-primary-100); color: var(--ink); }
+
+/* ── 4. Como funciona ─────────────────────────────────── */
+.of-claro:focus { outline: none; }
+.of-passos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.of-passo { position: relative; display: flex; gap: 14px; padding-bottom: 22px; }
+.of-passo:last-child { padding-bottom: 0; }
+.of-passo:not(:last-child)::before {
+  content: ''; position: absolute; left: 17px; top: 38px; bottom: 4px; width: 2px;
+  background: color-mix(in srgb, var(--color-primary-800) 20%, transparent);
+}
+.of-passo-n {
+  flex: 0 0 auto; width: 36px; height: 36px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--color-primary-800); color: var(--of-branco);
+  font-size: 15px; font-weight: 800;
+}
+.of-passo-txt { display: flex; flex-direction: column; gap: 3px; padding-top: 5px; font-size: 15px; line-height: 1.45; color: var(--ink-soft); }
+.of-passo-txt b { font-size: 17.5px; line-height: 1.25; font-weight: 800; color: var(--ink); }
+.of-quem {
+  margin: 26px 0 0; display: flex; align-items: flex-start; gap: 10px;
+  padding-top: 18px; border-top: 1px solid var(--hair);
+  font-size: 14.5px; line-height: 1.45; color: var(--ink-soft);
+}
+.of-quem svg { flex: 0 0 auto; width: 19px; height: 19px; margin-top: 1px; color: var(--color-primary-800); }
+
+/* ── 5. Fechamento ────────────────────────────────────── */
+/* O fundo verde desce até atrás da barra de navegação: o respiro de baixo
+   inclui a reserva dela, e a página não termina numa faixa clara. */
+.of-fim { padding-bottom: calc(40px + var(--pa-barra-reserva, 72px)); }
+.of-fim-t {
+  margin: 0; font-size: clamp(28px, 8.4vw, 38px); line-height: 1.1; font-weight: 800;
+  letter-spacing: -0.025em; color: var(--of-branco); text-wrap: balance;
+}
+.of-valores, .of-preco { margin: 18px 0 0; font-size: 16px; font-weight: 800; color: var(--of-destaque); }
+.of-status { margin: 14px 0 0; font-size: 13px; color: var(--of-branco-suave); }
+
+/* ── Faixa fixa (só com ação funcional e com as outras fora da tela) ── */
+.of-cta-btn { margin-top: 0; text-decoration: none; }
+.of-cta-btn:focus-visible { outline: 3px solid var(--color-primary-300); outline-offset: 3px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .of-adiar { transition: none; }
+  .of-adiar, .of-btn-claro, .of-btn-linha { transition: none; }
 }

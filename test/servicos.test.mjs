@@ -103,7 +103,7 @@ grupo('serviços · a barra e a leitura do aluno', () => {
   teste('aba não contratada abre a vitrine, venha da barra ou do Início', () => {
     contem(casca, "if (sec === 'dieta' && !temServico('alimentacao')) renderOferta('alimentacao');");
     contem(casca, "else if (sec === 'treino' && !temServico('treino')) renderOferta('treino');");
-    contem(casca, ".then(m => m.renderVitrine('paOferta', id))");
+    contem(casca, ".then(m => m.renderVitrine('paOferta', id, { alvoAcao: 'paOfertaAcao' }))");
   });
   teste('quem não é da academia nem consulta a agenda', () => {
     contem(casca, "if (!temServico('academia')) return;");

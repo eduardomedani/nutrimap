@@ -523,15 +523,15 @@
     font-size: 10px; font-weight: 800; line-height: 16px; text-align: center;
   }
 
-  /* Aba de serviço não contratado (11/11/2026): cadeado pequeno no canto do
-     ícone; a aba abre a vitrine (js/pwa-ofertas.js). */
+  /* Aba de serviço não contratado (11/11/2026): um "+" pequeno no canto do
+     ícone, sem o peso de um cadeado; a aba abre a vitrine (js/pwa-ofertas.js).
+     O rótulo acessível diz "ainda não incluído". */
   .pa-barra-cadeado {
-    position: absolute; top: -5px; right: -9px; width: 15px; height: 15px;
+    position: absolute; top: -4px; right: -8px; width: 13px; height: 13px;
     display: flex; align-items: center; justify-content: center;
-    border-radius: 999px; background: var(--surface); color: var(--ink-soft);
-    box-shadow: 0 0 0 1px var(--hair);
+    border-radius: 999px; background: var(--color-primary-100); color: var(--color-primary-800);
   }
-  .pa-barra-item .pa-barra-cadeado svg { width: 10px; height: 10px; stroke-width: 2.6; }
+  .pa-barra-item .pa-barra-cadeado svg { width: 9px; height: 9px; stroke-width: 3; }
 
   /* Espaço embaixo do conteúdo: FIXO (mesmo com a barra recolhida), para a
      página não "saltar" quando ela some e volta. */

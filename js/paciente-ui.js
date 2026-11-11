@@ -965,8 +965,10 @@ function bottomNav() {
   const item = ([sec, icone, label, badge, bloqueada]) => {
     const on = sec === _secao;
     const contador = badge > 0 ? `<span class="pa-barra-badge" aria-label="${badge} novidade(s)">${badge > 9 ? '9+' : badge}</span>` : '';
-    const cadeado = bloqueada ? '<span class="pa-barra-cadeado" aria-hidden="true"><i data-lucide="lock"></i></span>' : '';
-    return `<button type="button" class="pa-barra-item${on ? ' ativo' : ''}${bloqueada ? ' bloqueada' : ''}" data-sec="${sec}"${on ? ' aria-current="page"' : ''}${bloqueada ? ` aria-label="${label} (conheça)"` : ''}>
+    // Discreto (11/11/2026): um "+" pequeno no canto diz "dá para incluir",
+    // sem o peso de um cadeado. O rótulo acessível diz o estado por extenso.
+    const cadeado = bloqueada ? '<span class="pa-barra-cadeado" aria-hidden="true"><i data-lucide="plus"></i></span>' : '';
+    return `<button type="button" class="pa-barra-item${on ? ' ativo' : ''}${bloqueada ? ' bloqueada' : ''}" data-sec="${sec}"${on ? ' aria-current="page"' : ''}${bloqueada ? ` aria-label="${label}, ainda não incluído (conheça)"` : ''}>
        <span class="pa-barra-icone"><i data-lucide="${icone}"></i>${contador}${cadeado}</span><span class="pa-barra-rot">${label}</span>
      </button>`;
   };
@@ -1230,11 +1232,17 @@ function renderOferta(id) {
   _secao = id === 'treino' ? 'treino' : 'dieta';
   app().innerHTML = `
     ${topo()}
-    <main class="pa-main"><div id="paOferta"></div></main>
+    <main class="pa-main of-main"><div id="paOferta"></div></main>
+    <div class="pa-finishbar of-faixa" hidden>
+      <div class="pa-finishbar-in" id="paOfertaAcao"></div>
+    </div>
     ${bottomNav()}`;
   ligarShell();
+  // A faixa fixa acima da navegação é a mesma do "Finalizar treino" (reserva
+  // espaço, some com o teclado, desce quando a barra recolhe). Nasce oculta:
+  // só aparece se houver ação funcional (canal comercial configurado).
   import('./pwa-ofertas.js')
-    .then(m => m.renderVitrine('paOferta', id))
+    .then(m => m.renderVitrine('paOferta', id, { alvoAcao: 'paOfertaAcao' }))
     .catch(e => {
       console.error('Oferta:', e);
       const cx = document.getElementById('paOferta');
