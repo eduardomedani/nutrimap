@@ -482,8 +482,11 @@
     pointer-events: none;
   }
   /* Teclado aberto: a barra sai da tela. Presa à viewport de layout, no iPhone
-     ela flutuaria no meio da tela por cima do conteúdo. */
-  body.pa-teclado .pa-barra { display: none; }
+     ela flutuaria no meio da tela por cima do conteúdo. O "Finalizar treino"
+     sai junto (11/11/2026): com os dois, sobravam ~250px no iPhone pequeno e
+     o campo de peso/repetições ficava escondido. Volta ao confirmar. */
+  body.pa-teclado .pa-barra,
+  body.pa-teclado .pa-finishbar { display: none; }
 
   /* A pílula do ativo: UMA, que desliza entre as abas. O trilho tem a largura
      de uma aba, então translateX(i × 100%) é exatamente "i abas para o lado". */
@@ -526,10 +529,14 @@
   /* Treino em andamento: a barra de finalizar é a última linha da casca e é
      ELA que reserva o espaço da barra — o miolo acima dela não precisa. */
   .pa-shell:has(.pa-finishbar) .pa-main { padding-bottom: 18px; }
-  .pa-shell .pa-finishbar { padding-bottom: var(--pa-barra-reserva); }
+  .pa-shell .pa-finishbar { padding-bottom: var(--pa-barra-reserva); transition: padding-bottom 0.28s cubic-bezier(.22,.61,.36,1); }
+  /* Barra recolhida: o "Finalizar" DESCE até a borda, junto com ela — antes
+     ele guardava o espaço da barra escondida e sobrava uma faixa vazia
+     embaixo (11/11/2026). Fica só a área segura + um respiro. */
+  body.pa-barra-recolhida .pa-shell .pa-finishbar { padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
 
   @media (prefers-reduced-motion: reduce) {
-    .pa-barra, .pa-barra-pilula { transition: none; }
+    .pa-barra, .pa-barra-pilula, .pa-shell .pa-finishbar { transition: none; }
   }
   .pa-select { padding: 9px 12px; border: 1px solid var(--hair); border-radius: 10px; background: var(--bg-card); font-size: 13.5px; color: var(--ink); max-width: 100%; }
 

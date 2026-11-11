@@ -66,6 +66,19 @@ export function tecladoAberto({ innerHeight, vvHeight, vvOffsetTop = 0 }) {
   return innerHeight - vvHeight - vvOffsetTop > TECLADO_LIMIAR;
 }
 
+/**
+ * O teclado está (ou vai estar) na tela?
+ *
+ * A medida da viewport sozinha NÃO basta (11/11/2026): no iPhone em modo app
+ * — e com `interactive-widget=resizes-content` — a janela e a viewport visual
+ * encolhem JUNTAS, a diferença fica zero e o teclado nunca era percebido. A
+ * barra e o "Finalizar treino" ficavam por cima do campo de peso/repetições.
+ * Num aparelho de toque, campo de texto com foco = teclado aberto.
+ */
+export function tecladoProvavel({ medido = false, campoFocado = false, toque = false }) {
+  return medido || (campoFocado && toque);
+}
+
 // ── A parte que liga a regra aos eventos (navegador) ─────────
 // O estado vive em CLASSES DO <body>, não na <nav>: cada tela do app
 // redesenha o HTML inteiro, e a barra nova herda o estado sem piscar.
@@ -98,11 +111,24 @@ export function ligarBarraRetratil({ obterRolador }) {
   _largura = window.innerWidth;
 
   const vv = window.visualViewport;
+  // Aparelho de toque (dedo, não mouse): é onde existe teclado virtual.
+  const toque = () => !!window.matchMedia?.('(pointer: coarse)')?.matches;
   let teclado = false;
   const medirTeclado = () => {
-    const agora = vv ? tecladoAberto({ innerHeight: window.innerHeight, vvHeight: vv.height, vvOffsetTop: vv.offsetTop }) : false;
+    const medido = vv ? tecladoAberto({ innerHeight: window.innerHeight, vvHeight: vv.height, vvOffsetTop: vv.offsetTop }) : false;
+    const agora = tecladoProvavel({ medido, campoFocado: ehCampoDeTexto(document.activeElement), toque: toque() });
     if (agora !== teclado) { teclado = agora; document.body.classList.toggle('pa-teclado', teclado); }
   };
+
+  // O campo que ganhou foco vai para o MEIO do que sobra de tela: com a
+  // barra e o "Finalizar" fora, ele não pode ficar atrás do teclado. Espera o
+  // teclado terminar de subir (iOS anima ~250ms).
+  document.addEventListener('focusin', e => {
+    if (!toque() || !ehCampoDeTexto(e.target)) return;
+    setTimeout(() => {
+      if (document.activeElement === e.target) e.target.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    }, 320);
+  });
 
   const reavaliar = () => {
     const r = obterRolador();

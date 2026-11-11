@@ -5,10 +5,10 @@
 // toda dúvida se resolve MOSTRANDO. Estes testes cobrem a ordem das decisões
 // de js/barra-retratil.js e o contraste dos tons sobre o vidro.
 
-import { grupo, teste, ok, igual } from './runner.mjs';
+import { grupo, teste, ok, igual, contem } from './runner.mjs';
 import { readFileSync } from 'node:fs';
 import {
-  decidir, estadoInicial, ehCampoDeTexto, tecladoAberto,
+  decidir, estadoInicial, ehCampoDeTexto, tecladoAberto, tecladoProvavel,
   PASSO_RECOLHER, PASSO_MOSTRAR, TOPO_SEMPRE_VISIVEL, FOLGA_FIM, BARRA_RETRATIL,
 } from '../js/barra-retratil.js';
 
@@ -114,6 +114,20 @@ grupo('barra retrátil · campo de texto e teclado', () => {
     ok(!ehCampoDeTexto(el('button')));
     ok(!ehCampoDeTexto(null));
   });
+  teste('iPhone em modo app: campo com foco num aparelho de toque = teclado aberto', () => {
+    // A janela e a viewport encolhem juntas: a medida dá "fechado".
+    igual(tecladoProvavel({ medido: false, campoFocado: true, toque: true }), true);
+    igual(tecladoProvavel({ medido: false, campoFocado: true, toque: false }), false, 'computador: campo com foco não esconde nada');
+    igual(tecladoProvavel({ medido: true, campoFocado: false, toque: true }), true, 'a medida, quando funciona, continua valendo');
+    igual(tecladoProvavel({ medido: false, campoFocado: false, toque: true }), false);
+  });
+
+  teste('o campo focado rola para o meio da tela depois que o teclado sobe', () => {
+    const src = readFileSync(new URL('../js/barra-retratil.js', import.meta.url), 'utf8');
+    contem(src, "e.target.scrollIntoView?.({ block: 'center', behavior: 'smooth' })");
+    contem(src, "window.matchMedia?.('(pointer: coarse)')");
+  });
+
   teste('teclado aberto = viewport visual perdeu mais de 150px', () => {
     igual(tecladoAberto({ innerHeight: 800, vvHeight: 500, vvOffsetTop: 0 }), true);
     igual(tecladoAberto({ innerHeight: 800, vvHeight: 700, vvOffsetTop: 0 }), false, 'barra do navegador não é teclado');

@@ -793,14 +793,19 @@ grupo('início · a casca e a barra flutuante', () => {
     contem(rec, 'transform: translateY(calc(100% + 8px + env(safe-area-inset-bottom, 0px) + 32px))');
     contem(rec, 'pointer-events: none');
     ok(!/display:\s*none/.test(rec), 'recolhida continua no DOM e na ordem de foco');
-    contem(regra('body.pa-teclado .pa-barra {'), 'display: none');
+    // Teclado aberto: a barra E o "Finalizar treino" saem (11/11/2026).
+    contem(semComentario, 'body.pa-teclado .pa-barra,\n  body.pa-teclado .pa-finishbar { display: none; }');
+  });
+
+  teste('barra recolhida: o "Finalizar treino" desce junto, sem faixa vazia', () => {
+    contem(semComentario, 'body.pa-barra-recolhida .pa-shell .pa-finishbar { padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }');
   });
 
   teste('reserva FIXA embaixo do conteúdo e variável para FAB/toast', () => {
     contem(shell, '--pa-barra-reserva: calc(72px + env(safe-area-inset-bottom, 0px));');
     contem(regra('.pa-shell .pa-main {'), 'overflow-y: auto');
     contem(semComentario, '.pa-shell .pa-main { padding-bottom: var(--pa-barra-reserva); }');
-    contem(semComentario, '.pa-shell .pa-finishbar { padding-bottom: var(--pa-barra-reserva); }');
+    contem(semComentario, '.pa-shell .pa-finishbar { padding-bottom: var(--pa-barra-reserva); transition: padding-bottom 0.28s');
     contem(shell, '--pa-barra-h: 64px;');
     contem(semComentario, 'body.pa-barra-recolhida { --pa-barra-h: 0px; }');
     for (const [nome, css] of [['pwa-inicio.css', inicioCss], ['pwa-dieta.css', dietaCss]]) {
@@ -809,7 +814,7 @@ grupo('início · a casca e a barra flutuante', () => {
   });
 
   teste('movimento reduzido desliga a pílula e o recolher', () => {
-    contem(semComentario, '.pa-barra, .pa-barra-pilula { transition: none; }');
+    contem(semComentario, '.pa-barra, .pa-barra-pilula, .pa-shell .pa-finishbar { transition: none; }');
   });
 
   teste('a barra antiga saiu por inteiro', () => {
