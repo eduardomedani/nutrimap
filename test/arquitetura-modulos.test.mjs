@@ -38,14 +38,22 @@ grupo('arquitetura · o menu mostra os dois módulos', () => {
     }
   });
 
-  teste('os dois vivem sob Administração, e nessa ordem', () => {
-    const i = index.indexOf('>Administração<');
-    ok(i > 0, 'faltou o grupo Administração no menu');
-    const trecho = index.slice(i, i + 800);
-    const iFin = trecho.indexOf('data-page="financeiro"');
-    const iEq = trecho.indexOf('data-page="equipe"');
-    ok(iFin > 0 && iEq > 0, 'os dois itens têm que ficar dentro do grupo');
-    ok(iFin < iEq, 'Financeiro vem antes de Equipe');
+  teste('Financeiro (com Comercial) num grupo próprio, logo acima da Administração (com Equipe)', () => {
+    // 11/11/2026: Comercial e Financeiro saíram de Administração para o grupo
+    // Financeiro, que vem logo antes. Equipe e Usuários ficam em Administração.
+    const grupo = titulo => {
+      const i = index.indexOf(`<div class="nav-group-title">${titulo}</div>`);
+      ok(i > 0, `faltou o grupo ${titulo} no menu`);
+      return { i, html: index.slice(i, index.indexOf('</div>\n      </div>', i)) };
+    };
+    const fin = grupo('Financeiro');
+    const adm = grupo('Administração');
+    ok(fin.i < adm.i, 'Financeiro vem antes de Administração');
+    ok(fin.html.includes('data-page="comercial"'), 'Comercial no grupo Financeiro');
+    ok(fin.html.includes('data-page="financeiro"'), 'Financeiro no grupo Financeiro');
+    ok(fin.html.indexOf('data-page="comercial"') < fin.html.indexOf('data-page="financeiro"'), 'Comercial antes de Financeiro');
+    ok(adm.html.includes('data-page="equipe"'), 'Equipe em Administração');
+    ok(!adm.html.includes('data-page="financeiro"'), 'Financeiro saiu de Administração');
   });
 
   teste('cada página tem o seu container', () => {

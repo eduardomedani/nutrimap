@@ -2092,22 +2092,34 @@
         <div class="nav-item" data-page="documentos"><span class="nav-icon"><i data-lucide="paperclip"></i></span><span>Documentos</span></div>
         <div class="nav-item disabled" data-page="ia"><span class="nav-icon"><i data-lucide="bot"></i></span><span>IA Nutricional</span></div>
       </div>
+      <!-- GESTÃO separada por assunto (11/11/2026, pedido do Eduardo): treinos
+           de um lado, dietas do outro. Cada grupo tem os seus Materiais (em
+           breve) — data-page diferentes para os dois não se confundirem. -->
       <div class="nav-group">
-        <div class="nav-group-title">Gestão</div>
-        <div class="nav-item" data-page="alimentos"><span class="nav-icon"><i data-lucide="apple"></i></span><span>Alimentos</span></div>
+        <div class="nav-group-title">Gestão Treinos</div>
         <div class="nav-item" data-page="treinos"><span class="nav-icon"><i data-lucide="list-checks"></i></span><span>Treinos</span></div>
         <div class="nav-item" data-page="exercicios"><span class="nav-icon"><i data-lucide="dumbbell"></i></span><span>Exercícios</span></div>
         <div class="nav-item" data-page="gestao-treinos"><span class="nav-icon"><i data-lucide="calendar-clock"></i></span><span>Gerenciar treinos</span></div>
         <div class="nav-item" data-page="agenda-treino" data-exige="agenda.visualizar" hidden><span class="nav-icon"><i data-lucide="calendar-check"></i></span><span>Agenda de treino</span></div>
         <div class="nav-item disabled" data-page="materiais"><span class="nav-icon"><i data-lucide="book-open"></i></span><span>Materiais</span></div>
       </div>
-      <!-- ADMINISTRAÇÃO — os dois módulos do escritório, separados de propósito.
-           Financeiro é o resultado da empresa; Equipe é gente, ponto, folha e
-           documentos. Eram a mesma opção de menu e não são o mesmo assunto. -->
       <div class="nav-group">
-        <div class="nav-group-title">Administração</div>
+        <div class="nav-group-title">Gestão Dietas</div>
+        <div class="nav-item" data-page="alimentos"><span class="nav-icon"><i data-lucide="apple"></i></span><span>Alimentos</span></div>
+        <div class="nav-item disabled" data-page="materiais-dietas"><span class="nav-icon"><i data-lucide="book-open"></i></span><span>Materiais</span></div>
+      </div>
+      <!-- FINANCEIRO (11/11/2026, pedido do Eduardo): o dinheiro — vendas e
+           planos (Comercial) e o resultado da empresa (Financeiro) — num grupo
+           próprio, acima da Administração. -->
+      <div class="nav-group">
+        <div class="nav-group-title">Financeiro</div>
         <div class="nav-item" data-page="comercial"><span class="nav-icon"><i data-lucide="handshake"></i></span><span>Comercial</span></div>
         <div class="nav-item" data-page="financeiro" data-exige="financeiro.visualizar" hidden><span class="nav-icon"><i data-lucide="wallet"></i></span><span>Financeiro</span></div>
+      </div>
+      <!-- ADMINISTRAÇÃO — gente e acesso: Equipe (ponto, folha e documentos) e
+           Usuários e acessos. -->
+      <div class="nav-group">
+        <div class="nav-group-title">Administração</div>
         <!-- id-card, e não users-round: "Clientes" logo acima já usa gente, e
              dois desenhos de pessoas na mesma barra se leem como o mesmo item. -->
         <div class="nav-item" data-page="equipe"><span class="nav-icon"><i data-lucide="id-card"></i></span><span>Equipe</span></div>
