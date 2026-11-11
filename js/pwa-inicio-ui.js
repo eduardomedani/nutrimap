@@ -26,7 +26,8 @@ import {
   inicioDaSemana, somarDias, diasAte,
 } from './pwa-inicio-data.js';
 import { resumoParaInicio } from './pwa-documentos-data.js';
-import { contratou } from './servicos.js';
+import { contratou, ofertaveis } from './servicos.js';
+import { ofertaCardHtml, ofertaAdiada, adiarOferta } from './pwa-ofertas.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const ic = nome => `<i data-lucide="${esc(nome)}"></i>`;
@@ -140,18 +141,12 @@ export function alimentacaoHtml(dieta) {
 }
 
 /**
- * Oferta de acompanhamento nutricional — para quem NÃO contratou Alimentação
- * (decisão do Eduardo: o não contratado aparece como oferta, sem tela vazia).
- * Sem botão: o app não tem canal de venda; o caminho é falar com o
- * profissional. Treino e Academia não contratados simplesmente não aparecem —
- * a academia sempre vende os dois juntos, e o nutricionista não vende nenhum.
+ * Ofertas do que o cliente NÃO contratou (Treino e Alimentação; 11/11/2026).
+ * "Conhecer" abre a vitrine da aba com cadeado; "Agora não" esconde o card
+ * por 30 dias neste aparelho (`adiadas`). O card mora em js/pwa-ofertas.js.
  */
-export function ofertaAlimentacaoHtml() {
-  return `
-    <section class="in-card in-oferta" aria-label="Acompanhamento nutricional">
-      ${cabecalhoCard({ icone: 'salad', rotulo: 'Acompanhamento nutricional' })}
-      <p class="in-card-vazio">Quer um plano alimentar feito para a sua rotina e o seu objetivo? Fale com o seu profissional para incluir a nutrição no seu acompanhamento.</p>
-    </section>`;
+export function ofertasHtml(servicos, adiadas = []) {
+  return ofertaveis(servicos).filter(id => !adiadas.includes(id)).map(ofertaCardHtml).join('');
 }
 
 // ── 4. Sua semana ───────────────────────────────────────────
@@ -360,6 +355,7 @@ export function inicioHtml(d = {}) {
     datasTreinadas = [], semana = 0, metaSemana = null, sequencia = 0, recordes = 0,
     agenda = null, consulta = null, plano = null, metas = [], documentos = null,
     servicos = null,   // o que o cliente contratou (null = não definido: tudo)
+    ofertasAdiadas = [],
   } = d;
   const tem = id => contratou(servicos, id);
   const cardTreino = tem('treino')
@@ -381,7 +377,7 @@ export function inicioHtml(d = {}) {
       ${tem('academia') ? proximaAulaHtml(agenda) : ''}
       ${consultaHtml(consulta)}
       ${tem('academia') ? planoHtml(plano, hoje) : ''}
-      ${tem('alimentacao') ? '' : ofertaAlimentacaoHtml()}
+      ${ofertasHtml(servicos, ofertasAdiadas)}
       ${metasHtml(metas)}
       ${acessoDocumentosHtml(documentos)}
     </div>`;
@@ -428,10 +424,21 @@ export async function renderInicioPaciente(alvo, bruto = {}, opcoes = {}) {
   const cx = typeof alvo === 'string' ? document.getElementById(alvo) : alvo;
   if (!cx) return;
 
+  const ofertasAdiadas = ofertaveis(bruto.servicos).filter(id => ofertaAdiada(bruto.pacienteId, id));
+  const ligar = () => {
+    ligarAtalhos(cx, opcoes.ir);
+    cx.querySelectorAll('[data-oferta-adiar]').forEach(b => b.addEventListener('click', () => {
+      const id = b.dataset.ofertaAdiar;
+      adiarOferta(bruto.pacienteId, id);
+      if (!ofertasAdiadas.includes(id)) ofertasAdiadas.push(id);
+      b.closest('[data-oferta]')?.remove();
+    }));
+  };
+
   // 1ª pintura IMEDIATA: saudação, data e o que já está em memória; o resto
   // em esqueleto dentro do próprio card.
-  cx.innerHTML = inicioHtml({ ...montarDados(bruto), dieta: undefined, treinoCarregando: !!opcoes.treino });
-  ligarAtalhos(cx, opcoes.ir);
+  cx.innerHTML = inicioHtml({ ...montarDados(bruto), dieta: undefined, treinoCarregando: !!opcoes.treino, ofertasAdiadas });
+  ligar();
 
   const carregarDieta = opcoes.carregarDieta
     || (async () => (await import('./pwa-dieta-data.js')).carregarDieta(bruto.pacienteId || null));
@@ -499,8 +506,9 @@ export async function renderInicioPaciente(alvo, bruto = {}, opcoes = {}) {
     documentos: rDocs.ok ? resumoParaInicio(rDocs.valor || []) : null,
     plano,
     agenda,
+    ofertasAdiadas,
   });
-  ligarAtalhos(cx, opcoes.ir);
+  ligar();
 }
 
 // Cada fonte falha por si; o log fica (RPC que sumiu é problema real).

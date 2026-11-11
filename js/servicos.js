@@ -32,3 +32,14 @@ export function rotuloServicos(servicos) {
   const nomes = SERVICOS.filter(s => servicos.includes(s.id)).map(s => s.rotulo);
   return nomes.length ? nomes.join(' + ') : 'Nenhum serviço';
 }
+
+// O que o app OFERECE a quem não tem (js/pwa-ofertas.js). Academia fica de
+// fora: é a matrícula, vendida no balcão. Até existir o catálogo por
+// organização (fase seguinte), vale para todas.
+export const VENDIDOS_NO_APP = ['treino', 'alimentacao'];
+
+/** Serviços à venda para este cliente. Sem definição (null): nenhum. */
+export function ofertaveis(servicos) {
+  if (!Array.isArray(servicos)) return [];
+  return VENDIDOS_NO_APP.filter(id => !servicos.includes(id));
+}

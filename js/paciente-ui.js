@@ -16,7 +16,7 @@ import {
 import { mostrarToast, mostrarErro, confirmar } from './utils.js';
 import { pushSuportado, pushAtivo, ativarNotificacoes, desativarNotificacoes, traduzirPush } from './push.js';
 import { ligarBarraRetratil, mostrarBarra } from './barra-retratil.js';
-import { contratou } from './servicos.js';
+import { contratou, ofertaveis } from './servicos.js';
 import * as Exec from './paciente-execucao.js';
 import { descansoDoItem, parseCadencia, fmtSegLongo } from './execucao-core.js';
 import * as Midia from './exercicio-midia.js';
@@ -938,17 +938,21 @@ function proximoDiaSugerido() {
 let _agendaAtiva = false;
 let _pilulaAntes = -1;   // aba acesa na tela anterior: a pílula desliza dela até a atual
 
-// Só as abas do que o cliente CONTRATOU (js/servicos.js). Sem definição na
-// ficha, tudo aparece, como sempre foi.
+// As abas do que o cliente CONTRATOU (js/servicos.js). Sem definição na
+// ficha, tudo aparece, como sempre foi. Treino e Dieta NÃO contratados
+// continuam na barra COM CADEADO e abrem a vitrine (js/pwa-ofertas.js).
 const temServico = id => contratou(_paciente?.servicos, id);
+const aVenda = id => ofertaveis(_paciente?.servicos).includes(id);
 
 function abasDaBarra() {
   return [
     ['inicio', 'house', 'Início'],
     // Logo depois do Início (pedido do Eduardo, 10/11/2026).
     ...(_agendaAtiva && temServico('academia') ? [['agenda', 'calendar-days', 'Agenda']] : []),
-    ...(temServico('treino') ? [['treino', 'dumbbell', 'Treino']] : []),
-    ...(temServico('alimentacao') ? [['dieta', 'salad', 'Dieta']] : []),
+    ...(temServico('treino') ? [['treino', 'dumbbell', 'Treino']]
+      : aVenda('treino') ? [['treino', 'dumbbell', 'Treino', 0, true]] : []),
+    ...(temServico('alimentacao') ? [['dieta', 'salad', 'Dieta']]
+      : aVenda('alimentacao') ? [['dieta', 'salad', 'Dieta', 0, true]] : []),
   ];
 }
 
@@ -958,11 +962,12 @@ function bottomNav() {
   // A barra é redesenhada a cada tela: nasce com a pílula na aba ANTERIOR e
   // ligarShell a desliza para a atual no quadro seguinte.
   const inicio = _pilulaAntes >= 0 && _pilulaAntes < abas.length ? _pilulaAntes : atual;
-  const item = ([sec, icone, label, badge]) => {
+  const item = ([sec, icone, label, badge, bloqueada]) => {
     const on = sec === _secao;
     const contador = badge > 0 ? `<span class="pa-barra-badge" aria-label="${badge} novidade(s)">${badge > 9 ? '9+' : badge}</span>` : '';
-    return `<button type="button" class="pa-barra-item${on ? ' ativo' : ''}" data-sec="${sec}"${on ? ' aria-current="page"' : ''}>
-       <span class="pa-barra-icone"><i data-lucide="${icone}"></i>${contador}</span><span class="pa-barra-rot">${label}</span>
+    const cadeado = bloqueada ? '<span class="pa-barra-cadeado" aria-hidden="true"><i data-lucide="lock"></i></span>' : '';
+    return `<button type="button" class="pa-barra-item${on ? ' ativo' : ''}${bloqueada ? ' bloqueada' : ''}" data-sec="${sec}"${on ? ' aria-current="page"' : ''}${bloqueada ? ` aria-label="${label} (conheça)"` : ''}>
+       <span class="pa-barra-icone"><i data-lucide="${icone}"></i>${contador}${cadeado}</span><span class="pa-barra-rot">${label}</span>
      </button>`;
   };
   return `<nav class="pa-barra" aria-label="Navegação principal" data-atual="${atual}"
@@ -981,10 +986,7 @@ function ligarBarra() {
       const sec = b.dataset.sec;
       if (sec === _secao) return;
       aoTopo();
-      if (sec === 'dieta') renderDieta();
-      else if (sec === 'inicio') renderInicio();
-      else if (sec === 'agenda') renderAgenda();
-      else irParaTreino();
+      irParaSecao(sec);
     }));
   const atual = Number(nav.dataset.atual);
   requestAnimationFrame(() => nav.style.setProperty('--pa-barra-i', String(Math.max(atual, 0))));
@@ -1212,10 +1214,37 @@ function pintarInicio(treino) {
 // o nome da seção e quem sabe navegar é quem está aqui.
 function irParaSecao(sec) {
   aoTopo();
-  if (sec === 'dieta') renderDieta();
+  // Não contratado: a aba abre a vitrine, venha da barra ou de um atalho.
+  if (sec === 'dieta' && !temServico('alimentacao')) renderOferta('alimentacao');
+  else if (sec === 'treino' && !temServico('treino')) renderOferta('treino');
+  else if (sec === 'inicio') renderInicio();
+  else if (sec === 'dieta') renderDieta();
   else if (sec === 'treino') irParaTreino();
   else if (sec === 'documentos') renderDocumentos();
   else if (sec === 'agenda') renderAgenda();
+}
+
+// Vitrine do serviço não contratado (a aba com cadeado). _secao é a da aba,
+// para a pílula acender nela. Import dinâmico: quem tem tudo não baixa.
+function renderOferta(id) {
+  _secao = id === 'treino' ? 'treino' : 'dieta';
+  app().innerHTML = `
+    ${topo()}
+    <main class="pa-main"><div id="paOferta"></div></main>
+    ${bottomNav()}`;
+  ligarShell();
+  import('./pwa-ofertas.js')
+    .then(m => m.renderVitrine('paOferta', id))
+    .catch(e => {
+      console.error('Oferta:', e);
+      const cx = document.getElementById('paOferta');
+      if (cx) cx.innerHTML = `
+        <div class="pa-empty pa-empty-lg">
+          <i data-lucide="cloud-off"></i>
+          <div class="pa-empty-t">Não foi possível abrir esta página</div>
+          <div class="pa-empty-s">Verifique sua conexão e tente novamente.</div>
+        </div>`;
+    });
 }
 
 // Seção Documentos — subtela do Início, não uma quarta aba.

@@ -2,7 +2,7 @@
 // SERVIÇOS CONTRATADOS — Alimentação, Treino, Academia
 // ═══════════════════════════════════════════════════════════
 // O que estes testes protegem: o aluno vê só o que contratou; o que não
-// contratou de Alimentação vira oferta; sem definição, nada muda para ninguém.
+// contratou de Treino e Alimentação vira oferta; sem definição, nada muda.
 
 import { grupo, teste, ok, igual, contem, naoContem } from './runner.mjs';
 import { readFileSync } from 'node:fs';
@@ -40,35 +40,44 @@ grupo('serviços · o Início do aluno', () => {
     agenda: { aula: null, podeAgendar: true },
     plano: { ativo: true, plano: 'Mensal 3x', fim: '2026-12-10', feitas: 1, disponiveis: 2 },
   };
-  teste('academia (Treino + Academia): sem dieta, com a oferta de nutrição', () => {
+  teste('academia (Treino + Academia): sem dieta, com a oferta da dieta', () => {
     const h = inicioHtml({ ...base, servicos: ['treino', 'academia'] });
     contem(h, 'Treino de hoje');
     contem(h, 'Sua semana');
     contem(h, 'Próxima aula');
     contem(h, 'Meu plano');
     naoContem(h, 'Sua alimentação');
-    contem(h, 'Acompanhamento nutricional');
-    contem(h, 'Fale com o seu profissional');
+    contem(h, 'data-oferta="alimentacao"');
+    naoContem(h, 'data-oferta="treino"');
   });
-  teste('nutricionista (só Alimentação): sem treino, sem semana, sem academia, sem oferta', () => {
+  teste('nutricionista (só Alimentação): sem treino, sem semana, sem academia; oferta do treino', () => {
     const h = inicioHtml({ ...base, servicos: ['alimentacao'] });
     contem(h, 'Sua alimentação');
-    for (const fora of ['Treino de hoje', 'Sua semana', 'Próxima aula', 'Meu plano', 'Acompanhamento nutricional']) naoContem(h, fora);
+    for (const fora of ['Treino de hoje', 'Sua semana', 'Próxima aula', 'Meu plano', 'data-oferta="alimentacao"']) naoContem(h, fora);
+    contem(h, 'data-oferta="treino"');
   });
   teste('os três: tudo, e nenhuma oferta', () => {
     const h = inicioHtml({ ...base, servicos: ['alimentacao', 'treino', 'academia'] });
     for (const s of ['Treino de hoje', 'Sua alimentação', 'Próxima aula', 'Meu plano']) contem(h, s);
-    naoContem(h, 'Acompanhamento nutricional');
+    naoContem(h, 'data-oferta=');
   });
   teste('não definido: igual a antes (tudo, sem oferta)', () => {
     const h = inicioHtml({ ...base, servicos: null });
     for (const s of ['Treino de hoje', 'Sua alimentação', 'Próxima aula']) contem(h, s);
-    naoContem(h, 'Acompanhamento nutricional');
+    naoContem(h, 'data-oferta=');
   });
-  teste('a oferta não tem botão (não há tela de venda)', () => {
+  teste('o card de oferta tem "Conhecer" (vai para a aba) e "Agora não"', () => {
     const h = inicioHtml({ ...base, servicos: ['treino'] });
-    const i = h.indexOf('in-oferta');
-    naoContem(h.slice(i, h.indexOf('</section>', i)), '<button');
+    const i = h.indexOf('data-oferta="alimentacao"');
+    const card = h.slice(i, h.indexOf('</section>', i));
+    contem(card, 'data-ir="dieta"');
+    contem(card, 'Conhecer');
+    contem(card, 'data-oferta-adiar="alimentacao"');
+  });
+  teste('"Agora não": a oferta adiada não aparece', () => {
+    const h = inicioHtml({ ...base, servicos: ['academia'], ofertasAdiadas: ['treino'] });
+    naoContem(h, 'data-oferta="treino"');
+    contem(h, 'data-oferta="alimentacao"');
   });
   teste('só um card de destaque ocupa a linha inteira', () => {
     contem(inicioHtml({ ...base, servicos: ['alimentacao'] }), 'class="in-duo in-duo-um"');
@@ -84,10 +93,17 @@ grupo('serviços · o Início do aluno', () => {
 grupo('serviços · a barra e a leitura do aluno', () => {
   const casca = ler('../js/paciente-ui.js');
   const abas = casca.slice(casca.indexOf('function abasDaBarra'), casca.indexOf('function bottomNav'));
-  teste('cada aba depende do serviço', () => {
+  teste('cada aba depende do serviço; Treino e Dieta à venda ficam com cadeado', () => {
     contem(abas, "_agendaAtiva && temServico('academia')");
     contem(abas, "temServico('treino')");
     contem(abas, "temServico('alimentacao')");
+    contem(abas, "aVenda('treino') ? [['treino', 'dumbbell', 'Treino', 0, true]]");
+    contem(abas, "aVenda('alimentacao') ? [['dieta', 'salad', 'Dieta', 0, true]]");
+  });
+  teste('aba não contratada abre a vitrine, venha da barra ou do Início', () => {
+    contem(casca, "if (sec === 'dieta' && !temServico('alimentacao')) renderOferta('alimentacao');");
+    contem(casca, "else if (sec === 'treino' && !temServico('treino')) renderOferta('treino');");
+    contem(casca, ".then(m => m.renderVitrine('paOferta', id))");
   });
   teste('quem não é da academia nem consulta a agenda', () => {
     contem(casca, "if (!temServico('academia')) return;");

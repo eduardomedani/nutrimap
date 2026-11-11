@@ -404,7 +404,9 @@ grupo('pwa documentos · a rota e a barra inferior', () => {
     // quando a agenda de treino está ligada. Documentos continua subtela do
     // Início — uma aba para algo aberto uma vez por mês desequilibraria a barra.
     const abas = casca.slice(casca.indexOf('function abasDaBarra()'), casca.indexOf('function bottomNav()'));
-    igual((abas.match(/\['(inicio|treino|agenda|dieta)'/g) || []).length, 4, 'Início | Treino | Agenda | Dieta');
+    // Treino e Dieta aparecem duas vezes (contratada, ou com cadeado à venda):
+    // conta as abas DISTINTAS.
+    igual(new Set(abas.match(/\['(inicio|treino|agenda|dieta)'/g) || []).size, 4, 'Início | Treino | Agenda | Dieta');
     contem(abas, "...(_agendaAtiva && temServico('academia') ? [['agenda'");
     naoContem(abas, 'documentos');
     naoContem(abas, "'mais'");
