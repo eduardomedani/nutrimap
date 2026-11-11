@@ -2082,19 +2082,19 @@
         <div class="nav-item" data-page="pacientes"><span class="nav-icon"><i data-lucide="users"></i></span><span>Clientes</span></div>
         <div class="nav-item disabled" data-page="agendamentos"><span class="nav-icon"><i data-lucide="calendar-days"></i></span><span>Agendamentos</span></div>
       </div>
+      <!-- GESTÃO separada por assunto (11/11/2026, pedidos do Eduardo): dietas
+           primeiro — com o que era "Análise" (Evolução, Check-ins, Documentos,
+           IA Nutricional) —, depois treinos. Cada grupo tem os seus Materiais
+           (em breve), com data-page diferentes para não se confundirem. -->
       <div class="nav-group">
-        <div class="nav-group-title">Análise</div>
+        <div class="nav-group-title">Gestão Dietas</div>
+        <div class="nav-item" data-page="alimentos"><span class="nav-icon"><i data-lucide="apple"></i></span><span>Alimentos</span></div>
         <div class="nav-item disabled" data-page="evolucao"><span class="nav-icon"><i data-lucide="chart-column"></i></span><span>Evolução</span></div>
-        <!-- Check-ins entra em Análise, e não em Gestão: aquele grupo guarda
-             catálogos-ingrediente (alimentos, exercícios). Esta tela é
-             operação — quem respondeu, quem atrasou —, e os modelos são meio. -->
         <div class="nav-item" data-page="checkins"><span class="nav-icon"><i data-lucide="clipboard-check"></i></span><span>Check-ins</span></div>
         <div class="nav-item" data-page="documentos"><span class="nav-icon"><i data-lucide="paperclip"></i></span><span>Documentos</span></div>
         <div class="nav-item disabled" data-page="ia"><span class="nav-icon"><i data-lucide="bot"></i></span><span>IA Nutricional</span></div>
+        <div class="nav-item disabled" data-page="materiais-dietas"><span class="nav-icon"><i data-lucide="book-open"></i></span><span>Materiais</span></div>
       </div>
-      <!-- GESTÃO separada por assunto (11/11/2026, pedido do Eduardo): treinos
-           de um lado, dietas do outro. Cada grupo tem os seus Materiais (em
-           breve) — data-page diferentes para os dois não se confundirem. -->
       <div class="nav-group">
         <div class="nav-group-title">Gestão Treinos</div>
         <div class="nav-item" data-page="treinos"><span class="nav-icon"><i data-lucide="list-checks"></i></span><span>Treinos</span></div>
@@ -2102,11 +2102,6 @@
         <div class="nav-item" data-page="gestao-treinos"><span class="nav-icon"><i data-lucide="calendar-clock"></i></span><span>Gerenciar treinos</span></div>
         <div class="nav-item" data-page="agenda-treino" data-exige="agenda.visualizar" hidden><span class="nav-icon"><i data-lucide="calendar-check"></i></span><span>Agenda de treino</span></div>
         <div class="nav-item disabled" data-page="materiais"><span class="nav-icon"><i data-lucide="book-open"></i></span><span>Materiais</span></div>
-      </div>
-      <div class="nav-group">
-        <div class="nav-group-title">Gestão Dietas</div>
-        <div class="nav-item" data-page="alimentos"><span class="nav-icon"><i data-lucide="apple"></i></span><span>Alimentos</span></div>
-        <div class="nav-item disabled" data-page="materiais-dietas"><span class="nav-icon"><i data-lucide="book-open"></i></span><span>Materiais</span></div>
       </div>
       <!-- FINANCEIRO (11/11/2026, pedido do Eduardo): o dinheiro — vendas e
            planos (Comercial) e o resultado da empresa (Financeiro) — num grupo

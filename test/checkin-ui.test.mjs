@@ -50,7 +50,7 @@ const OC = {
 
 
 // ═══════════════════════════════════════════════════════════
-grupo('check-in ui · o módulo entra em Análise', () => {
+grupo('check-in ui · o módulo entra em Gestão Dietas', () => {
 
   teste('o item está no menu, e não está cinza', () => {
     contem(shell, '<div class="nav-item" data-page="checkins">');
