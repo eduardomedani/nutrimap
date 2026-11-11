@@ -581,10 +581,15 @@
   .pa-runbar-id { flex: 1 1 auto; min-width: 0; }
   .pa-runbar-title { font-size: 19px; font-weight: 800; color: var(--text-primary); line-height: 1.15; letter-spacing: var(--tracking-snug); }
   .pa-runbar-sub { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .pa-runbar-prog { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-top: 12px; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
-  .pa-runbar-prog b { color: var(--text-primary); font-weight: 800; }
-  .pa-runbar-pct { font-size: 12.5px; font-weight: 800; color: var(--primary); font-variant-numeric: tabular-nums; }
-  .pa-runbar .pa-hero-bar { margin-top: 6px; height: 6px; background: var(--surface-subtle); }
+  .pa-runbar-sub b { color: var(--text-primary); font-weight: 800; font-variant-numeric: tabular-nums; }
+  /* Barra e porcentagem NA MESMA LINHA (11/11/2026). A porcentagem mora numa
+     caixa da largura de "100%" (o ::before invisível reserva o espaço), com o
+     número centralizado: a barra não muda de tamanho de 0% a 100%. */
+  .pa-runbar-prog { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .pa-runbar-pct { flex: 0 0 auto; display: grid; justify-items: center; font-size: 12.5px; font-weight: 800; color: var(--primary); font-variant-numeric: tabular-nums; line-height: 1; }
+  .pa-runbar-pct::before { content: '100%'; visibility: hidden; grid-area: 1 / 1; }
+  .pa-runbar-pct > span { grid-area: 1 / 1; }
+  .pa-runbar .pa-hero-bar { flex: 1 1 auto; min-width: 0; margin-top: 0; height: 6px; background: var(--surface-subtle); }
   .pa-runbar .pa-hero-bar > span { background: var(--primary); }
 
   /* Cronômetro (ou, antes de começar, o tempo estimado). */

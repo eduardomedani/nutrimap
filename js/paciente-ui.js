@@ -815,7 +815,6 @@ function renderTreinoDia() {
            aria-selected="${d === _diaSel}" aria-label="Treino ${d}">${d}</button>`).join('')}</div>`
     : '';
   const r = resumoDia(_diaSel);
-  const nomeTreino = (_treinos.find(t => t.id === _treinoSel)?.nome || '').trim();
 
   app().innerHTML = `
     ${topo()}
@@ -825,17 +824,16 @@ function renderTreinoDia() {
           <button class="pa-runbar-back" data-voltar aria-label="Voltar para a lista de treinos"><i data-lucide="chevron-left"></i></button>
           <div class="pa-runbar-id">
             <h1 class="pa-runbar-title">Treino ${esc(_diaSel)}</h1>
-            ${nomeTreino ? `<div class="pa-runbar-sub">${esc(nomeTreino)}</div>` : ''}
+            <div class="pa-runbar-sub" data-hero-count>${contagemHero(r)}</div>
           </div>
           <div data-cron-slot>${cronBloco(r)}</div>
         </div>
         <div class="pa-runbar-prog">
-          <span data-hero-count><b>${r.feitos}</b> de ${r.total} ${r.total === 1 ? 'exercício concluído' : 'exercícios concluídos'}</span>
-          <span class="pa-runbar-pct" data-hero-pct>${r.pct}%</span>
+          <div class="pa-hero-bar" data-hero-bar
+               role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${r.pct}"
+               aria-label="Progresso do treino"><span style="width:${r.pct}%"></span></div>
+          <span class="pa-runbar-pct"><span data-hero-pct>${r.pct}%</span></span>
         </div>
-        <div class="pa-hero-bar" data-hero-bar
-             role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${r.pct}"
-             aria-label="Progresso do treino"><span style="width:${r.pct}%"></span></div>
         <div class="pa-runbar-meta" data-runbar-meta>${metaRunbar(r)}</div>
       </header>
 
@@ -1409,6 +1407,12 @@ function resumoDia(dia) {
   return { total, feitos, pct, minutos, minRestante, volume: volumeDia(dia) };
 }
 
+// "2 de 7 exercícios" — no lugar do nome do programa, embaixo do título
+// (11/11/2026): o card do treino fica uma linha mais baixo no celular.
+function contagemHero(r) {
+  return `<b>${r.feitos}</b> de ${r.total} ${r.total === 1 ? 'exercício' : 'exercícios'}`;
+}
+
 // Atualiza barra + contador do cabeçalho sem re-renderizar a tela toda.
 function atualizarHero() {
   const barra = document.querySelector('[data-hero-bar]');
@@ -1418,7 +1422,7 @@ function atualizarHero() {
   const bar = barra?.querySelector('span');
   if (bar) bar.style.width = r.pct + '%';
   if (barra) barra.setAttribute('aria-valuenow', String(r.pct));
-  if (count) count.innerHTML = `<b>${r.feitos}</b> de ${r.total} ${r.total === 1 ? 'exercício concluído' : 'exercícios concluídos'}`;
+  if (count) count.innerHTML = contagemHero(r);
   const pct = document.querySelector('[data-hero-pct]');
   if (pct) pct.textContent = r.pct + '%';
   const meta = document.querySelector('[data-runbar-meta]');
