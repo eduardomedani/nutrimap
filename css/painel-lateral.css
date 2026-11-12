@@ -20,13 +20,13 @@
 /* Grupos */
 .sidebar .nav-group-title { color: var(--sidebar-fg-mute); }
 
-/* Itens */
-.sidebar .nav-item { color: var(--sidebar-fg-soft); }
+/* Itens: texto em branco (pedido de 11/11/2026); o ícone fica mais suave. */
+.sidebar .nav-item { color: var(--text-on-primary); }
 .sidebar .nav-item .nav-icon,
 .sidebar .nav-item .nav-icon svg { color: var(--sidebar-fg-mute); }
 .sidebar .nav-item:hover:not(.active):not(.disabled) {
   background: var(--sidebar-hover);
-  color: var(--sidebar-fg);
+  color: var(--text-on-primary);
 }
 .sidebar .nav-item:hover:not(.active):not(.disabled) .nav-icon,
 .sidebar .nav-item:hover:not(.active):not(.disabled) .nav-icon svg { color: var(--sidebar-fg); }
@@ -94,10 +94,10 @@
   width: 100%; min-height: 38px; padding: 8px 12px;
   border: 0; border-radius: var(--radius-sm); background: none; cursor: pointer;
   font: inherit; font-size: 14px; font-weight: 700; line-height: 1.2; text-align: left;
-  color: var(--sidebar-fg-mute);
+  color: var(--text-on-primary);
   transition: background var(--duration-base) var(--ease), color var(--duration-base) var(--ease);
 }
-.sidebar .nav-group-botao:hover { background: var(--sidebar-hover); color: var(--sidebar-fg); }
+.sidebar .nav-group-botao:hover { background: var(--sidebar-hover); color: var(--text-on-primary); }
 .sidebar .nav-group-botao:focus-visible { outline: 2px solid var(--sidebar-accent); outline-offset: 2px; }
 .sidebar .nav-group-botao svg {
   width: 16px; height: 16px; flex-shrink: 0;

@@ -60,6 +60,10 @@ grupo('menu lateral · grupos recolhíveis', () => {
     contem(css, 'font-size: 14px; text-transform: none; letter-spacing: 0;');
     contem(css, 'font: inherit; font-size: 14px; font-weight: 700;');
   });
+  teste('títulos dos grupos e itens em branco (11/11/2026)', () => {
+    contem(css, '.sidebar .nav-item { color: var(--text-on-primary); }');
+    contem(css, 'font: inherit; font-size: 14px; font-weight: 700; line-height: 1.2; text-align: left;\n  color: var(--text-on-primary);');
+  });
   teste('recolhido esconde os itens, MENOS o da página atual', () => {
     contem(css, '.sidebar .nav-group.recolhido .nav-item:not(.active) { display: none; }');
   });
